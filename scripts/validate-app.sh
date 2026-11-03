@@ -42,6 +42,10 @@ plist_value() {
 # The `capture` experiment's movie decoder, and the camera its iPhone mirror asks for.
 [ -x "$bundle/Contents/MacOS/scrawl-helper" ] || fail "scrawl-helper is missing"
 plist_value NSCameraUsageDescription >/dev/null 2>&1 || fail "Info.plist does not explain the camera"
+# The built-in cleanup engine and the libraries it finds through its rpath.
+[ -x "$bundle/Contents/MacOS/llama-server" ] || fail "llama-server is missing"
+otool -l "$bundle/Contents/MacOS/llama-server" | grep -q "path @executable_path/../Frameworks " || fail "llama-server can't find its libraries"
+[ -f "$bundle/Contents/Frameworks/libllama-server-impl.dylib" ] || fail "llama-server's libraries are missing"
 [ "$(lipo -archs "$bundle/Contents/MacOS/hex")" = arm64 ] || fail "packaged executable is not arm64-only"
 [ -x "$bundle/Contents/Library/HexMicrophone.driver/Contents/MacOS/HexMicrophoneDriver" ] || fail "bundled HexMicrophone.driver is missing"
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Contents/Library/HexMicrophone.driver/Contents/Info.plist")" = anomaly.hex.microphone.driver ] || fail "bundled driver has wrong bundle identifier"

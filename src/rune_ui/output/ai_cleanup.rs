@@ -2,7 +2,8 @@
 //! rewritten, where (OpenCode, OpenRouter, or the person's own
 //! OpenAI-compatible server such as LM Studio), with which model, key, and
 //! instructions, and a Test that sends one short request. The model field
-//! takes any id, and its list offers the models the server reports.
+//! takes any id, and its list offers the models the server reports. Built in
+//! (macOS) lists the models Hex downloads instead ([`super::local_cleanup`]).
 
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::time::Duration;
@@ -40,17 +41,28 @@ pub(in crate::rune_ui) struct Cleanup {
     models: Models,
     /// The model list: open, its search, and its highlight.
     picker: ComboboxState,
+    /// Whether the list was open at the last poll: opening it lists the
+    /// server's models again, so one added since shows.
+    picker_was_open: bool,
+    /// The built-in models and downloads.
+    pub(super) local: super::local_cleanup::LocalModels,
 }
 
 /// Which server a model list came from: a change loads it again.
 type Source = (Provider, String);
 
-/// The models the chosen server reports, loaded while Output shows.
+/// The models the chosen server reports, loaded while Output shows and
+/// again each time the list opens.
 #[derive(Default)]
 enum Models {
     #[default]
     Unloaded,
-    Loading(Source, Receiver<Result<Vec<ServerModel>, String>>),
+    /// The list shown meanwhile: the last one from the same server, if any.
+    Loading(
+        Source,
+        Receiver<Result<Vec<ServerModel>, String>>,
+        Vec<ServerModel>,
+    ),
     Loaded(Source, Vec<ServerModel>),
     Failed(Source, String),
 }
@@ -59,9 +71,19 @@ impl Models {
     fn source(&self) -> Option<&Source> {
         match self {
             Self::Unloaded => None,
-            Self::Loading(source, _) | Self::Loaded(source, _) | Self::Failed(source, _) => {
+            Self::Loading(source, ..) | Self::Loaded(source, _) | Self::Failed(source, _) => {
                 Some(source)
             }
+        }
+    }
+
+    /// The models to show for `from`: the loaded list, or the previous one
+    /// while it loads again.
+    fn listed(&self, from: &Source) -> Option<&[ServerModel]> {
+        match self {
+            Self::Loaded(source, models) if source == from => Some(models),
+            Self::Loading(source, _, stale) if source == from && !stale.is_empty() => Some(stale),
+            _ => None,
         }
     }
 }
@@ -108,7 +130,12 @@ pub(super) fn section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
         .into(),
         runs_on_row(p, saved.runs_on).into(),
     ];
-    if let Some(server) = Server::from_settings(saved) {
+    if let Some(server) = Server::from_settings(saved)
+        && server.provider == Provider::Local
+    {
+        rows.push(status_row(ui, p, &server).into());
+        rows.extend(super::local_cleanup::rows(ui, p));
+    } else if let Some(server) = Server::from_settings(saved) {
         rows.push(status_row(ui, p, &server).into());
         if server.provider == Provider::Custom {
             rows.push(url_row(ui, p, saved).into());
@@ -132,12 +159,19 @@ fn runs_on_row(p: Paint, runs_on: CleanupRunsOn) -> El {
         CleanupRunsOn::Opencode => 0,
         CleanupRunsOn::Openrouter => 1,
         CleanupRunsOn::Custom => 2,
+        CleanupRunsOn::Local => 3,
     };
     let description = match runs_on {
         CleanupRunsOn::Opencode => tr("The OpenCode service running on this computer"),
         CleanupRunsOn::Openrouter => tr("Hundreds of models with one API key"),
         CleanupRunsOn::Custom => tr("Ollama, LM Studio, or any OpenAI-compatible URL"),
+        CleanupRunsOn::Local => tr("A model Hex downloads and runs itself, offline"),
     };
+    // The built-in engine ships in the macOS app only.
+    let mut labels = vec!["OpenCode", "OpenRouter", tr("Your own")];
+    if cfg!(target_os = "macos") {
+        labels.push(tr("Built in"));
+    }
     setting_row(
         p,
         "ai-cleanup-runs-on",
@@ -146,12 +180,13 @@ fn runs_on_row(p: Paint, runs_on: CleanupRunsOn) -> El {
         segmented(
             p,
             "ai-cleanup-runs-on-picker",
-            &["OpenCode", "OpenRouter", tr("Your own")],
+            &labels,
             selected,
             |ui: &mut Ui, index| {
                 let runs_on = match index {
                     1 => CleanupRunsOn::Openrouter,
                     2 => CleanupRunsOn::Custom,
+                    3 => CleanupRunsOn::Local,
                     _ => CleanupRunsOn::Opencode,
                 };
                 if ui.settings.dictation_processing.server.runs_on != runs_on {
@@ -175,10 +210,13 @@ fn status_row(ui: &Ui, p: Paint, server: &Server) -> El {
             p.success(),
         ),
         Test::Failed(tested, why) if tested == server => (why.clone(), p.danger()),
+        _ if server.provider == Provider::Local => super::local_cleanup::engine_status(ui, p),
         _ => (format!("{} · {host}", tr("Not tested")), p.muted()),
     };
     let testing = matches!(&ui.output.cleanup.test, Test::Testing(tested, _) if tested == server);
-    let control = if testing {
+    let untestable =
+        server.provider == Provider::Local && !super::local_cleanup::chosen_installed(ui);
+    let control = if testing || untestable {
         text("").key("ai-cleanup-test")
     } else {
         button(
@@ -189,10 +227,15 @@ fn status_row(ui: &Ui, p: Paint, server: &Server) -> El {
             |ui, _| test(ui),
         )
     };
+    let title = if server.provider == Provider::Local {
+        tr("Built in").to_owned()
+    } else {
+        server.name()
+    };
     super::super::controls::described_row(
         p,
         "ai-cleanup-status",
-        &server.name(),
+        &title,
         Some((status, color)),
         control,
     )
@@ -270,12 +313,13 @@ fn model_row(
         |ui| saved_model(&ui.settings.dictation_processing.server).to_owned(),
         save_model,
     );
-    let description = match &ui.output.cleanup.models {
-        Models::Loaded(from, models) if *from == source(server) && !models.is_empty() => Some(
-            tr_fill("Type one, or choose from {}", &models.len().to_string()),
-        ),
-        _ => None,
-    };
+    let description = ui
+        .output
+        .cleanup
+        .models
+        .listed(&source(server))
+        .filter(|models| !models.is_empty())
+        .map(|models| tr_fill("Type one, or choose from {}", &models.len().to_string()));
     let controls = row()
         .key("ai-cleanup-model-controls")
         .gap(8.0)
@@ -299,8 +343,9 @@ fn model_list(ui: &Ui, p: Paint, server: &Server, saved: &str, layer: &mut Vec<E
     let mut ids = Vec::new();
     let mut options = Vec::new();
     let mut empty = tr("No models match");
-    match &ui.output.cleanup.models {
-        Models::Loaded(from, models) if *from == current_source => {
+    let models = &ui.output.cleanup.models;
+    match (models.listed(&current_source), models) {
+        (Some(models), _) => {
             for model in models {
                 let mut option = ComboboxOption::new(ids.len().to_string(), model.id.clone());
                 option.detail = model.name.clone();
@@ -311,7 +356,7 @@ fn model_list(ui: &Ui, p: Paint, server: &Server, saved: &str, layer: &mut Vec<E
                 empty = tr("The server lists no models");
             }
         }
-        Models::Failed(from, why) if *from == current_source => {
+        (None, Models::Failed(from, why)) if *from == current_source => {
             let mut option = ComboboxOption::new("retry", tr("Try again"));
             option.detail = why.clone();
             options.push(option);
@@ -370,6 +415,7 @@ fn key_row(ui: &Ui, p: Paint, provider: Provider) -> El {
         (true, _) => tr("Saved outside settings.json"),
         (false, Provider::OpenRouter) => tr("Required"),
         (false, Provider::Custom) => tr("Not needed for LM Studio or Ollama"),
+        (false, Provider::Local) => "",
     };
     let typed = !ui.output.cleanup.key.text.trim().is_empty();
     let input = TextInput::new(&ui.output.cleanup.key)
@@ -649,7 +695,9 @@ fn test(ui: &mut Ui) {
     let started = std::thread::Builder::new()
         .name("hex-cleanup-test".into())
         .spawn(move || {
-            let key = cleanup_server::keys::get(tested.provider);
+            let key = (tested.provider != Provider::Local)
+                .then(|| cleanup_server::keys::get(tested.provider))
+                .flatten();
             let _ = sender.send(
                 cleanup_server::test(&tested, key.as_deref()).map_err(|error| error.to_string()),
             );
@@ -665,18 +713,27 @@ fn test(ui: &mut Ui) {
 /// Takes a finished Test's answer and model list, and loads the chosen
 /// server's list while the window shows; true when it changed what shows.
 pub(super) fn poll(ui: &mut Ui) -> bool {
-    poll_models(ui) | poll_test(ui)
+    poll_models(ui) | poll_test(ui) | super::local_cleanup::poll(ui)
+}
+
+/// Whether something in the section moves on its own: a download, the
+/// model loading, or a Test.
+pub(super) fn busy(ui: &Ui) -> bool {
+    ui.output.cleanup.local.busy() || matches!(ui.output.cleanup.test, Test::Testing(..))
 }
 
 fn poll_models(ui: &mut Ui) -> bool {
-    if let Models::Loading(from, receiver) = &ui.output.cleanup.models {
+    let cleanup = &mut ui.output.cleanup;
+    let opened = cleanup.picker.open && !cleanup.picker_was_open;
+    cleanup.picker_was_open = cleanup.picker.open;
+    if let Models::Loading(from, receiver, _) = &cleanup.models {
         let finished = match receiver.try_recv() {
             Ok(Ok(models)) => Models::Loaded(from.clone(), models),
             Ok(Err(why)) => Models::Failed(from.clone(), why),
             Err(TryRecvError::Empty) => return false,
             Err(TryRecvError::Disconnected) => Models::Unloaded,
         };
-        ui.output.cleanup.models = finished;
+        cleanup.models = finished;
         return true;
     }
     if !ui.settings.labs.ai_cleanup_server
@@ -685,13 +742,20 @@ fn poll_models(ui: &mut Ui) -> bool {
     {
         return false;
     }
-    let Some(server) = Server::from_settings(&ui.settings.dictation_processing.server) else {
+    let Some(server) = Server::from_settings(&ui.settings.dictation_processing.server)
+        .filter(|server| server.provider != Provider::Local)
+    else {
         return false;
     };
     let wanted = source(&server);
-    if ui.output.cleanup.models.source() == Some(&wanted) {
+    // Opening the list asks again, so a model added on the server since shows.
+    if ui.output.cleanup.models.source() == Some(&wanted) && !opened {
         return false;
     }
+    let stale = match std::mem::take(&mut ui.output.cleanup.models) {
+        Models::Loaded(from, models) if from == wanted => models,
+        _ => Vec::new(),
+    };
     let (sender, receiver) = channel();
     let waker: Option<Waker> = ui.modes.waker.clone();
     let started = std::thread::Builder::new()
@@ -706,11 +770,11 @@ fn poll_models(ui: &mut Ui) -> bool {
                 waker();
             }
         });
-    if started.is_ok() {
-        ui.output.cleanup.models = Models::Loading(wanted, receiver);
-        return true;
-    }
-    false
+    ui.output.cleanup.models = match started {
+        Ok(_) => Models::Loading(wanted, receiver, stale),
+        Err(error) => Models::Failed(wanted, error.to_string()),
+    };
+    true
 }
 
 fn poll_test(ui: &mut Ui) -> bool {

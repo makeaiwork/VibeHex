@@ -7,9 +7,14 @@
 //! rest through the computer's proxy and trusted roots. The request runs on
 //! its own thread so cancellation and the deadline end the wait at once; a
 //! late answer is dropped. API keys come from the OS credential store
-//! ([`keys`]), never from settings.json.
+//! ([`keys`]), never from settings.json. Built in runs a model Hex downloads
+//! ([`local_models`]) on the bundled llama.cpp server ([`engine`]).
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub mod engine;
 pub(crate) mod keys;
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub mod local_models;
 pub mod models;
 
 use std::sync::RwLock;
@@ -28,6 +33,8 @@ pub const LM_STUDIO_URL: &str = "http://127.0.0.1:1234/v1";
 pub const OLLAMA_URL: &str = "http://127.0.0.1:11434/v1";
 /// How long Test waits: a local server may still be loading its model.
 pub const TEST_DEADLINE: Duration = Duration::from_secs(30);
+/// Test of the built-in model may first load the model.
+const ENGINE_TEST_DEADLINE: Duration = Duration::from_secs(120);
 /// How often a waiting rewrite checks cancellation.
 const POLL: Duration = Duration::from_millis(50);
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
@@ -53,11 +60,20 @@ pub fn active() -> Option<Server> {
     Server::from_settings(&saved)
 }
 
+/// The built-in model, while it is the chosen server.
+pub fn local_model() -> Option<&'static local_models::LocalModel> {
+    let server = active()?;
+    (server.provider == Provider::Local).then(|| local_models::chosen(&server.model))
+}
+
 /// Which credential a server uses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Provider {
     OpenRouter,
     Custom,
+    /// A downloaded model on the bundled engine; it needs no key of the
+    /// person's.
+    Local,
 }
 
 impl Provider {
@@ -65,6 +81,7 @@ impl Provider {
         match self {
             Self::OpenRouter => "openrouter",
             Self::Custom => "custom",
+            Self::Local => "local",
         }
     }
 }
@@ -92,16 +109,23 @@ impl Server {
                 url: settings.url.trim().into(),
                 model: settings.custom_model.trim().into(),
             }),
+            // The engine's address is known once it runs ([`engine::endpoint`]).
+            CleanupRunsOn::Local => Some(Self {
+                provider: Provider::Local,
+                url: String::new(),
+                model: local_models::chosen(&settings.local_model).id.into(),
+            }),
         }
     }
 
     /// The server's name for a person: OpenRouter, LM Studio, Ollama, or its
     /// host and port.
     pub fn name(&self) -> String {
-        if self.provider == Provider::OpenRouter {
-            return "OpenRouter".into();
+        match self.provider {
+            Provider::OpenRouter => "OpenRouter".into(),
+            Provider::Local => local_models::chosen(&self.model).name.into(),
+            Provider::Custom => server_name(&self.url),
         }
-        server_name(&self.url)
     }
 }
 
@@ -135,6 +159,9 @@ pub fn generate(
     deadline: Duration,
     cancelled: &AtomicBool,
 ) -> Result<String> {
+    if server.provider == Provider::Local {
+        return generate_locally(server, instructions, transcript, deadline, cancelled);
+    }
     let key = keys::get(server.provider);
     generate_with_key(
         server,
@@ -146,9 +173,45 @@ pub fn generate(
     )
 }
 
+/// Rewrites with the built-in model: starts the engine with the chosen model when it
+/// isn't running (loading counts against `deadline`), then asks it.
+fn generate_locally(
+    server: &Server,
+    instructions: &str,
+    transcript: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+) -> Result<String> {
+    let started = Instant::now();
+    let model = local_models::chosen(&server.model);
+    let endpoint = engine::endpoint(model, deadline, cancelled)?;
+    let running = Server {
+        url: endpoint.url,
+        ..server.clone()
+    };
+    generate_with_key(
+        &running,
+        Some(&endpoint.key),
+        instructions,
+        transcript,
+        deadline.saturating_sub(started.elapsed()),
+        cancelled,
+    )
+}
+
 /// Sends a one-word request and reports how long the answer took.
 pub fn test(server: &Server, key: Option<&str>) -> Result<Duration> {
     let started = Instant::now();
+    if server.provider == Provider::Local {
+        generate_locally(
+            server,
+            "Reply with the single word OK.",
+            "ping",
+            ENGINE_TEST_DEADLINE,
+            &AtomicBool::new(false),
+        )?;
+        return Ok(started.elapsed());
+    }
     generate_with_key(
         server,
         key,

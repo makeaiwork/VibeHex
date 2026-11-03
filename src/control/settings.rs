@@ -260,8 +260,8 @@ const KEYS: &[Key] = &[
     ),
     key(
         "dictation_processing.server.runs_on",
-        Kind::Choice(&["opencode", "openrouter", "custom"]),
-        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, or your own OpenAI-compatible server",
+        Kind::Choice(&["opencode", "openrouter", "custom", "local"]),
+        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, your own OpenAI-compatible server, or a model Hex downloads (local, macOS)",
     ),
     key(
         "dictation_processing.server.url",
@@ -277,6 +277,11 @@ const KEYS: &[Key] = &[
         "dictation_processing.server.custom_model",
         Kind::Text,
         "The model your own server runs dictation cleanup with, as it names it",
+    ),
+    key(
+        "dictation_processing.server.local_model",
+        Kind::Text,
+        "The downloaded model local cleanup runs, such as qwen3-4b-instruct-2507; empty for the recommended one",
     ),
     key(
         "history_retention",
@@ -834,6 +839,7 @@ pub fn set_api_key(name: &str, raw: &str) -> Option<Result<super::ControlReply, 
     let label = match provider {
         crate::dictation::cleanup_server::Provider::OpenRouter => "OpenRouter",
         crate::dictation::cleanup_server::Provider::Custom => "your server's",
+        crate::dictation::cleanup_server::Provider::Local => "the built-in model's",
     };
     Some(
         crate::dictation::cleanup_server::keys::set(provider, if clear { "" } else { raw })
@@ -1063,6 +1069,18 @@ pub fn apply(
                 return Err(invalid(name, "the URL must start with http:// or https://"));
             }
             candidate.dictation_processing.server.url = url;
+        }
+        "dictation_processing.server.local_model" => {
+            let id = candidate.dictation_processing.server.local_model.trim();
+            if !id.is_empty() && crate::dictation::cleanup_server::local_models::find(id).is_none()
+            {
+                let known: Vec<_> = crate::dictation::cleanup_server::local_models::MODELS
+                    .iter()
+                    .map(|model| model.id)
+                    .collect();
+                return Err(invalid(name, &format!("Hex offers {}", known.join(", "))));
+            }
+            candidate.dictation_processing.server.local_model = id.to_owned();
         }
         "dictation_processing.modes" => {
             let mut names = std::collections::HashSet::new();

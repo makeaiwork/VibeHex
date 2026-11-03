@@ -25,8 +25,16 @@ elif [ "${HEX_TEST_BUILD:-}" = 1 ]; then
 else
   team_id=${HEX_TEAM_ID:?Set HEX_TEAM_ID to the Apple Developer signing team}
   identity=$(hex_codesign_identity "$team_id")
-  app_name=VibeHex
-  bundle_id=ai.makeaiwork.vibehex
+  # VIBEHEX_SIDE_BY_SIDE=1 builds "VibeHex 2" (ai.makeaiwork.vibehex2), a
+  # copy to try a change beside the installed VibeHex. It shares VibeHex's
+  # data folder, so only one of them runs at a time.
+  if [ "${VIBEHEX_SIDE_BY_SIDE:-}" = 1 ]; then
+    app_name="VibeHex 2"
+    bundle_id=ai.makeaiwork.vibehex2
+  else
+    app_name=VibeHex
+    bundle_id=ai.makeaiwork.vibehex
+  fi
 fi
 # Every build carries the `capture` experiment (dormant until enabled), with
 # Scrawl's `scrawl-helper` beside `hex`, where the engine looks for it.
@@ -70,11 +78,42 @@ done
 SCRAWL_HELPER_PLIST="$root/packaging/macos/scrawl-helper-Info.plist" \
   cargo build --locked --release ${env_args[@]+"${env_args[@]}"} --manifest-path "$root/Cargo.toml"
 rm -rf "$bundle"
-mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Library"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Library" "$bundle/Contents/Frameworks"
 cp "$root/target/release/hex" "$executable"
 cp "$root/target/release/scrawl-helper" "$bundle/Contents/MacOS/scrawl-helper"
 cp "$root/app/Info.plist" "$bundle/Contents/Info.plist"
 cp "$root/LICENSE" "$root/THIRD_PARTY_NOTICES.md" "$bundle/Contents/Resources/"
+
+# The built-in cleanup engine (src/dictation/cleanup_server/engine.rs):
+# llama.cpp's own macOS build of `llama-server`, pinned by build and SHA-256,
+# beside `hex`, and the libraries it loads in Contents/Frameworks.
+llama_build=b11960
+llama_sha256=58e5a5e1d7c2bf66cedd9c29e0323f3e570660a70a1e2156d32eed08f4cc1e3c
+llama_archive="$root/target/llama.cpp/llama-$llama_build-bin-macos-arm64.tar.gz"
+if [ ! -f "$llama_archive" ] || ! echo "$llama_sha256  $llama_archive" | shasum -a 256 -c - >/dev/null 2>&1; then
+  mkdir -p "$(dirname "$llama_archive")"
+  curl -fsSL --retry 3 -o "$llama_archive.partial" \
+    "https://github.com/ggml-org/llama.cpp/releases/download/$llama_build/llama-$llama_build-bin-macos-arm64.tar.gz"
+  mv "$llama_archive.partial" "$llama_archive"
+fi
+echo "$llama_sha256  $llama_archive" | shasum -a 256 -c - >/dev/null || {
+  echo "llama.cpp $llama_build doesn't match its pinned SHA-256" >&2
+  exit 1
+}
+llama_unpacked=$(mktemp -d "${TMPDIR:-/tmp}/hex-llama.XXXXXX")
+tar -xzf "$llama_archive" -C "$llama_unpacked"
+llama_dir="$llama_unpacked/llama-$llama_build"
+llama_libraries="libllama-server-impl.dylib libllama-common.0.dylib libmtmd.0.dylib libllama.0.dylib
+  libggml.0.dylib libggml-base.0.dylib libggml-cpu.0.dylib libggml-blas.0.dylib libggml-metal.0.dylib
+  libggml-rpc.0.dylib"
+cp "$llama_dir/llama-server" "$bundle/Contents/MacOS/llama-server"
+for library in $llama_libraries; do
+  # The archive's .0 names are symlinks; the bundle holds the files under them.
+  cp -L "$llama_dir/$library" "$bundle/Contents/Frameworks/$library"
+done
+install_name_tool -add_rpath @executable_path/../Frameworks "$bundle/Contents/MacOS/llama-server" 2>&1 | grep -v "will invalidate the code signature" >&2 || true
+cp "$llama_dir/LICENSE" "$bundle/Contents/Resources/llama.cpp-LICENSE"
+rm -rf "$llama_unpacked"
 HEX_VERSION="$version" HEX_BUILD_NUMBER="$build_number" HEX_TEAM_ID="$team_id" HEX_CODESIGN_IDENTITY="${identity#-}" HEX_SKIP_INSTALL_SCRIPT=1 \
   "$root/scripts/build-hex-microphone-driver.sh" "$bundle/Contents/Library" >&2
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$bundle/Contents/Info.plist"
@@ -110,6 +149,10 @@ sign "$bundle/Contents/Library/HexMicrophone.driver"
 # entitlement; anything it touches is attributed to Hex, its responsible
 # process.
 sign --identifier "$bundle_id.scrawl-helper" "$bundle/Contents/MacOS/scrawl-helper"
+for library in $llama_libraries; do
+  sign "$bundle/Contents/Frameworks/$library"
+done
+sign --identifier "$bundle_id.llama-server" "$bundle/Contents/MacOS/llama-server"
 sign --entitlements "$root/.github/release/hex.entitlements" "$bundle"
 codesign --verify --deep --strict --verbose=2 "$bundle"
 echo "$bundle"

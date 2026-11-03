@@ -146,6 +146,10 @@ const PATHS: &[(&str, &str)] = &[
     ("output-open", "Window/Output/App rule open"),
     ("output-trust", "Window/Output/Trust prompt"),
     ("output-ai-cleanup", "Window/Output/AI cleanup"),
+    (
+        "output-ai-cleanup-local",
+        "Window/Output/AI cleanup on this Mac",
+    ),
     ("output-empty", "Window/Output/Empty"),
     ("modes", "Window/Modes/Modes"),
     ("modes-global", "Window/Modes/Global mode"),

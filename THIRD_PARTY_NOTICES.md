@@ -25,6 +25,27 @@ Notice supplied with the files:
 
 The weights are provided as-is, without warranties, as the licence states.
 
+## llama.cpp
+
+The macOS app bundles `llama-server` and its libraries from llama.cpp build
+b11960 (https://github.com/ggml-org/llama.cpp/releases/tag/b11960), the
+engine behind Labs › Clean up on your own server › Built in. MIT License,
+Copyright (c) 2023-2026 The ggml authors; the full text ships as
+`Contents/Resources/llama.cpp-LICENSE`.
+
+## Built-in cleanup models
+
+Hex downloads these only when the person clicks Download under Built in; it
+does not ship the weights. Each is a Q4_K_M GGUF converted by Unsloth.
+
+- Qwen3 4B Instruct 2507 by Qwen, Apache License 2.0:
+  https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/tree/a06e946bb6b655725eafa393f4a9745d460374c9
+- Gemma 4 E4B and E2B (instruction-tuned) by Google, Apache License 2.0:
+  https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/tree/bfc15c382204943c3a8fff0c750b94ae2364d7a3,
+  https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/tree/0314792d7f1f7e229411f620751375812bb9faf2
+
+License: https://www.apache.org/licenses/LICENSE-2.0
+
 ## Lucide And Feather
 
 The settings sidebar icons in `assets/icons/` (`settings`, `modes`,

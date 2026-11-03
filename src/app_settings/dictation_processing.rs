@@ -29,6 +29,9 @@ pub struct CleanupServerSettings {
     pub openrouter_model: String,
     /// The model id the custom server serves, such as `gemma-4-e4b-it-mlx`.
     pub custom_model: String,
+    /// The downloaded built-in model runs (`local_models::MODELS`); empty
+    /// means the recommended one.
+    pub local_model: String,
 }
 
 /// The service that rewrites dictations.
@@ -41,6 +44,8 @@ pub enum CleanupRunsOn {
     Openrouter,
     /// Any OpenAI-compatible server: LM Studio, Ollama, Groq, Gemini, OpenAI.
     Custom,
+    /// A model Hex downloads, on the bundled llama.cpp engine.
+    Local,
 }
 
 impl Default for DictationProcessingSettings {

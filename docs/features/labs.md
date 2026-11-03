@@ -854,8 +854,12 @@ OpenCode needn't run.
 ```ts
 Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 ├── Clean up with AI -> switch for Global's rewrite (default_mode.post_processing.enabled)
-├── Runs on -> OpenCode · OpenRouter · Your own   (dictation_processing.server.runs_on)
-│   └── OpenCode -> no further rows; rewriting is exactly as without the toggle
+├── Runs on -> OpenCode · OpenRouter · Your own · Built in (macOS)   (dictation_processing.server.runs_on)
+│   ├── OpenCode -> no further rows; rewriting is exactly as without the toggle
+│   └── Built in -> no URL, Model, or key rows; instead:
+│       ├── Built in -> "Download a model below" | "Loads when you dictate" | "Loading the model…" | "Loaded"; Test once one is downloaded
+│       └── one row per model (size · publisher · licence) -> Download | progress + Cancel |
+│           "In use" or Use (dictation_processing.server.local_model) + Delete; a failure shows in the row
 ├── <server name> -> "Not tested · host" | "Testing…" | "Connected · 0.8 s" | the error; Test
 │   sends one short request on its own thread (30 s), a changed server forgets the result
 ├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama
@@ -894,7 +898,37 @@ A managed `opencode_processing` lock turns this rewrite off too. Keys:
 `hex settings set dictation_processing.server.runs_on custom`, `.url`,
 `.openrouter_model`, `.custom_model`; `.openrouter_api_key` and
 `.custom_api_key` save a key (`none` removes it) and read back only `set` or
-`unset`. Not built: per-mode servers, a model running inside Hex. Checks: `dictation::cleanup_server::tests` (chat
+`unset`. Not built: per-mode servers.
+
+Built in (macOS app only; `runs_on` `local`) runs a model Hex downloads
+itself, with no LM Studio or Ollama. The offered models are pinned in
+[cleanup_server/local_models.rs](../../src/dictation/cleanup_server/local_models.rs)
+by Hugging Face commit, size, and SHA-256: Qwen3 4B Instruct 2507 (2.5 GB,
+recommended), Gemma 4 E4B (5.0 GB), and Gemma 4 E2B (3.1 GB), each Q4_K_M
+GGUF by Unsloth, Apache 2.0. A download resumes from `<file>.partial` in
+`<support>/cleanup-models/` and only a file whose size and SHA-256 match is
+moved into place; Delete stops the engine if it runs that model. The engine
+([cleanup_server/engine.rs](../../src/dictation/cleanup_server/engine.rs)) is
+llama.cpp's `llama-server` (build b11960, pinned by SHA-256 in
+`scripts/build-app.sh`), bundled beside `hex` with its libraries in
+`Contents/Frameworks`. Hex starts it on 127.0.0.1, a free port, a random key,
+`--offline`, no web UI, every layer on Metal, and an 8,192-token context;
+it loads when a dictation's shortcut goes down (or the first rewrite or Test
+asks), is ready once `/health` answers (at most 120 s), serves rewrites
+through the same `generate` as Your own, unloads after 15 minutes without a
+rewrite, and stops when Hex quits; a server left by a crashed Hex is stopped
+at the next start through its pid file. A rewrite that comes while the model
+still loads waits within the mode's deadline, then falls back as any server
+does. `hex settings set dictation_processing.server.local_model
+gemma-4-e2b-it` picks a model (only the listed ids). Checks:
+`every_model_is_pinned_and_unique`, `only_a_matching_file_is_moved_into_place`,
+`the_server_listens_on_loopback_offline_without_its_web_ui`,
+`keys_are_random_and_ports_free`; `validate-app.sh` requires `llama-server`,
+its rpath, and its libraries; scene `output-ai-cleanup-local` (no golden).
+Not yet observed: a download, the engine loading, or a rewrite in a running
+Hex; Gemma 4 on this llama.cpp build.
+
+Checks: `dictation::cleanup_server::tests` (chat
 messages and key, no key for a local server, refusals, empty answers,
 deadline and cancellation, reasoning and fences, the toggle choosing the
 server, the model list's GET and refusal),

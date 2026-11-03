@@ -23,6 +23,7 @@ use crate::dictation::text_replacements::ReplacementSet;
 
 mod ai_cleanup;
 mod examples;
+mod local_cleanup;
 
 /// The agent card's spark, this many points square.
 const SPARK: f32 = 30.0;
@@ -77,7 +78,11 @@ impl OutputPane {
 pub(super) fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
     let (mut changed, wait) = examples::poll(&mut ui.output.examples, clock);
     changed |= ai_cleanup::poll(ui);
-    let wait = wait.min(super::spark::poll(&ui.output.spark, clock));
+    let mut wait = wait.min(super::spark::poll(&ui.output.spark, clock));
+    if ai_cleanup::busy(ui) {
+        // Download progress and the engine's loading move without input.
+        wait = wait.min(0.25);
+    }
     if ui.window.as_ref().is_none_or(rune::AppHandle::is_visible) {
         tx.wake_after(std::time::Duration::from_secs_f64(wait.max(0.0)));
     }
@@ -821,6 +826,13 @@ pub(super) fn fixture(ui: &mut Ui) {
 /// Labs › Clean up on your own server on, with LM Studio chosen and tested.
 pub(super) fn ai_cleanup_fixture(ui: &mut Ui) {
     ai_cleanup::fixture(ui);
+}
+
+/// Labs › Clean up on your own server, built in, its model downloading.
+pub(super) fn ai_cleanup_local_fixture(ui: &mut Ui) {
+    ai_cleanup::fixture(ui);
+    ui.settings.dictation_processing.server.runs_on = crate::app_settings::CleanupRunsOn::Local;
+    local_cleanup::fixture(&mut ui.output.cleanup.local);
 }
 
 pub(super) fn trust_fixture(ui: &mut Ui) {

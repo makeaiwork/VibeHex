@@ -307,6 +307,9 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
     crate::keyboard::initialize_layout()?;
     crate::updater::finish_on_launch();
     let _ = UPDATER.set(crate::updater::Updater::start());
+    // Labs › Clean up on your own server › Built in: warms the model on a
+    // dictation's press and unloads it when idle.
+    crate::dictation::cleanup_server::engine::start_watcher();
     // Never a silent launch failure: unreadable settings start with defaults
     // and the window says why (#744).
     let (mut settings, settings_error) = AppSettings::load_for_launch();
@@ -534,6 +537,7 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
         }
         drop(requests);
         local_api.shutdown();
+        crate::dictation::cleanup_server::engine::stop();
         // The listener owns the transcription engine; joining it frees the
         // model after its last use.
         for (name, worker) in [
