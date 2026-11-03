@@ -256,6 +256,18 @@ fn rows(ui: &Ui) -> Vec<Row> {
         tr("Vocabulary biasing"),
         tr("Bias Parakeet transcription toward your vocabulary; rewriting and search use it either way"),
     ));
+    rows.push(row(
+        Feature::AiCleanupServer,
+        &SPARKLES,
+        tr("Clean up on your own server"),
+        tr("Rewrite dictations with OpenRouter or a local server such as LM Studio or Ollama, set up in Output"),
+    ));
+    rows.push(row(
+        Feature::VocabularyPasteList,
+        &BOOK,
+        tr("Paste vocabulary as a list"),
+        tr("Add many terms at once in the Vocabulary sheet: one per line, Term | sounds like"),
+    ));
     if caps.keyboard_model_switching {
         rows.push(row(
             Feature::KeyboardModelSwitching,
@@ -491,6 +503,8 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::CopyOnly => "lab-copy-only",
         Feature::SpokenFormatting => "lab-spoken-formatting",
         Feature::FillerWords => "lab-filler-words",
+        Feature::AiCleanupServer => "lab-ai-cleanup-server",
+        Feature::VocabularyPasteList => "lab-vocabulary-paste-list",
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::SmartSpacing => "lab-smart-spacing",

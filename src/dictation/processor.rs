@@ -372,23 +372,43 @@ impl Profiles {
                 transformations: profile.transformations.clone(),
             };
         }
-        let prompt = prompt(
-            profile,
-            &corrected,
-            context,
-            &crate::dictation::vocabulary::merged(
-                &profile.vocabulary,
-                &crate::dictation::vocabulary::entries(),
-            ),
+        let vocabulary = crate::dictation::vocabulary::merged(
+            &profile.vocabulary,
+            &crate::dictation::vocabulary::entries(),
         );
-        let (text, observation) = generate_observed(
-            &prompt,
-            profile.model.as_ref(),
-            profile.deadline,
-            cancelled,
-            &profile.name,
-            Instant::now(),
-        );
+        let started = Instant::now();
+        // Labs › Clean up on your own server: the same instructions and
+        // vocabulary, as chat messages to OpenRouter or the person's server.
+        let (text, observation) = match crate::dictation::cleanup_server::active() {
+            Some(server) => {
+                let (instructions, transcript) =
+                    prompt_parts(profile, &corrected, context, &vocabulary);
+                observe(
+                    crate::dictation::cleanup_server::generate(
+                        &server,
+                        &instructions,
+                        &transcript,
+                        profile.deadline,
+                        cancelled,
+                    ),
+                    &profile.name,
+                    started,
+                )
+            }
+            None => {
+                let prompt = prompt(profile, &corrected, context, &vocabulary);
+                observe(
+                    generate_cancellable(
+                        &prompt,
+                        profile.model.as_ref(),
+                        profile.deadline,
+                        cancelled,
+                    ),
+                    &profile.name,
+                    started,
+                )
+            }
+        };
         match &observation.fallback {
             None => tracing::info!(
                 profile = profile.name,
@@ -489,18 +509,15 @@ pub(crate) fn generate_text_with(
     generate_cancellable(prompt, Some(model), deadline, cancelled)
 }
 
-/// Runs one generation and reports it as a processing observation. The text is
-/// `None` whenever the caller must fall back, with the reason recorded in the
+/// Reports one generation as a processing observation. The text is `None`
+/// whenever the caller must fall back, with the reason recorded in the
 /// observation.
-fn generate_observed(
-    prompt: &str,
-    model: Option<&Model>,
-    deadline: Duration,
-    cancelled: &AtomicBool,
+fn observe(
+    generated: Result<String>,
     profile_name: &str,
     started: Instant,
 ) -> (Option<String>, ProcessingObservation) {
-    let (text, fallback) = match generate_cancellable(prompt, model, deadline, cancelled) {
+    let (text, fallback) = match generated {
         Ok(text) if !text.trim().is_empty() => (Some(text.trim().into()), None),
         Ok(_) => (None, Some("processor returned empty text".into())),
         Err(error) => (None, Some(error.to_string())),
@@ -834,12 +851,28 @@ fn prompt(
     context: &ContextSnapshot,
     vocabulary: &[VocabularyEntry],
 ) -> String {
+    let (instructions, transcript) = prompt_parts(profile, transcript, context, vocabulary);
+    format!("{instructions}\n\n{transcript}")
+}
+
+/// The prompt as its instructions (protocol, profile instructions,
+/// vocabulary, and context) and the transcript block, which a chat server
+/// takes as the system and user messages.
+fn prompt_parts(
+    profile: &Profile,
+    transcript: &str,
+    context: &ContextSnapshot,
+    vocabulary: &[VocabularyEntry],
+) -> (String, String) {
     let application = context.application.as_deref().unwrap_or("unknown");
     let host = context.browser_host().unwrap_or("none");
-    format!(
-        "{PROTOCOL_PROMPT}\n\nProfile instructions:\n{}\n\n{}Foreground application: {application}\nBrowser host: {host}\n\nRaw transcript:\n<transcript>\n{transcript}\n</transcript>",
-        profile.prompt,
-        vocabulary_lines(vocabulary)
+    (
+        format!(
+            "{PROTOCOL_PROMPT}\n\nProfile instructions:\n{}\n\n{}Foreground application: {application}\nBrowser host: {host}",
+            profile.prompt,
+            vocabulary_lines(vocabulary)
+        ),
+        format!("Raw transcript:\n<transcript>\n{transcript}\n</transcript>"),
     )
 }
 
@@ -1328,6 +1361,176 @@ mod tests {
             "Vocabulary (spell these exactly when the speaker means them): cappuccino (may be \
              transcribed as capuchin, cap a chino); Rune\n\nForeground application: Slack"
         ));
+    }
+
+    /// A real rewrite on a running OpenAI-compatible server, such as LM
+    /// Studio: `HEX_E2E_CLEANUP_URL=http://127.0.0.1:1234/v1
+    /// HEX_E2E_CLEANUP_MODEL=… cargo nextest run --run-ignored only
+    /// rewrites_on_a_live_server`.
+    #[test]
+    #[ignore = "needs a running OpenAI-compatible server"]
+    fn rewrites_on_a_live_server() {
+        let (Ok(url), Ok(model)) = (
+            std::env::var("HEX_E2E_CLEANUP_URL"),
+            std::env::var("HEX_E2E_CLEANUP_MODEL"),
+        ) else {
+            panic!("set HEX_E2E_CLEANUP_URL and HEX_E2E_CLEANUP_MODEL");
+        };
+        let server = crate::dictation::cleanup_server::Server {
+            provider: crate::dictation::cleanup_server::Provider::Custom,
+            url,
+            model,
+        };
+        let vocabulary = [
+            VocabularyEntry {
+                term: "Claude Code".into(),
+                sounds_like: vec!["клод код".into()],
+            },
+            VocabularyEntry {
+                term: "MCP".into(),
+                sounds_like: vec!["эм си пи".into(), "эмсипи".into()],
+            },
+            VocabularyEntry {
+                term: "GitHub".into(),
+                sounds_like: vec!["гитхаб".into()],
+            },
+        ];
+        let profile = Profile::new(
+            "Global",
+            "English words written in Russian need to be presented as English words.",
+        );
+        let said = "ну короче запусти клод код и подключи эм си пи сервер из гитхаба";
+        let (instructions, transcript) =
+            prompt_parts(&profile, said, &context("Zed", None), &vocabulary);
+        let started = Instant::now();
+        let text = crate::dictation::cleanup_server::generate(
+            &server,
+            &instructions,
+            &transcript,
+            Duration::from_secs(60),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        eprintln!("{} ms: {text}", started.elapsed().as_millis());
+        for term in ["Claude Code", "MCP", "GitHub"] {
+            assert!(text.contains(term), "{term} missing from {text:?}");
+        }
+    }
+
+    /// The Russian vibe-coding preset in `docs/vocabulary` on a running
+    /// server: replacements, then the instructions and vocabulary as Hex
+    /// sends them, scored against `cleanup-eval-ru.txt`. Same variables as
+    /// `rewrites_on_a_live_server`; it prints every miss and fails below 90%.
+    #[test]
+    #[ignore = "needs a running OpenAI-compatible server"]
+    fn russian_cleanup_cases() {
+        let (Ok(url), Ok(model)) = (
+            std::env::var("HEX_E2E_CLEANUP_URL"),
+            std::env::var("HEX_E2E_CLEANUP_MODEL"),
+        ) else {
+            panic!("set HEX_E2E_CLEANUP_URL and HEX_E2E_CLEANUP_MODEL");
+        };
+        let server = crate::dictation::cleanup_server::Server {
+            provider: crate::dictation::cleanup_server::Provider::Custom,
+            url,
+            model,
+        };
+        let replacements: Vec<crate::dictation::text_replacements::TextReplacement> =
+            serde_json::from_str(include_str!("../../docs/vocabulary/replacements-ru.json"))
+                .unwrap();
+        let replacements = ReplacementSet::new(&replacements);
+        let vocabulary: Vec<_> = crate::dictation::vocabulary::parse_list(include_str!(
+            "../../docs/vocabulary/vibe-coding-ru.txt"
+        ))
+        .into_iter()
+        .map(|(term, sounds_like)| VocabularyEntry { term, sounds_like })
+        .collect();
+        let profile = Profile::new(
+            "Global",
+            include_str!("../../docs/vocabulary/cleanup-instructions-ru.txt").trim(),
+        );
+        let mut cases: Vec<(String, Vec<String>, Vec<String>)> = Vec::new();
+        for line in include_str!("../../docs/vocabulary/cleanup-eval-ru.txt").lines() {
+            if let Some(said) = line.strip_prefix("> ") {
+                cases.push((said.into(), Vec::new(), Vec::new()));
+            } else if let (Some(must), Some(case)) = (line.strip_prefix("+ "), cases.last_mut()) {
+                case.1.push(must.to_lowercase());
+            } else if let (Some(never), Some(case)) = (line.strip_prefix("- "), cases.last_mut()) {
+                case.2.push(never.to_lowercase());
+            }
+        }
+        let (mut checks, mut misses, mut total_ms) = (0, 0, 0);
+        for (said, must, never) in &cases {
+            let corrected = replacements.replace(said);
+            let (instructions, transcript) =
+                prompt_parts(&profile, &corrected, &context("Zed", None), &vocabulary);
+            let started = Instant::now();
+            let text = crate::dictation::cleanup_server::generate(
+                &server,
+                &instructions,
+                &transcript,
+                Duration::from_secs(60),
+                &AtomicBool::new(false),
+            )
+            .unwrap_or_else(|error| format!("<error: {error}>"));
+            total_ms += started.elapsed().as_millis();
+            let lower = text.to_lowercase();
+            let missed: Vec<String> = must
+                .iter()
+                .filter(|term| !lower.contains(term.as_str()))
+                .map(|term| format!("+{term}"))
+                .chain(
+                    never
+                        .iter()
+                        .filter(|term| lower.contains(term.as_str()))
+                        .map(|term| format!("-{term}")),
+                )
+                .collect();
+            checks += must.len() + never.len();
+            misses += missed.len();
+            let mark = if missed.is_empty() { "ok  " } else { "MISS" };
+            eprintln!(
+                "{mark} {} ms\n  heard: {said}\n  wrote: {text}",
+                started.elapsed().as_millis()
+            );
+            if !missed.is_empty() {
+                eprintln!("  missed: {}", missed.join(", "));
+            }
+        }
+        let passed = checks - misses;
+        eprintln!(
+            "{passed}/{checks} checks over {} transcripts, {} ms each on average",
+            cases.len(),
+            total_ms / cases.len().max(1) as u128
+        );
+        assert!(passed * 10 >= checks * 9, "{passed}/{checks} checks passed");
+    }
+
+    /// Labs › Clean up on your own server sends the same prompt as a system
+    /// message (instructions and vocabulary) and a user message (transcript).
+    #[test]
+    fn prompt_parts_split_instructions_from_the_transcript_and_join_back() {
+        let vocabulary = [VocabularyEntry {
+            term: "Claude Code".into(),
+            sounds_like: vec!["клод код".into()],
+        }];
+        let profile = Profile::new("default", "Write English terms in English.");
+        let context = context("Zed", None);
+        let (instructions, transcript) =
+            prompt_parts(&profile, "запусти клод код", &context, &vocabulary);
+        assert!(instructions.starts_with(PROTOCOL_PROMPT));
+        assert!(instructions.contains("Write English terms in English."));
+        assert!(instructions.contains("Claude Code (may be transcribed as клод код)"));
+        assert!(instructions.ends_with("Browser host: none"));
+        assert!(!instructions.contains("запусти"));
+        assert_eq!(
+            transcript,
+            "Raw transcript:\n<transcript>\nзапусти клод код\n</transcript>"
+        );
+        assert_eq!(
+            prompt(&profile, "запусти клод код", &context, &vocabulary),
+            format!("{instructions}\n\n{transcript}")
+        );
     }
 
     #[test]

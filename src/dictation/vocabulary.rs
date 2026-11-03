@@ -324,6 +324,24 @@ pub fn parse_sounds_like(raw: &str) -> Vec<String> {
         .collect()
 }
 
+/// A pasted list (Labs › Paste vocabulary as a list), one term per line as
+/// `Term | sounds like, sounds like`; a tab works like `|`, and blank lines
+/// and lines starting with `#` are skipped.
+pub fn parse_list(text: &str) -> Vec<(String, Vec<String>)> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter_map(|line| {
+            let (term, spellings) = line
+                .split_once('|')
+                .or_else(|| line.split_once('\t'))
+                .unwrap_or((line, ""));
+            let term = clean(term);
+            (!term.is_empty()).then(|| (term, parse_sounds_like(spellings)))
+        })
+        .collect()
+}
+
 fn clean(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -642,5 +660,45 @@ mod tests {
         std::fs::write(&path, "{").unwrap();
         assert!(read_from(&path).is_err());
         std::fs::remove_dir_all(&directory).unwrap();
+    }
+
+    #[test]
+    fn a_pasted_list_reads_terms_and_spellings_per_line() {
+        let list = parse_list(
+            "# vibe coding\n\nClaude Code | клод код, клот код\n  MCP|эм си пи  \nGitHub\tгитхаб, гит хаб\nCursor\n | orphan\n",
+        );
+        assert_eq!(
+            list,
+            [
+                (
+                    "Claude Code".into(),
+                    vec!["клод код".into(), "клот код".into()]
+                ),
+                ("MCP".into(), vec!["эм си пи".into()]),
+                ("GitHub".into(), vec!["гитхаб".into(), "гит хаб".into()]),
+                ("Cursor".into(), vec![]),
+            ]
+        );
+    }
+
+    /// The starter list in docs stays pasteable: every line fits the limits,
+    /// and the first 64 terms are the ones transcription can bias toward.
+    #[test]
+    fn the_vibe_coding_starter_list_fits() {
+        let pasted = parse_list(include_str!("../../docs/vocabulary/vibe-coding-ru.txt"));
+        assert!(pasted.len() > 60);
+        let mut list = Vec::new();
+        for (term, spellings) in &pasted {
+            assert!(
+                matches!(add(&mut list, term, spellings), Ok(true)),
+                "{term} doesn't fit"
+            );
+        }
+        for (term, _) in pasted.iter().take(64) {
+            assert!(
+                !term.contains(['.', '/', '@', ':', '\\', '_']),
+                "{term} can't be biased toward; move it below the 64th line"
+            );
+        }
     }
 }

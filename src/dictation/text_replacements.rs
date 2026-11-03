@@ -97,6 +97,11 @@ impl ReplacementSet {
             }
             let replacement = &self.rules[candidate.rule].output;
             if !replacement.is_empty() {
+                if at_sentence_start(&output)
+                    && keeps_sentence_case(&text[candidate.start..candidate.end], replacement)
+                {
+                    capitalize_next = true;
+                }
                 push_segment(&mut output, replacement, &mut capitalize_next);
                 cursor = candidate.end;
                 continue;
@@ -159,6 +164,31 @@ const SENTENCE_ENDINGS: [char; 4] = ['.', '!', '?', '\n'];
 fn at_sentence_start(output: &str) -> bool {
     let trimmed = output.trim_end_matches(HORIZONTAL_WHITESPACE);
     trimmed.is_empty() || trimmed.ends_with(SENTENCE_ENDINGS)
+}
+
+/// Whether a replacement that fixes a word ("тот есть" → "то есть") should
+/// keep the capital the sentence gave the matched text. Only when it starts
+/// with the same letter and its first word is all lowercase, so a name with
+/// its own casing ("iPhone", "npm") stays as written.
+fn keeps_sentence_case(matched: &str, replacement: &str) -> bool {
+    let Some(heard) = matched.chars().find(|character| character.is_alphabetic()) else {
+        return false;
+    };
+    let Some(written) = replacement
+        .chars()
+        .find(|character| character.is_alphabetic())
+    else {
+        return false;
+    };
+    let first_word = replacement
+        .trim_start()
+        .split(char::is_whitespace)
+        .next()
+        .unwrap_or_default();
+    heard.is_uppercase()
+        && written.is_lowercase()
+        && heard.to_lowercase().eq(written.to_lowercase())
+        && !first_word.chars().any(char::is_uppercase)
 }
 
 fn trim_trailing_horizontal_spaces(output: &mut String) {
@@ -287,6 +317,26 @@ mod tests {
         assert_eq!(replacements.replace("issue_id"), "issue_id");
         assert_eq!(replacements.replace("issue2"), "issue2");
         assert_eq!(replacements.replace("reissues"), "reissues");
+    }
+
+    #[test]
+    fn a_word_fix_at_a_sentence_start_keeps_its_capital() {
+        let replacements = ReplacementSet::new(&[
+            rule("в это случае", "в этом случае"),
+            rule("тот есть", "то есть"),
+            rule("iphone", "iPhone"),
+            rule("эн пи эм", "npm"),
+        ]);
+
+        assert_eq!(
+            replacements.replace("В это случае так. Тот есть да, тот есть нет."),
+            "В этом случае так. То есть да, то есть нет."
+        );
+        assert_eq!(
+            replacements.replace("Iphone тут. Эн пи эм там."),
+            "iPhone тут. npm там."
+        );
+        assert_eq!(replacements.replace("а в это случае"), "а в этом случае");
     }
 
     #[test]

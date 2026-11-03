@@ -63,6 +63,10 @@ const PATHS: &[(&str, &str)] = &[
     ),
     ("mac-settings-vocabulary", "Window/General/Vocabulary"),
     (
+        "mac-settings-vocabulary-paste",
+        "Window/General/Vocabulary paste list",
+    ),
+    (
         "mac-settings-vocabulary-empty",
         "Window/General/Vocabulary · empty",
     ),
@@ -141,6 +145,7 @@ const PATHS: &[(&str, &str)] = &[
     ("output", "Window/Output/Steps"),
     ("output-open", "Window/Output/App rule open"),
     ("output-trust", "Window/Output/Trust prompt"),
+    ("output-ai-cleanup", "Window/Output/AI cleanup"),
     ("output-empty", "Window/Output/Empty"),
     ("modes", "Window/Modes/Modes"),
     ("modes-global", "Window/Modes/Global mode"),

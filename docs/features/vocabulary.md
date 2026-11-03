@@ -22,6 +22,12 @@ General › Vocabulary   // vocabulary.settings; after Language
 ├── Add term -> New empty row, focused; the list glides to its end and the row
 │   rises 8 pt as it fades in (SETTLE, bounce 0; Reduce Motion: fade only);
 │   saved once the term has text
+├── Labs › Paste vocabulary as a list -> Paste list beside Add term: a field for
+│   one term per line, "Term | sounds like, sounds like" (a tab works as |;
+│   blank and # lines skipped); Add to list, or Done, merges it: a listed term
+│   (any case) gains the spellings it lacks, a new one gets a row at the end,
+│   and the list saves at once; Cancel drops it. Starter list for Russian
+│   vibe coding: docs/vocabulary/vibe-coding-ru.txt   // vocabulary.paste-list
 ├── Edits -> Debounced drafts, like Modes' corrections -> settings.json `vocabulary`
 ├── × -> Removes that row at any click speed or focus; rows keep an identity,
 │   so a late edit, focus change, or second × for a removed row touches nothing
@@ -96,6 +102,9 @@ A mode's own vocabulary                  // vocabulary.modes; DictationMode::voc
     the shared list
 
 OpenCode rewriting (Modes)               // vocabulary.prompt
+├── Labs › Clean up on your own server -> the same lines go to OpenRouter or
+│   the person's server in the system message; Russian presets and their
+│   eval in docs/vocabulary/ (labs.md)
 └── Prompt gains "Vocabulary (spell these exactly when the speaker means them):
     term (may be transcribed as a, b); …" before the foreground application
 

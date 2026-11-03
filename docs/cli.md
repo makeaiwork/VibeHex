@@ -461,7 +461,9 @@ Writable keys: `release_microphone_while_idle`,
 `shortcut_mode`, `dictation_hotkey`, `paste_last_hotkey`, `raw_dictation_hotkey`,
 `second_dictation_hotkey`, `labs.second_dictation_shortcut`, `labs.standalone_special_keys`, `show_dock_icon`, `vocabulary_boost`,
 `dictation_processing.default_mode`, `dictation_processing.modes`,
-`history_retention`, `meetings.enabled`,
+`labs.ai_cleanup_server`, `dictation_processing.server.runs_on`,
+`dictation_processing.server.url`, `dictation_processing.server.openrouter_model`,
+`dictation_processing.server.custom_model`, `history_retention`, `meetings.enabled`,
 `meetings.output_folder`, `meetings.summarize_with_apple_intelligence`,
 `meetings.summarize_with_opencode`,
 `meetings.show_recording_indicator`, `meetings.recording_indicator_corner`,
@@ -471,6 +473,11 @@ Writable keys: `release_microphone_while_idle`,
 `experimental.hex_microphone_comfort_noise`,
 `experimental.hex_microphone_strength`, `enable_on_launch`,
 `paste_with_shift`, `ui_language`, `indicator_position`, `updates.channel`.
+
+`dictation_processing.server.openrouter_api_key` and
+`dictation_processing.server.custom_api_key` save an API key for Labs › Clean
+up on your own server in the OS credential store (`none` removes it); they are
+never in `settings.json`, and `get` and `list` show only `set` or `unset`.
 
 `transcription.recognition_hints` is deprecated: recognition hints merged into
 the [vocabulary](features/vocabulary.md). `get` returns the vocabulary's terms,

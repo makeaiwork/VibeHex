@@ -61,6 +61,9 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Movable meeting capsules no labs.movable_meeting_capsules (macOS) panel capsules (Meeting transcript ready, Recording automatically, offers, reminders) drag to another corner and show in the last one, shared with the recording capsule (#1093)
 ├── Choose meeting summary model no labs.meeting_summary_model + meetings.opencode_model (macOS)
 │                                        OpenCode meeting notes use exactly that provider/model, no fallback; Meetings › Settings › Advanced shows its field (#1107)
+├── Clean up on your own server no labs.ai_cleanup_server + dictation_processing.server
+│                                        every mode's rewrite runs on OpenRouter or an OpenAI-compatible server (LM Studio, Ollama) instead of OpenCode; Output shows its AI cleanup section
+├── Paste vocabulary as a list no labs.vocabulary_paste_list  the Vocabulary sheet's Paste list adds many terms at once, "Term | sounds like, …" per line (vocabulary.md)
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
 Settings › Labs                          // labs.page
@@ -841,6 +844,96 @@ and `without_its_labs_toggle_no_summary_model_is_used` in
 [dictation/processor.rs](../../src/dictation/processor.rs). Not yet
 observed: a real meeting summarized with a chosen model; the rows render only
 in macOS builds, so no golden changes.
+
+Clean up on your own server (`ai-cleanup-server`, every OS; its row shows
+under Vocabulary biasing): dictation cleanup like Pipit's, on OpenRouter or
+the person's own OpenAI-compatible server, such as LM Studio or Ollama, so
+OpenCode needn't run.
+
+```ts
+Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
+├── Clean up with AI -> switch for Global's rewrite (default_mode.post_processing.enabled)
+├── Runs on -> OpenCode · OpenRouter · Your own   (dictation_processing.server.runs_on)
+│   └── OpenCode -> no further rows; rewriting is exactly as without the toggle
+├── <server name> -> "Not tested · host" | "Testing…" | "Connected · 0.8 s" | the error; Test
+│   sends one short request on its own thread (30 s), a changed server forgets the result
+├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama
+│   (http://127.0.0.1:11434/v1); anything but http(s) is refused
+├── Model -> field + Save: openrouter_model or custom_model, as the server names it
+├── API key -> secure field + Save, Remove once saved; never read back into the field
+│   ├── Saved -> "Saved outside settings.json"
+│   ├── OpenRouter, none -> "Required"; Your own, none -> "Not needed for LM Studio or Ollama"
+│   └── Kept in the login keychain (macOS) or Credential Manager (Windows) as
+│       "Hex AI cleanup" / openrouter|custom; Linux, or a store that refuses, uses the
+│       owner-only ai-cleanup-keys.json in Hex's data folder
+└── Custom instructions -> Global's prompt (default_mode.post_processing.prompt) + Save
+Output › Every dictation -> the rewrite step reads "Rewrite with <server name>", the model under it
+```
+
+The gate is `labs::ai_cleanup_server()`, read as each dictation's rewrite
+starts in `processor::Profiles::process_cancellable` through
+`dictation::cleanup_server::active()`: with it on and Runs on set to
+OpenRouter or Your own, the rewrite goes to `cleanup_server::generate` instead
+of OpenCode. The prompt is the same (`processor::prompt_parts`): protocol,
+the mode's instructions, the vocabulary with its "sounds like" spellings, and
+the app, as the system message; the transcript as the user message. One
+`POST {url}/chat/completions` with temperature 0; loopback URLs go through
+`net::loopback_agent`, others through the system proxy. The mode's deadline,
+cancellation, and fallback are unchanged: a refusal, timeout, or empty
+answer pastes the corrected transcript and History records why. Reasoning a
+server leaves in the answer (`<think>…</think>`, Gemma 4's `…<channel|>`,
+gpt-oss's final channel) and a fence around the whole answer are dropped.
+A managed `opencode_processing` lock turns this rewrite off too. Keys:
+`hex settings set dictation_processing.server.runs_on custom`, `.url`,
+`.openrouter_model`, `.custom_model`; `.openrouter_api_key` and
+`.custom_api_key` save a key (`none` removes it) and read back only `set` or
+`unset`. Not built: a model list from the server, per-mode servers, a model
+running inside Hex. Checks: `dictation::cleanup_server::tests` (chat
+messages and key, no key for a local server, refusals, empty answers,
+deadline and cancellation, reasoning and fences, OpenCode and the toggle off
+choosing no server),
+`the_key_file_is_owner_only_and_forgets_removed_keys`,
+`prompt_parts_split_instructions_from_the_transcript_and_join_back` in
+[dictation/processor.rs](../../src/dictation/processor.rs),
+`cleanup_server_settings_validate_and_keys_never_show` in
+[control/settings.rs](../../src/control/settings.rs); scene
+`output-ai-cleanup` (no golden). `rewrites_on_a_live_server` (ignored; run
+with `HEX_E2E_CLEANUP_URL` and `HEX_E2E_CLEANUP_MODEL`) passed on macOS on
+2026-11-03 against LM Studio with `gemma-4-e4b-it-mlx@4bit` (1.8 s) and
+`google/gemma-4-e4b` (8 s, reasoning in the answer). Not yet observed: a
+dictation in a running Hex, OpenRouter, Windows' Credential Manager, a key
+saved from the window, or a Linux build.
+
+Russian vibe-coding presets, built from a person's real post-processed
+dictations, live in [docs/vocabulary/](../vocabulary/): Custom instructions
+(`cleanup-instructions-ru.txt`, for `default_mode.post_processing.prompt`),
+safe word fixes for the mode's replacements (`replacements-ru.json`: «тот
+есть» → «то есть», «у тебе» → «у тебя», …), and the vocabulary list. The
+ignored `russian_cleanup_cases` in
+[dictation/processor.rs](../../src/dictation/processor.rs) applies all three
+to the transcripts in `cleanup-eval-ru.txt` and checks what each answer must
+and must not contain (`cargo test --bin hex russian_cleanup_cases -- --ignored
+--nocapture`, with the two variables above; nextest's 30 s timeout stops it).
+On 2026-11-03 against LM Studio with `gemma-4-e4b-it-mlx@4bit` it passed 62 of
+65 checks over 27 transcripts, 3.4 s each. Known miss: «а есть я выделяю…,
+тот внизу» stays unfixed (should be «если… то»), and that answer dropped a
+word.
+
+Paste vocabulary as a list (`vocabulary-paste-list`, every OS; its row shows
+under Clean up on your own server): the Vocabulary sheet gains Paste list,
+so a long list goes in at once instead of row by row. The behaviour is in
+[vocabulary.md](vocabulary.md); the gate is the toggle itself, checked where
+the button shows and again when it is pressed. `dictation::vocabulary::parse_list`
+reads the text; the sheet merges it into its rows and saves. A starter list
+for Russian vibe coding lives in
+[docs/vocabulary/vibe-coding-ru.txt](../vocabulary/vibe-coding-ru.txt).
+Checks: `a_pasted_list_reads_terms_and_spellings_per_line` and
+`the_vibe_coding_starter_list_fits` in
+[dictation/vocabulary.rs](../../src/dictation/vocabulary.rs),
+`a_pasted_list_merges_into_the_rows_and_saves` in
+[rune_ui/vocabulary.rs](../../src/rune_ui/vocabulary.rs); scene
+`mac-settings-vocabulary-paste` (no golden). Not yet observed: a paste in a
+running Hex.
 
 Normal features, not Labs: dictation, Annotate (every build; its own pane
 and switch), lowering audio while dictating (#210), Dot scope, chord shortcuts, QuickJS transformations, clipboard

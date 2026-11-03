@@ -449,6 +449,9 @@ impl Pump {
     /// Saves one setting as the window would, then lets the runtime, the
     /// listener, and an open window adopt it.
     fn set_setting(&mut self, key: &str, value: &str) -> Result<ControlReply, ControlError> {
+        if let Some(saved) = settings::set_api_key(key, value) {
+            return saved;
+        }
         if let Some(error) = settings::unavailable(key) {
             return Err(error);
         }

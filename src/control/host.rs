@@ -341,6 +341,9 @@ fn load() -> Result<AppSettings, ControlError> {
 
 /// Saves one setting as the window would, then carries out its effects.
 fn set_setting(host: &dyn Host, key: &str, value: &str) -> Result<ControlReply, ControlError> {
+    if let Some(saved) = settings::set_api_key(key, value) {
+        return saved;
+    }
     if let Some(error) = settings::unavailable(key) {
         return Err(error);
     }
