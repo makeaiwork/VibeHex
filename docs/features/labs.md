@@ -859,7 +859,13 @@ Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 │   sends one short request on its own thread (30 s), a changed server forgets the result
 ├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama
 │   (http://127.0.0.1:11434/v1); anything but http(s) is refused
-├── Model -> field + Save: openrouter_model or custom_model, as the server names it
+├── Model -> field + Save: openrouter_model or custom_model, as the server names it;
+│   ⌄ beside it opens the server's models, searchable by id and name; choosing one saves it
+│   ├── GET {url}/models on its own thread (15 s) while Output shows, again when the
+│   │   server or a saved key changes: LM Studio's downloaded models, Ollama's pulled
+│   │   ones, OpenRouter's catalog (no key needed); embedding and non-text models left out
+│   ├── Loaded -> "Type one, or choose from N" under Model
+│   └── Loading -> a disabled "Loading models…"; failed -> "Try again" with the reason
 ├── API key -> secure field + Save, Remove once saved; never read back into the field
 │   ├── Saved -> "Saved outside settings.json"
 │   ├── OpenRouter, none -> "Required"; Your own, none -> "Not needed for LM Studio or Ollama"
@@ -887,11 +893,12 @@ A managed `opencode_processing` lock turns this rewrite off too. Keys:
 `hex settings set dictation_processing.server.runs_on custom`, `.url`,
 `.openrouter_model`, `.custom_model`; `.openrouter_api_key` and
 `.custom_api_key` save a key (`none` removes it) and read back only `set` or
-`unset`. Not built: a model list from the server, per-mode servers, a model
-running inside Hex. Checks: `dictation::cleanup_server::tests` (chat
+`unset`. Not built: per-mode servers, a model running inside Hex. Checks: `dictation::cleanup_server::tests` (chat
 messages and key, no key for a local server, refusals, empty answers,
-deadline and cancellation, reasoning and fences, OpenCode and the toggle off
-choosing no server),
+deadline and cancellation, reasoning and fences, the toggle choosing the
+server, the model list's GET and refusal),
+`a_listing_keeps_chat_models_in_order_and_names_them` in
+[cleanup_server/models.rs](../../src/dictation/cleanup_server/models.rs),
 `the_key_file_is_owner_only_and_forgets_removed_keys`,
 `prompt_parts_split_instructions_from_the_transcript_and_join_back` in
 [dictation/processor.rs](../../src/dictation/processor.rs),

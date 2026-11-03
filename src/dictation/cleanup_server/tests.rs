@@ -203,8 +203,16 @@ fn opencode_and_the_lab_off_choose_no_server() {
         custom_model: "gemma".into(),
         ..Default::default()
     });
-    // Labs › Clean up on your own server is off by default.
+    // Labs › Clean up on your own server is off by default. Set the switch
+    // here: unset, it reads this computer's saved settings.
+    crate::labs::apply(&crate::app_settings::LabsSettings::default());
     assert_eq!(active(), None);
+    crate::labs::apply(&crate::app_settings::LabsSettings {
+        ai_cleanup_server: true,
+        ..Default::default()
+    });
+    assert_eq!(active().map(|server| server.model), Some("gemma".into()));
+    crate::labs::apply(&crate::app_settings::LabsSettings::default());
 }
 
 #[test]
@@ -253,4 +261,34 @@ fn answers_lose_reasoning_and_fences() {
     assert_eq!(clean("```text\nMCP server\n```"), "MCP server");
     assert_eq!(clean("```\nMCP server\n```"), "MCP server");
     assert_eq!(clean("Run `todo.md` now"), "Run `todo.md` now");
+}
+
+#[test]
+fn the_model_list_is_a_get_of_models_with_the_key() {
+    let (url, request) = serve_once(
+        200,
+        r#"{"data":[{"id":"gemma-4-e4b-it-mlx@4bit"},{"id":"text-embedding-nomic"}]}"#,
+    );
+    let listed = models::list(&custom(&format!("{url}/")), Some(" sk-local ")).unwrap();
+    assert_eq!(
+        listed,
+        [models::ServerModel {
+            id: "gemma-4-e4b-it-mlx@4bit".into(),
+            name: String::new()
+        }]
+    );
+    let request = request.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert!(request.starts_with("GET /v1/models HTTP/1.1"), "{request}");
+    assert!(
+        request.contains("authorization: Bearer sk-local")
+            || request.contains("Authorization: Bearer sk-local"),
+        "{request}"
+    );
+
+    let (url, _) = serve_once(401, r#"{"error":{"message":"bad key"}}"#);
+    let why = models::list(&custom(&url), None).unwrap_err().to_string();
+    assert!(
+        why.contains("refused the API key") && why.contains("bad key"),
+        "{why}"
+    );
 }

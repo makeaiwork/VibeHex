@@ -1,13 +1,17 @@
 //! Labs › Clean up on your own server, in Output: whether every dictation is
 //! rewritten, where (OpenCode, OpenRouter, or the person's own
 //! OpenAI-compatible server such as LM Studio), with which model, key, and
-//! instructions, and a Test that sends one short request.
+//! instructions, and a Test that sends one short request. The model field
+//! takes any id, and its list offers the models the server reports.
 
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::time::Duration;
 
 use rune::{El, TextEdit, Waker, col, row, text};
-use rune_kit::{TextArea, TextInput};
+use rune_kit::{
+    Combobox, ComboboxOption, ComboboxState, IconButton, IconButtonVariant, Placement, TextArea,
+    TextInput,
+};
 
 use super::super::Ui;
 use super::super::controls::{
@@ -15,11 +19,14 @@ use super::super::controls::{
 };
 use crate::app_settings::{CleanupRunsOn, CleanupServerSettings};
 use crate::desktop::i18n::{tr, tr_fill};
+use crate::dictation::cleanup_server::models::ServerModel;
 use crate::dictation::cleanup_server::{self, LM_STUDIO_URL, OLLAMA_URL, Provider, Server};
 
 /// Fields wide enough for a URL or a model id such as
 /// `google/gemini-2.5-flash-lite`.
 const FIELD: f32 = 260.0;
+/// The model list's button and the gap before it.
+const LIST_BUTTON: f32 = 36.0;
 
 /// The section's drafts and the last Test.
 #[derive(Default)]
@@ -30,6 +37,37 @@ pub(in crate::rune_ui) struct Cleanup {
     key: TextEdit,
     prompt: Option<TextEdit>,
     test: Test,
+    models: Models,
+    /// The model list: open, its search, and its highlight.
+    picker: ComboboxState,
+}
+
+/// Which server a model list came from: a change loads it again.
+type Source = (Provider, String);
+
+/// The models the chosen server reports, loaded while Output shows.
+#[derive(Default)]
+enum Models {
+    #[default]
+    Unloaded,
+    Loading(Source, Receiver<Result<Vec<ServerModel>, String>>),
+    Loaded(Source, Vec<ServerModel>),
+    Failed(Source, String),
+}
+
+impl Models {
+    fn source(&self) -> Option<&Source> {
+        match self {
+            Self::Unloaded => None,
+            Self::Loading(source, _) | Self::Loaded(source, _) | Self::Failed(source, _) => {
+                Some(source)
+            }
+        }
+    }
+}
+
+fn source(server: &Server) -> Source {
+    (server.provider, server.url.trim().to_owned())
 }
 
 #[derive(Default)]
@@ -43,7 +81,7 @@ enum Test {
 }
 
 /// The section, while Labs › Clean up on your own server is on.
-pub(super) fn section(ui: &Ui, p: Paint) -> Option<El> {
+pub(super) fn section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
     if !ui.settings.labs.ai_cleanup_server {
         return None;
     }
@@ -75,7 +113,7 @@ pub(super) fn section(ui: &Ui, p: Paint) -> Option<El> {
         if server.provider == Provider::Custom {
             rows.push(url_row(ui, p, saved).into());
         }
-        rows.push(model_row(ui, p, saved).into());
+        rows.push(model_row(ui, p, saved, &server, layer).into());
         rows.push(key_row(ui, p, server.provider).into());
     }
     rows.push(instructions(ui, p).into());
@@ -190,6 +228,7 @@ fn url_row(ui: &Ui, p: Paint, saved: &CleanupServerSettings) -> El {
     let field = draft_field(
         p,
         "ai-cleanup-url",
+        FIELD,
         ui.output.cleanup.url.as_ref(),
         &saved.url,
         LM_STUDIO_URL,
@@ -209,7 +248,13 @@ fn url_row(ui: &Ui, p: Paint, saved: &CleanupServerSettings) -> El {
         )
 }
 
-fn model_row(ui: &Ui, p: Paint, saved: &CleanupServerSettings) -> El {
+fn model_row(
+    ui: &Ui,
+    p: Paint,
+    saved: &CleanupServerSettings,
+    server: &Server,
+    layer: &mut Vec<El>,
+) -> El {
     let (value, placeholder) = match saved.runs_on {
         CleanupRunsOn::Openrouter => (&saved.openrouter_model, "google/gemini-2.5-flash-lite"),
         _ => (&saved.custom_model, "gemma-4-e4b-it-mlx"),
@@ -217,6 +262,7 @@ fn model_row(ui: &Ui, p: Paint, saved: &CleanupServerSettings) -> El {
     let field = draft_field(
         p,
         "ai-cleanup-model",
+        FIELD - LIST_BUTTON,
         ui.output.cleanup.model.as_ref(),
         value,
         placeholder,
@@ -224,7 +270,93 @@ fn model_row(ui: &Ui, p: Paint, saved: &CleanupServerSettings) -> El {
         |ui| saved_model(&ui.settings.dictation_processing.server).to_owned(),
         save_model,
     );
-    setting_row(p, "ai-cleanup-model-row", tr("Model"), None, field)
+    let description = match &ui.output.cleanup.models {
+        Models::Loaded(from, models) if *from == source(server) && !models.is_empty() => Some(
+            tr_fill("Type one, or choose from {}", &models.len().to_string()),
+        ),
+        _ => None,
+    };
+    let controls = row()
+        .key("ai-cleanup-model-controls")
+        .gap(8.0)
+        .center_y()
+        .child(field)
+        .child(model_list(ui, p, server, value, layer));
+    setting_row(
+        p,
+        "ai-cleanup-model-row",
+        tr("Model"),
+        description.as_deref(),
+        controls,
+    )
+}
+
+/// The models the server reports, searchable, beside the field; choosing
+/// one saves it. While loading or after a failure the list says so, and a
+/// failed list offers Try again.
+fn model_list(ui: &Ui, p: Paint, server: &Server, saved: &str, layer: &mut Vec<El>) -> El {
+    let current_source = source(server);
+    let mut ids = Vec::new();
+    let mut options = Vec::new();
+    let mut empty = tr("No models match");
+    match &ui.output.cleanup.models {
+        Models::Loaded(from, models) if *from == current_source => {
+            for model in models {
+                let mut option = ComboboxOption::new(ids.len().to_string(), model.id.clone());
+                option.detail = model.name.clone();
+                options.push(option);
+                ids.push(model.id.clone());
+            }
+            if models.is_empty() {
+                empty = tr("The server lists no models");
+            }
+        }
+        Models::Failed(from, why) if *from == current_source => {
+            let mut option = ComboboxOption::new("retry", tr("Try again"));
+            option.detail = why.clone();
+            options.push(option);
+        }
+        _ => {
+            let mut option = ComboboxOption::new("loading", tr("Loading models…"));
+            option.disabled = true;
+            options.push(option);
+        }
+    }
+    let current = ids
+        .iter()
+        .position(|id| id == saved.trim())
+        .map(|index| index.to_string());
+    let trigger = IconButton::new(p.k.glyph.chevron_down)
+        .variant(IconButtonVariant::Neutral)
+        .control_size(rune_kit::ControlSize::Large)
+        .label(tr("Choose a model"))
+        .expanded(ui.output.cleanup.picker.open)
+        .build(p.k)
+        .key("ai-cleanup-models");
+    Combobox::new(
+        "ai-cleanup-model-list",
+        &ui.output.cleanup.picker,
+        &options,
+        |ui: &mut Ui| &mut ui.output.cleanup.picker,
+    )
+    .trigger(trigger)
+    .placement(Placement::BottomEnd)
+    .width(360.0)
+    .max_height(360.0)
+    .current(current.as_deref())
+    .search_placeholder(tr("Search models"))
+    .empty_message(empty)
+    .on_choose(move |ui: &mut Ui, id: &str, _| {
+        if id == "retry" {
+            ui.output.cleanup.models = Models::Unloaded;
+            return;
+        }
+        if let Some(model) = id.parse::<usize>().ok().and_then(|index| ids.get(index)) {
+            ui.output.cleanup.model = Some(TextEdit::new(model.clone()));
+            save_model(ui);
+        }
+    })
+    .build(p.k, layer)
 }
 
 /// The key field: what is typed is never shown, and a saved key is never
@@ -373,6 +505,7 @@ fn instructions(ui: &Ui, p: Paint) -> El {
 fn draft_field(
     p: Paint,
     key: &str,
+    width: f32,
     draft: Option<&TextEdit>,
     saved: &str,
     placeholder: &str,
@@ -391,7 +524,7 @@ fn draft_field(
     let edited = edit.text.trim() != saved.trim();
     let input = TextInput::new(edit)
         .placeholder(placeholder)
-        .width(Some(FIELD - if edited { 70.0 } else { 0.0 }))
+        .width(Some(width - if edited { 70.0 } else { 0.0 }))
         .on_edit(move |ui: &mut Ui| {
             let saved = saved_now(ui);
             slot(ui).get_or_insert_with(|| TextEdit::new(saved))
@@ -493,6 +626,8 @@ fn save_key(ui: &mut Ui) {
         ui.error = Some(error);
     }
     ui.output.cleanup.test = Test::NotTested;
+    // A server may list more models with the key.
+    ui.output.cleanup.models = Models::Unloaded;
 }
 
 /// Sends one short request on its own thread; [`poll`] takes the answer.
@@ -522,8 +657,58 @@ fn test(ui: &mut Ui) {
     }
 }
 
-/// Takes a finished Test's answer; true when it changed what shows.
+/// Takes a finished Test's answer and model list, and loads the chosen
+/// server's list while the window shows; true when it changed what shows.
 pub(super) fn poll(ui: &mut Ui) -> bool {
+    poll_models(ui) | poll_test(ui)
+}
+
+fn poll_models(ui: &mut Ui) -> bool {
+    if let Models::Loading(from, receiver) = &ui.output.cleanup.models {
+        let finished = match receiver.try_recv() {
+            Ok(Ok(models)) => Models::Loaded(from.clone(), models),
+            Ok(Err(why)) => Models::Failed(from.clone(), why),
+            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Disconnected) => Models::Unloaded,
+        };
+        ui.output.cleanup.models = finished;
+        return true;
+    }
+    if !ui.settings.labs.ai_cleanup_server
+        || !ui.live()
+        || !ui.window.as_ref().is_some_and(rune::AppHandle::is_visible)
+    {
+        return false;
+    }
+    let Some(server) = Server::from_settings(&ui.settings.dictation_processing.server) else {
+        return false;
+    };
+    let wanted = source(&server);
+    if ui.output.cleanup.models.source() == Some(&wanted) {
+        return false;
+    }
+    let (sender, receiver) = channel();
+    let waker: Option<Waker> = ui.modes.waker.clone();
+    let started = std::thread::Builder::new()
+        .name("hex-cleanup-models".into())
+        .spawn(move || {
+            let key = cleanup_server::keys::get(server.provider);
+            let _ = sender.send(
+                cleanup_server::models::list(&server, key.as_deref())
+                    .map_err(|error| error.to_string()),
+            );
+            if let Some(waker) = &waker {
+                waker();
+            }
+        });
+    if started.is_ok() {
+        ui.output.cleanup.models = Models::Loading(wanted, receiver);
+        return true;
+    }
+    false
+}
+
+fn poll_test(ui: &mut Ui) -> bool {
     let Test::Testing(server, receiver) = &ui.output.cleanup.test else {
         return false;
     };
@@ -552,6 +737,18 @@ pub(super) fn fixture(ui: &mut Ui) {
     rewrite.enabled = true;
     rewrite.prompt = "English words spoken in Russian are written in English: \"клод код\" is \"Claude Code\", \"эм си пи сервер\" is \"MCP server\".".into();
     if let Some(server) = Server::from_settings(&ui.settings.dictation_processing.server) {
+        let model = |id: &str| ServerModel {
+            id: id.into(),
+            name: String::new(),
+        };
+        ui.output.cleanup.models = Models::Loaded(
+            source(&server),
+            vec![
+                model("gemma-4-e4b-it-mlx"),
+                model("gemma-4-e4b-it-mlx@4bit"),
+                model("google/gemma-4-e4b"),
+            ],
+        );
         ui.output.cleanup.test = Test::Passed(server, Duration::from_millis(820));
     }
 }

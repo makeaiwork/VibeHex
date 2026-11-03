@@ -10,6 +10,7 @@
 //! ([`keys`]), never from settings.json.
 
 pub(crate) mod keys;
+pub mod models;
 
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -201,15 +202,17 @@ fn generate_with_key(
         url,
         key: key.map(str::to_owned),
         openrouter: server.provider == Provider::OpenRouter,
-        body,
+        body: Some(body),
         timeout: deadline,
+        limit: MAX_RESPONSE_BYTES,
         name: name.clone(),
     };
     let (sender, receiver) = mpsc::channel();
+    let answered = name.clone();
     thread::Builder::new()
         .name("hex-cleanup-server".into())
         .spawn(move || {
-            let _ = sender.send(exchange.run());
+            let _ = sender.send(exchange.run().and_then(|body| answer(&answered, &body)));
         })
         .map_err(|error| eyre!("couldn't start the request to {name}: {error}"))?;
     loop {
@@ -236,12 +239,13 @@ fn generate_with_key(
 /// `{base}/chat/completions`, whether or not the base ends in a slash or
 /// already names the endpoint.
 fn endpoint(base: &str) -> String {
+    format!("{}/chat/completions", api_base(base))
+}
+
+/// The base URL without a trailing slash or a named endpoint.
+fn api_base(base: &str) -> &str {
     let base = base.trim().trim_end_matches('/');
-    if base.ends_with("/chat/completions") {
-        base.into()
-    } else {
-        format!("{base}/chat/completions")
-    }
+    base.strip_suffix("/chat/completions").unwrap_or(base)
 }
 
 fn is_loopback(url: &url::Url) -> bool {
@@ -284,18 +288,22 @@ struct ChoiceMessage {
     content: Option<String>,
 }
 
+/// One request to a server: a POST with `body`, else a GET.
 struct Exchange {
     url: String,
     loopback: bool,
     key: Option<String>,
     openrouter: bool,
-    body: Vec<u8>,
+    body: Option<Vec<u8>>,
     timeout: Duration,
+    /// The most of the answer's body read.
+    limit: u64,
     name: String,
 }
 
 impl Exchange {
-    fn run(self) -> Result<String> {
+    /// The answer's body, or why the server refused or couldn't be reached.
+    fn run(self) -> Result<Vec<u8>> {
         let timeout = self.timeout;
         let configure = |config: crate::net::Config| {
             config
@@ -308,32 +316,35 @@ impl Exchange {
             crate::net::agent(&self.url, configure)
         };
         let mut builder = ureq::http::Request::builder()
-            .method("POST")
-            .uri(self.url.as_str())
-            .header("Content-Type", "application/json");
+            .method(if self.body.is_some() { "POST" } else { "GET" })
+            .uri(self.url.as_str());
+        if self.body.is_some() {
+            builder = builder.header("Content-Type", "application/json");
+        }
         if let Some(key) = &self.key {
             builder = builder.header("Authorization", format!("Bearer {key}"));
         }
         if self.openrouter {
             builder = builder.header("X-Title", "Hex");
         }
-        let request = builder
-            .body(self.body)
-            .map_err(|error| eyre!("invalid request to {}: {error}", self.name))?;
-        let mut response = agent
-            .run(request)
-            .map_err(|error| eyre!(crate::net::unreachable(&self.url, &error)))?;
+        let invalid = |error: ureq::http::Error| eyre!("invalid request to {}: {error}", self.name);
+        let sent = match self.body {
+            Some(body) => agent.run(builder.body(body).map_err(invalid)?),
+            None => agent.run(builder.body(()).map_err(invalid)?),
+        };
+        let mut response =
+            sent.map_err(|error| eyre!(crate::net::unreachable(&self.url, &error)))?;
         let status = response.status().as_u16();
         let body = response
             .body_mut()
             .with_config()
-            .limit(MAX_RESPONSE_BYTES)
+            .limit(self.limit)
             .read_to_vec()
             .map_err(|error| eyre!(crate::net::unreachable(&self.url, &error)))?;
         if !(200..300).contains(&status) {
             return Err(eyre!(refusal(&self.name, status, &body)));
         }
-        answer(&self.name, &body)
+        Ok(body)
     }
 }
 

@@ -312,6 +312,12 @@ fn build(init: impl FnOnce() -> Ui + 'static, playground: PlaygroundMode) -> run
     // alone reaches the recorder, which says Linux needs a key with it.
     #[cfg(target_os = "linux")]
     let app = app.modifier_keys();
+    // The window's view answers Edit's actions (cut:, copy:, paste:,
+    // selectAll:, undo:, redo:), which the Edit menu in `macos_rune`'s menu
+    // bar sends. AppKit matches those items under any layout, so ⌘V pastes
+    // with a Russian or Greek layout too, where the key alone reads as ⌘м.
+    #[cfg(target_os = "macos")]
+    let app = app.standard_menus();
     let app = match playground {
         PlaygroundMode::None => app,
         PlaygroundMode::Attached => playground::attach(app),
@@ -1337,7 +1343,10 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
     let (actions, body) = match ui.pane {
         _ if ui.labs_open => (Vec::new(), labs::page(ui, p)),
         Pane::General => (Vec::new(), general::pane(ui, p, &mut layer)),
-        Pane::Output => (Vec::new(), output::pane(ui, p, cx.is_reduced_motion())),
+        Pane::Output => (
+            Vec::new(),
+            output::pane(ui, p, cx.is_reduced_motion(), &mut layer),
+        ),
         Pane::Modes => modes::pane(ui, p, &mut layer),
         Pane::History => history::pane(ui, p, &mut layer),
         Pane::Meetings => meetings::pane(ui, p, &mut layer),

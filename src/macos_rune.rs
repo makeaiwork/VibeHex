@@ -1362,9 +1362,13 @@ fn with_window(f: impl FnOnce(&rune::AppHandle<Ui>)) {
     }
 }
 
-/// The menu bar while the window is active: Hex, File, View (with the
-/// Labs), Window.
-/// Rune draws no Edit menu items, so ⌘C/⌘V reach its text fields as keys.
+/// The menu bar while the window is active: Hex, File, Edit, View (with
+/// the Labs), Window.
+/// Edit's items have no target: the window's view answers them (Rune's
+/// `standard_menus`, see `rune_ui::build`) by handing its field the
+/// ⌘-key itself. AppKit matches a menu's key equivalents under any layout,
+/// so ⌘C/⌘V work with a Cyrillic layout, where the key alone reads as
+/// ⌘с/⌘м and Rune's fields would ignore it.
 fn install_main_menu(target: &MenuTarget, mtm: MainThreadMarker) {
     let main = NSMenu::new(mtm);
     let name = crate::app_paths::app_name();
@@ -1388,6 +1392,7 @@ fn install_main_menu(target: &MenuTarget, mtm: MainThreadMarker) {
             vec![Some(("Close Window", sel!(closeWindow:), "w"))],
         ),
     ];
+    let edit_menu = edit_menu(mtm);
     // Rune's own View › Playground item, which this menu bar replaces. A
     // capital letter adds Shift: ⇧⌘D. It opens the playground only while
     // Labs › Playground is on.
@@ -1412,8 +1417,47 @@ fn install_main_menu(target: &MenuTarget, mtm: MainThreadMarker) {
         let heading = NSMenuItem::new(mtm);
         heading.setSubmenu(Some(&menu));
         main.addItem(&heading);
+        if title == "File" {
+            let heading = NSMenuItem::new(mtm);
+            heading.setSubmenu(Some(&edit_menu));
+            main.addItem(&heading);
+        }
     }
     NSApplication::sharedApplication(mtm).setMainMenu(Some(&main));
+}
+
+/// Undo, Redo, Cut, Copy, Paste, and Select All for the focused text
+/// field, sent to the first responder. A capital letter adds Shift.
+fn edit_menu(mtm: MainThreadMarker) -> Retained<NSMenu> {
+    let menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str("Edit"));
+    let items = [
+        Some(("Undo", sel!(undo:), "z")),
+        Some(("Redo", sel!(redo:), "Z")),
+        None,
+        Some(("Cut", sel!(cut:), "x")),
+        Some(("Copy", sel!(copy:), "c")),
+        Some(("Paste", sel!(paste:), "v")),
+        Some(("Select All", sel!(selectAll:), "a")),
+    ];
+    for item in items {
+        let Some((title, action, key)) = item else {
+            menu.addItem(&NSMenuItem::separatorItem(mtm));
+            continue;
+        };
+        // SAFETY: a plain menu item with no target: AppKit sends its action
+        // along the responder chain to the window's view.
+        let entry = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &NSString::from_str(title),
+                Some(action),
+                &NSString::from_str(key),
+            )
+        };
+        entry.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
+        menu.addItem(&entry);
+    }
+    menu
 }
 
 fn menu_item(

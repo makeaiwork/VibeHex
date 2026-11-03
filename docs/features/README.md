@@ -1204,7 +1204,19 @@ Menu-bar installation fails -> Show Dock icon and open the window // recovery ac
 Show Dock icon off                       // maintain.dock-policy
 ├── Settings window open -> Dock icon stays // hiding it would deactivate Hex
 └── Settings window closes -> Menu-bar only
+
+Window's menu bar (macOS)                // maintain.edit-menu
+├── Hex, File, Edit, View, Window (macos_rune::install_main_menu)
+└── Edit -> Undo, Redo, Cut, Copy, Paste, Select All for the focused field
+    └── Any keyboard layout -> AppKit matches ⌘V on a Cyrillic layout (where the key
+        reads ⌘м) and Rune's `standard_menus` hands the field ⌘V itself
 ```
+
+Without an Edit menu, Rune's fields saw ⌘V on a Russian layout as ⌘м and
+ignored it, so paste, copy, cut, and select all did nothing until the layout
+was switched to English. The Edit items have no target: the window's view
+answers them (`rune::App::standard_menus` in `rune_ui::build`). No check
+drives AppKit's key-equivalent matching; not yet observed in a running Hex.
 
 ```ts
 General > Launch at login                // maintain.login-item

@@ -212,13 +212,13 @@ fn preview(mode: &DictationMode, input: &str) -> String {
 // ---------------------------------------------------------------------------
 // View
 
-pub(super) fn pane(ui: &Ui, p: Paint, reduced: bool) -> El {
+pub(super) fn pane(ui: &Ui, p: Paint, reduced: bool, layer: &mut Vec<El>) -> El {
     let processing = &ui.settings.dictation_processing;
     let mut content = page("output-content")
         .children(trust_card(ui, p))
         .child(agent_card(ui, p, reduced))
         .child(every_dictation(ui, p, &processing.default_mode))
-        .children(ai_cleanup::section(ui, p))
+        .children(ai_cleanup::section(ui, p, layer))
         .child(try_card(ui, p, &processing.default_mode));
     if !processing.modes.is_empty() {
         content = content.child(some_apps(ui, p, &processing.modes));
