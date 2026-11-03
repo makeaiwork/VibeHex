@@ -345,6 +345,18 @@ Checks: `telemost_matches_only_its_application_identity`,
 `telemost_native_and_web_policies_are_independent_and_round_trip`,
 `telemost_waits_twenty_seconds_and_snoozes_each_policy`, and
 `telemost_settings_show_web_only_where_the_watcher_reads_sites`.
+Observed (2026-11-03): macOS `scripts/check telemost` passed all six matching
+tests. Full `scripts/check` passed formatting, code-shape and Clippy; 2,059
+of 2,060 tests passed on the final run, with the unrelated Scrawl child-process
+deadline test passing on its isolated rerun (and the preceding full run).
+The existing CLI settings coverage fixture was corrected to populate the
+optional `opencode_model` before asserting that its serialized key exists.
+Linux compiled and passed the Telemost tests, including the settings UI test;
+both changed calendar-settings goldens were retrieved from `check-linux.yml`,
+visually reviewed in light and dark appearances, and committed. Windows x64
+and ARM64 compiled the new process attribution code. A native macOS settings
+fixture also rendered both Telemost rows with Ask selected. These results do
+not establish native Windows/Linux UI or audio behavior.
 These checks exercise fixtures, not live Telemost calls. Native recording,
 muted calls, capture-device matching and parent-process attribution during a
 real call have not been observed. No live device test was performed.
