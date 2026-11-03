@@ -954,11 +954,13 @@ on
 ├── vibe-coding-ru.txt        merged into the shared vocabulary (new terms and spellings only)
 ├── replacements-ru.json      added to Global's word fixes, unless a fix for the same phrase exists
 ├── cleanup-instructions-ru.txt  Global's instructions: replaces Hex's default prompt, else appended once
-└── Global's Clean up with AI    on (it runs where Output says: OpenCode, OpenRouter, or your server)
+├── Global's Clean up with AI    on (it runs where Output says: OpenCode, OpenRouter, or your server)
+└── Labs it builds on            Clean up on your own server and Paste vocabulary as a list on
 off
 ├── vocabulary entries and fixes exactly as the preset wrote them are removed; edited ones stay
-└── instructions: only the preset's text is removed; if nothing else was there, Hex's default
-    prompt returns and Clean up with AI turns off
+├── instructions: only the preset's text is removed; if nothing else was there, Hex's default
+│   prompt returns and Clean up with AI turns off
+└── Clean up on your own server and Paste vocabulary as a list stay on (a server or key set up there is the person's own)
 ```
 
 Everything it writes stays editable in Vocabulary and Output. The managed

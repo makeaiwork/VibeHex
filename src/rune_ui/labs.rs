@@ -272,7 +272,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
         Feature::RussianVibeCoding,
         &BOOK,
         tr("Russian vibe coding"),
-        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI. Off takes them back"),
+        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI, Clean up on your own server, and Paste vocabulary as a list. Off takes back the terms, fixes, and instructions"),
     ));
     if caps.keyboard_model_switching {
         rows.push(row(

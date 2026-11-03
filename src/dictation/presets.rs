@@ -1,8 +1,10 @@
 //! Labs › Russian vibe coding: one switch that writes the Russian
 //! vibe-coding preset in `docs/vocabulary/` into the person's own settings
 //! (shared vocabulary, Global's word fixes, Global's cleanup instructions,
-//! and Clean up with AI on), and takes back, when turned off, only what
-//! still reads as the preset wrote it. Everything it writes stays editable
+//! and Clean up with AI on), turns on the Labs it builds on (Clean up on
+//! your own server, Paste vocabulary as a list), and takes back, when turned
+//! off, only what still reads as the preset wrote it; those two Labs stay
+//! on, since a server or key set up there is the person's own. Everything it writes stays editable
 //! in Vocabulary and Output like anything typed there.
 
 use crate::app_settings::{AppSettings, DictationPostProcessing};
@@ -45,6 +47,8 @@ fn add(settings: &mut AppSettings) {
         rewrite.prompt = format!("{prompt}\n\n{instructions}");
     }
     rewrite.enabled = true;
+    settings.labs.ai_cleanup_server = true;
+    settings.labs.vocabulary_paste_list = true;
 }
 
 fn take_back(settings: &mut AppSettings) {
@@ -108,6 +112,8 @@ mod tests {
         assert_eq!(mode.replacements.len(), replacements().len());
         assert_eq!(mode.post_processing.prompt, INSTRUCTIONS.trim());
         assert!(mode.post_processing.enabled);
+        assert!(settings.labs.ai_cleanup_server);
+        assert!(settings.labs.vocabulary_paste_list);
 
         // On again adds nothing twice.
         let once = settings.clone();
@@ -115,6 +121,10 @@ mod tests {
         assert_eq!(settings, once);
 
         russian_vibe_coding(&mut settings, false);
+        // The Labs it turned on stay on; everything else is as it was.
+        assert!(settings.labs.ai_cleanup_server);
+        assert!(settings.labs.vocabulary_paste_list);
+        settings.labs = fresh.labs.clone();
         assert_eq!(settings, fresh);
     }
 

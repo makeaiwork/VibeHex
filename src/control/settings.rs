@@ -446,7 +446,7 @@ const KEYS: &[Key] = &[
     key(
         "labs.russian_vibe_coding",
         Kind::Bool,
-        "Labs: turning it on adds the Russian vibe-coding vocabulary, Global's word fixes and AI cleanup instructions, and turns on Clean up with AI; off takes back what it added",
+        "Labs: turning it on adds the Russian vibe-coding vocabulary, Global's word fixes and AI cleanup instructions, and turns on Clean up with AI and labs.ai_cleanup_server and labs.vocabulary_paste_list; off takes back the terms, fixes, and instructions",
     ),
     key(
         "labs.meeting_summary_model",
@@ -1624,7 +1624,10 @@ mod tests {
         let again = apply(&on.settings, "labs.russian_vibe_coding", "true", &rules()).unwrap();
         assert_eq!(again.settings, on.settings);
         let off = apply(&on.settings, "labs.russian_vibe_coding", "false", &rules()).unwrap();
-        assert_eq!(off.settings, fresh);
+        assert!(on.settings.labs.ai_cleanup_server && on.settings.labs.vocabulary_paste_list);
+        let mut off = off.settings;
+        off.labs = fresh.labs.clone();
+        assert_eq!(off, fresh);
     }
 
     #[test]
