@@ -333,7 +333,9 @@ Identity evidence: the installed macOS app's `Info.plist` identifies
 `org.qt-project.Qt.QtWebEngineProcess`. Yandex's
 [Windows settings instructions](https://yandex.by/support/yandex-360/customers/telemost/web/ru/settings?lang=ru)
 name `yandextelemost.exe`; its [MSI instructions](https://yandex.ru/support/yandex-360/business/admin/en/telemost-msi)
-link the official installer. The numeric `/j/` URL format is documented in
+link the official installer. Its downloaded CAB file table also names
+`YandexTelemost.exe` and `QtWebEngineProcess.exe` (the network transfer was
+incomplete; no installer was run). The numeric `/j/` URL format is documented in
 [Yandex's meeting-room instructions](https://yandex.ru/support/yandex-360/business/telemost/web/ru/call/join-meeting-room).
 
 Checks: `telemost_matches_only_its_application_identity`,

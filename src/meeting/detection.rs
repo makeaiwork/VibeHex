@@ -5,7 +5,9 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::app_settings::{KNOWN_MEETING_PROVIDERS, MeetingPolicy, MeetingProviderChoice, TELEMOST_APP, TELEMOST_SITE};
+use crate::app_settings::{
+    KNOWN_MEETING_PROVIDERS, MeetingPolicy, MeetingProviderChoice, TELEMOST_APP, TELEMOST_SITE,
+};
 use crate::dictation::context::ContextSnapshot;
 use crate::microphone_activity::ActiveMicrophoneApplication;
 
@@ -229,9 +231,10 @@ impl MeetingCandidate {
             // WhatsApp also takes the microphone for voice notes (#835), and
             // Gather can hold it while you sit in a space (#855). Telemost
             // also offers microphone previews and voice messages.
-            MeetingSource::BrowserCall | MeetingSource::WhatsApp | MeetingSource::Gather | MeetingSource::Telemost => {
-                BROWSER_STABLE_FOR
-            }
+            MeetingSource::BrowserCall
+            | MeetingSource::WhatsApp
+            | MeetingSource::Gather
+            | MeetingSource::Telemost => BROWSER_STABLE_FOR,
             _ => STABLE_FOR,
         }
     }
@@ -766,7 +769,9 @@ fn opaque_key(source: MeetingSource, identity: &str) -> String {
 /// call or a known call site.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn names_call(url: &Url) -> bool {
-    is_google_meet_call(url) || is_telemost_call(url) || url.host_str().and_then(call_site_source).is_some()
+    is_google_meet_call(url)
+        || is_telemost_call(url)
+        || url.host_str().and_then(call_site_source).is_some()
 }
 
 /// Whether a browser tab's title names a call (a Google Meet call's).
@@ -1956,14 +1961,20 @@ mod tests {
                 name: "Yandex.Telemost".into(),
             },
             &ContextSnapshot::default(),
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     fn telemost_web() -> MeetingCandidate {
         candidate_from_microphone(
             &brave(),
-            &context("Brave Browser", Some("https://telemost.yandex.ru/j/1234567890"), "Телемост"),
-        ).unwrap()
+            &context(
+                "Brave Browser",
+                Some("https://telemost.yandex.ru/j/1234567890"),
+                "Телемост",
+            ),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -1974,7 +1985,11 @@ mod tests {
         ] {
             let url = Url::parse(address).unwrap();
             assert!(names_call(&url));
-            let call = candidate_from_microphone(&brave(), &context("Brave Browser", Some(address), "Телемост")).unwrap();
+            let call = candidate_from_microphone(
+                &brave(),
+                &context("Brave Browser", Some(address), "Телемост"),
+            )
+            .unwrap();
             assert_eq!(call.source, MeetingSource::Telemost);
             assert_eq!(call.site.as_deref(), Some(TELEMOST_SITE));
         }
@@ -1989,14 +2004,27 @@ mod tests {
             "file://telemost.yandex.ru/j/123",
         ] {
             assert!(!names_call(&Url::parse(address).unwrap()), "{address}");
-            let call = candidate_from_microphone(&brave(), &context("Brave Browser", Some(address), "Телемост")).unwrap();
+            let call = candidate_from_microphone(
+                &brave(),
+                &context("Brave Browser", Some(address), "Телемост"),
+            )
+            .unwrap();
             assert_eq!(call.source, MeetingSource::BrowserCall, "{address}");
         }
-        let unknown = candidate_from_microphone(&brave(), &context("Brave Browser", None, "Телемост")).unwrap();
+        let unknown =
+            candidate_from_microphone(&brave(), &context("Brave Browser", None, "Телемост"))
+                .unwrap();
         assert_eq!(unknown.source, MeetingSource::BrowserCall);
         assert!(!unknown.can_always_record());
         assert!(!title_names_call("Телемост"));
-        assert!(candidate_from_context(&context("Other app", Some("https://telemost.yandex.ru/j/123"), "Телемост")).is_none());
+        assert!(
+            candidate_from_context(&context(
+                "Other app",
+                Some("https://telemost.yandex.ru/j/123"),
+                "Телемост"
+            ))
+            .is_none()
+        );
     }
 
     #[test]
@@ -2011,15 +2039,24 @@ mod tests {
         assert!(!settings.enabled);
         assert_eq!(app.policy(&settings.providers), MeetingPolicy::Ask);
         assert_eq!(web.policy(&settings.providers), MeetingPolicy::Ask);
-        crate::app_settings::set_meeting_provider(&mut settings, app.provider().unwrap().choose(MeetingPolicy::NeverOffer));
+        crate::app_settings::set_meeting_provider(
+            &mut settings,
+            app.provider().unwrap().choose(MeetingPolicy::NeverOffer),
+        );
         assert_eq!(web.policy(&settings.providers), MeetingPolicy::Ask);
-        crate::app_settings::set_meeting_provider(&mut settings, web.provider().unwrap().choose(MeetingPolicy::AlwaysRecord));
+        crate::app_settings::set_meeting_provider(
+            &mut settings,
+            web.provider().unwrap().choose(MeetingPolicy::AlwaysRecord),
+        );
         let saved = serde_json::to_value(&settings).unwrap();
         let loaded: crate::app_settings::MeetingSettings = serde_json::from_value(saved).unwrap();
         assert_eq!(app.policy(&loaded.providers), MeetingPolicy::NeverOffer);
         assert_eq!(web.policy(&loaded.providers), MeetingPolicy::AlwaysRecord);
         for call in [app, web] {
-            assert_eq!(call.recording_start().app.as_deref(), Some("Yandex Telemost"));
+            assert_eq!(
+                call.recording_start().app.as_deref(),
+                Some("Yandex Telemost")
+            );
             assert_eq!(call.recording_start().title, None);
             assert_eq!(call.offer_title(), "Yandex Telemost call detected");
         }
@@ -2029,7 +2066,11 @@ mod tests {
     fn telemost_waits_twenty_seconds_and_snoozes_each_policy() {
         for call in [telemost_app(), telemost_web()] {
             assert_eq!(call.required_stability(), Duration::from_secs(20));
-            for policy in [MeetingPolicy::Ask, MeetingPolicy::AlwaysRecord, MeetingPolicy::NeverOffer] {
+            for policy in [
+                MeetingPolicy::Ask,
+                MeetingPolicy::AlwaysRecord,
+                MeetingPolicy::NeverOffer,
+            ] {
                 let choices = [call.provider().unwrap().choose(policy)];
                 let mut watch = Watch::new();
                 assert!(watch.run(Some(&call), &choices, 20_000).is_empty());
@@ -2042,7 +2083,10 @@ mod tests {
                 assert!(watch.run(Some(&call), &choices, 30_000).is_empty());
                 assert!(watch.run(None, &choices, 61_000).is_empty());
                 assert!(watch.run(Some(&call), &choices, 20_000).is_empty());
-                assert_eq!(watch.run(Some(&call), &choices, 500).len(), usize::from(policy != MeetingPolicy::NeverOffer));
+                assert_eq!(
+                    watch.run(Some(&call), &choices, 500).len(),
+                    usize::from(policy != MeetingPolicy::NeverOffer)
+                );
             }
         }
         let now = Instant::now();
@@ -2052,5 +2096,4 @@ mod tests {
         assert!(!presence.observe_at(false, now + Duration::from_secs(3)));
         assert!(presence.observe_at(false, now + Duration::from_secs(4)));
     }
-
 }

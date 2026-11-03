@@ -1089,20 +1089,43 @@ fn meetings_settings_save_and_ask_for_system_audio() {
 
 #[test]
 fn telemost_settings_show_web_only_where_the_watcher_reads_sites() {
-    use crate::app_settings::{MeetingPolicy, TELEMOST_APP, TELEMOST_SITE};
     use super::super::platform::Capabilities;
-    for caps in [Capabilities::MACOS, Capabilities::WINDOWS, Capabilities::LINUX] {
+    use crate::app_settings::{MeetingPolicy, TELEMOST_APP, TELEMOST_SITE};
+    for caps in [
+        Capabilities::MACOS,
+        Capabilities::WINDOWS,
+        Capabilities::LINUX,
+    ] {
         let mut rt = runtime("meetings-settings", true, (980.0, 2800.0));
         rt.state.platform.caps = caps;
         refresh(&mut rt);
         let shown = texts(&rt);
         assert!(shown.iter().any(|text| text == "Yandex Telemost"));
-        assert_eq!(shown.iter().any(|text| text == "Yandex Telemost (web)"), caps.meeting_websites);
+        assert_eq!(
+            shown.iter().any(|text| text == "Yandex Telemost (web)"),
+            caps.meeting_websites
+        );
         pick(&mut rt, "call7-policy", 2);
-        assert!(rt.state.settings.meetings.providers.iter().any(|choice| choice.key == TELEMOST_APP && choice.policy == MeetingPolicy::NeverOffer));
+        assert!(
+            rt.state
+                .settings
+                .meetings
+                .providers
+                .iter()
+                .any(|choice| choice.key == TELEMOST_APP
+                    && choice.policy == MeetingPolicy::NeverOffer)
+        );
         if caps.meeting_websites {
             pick(&mut rt, "call8-policy", 1);
-            assert!(rt.state.settings.meetings.providers.iter().any(|choice| choice.key == TELEMOST_SITE && choice.policy == MeetingPolicy::AlwaysRecord));
+            assert!(
+                rt.state
+                    .settings
+                    .meetings
+                    .providers
+                    .iter()
+                    .any(|choice| choice.key == TELEMOST_SITE
+                        && choice.policy == MeetingPolicy::AlwaysRecord)
+            );
         }
     }
 }

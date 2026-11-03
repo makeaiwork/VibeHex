@@ -47,16 +47,23 @@ mod tests {
             _ => None,
         });
         assert_eq!(resolved, Some((1, "YandexTelemost.exe".into())));
-        for name in ["OtherQtApp.exe", "YandexTelemostUpdateService.exe", "telemost.exe"] {
+        for name in [
+            "OtherQtApp.exe",
+            "YandexTelemostUpdateService.exe",
+            "telemost.exe",
+        ] {
             assert!(resolve_windows_helper(3, |_| Some((2, name.into()))).is_none());
         }
         assert!(resolve_windows_helper(3, |_| None).is_none());
         assert!(resolve_windows_helper(3, |_| Some((3, "YandexTelemost.exe".into()))).is_none());
         let mut calls = 0;
-        assert!(resolve_windows_helper(10, |pid| {
-            calls += 1;
-            Some((pid - 1, "QtWebEngineProcess.exe".into()))
-        }).is_none());
+        assert!(
+            resolve_windows_helper(10, |pid| {
+                calls += 1;
+                Some((pid - 1, "QtWebEngineProcess.exe".into()))
+            })
+            .is_none()
+        );
         assert_eq!(calls, 4);
     }
 }

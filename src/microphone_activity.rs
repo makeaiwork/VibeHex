@@ -177,8 +177,11 @@ pub(crate) fn application_running_output(canonical_bundle_id: &str) -> Result<bo
         Ok(process_objects.into_iter().any(|process_object| {
             property_value::<u32>(process_object, kAudioProcessPropertyIsRunningOutput)
                 .is_ok_and(|running| running != 0)
-                && property_cf_string(process_object, kAudioProcessPropertyBundleID)
-                    .is_some_and(|bundle_id| audio_process_is_of(process_object, &bundle_id, canonical_bundle_id))
+                && property_cf_string(process_object, kAudioProcessPropertyBundleID).is_some_and(
+                    |bundle_id| {
+                        audio_process_is_of(process_object, &bundle_id, canonical_bundle_id)
+                    },
+                )
         }))
     })
 }
@@ -199,7 +202,9 @@ pub(crate) fn application_input_devices(canonical_bundle_id: &str) -> Result<Vec
                 property_value::<u32>(process_object, kAudioProcessPropertyIsRunningInput)
                     .is_ok_and(|running| running != 0)
                     && property_cf_string(process_object, kAudioProcessPropertyBundleID)
-                        .is_some_and(|bundle_id| audio_process_is_of(process_object, &bundle_id, canonical_bundle_id));
+                        .is_some_and(|bundle_id| {
+                            audio_process_is_of(process_object, &bundle_id, canonical_bundle_id)
+                        });
             if !recording {
                 continue;
             }
@@ -1045,14 +1050,26 @@ mod tests {
     }
     #[test]
     fn telemost_matches_only_its_application_identity() {
-        for id in [TELEMOST_APP, "RU.YANDEX.DESKTOP.TELEMOST", "YandexTelemost.exe"] {
+        for id in [
+            TELEMOST_APP,
+            "RU.YANDEX.DESKTOP.TELEMOST",
+            "YandexTelemost.exe",
+        ] {
             assert_eq!(canonical_bundle_id_for(id, None), Some(TELEMOST_APP));
         }
-        for id in ["org.qt-project.Qt.QtWebEngineProcess", "QtWebEngineProcess.exe", "YandexTelemostUpdateService.exe", "ru.yandex.desktop.telemostOther"] {
+        for id in [
+            "org.qt-project.Qt.QtWebEngineProcess",
+            "QtWebEngineProcess.exe",
+            "YandexTelemostUpdateService.exe",
+            "ru.yandex.desktop.telemostOther",
+        ] {
             assert_eq!(canonical_bundle_id_for(id, Some("Yandex Telemost")), None);
         }
         assert!(!is_browser_id(Some(TELEMOST_APP)));
-        assert_eq!(canonical_application_name(TELEMOST_APP), Some("Yandex Telemost"));
+        assert_eq!(
+            canonical_application_name(TELEMOST_APP),
+            Some("Yandex Telemost")
+        );
     }
 
     #[cfg(target_os = "macos")]
@@ -1068,17 +1085,28 @@ mod tests {
                     100 => Some((owner.into(), None)),
                     _ => None,
                 },
-                |pid| match pid { 300 => Some(200), 200 => Some(100), _ => None },
+                |pid| match pid {
+                    300 => Some(200),
+                    200 => Some(100),
+                    _ => None,
+                },
                 |_| panic!("a generic helper must never be attributed to an arbitrary running app"),
-            ).unwrap();
+            )
+            .unwrap();
             assert_eq!(app.pid, 100);
-            assert_eq!(app.canonical_bundle_id(), (owner == TELEMOST_APP).then_some(TELEMOST_APP));
+            assert_eq!(
+                app.canonical_bundle_id(),
+                (owner == TELEMOST_APP).then_some(TELEMOST_APP)
+            );
         }
         let orphan = resolve_application_with(
-            300, Some(helper.into()), |_| None, |_| None,
+            300,
+            Some(helper.into()),
+            |_| None,
+            |_| None,
             |_| panic!("an orphan helper must not use a running Telemost as evidence"),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(orphan.canonical_bundle_id(), None);
     }
-
 }

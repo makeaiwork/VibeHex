@@ -15,4 +15,3 @@ pub const KNOWN_MEETING_PROVIDERS: [(&str, &str); 9] = [
     (TELEMOST_APP, "Yandex Telemost"),
     (TELEMOST_SITE, "Yandex Telemost (web)"),
 ];
-
