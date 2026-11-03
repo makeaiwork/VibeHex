@@ -64,6 +64,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Clean up on your own server no labs.ai_cleanup_server + dictation_processing.server
 │                                        every mode's rewrite runs on OpenRouter or an OpenAI-compatible server (LM Studio, Ollama) instead of OpenCode; Output shows its AI cleanup section
 ├── Paste vocabulary as a list no labs.vocabulary_paste_list  the Vocabulary sheet's Paste list adds many terms at once, "Term | sounds like, …" per line (vocabulary.md)
+├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on); off: takes back what still reads as the preset wrote it
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
 Settings › Labs                          // labs.page
@@ -941,6 +942,33 @@ Checks: `a_pasted_list_reads_terms_and_spellings_per_line` and
 [rune_ui/vocabulary.rs](../../src/rune_ui/vocabulary.rs); scene
 `mac-settings-vocabulary-paste` (no golden). Not yet observed: a paste in a
 running Hex.
+
+Russian vibe coding (`russian-vibe-coding`, every OS) is a preset, not a
+runtime gate: turning it on (the row, `hex labs on`, or
+`hex settings set labs.russian_vibe_coding true`) writes
+[docs/vocabulary/](../vocabulary/)'s files into the person's own settings
+once, through `dictation::presets::russian_vibe_coding`:
+
+```ts
+on
+├── vibe-coding-ru.txt        merged into the shared vocabulary (new terms and spellings only)
+├── replacements-ru.json      added to Global's word fixes, unless a fix for the same phrase exists
+├── cleanup-instructions-ru.txt  Global's instructions: replaces Hex's default prompt, else appended once
+└── Global's Clean up with AI    on (it runs where Output says: OpenCode, OpenRouter, or your server)
+off
+├── vocabulary entries and fixes exactly as the preset wrote them are removed; edited ones stay
+└── instructions: only the preset's text is removed; if nothing else was there, Hex's default
+    prompt returns and Clean up with AI turns off
+```
+
+Everything it writes stays editable in Vocabulary and Output. The managed
+Labs lock turns only the switch off and leaves what was written. Checks:
+`turning_it_on_then_off_leaves_a_fresh_install_as_it_was`,
+`it_keeps_what_the_person_wrote_and_changed`, and `the_preset_files_load` in
+[dictation/presets.rs](../../src/dictation/presets.rs);
+`the_russian_vibe_coding_lab_writes_its_preset_once_and_takes_it_back` in
+[control/settings.rs](../../src/control/settings.rs). Not yet observed: the
+row flipped in a running Hex.
 
 Normal features, not Labs: dictation, Annotate (every build; its own pane
 and switch), lowering audio while dictating (#210), Dot scope, chord shortcuts, QuickJS transformations, clipboard

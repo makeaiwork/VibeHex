@@ -70,6 +70,8 @@ pub struct LabsSettings {
     pub meeting_summary_model: bool,
     pub ai_cleanup_server: bool,
     pub vocabulary_paste_list: bool,
+    /// The Russian vibe-coding preset is written into these settings.
+    pub russian_vibe_coding: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -115,6 +117,7 @@ impl Default for LabsSettings {
             meeting_summary_model: false,
             ai_cleanup_server: false,
             vocabulary_paste_list: false,
+            russian_vibe_coding: false,
         }
     }
 }

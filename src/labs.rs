@@ -101,10 +101,11 @@ pub enum Feature {
     MeetingSummaryModel,
     AiCleanupServer,
     VocabularyPasteList,
+    RussianVibeCoding,
 }
 
 impl Feature {
-    pub const ALL: [Self; 42] = [
+    pub const ALL: [Self; 43] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -147,6 +148,7 @@ impl Feature {
         Self::MeetingSummaryModel,
         Self::AiCleanupServer,
         Self::VocabularyPasteList,
+        Self::RussianVibeCoding,
     ];
 
     /// The features this OS and build have.
@@ -211,7 +213,8 @@ impl Feature {
             | Self::MovableMeetingCapsules
             | Self::MeetingSummaryModel
             | Self::AiCleanupServer
-            | Self::VocabularyPasteList => Audience::Everyone,
+            | Self::VocabularyPasteList
+            | Self::RussianVibeCoding => Audience::Everyone,
         }
     }
 
@@ -280,7 +283,8 @@ impl Feature {
             | Self::KeepRecordings
             | Self::FillerWords
             | Self::AiCleanupServer
-            | Self::VocabularyPasteList => true,
+            | Self::VocabularyPasteList
+            | Self::RussianVibeCoding => true,
         }
     }
 
@@ -329,6 +333,7 @@ impl Feature {
             Self::MeetingSummaryModel => "meeting-summary-model",
             Self::AiCleanupServer => "ai-cleanup-server",
             Self::VocabularyPasteList => "vocabulary-paste-list",
+            Self::RussianVibeCoding => "russian-vibe-coding",
         }
     }
 
@@ -377,6 +382,7 @@ impl Feature {
             Self::MeetingSummaryModel => "labs.meeting_summary_model",
             Self::AiCleanupServer => "labs.ai_cleanup_server",
             Self::VocabularyPasteList => "labs.vocabulary_paste_list",
+            Self::RussianVibeCoding => "labs.russian_vibe_coding",
         }
     }
 
@@ -491,6 +497,9 @@ impl Feature {
             Self::VocabularyPasteList => {
                 "The Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like"
             }
+            Self::RussianVibeCoding => {
+                "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI; off takes back what it added and you haven't changed"
+            }
         }
     }
 
@@ -543,6 +552,7 @@ impl Feature {
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list,
+            Self::RussianVibeCoding => settings.labs.russian_vibe_coding,
         }
     }
 
@@ -593,6 +603,7 @@ impl Feature {
             &mut labs.meeting_summary_model,
             &mut labs.ai_cleanup_server,
             &mut labs.vocabulary_paste_list,
+            &mut labs.russian_vibe_coding,
         ]
     }
 
@@ -643,6 +654,13 @@ impl Feature {
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model = on,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server = on,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
+            // The preset writes into the person's settings once, on the edge.
+            Self::RussianVibeCoding => {
+                if settings.labs.russian_vibe_coding != on {
+                    crate::dictation::presets::russian_vibe_coding(settings, on);
+                }
+                settings.labs.russian_vibe_coding = on;
+            }
             // Off, no shortcut keeps a key only the feature allows.
             Self::StandaloneSpecialKeys => {
                 settings.labs.standalone_special_keys = on;
@@ -684,6 +702,7 @@ const MOVABLE_MEETING_CAPSULES: u64 = 1 << 23;
 const MEETING_SUMMARY_MODEL: u64 = 1 << 24;
 const AI_CLEANUP_SERVER: u64 = 1 << 25;
 const VOCABULARY_PASTE_LIST: u64 = 1 << 26;
+const RUSSIAN_VIBE_CODING: u64 = 1 << 27;
 /// Unload-idle minutes (at most 1,440, 11 bits) sit above the switches.
 const MINUTES_SHIFT: u64 = 32;
 
@@ -974,6 +993,11 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             Feature::VocabularyPasteList,
             settings.vocabulary_paste_list,
             VOCABULARY_PASTE_LIST,
+        ),
+        (
+            Feature::RussianVibeCoding,
+            settings.russian_vibe_coding,
+            RUSSIAN_VIBE_CODING,
         ),
     ]
     .into_iter()

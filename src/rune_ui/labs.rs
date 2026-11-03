@@ -268,6 +268,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
         tr("Paste vocabulary as a list"),
         tr("Add many terms at once in the Vocabulary sheet: one per line, Term | sounds like"),
     ));
+    rows.push(row(
+        Feature::RussianVibeCoding,
+        &BOOK,
+        tr("Russian vibe coding"),
+        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI. Off takes them back"),
+    ));
     if caps.keyboard_model_switching {
         rows.push(row(
             Feature::KeyboardModelSwitching,
@@ -505,6 +511,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::FillerWords => "lab-filler-words",
         Feature::AiCleanupServer => "lab-ai-cleanup-server",
         Feature::VocabularyPasteList => "lab-vocabulary-paste-list",
+        Feature::RussianVibeCoding => "lab-russian-vibe-coding",
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::SmartSpacing => "lab-smart-spacing",

@@ -444,6 +444,11 @@ const KEYS: &[Key] = &[
         "Labs: the Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like",
     ),
     key(
+        "labs.russian_vibe_coding",
+        Kind::Bool,
+        "Labs: turning it on adds the Russian vibe-coding vocabulary, Global's word fixes and AI cleanup instructions, and turns on Clean up with AI; off takes back what it added",
+    ),
+    key(
         "labs.meeting_summary_model",
         Kind::Bool,
         "Labs: meeting notes written with OpenCode use meetings.opencode_model, with no fallback to another model (macOS)",
@@ -1081,6 +1086,12 @@ pub fn apply(
         }
         "labs.standalone_special_keys" => candidate.repair_special_keys(),
         "labs.section_key_alone" => candidate.repair_section_key(),
+        "labs.russian_vibe_coding"
+            if candidate.labs.russian_vibe_coding != settings.labs.russian_vibe_coding =>
+        {
+            let on = candidate.labs.russian_vibe_coding;
+            crate::dictation::presets::russian_vibe_coding(&mut candidate, on);
+        }
         "labs.parakeet_ultra" if !candidate.labs.parakeet_ultra => {
             if let Some(why) = crate::labs::Feature::ParakeetUltra.off_refusal(settings) {
                 return Err(invalid(name, why));
@@ -1595,6 +1606,25 @@ mod tests {
                 .code,
             "invalid-value"
         );
+    }
+
+    #[test]
+    fn the_russian_vibe_coding_lab_writes_its_preset_once_and_takes_it_back() {
+        let fresh = AppSettings::default();
+        let on = apply(&fresh, "labs.russian_vibe_coding", "true", &rules()).unwrap();
+        let mode = &on.settings.dictation_processing.default_mode;
+        assert!(on.settings.labs.russian_vibe_coding);
+        assert!(mode.post_processing.enabled);
+        assert!(!mode.replacements.is_empty());
+        assert!(crate::dictation::vocabulary::contains(
+            &on.settings.vocabulary,
+            "Claude Code"
+        ));
+        // Setting it on again changes nothing.
+        let again = apply(&on.settings, "labs.russian_vibe_coding", "true", &rules()).unwrap();
+        assert_eq!(again.settings, on.settings);
+        let off = apply(&on.settings, "labs.russian_vibe_coding", "false", &rules()).unwrap();
+        assert_eq!(off.settings, fresh);
     }
 
     #[test]

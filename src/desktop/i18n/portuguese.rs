@@ -124,6 +124,8 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Rewrite with {}", "Reescrever com {}"),
     ("Paste vocabulary as a list", "Colar vocabulário como lista"),
     ("Add many terms at once in the Vocabulary sheet: one per line, Term | sounds like", "Adicione vários termos de uma vez na folha Vocabulário: um por linha, Termo | soa como"),
+    ("Russian vibe coding", "Vibe coding em russo"),
+    ("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI. Off takes them back", "Adiciona às suas configurações 80 termos como Claude Code, GitHub e MCP, correções de palavras em russo e instruções de limpeza, e ativa a limpeza com IA. Desligado, retira tudo"),
     ("One term per line: Term | sounds like, sounds like", "Um termo por linha: Termo | soa como, soa como"),
     ("Add to list", "Adicionar à lista"),
     ("Paste list", "Colar lista"),
