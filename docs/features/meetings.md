@@ -346,17 +346,23 @@ Checks: `telemost_matches_only_its_application_identity`,
 `telemost_waits_twenty_seconds_and_snoozes_each_policy`, and
 `telemost_settings_show_web_only_where_the_watcher_reads_sites`.
 Observed (2026-11-03): macOS `scripts/check telemost` passed all six matching
-tests. Full `scripts/check` passed formatting, code-shape and Clippy; 2,059
-of 2,060 tests passed on the final run, with the unrelated Scrawl child-process
-deadline test passing on its isolated rerun (and the preceding full run).
+tests. Full `scripts/check` on the merged implementation passed formatting,
+code-shape, Clippy and all 2,060 tests (27 skipped), with
+`NEXTEST_TEST_THREADS=4`. An earlier run under concurrent build load hit the
+unrelated Scrawl child-process deadline; its isolated and final full reruns
+passed.
 The existing CLI settings coverage fixture was corrected to populate the
 optional `opencode_model` before asserting that its serialized key exists.
-Linux compiled and passed the Telemost tests, including the settings UI test;
+Linux passed all 1,516 application tests, including the Telemost settings UI
+test, 161 router tests and the workflow's system integration checks;
 both changed calendar-settings goldens were retrieved from `check-linux.yml`,
 visually reviewed in light and dark appearances, and committed. Windows x64
-and ARM64 compiled the new process attribution code. A native macOS settings
+Clippy and the x64/ARM64 release test suites passed. A native macOS settings
 fixture also rendered both Telemost rows with Ask selected. These results do
-not establish native Windows/Linux UI or audio behavior.
+not establish native Windows/Linux UI or Telemost audio behavior. The signed
+local macOS build was installed and its CLI startup checked; replacing the
+Anomaly signature with the owner's Developer ID requires renewed microphone
+and Accessibility consent. A verified copy of the previous app was retained.
 These checks exercise fixtures, not live Telemost calls. Native recording,
 muted calls, capture-device matching and parent-process attribution during a
 real call have not been observed. No live device test was performed.
