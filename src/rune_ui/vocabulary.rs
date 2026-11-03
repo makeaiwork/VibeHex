@@ -583,6 +583,26 @@ mod tests {
         assert_eq!(ui.vocabulary.rows.len(), 1);
     }
 
+    /// A Labs switch that writes the vocabulary and Global's fixes (Russian
+    /// vibe coding) reaches the editors, so their next draft save keeps it.
+    #[test]
+    fn a_preset_written_by_a_switch_survives_the_next_draft_save() {
+        let mut ui = ui();
+        ui.update(|settings| crate::labs::Feature::RussianVibeCoding.set(settings, true));
+        let written = ui.settings.clone();
+        assert!(written.vocabulary.len() >= 60);
+        let now = std::time::Instant::now();
+        ui.save_drafts(now);
+        let later = now + std::time::Duration::from_secs(60);
+        ui.save_drafts(later);
+        ui.flush_drafts();
+        assert_eq!(ui.settings.vocabulary, written.vocabulary);
+        assert_eq!(
+            ui.settings.dictation_processing,
+            written.dictation_processing
+        );
+    }
+
     /// Labs › Paste vocabulary as a list: listed terms gain new spellings,
     /// new ones get rows, and the list saves at once.
     #[test]

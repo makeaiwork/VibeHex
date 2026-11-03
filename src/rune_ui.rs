@@ -834,7 +834,22 @@ impl Ui {
     fn update(&mut self, change: impl FnOnce(&mut AppSettings)) -> bool {
         let mut candidate = self.drafted();
         change(&mut candidate);
-        self.commit(candidate)
+        if !self.commit(candidate) {
+            return false;
+        }
+        // A change to what an editor shows that didn't come from it (Labs ›
+        // Russian vibe coding writing the vocabulary and Global's fixes)
+        // reaches the editor too, or its next draft save would write the old
+        // rows back over it.
+        if self.vocabulary.project() != self.settings.vocabulary {
+            self.vocabulary.reload(&self.settings.vocabulary);
+        }
+        let mut projected = self.settings.clone();
+        self.modes.project(&mut projected);
+        if projected.dictation_processing != self.settings.dictation_processing {
+            self.modes.reload(&self.settings);
+        }
+        true
     }
 
     fn commit(&mut self, candidate: AppSettings) -> bool {
