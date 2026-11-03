@@ -11,6 +11,36 @@ use crate::dictation::vocabulary::{VocabularyEntry, serialize_saved};
 pub struct DictationProcessingSettings {
     pub default_mode: DictationMode,
     pub modes: Vec<DictationMode>,
+    /// Labs › Clean up on your own server: where every mode's rewrite runs.
+    pub server: CleanupServerSettings,
+}
+
+/// Where dictation cleanup runs while Labs › Clean up on your own server is
+/// on. API keys never live here: they sit in the OS credential store
+/// (`dictation::cleanup_server::keys`).
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct CleanupServerSettings {
+    pub runs_on: CleanupRunsOn,
+    /// The OpenAI-compatible base URL for `custom`, such as LM Studio's
+    /// `http://127.0.0.1:1234/v1`; empty until chosen.
+    pub url: String,
+    /// The OpenRouter model id, such as `google/gemini-2.5-flash-lite`.
+    pub openrouter_model: String,
+    /// The model id the custom server serves, such as `gemma-4-e4b-it-mlx`.
+    pub custom_model: String,
+}
+
+/// The service that rewrites dictations.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CleanupRunsOn {
+    /// The running OpenCode service, as without the Labs feature.
+    #[default]
+    Opencode,
+    Openrouter,
+    /// Any OpenAI-compatible server: LM Studio, Ollama, Groq, Gemini, OpenAI.
+    Custom,
 }
 
 impl Default for DictationProcessingSettings {
@@ -21,6 +51,7 @@ impl Default for DictationProcessingSettings {
                 ..Default::default()
             },
             modes: Vec::new(),
+            server: CleanupServerSettings::default(),
         }
     }
 }

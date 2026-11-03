@@ -99,10 +99,12 @@ pub enum Feature {
     HideMenuBarIcon,
     MovableMeetingCapsules,
     MeetingSummaryModel,
+    AiCleanupServer,
+    VocabularyPasteList,
 }
 
 impl Feature {
-    pub const ALL: [Self; 40] = [
+    pub const ALL: [Self; 42] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -143,6 +145,8 @@ impl Feature {
         Self::HideMenuBarIcon,
         Self::MovableMeetingCapsules,
         Self::MeetingSummaryModel,
+        Self::AiCleanupServer,
+        Self::VocabularyPasteList,
     ];
 
     /// The features this OS and build have.
@@ -205,7 +209,9 @@ impl Feature {
             | Self::KeepRecordings
             | Self::HideMenuBarIcon
             | Self::MovableMeetingCapsules
-            | Self::MeetingSummaryModel => Audience::Everyone,
+            | Self::MeetingSummaryModel
+            | Self::AiCleanupServer
+            | Self::VocabularyPasteList => Audience::Everyone,
         }
     }
 
@@ -272,7 +278,9 @@ impl Feature {
             | Self::ModelInPlace
             | Self::PickerDownloaded
             | Self::KeepRecordings
-            | Self::FillerWords => true,
+            | Self::FillerWords
+            | Self::AiCleanupServer
+            | Self::VocabularyPasteList => true,
         }
     }
 
@@ -319,6 +327,8 @@ impl Feature {
             Self::HideMenuBarIcon => "hide-menu-bar-icon",
             Self::MovableMeetingCapsules => "movable-meeting-capsules",
             Self::MeetingSummaryModel => "meeting-summary-model",
+            Self::AiCleanupServer => "ai-cleanup-server",
+            Self::VocabularyPasteList => "vocabulary-paste-list",
         }
     }
 
@@ -365,6 +375,8 @@ impl Feature {
             Self::HideMenuBarIcon => "labs.hide_menu_bar_icon",
             Self::MovableMeetingCapsules => "labs.movable_meeting_capsules",
             Self::MeetingSummaryModel => "labs.meeting_summary_model",
+            Self::AiCleanupServer => "labs.ai_cleanup_server",
+            Self::VocabularyPasteList => "labs.vocabulary_paste_list",
         }
     }
 
@@ -473,6 +485,12 @@ impl Feature {
             Self::MeetingSummaryModel => {
                 "Choose the OpenCode provider and model that write meeting notes (meetings.opencode_model, provider/model)"
             }
+            Self::AiCleanupServer => {
+                "Clean up dictations with OpenRouter or your own OpenAI-compatible server, such as LM Studio or Ollama, instead of OpenCode"
+            }
+            Self::VocabularyPasteList => {
+                "The Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like"
+            }
         }
     }
 
@@ -523,6 +541,8 @@ impl Feature {
             Self::HideMenuBarIcon => settings.labs.hide_menu_bar_icon,
             Self::MovableMeetingCapsules => settings.labs.movable_meeting_capsules,
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model,
+            Self::AiCleanupServer => settings.labs.ai_cleanup_server,
+            Self::VocabularyPasteList => settings.labs.vocabulary_paste_list,
         }
     }
 
@@ -571,6 +591,8 @@ impl Feature {
             &mut labs.hide_menu_bar_icon,
             &mut labs.movable_meeting_capsules,
             &mut labs.meeting_summary_model,
+            &mut labs.ai_cleanup_server,
+            &mut labs.vocabulary_paste_list,
         ]
     }
 
@@ -619,6 +641,8 @@ impl Feature {
             Self::HideMenuBarIcon => settings.labs.hide_menu_bar_icon = on,
             Self::MovableMeetingCapsules => settings.labs.movable_meeting_capsules = on,
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model = on,
+            Self::AiCleanupServer => settings.labs.ai_cleanup_server = on,
+            Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
             // Off, no shortcut keeps a key only the feature allows.
             Self::StandaloneSpecialKeys => {
                 settings.labs.standalone_special_keys = on;
@@ -658,6 +682,8 @@ const KEEP_RECORDINGS: u64 = 1 << 21;
 const HIDE_MENU_BAR_ICON: u64 = 1 << 22;
 const MOVABLE_MEETING_CAPSULES: u64 = 1 << 23;
 const MEETING_SUMMARY_MODEL: u64 = 1 << 24;
+const AI_CLEANUP_SERVER: u64 = 1 << 25;
+const VOCABULARY_PASTE_LIST: u64 = 1 << 26;
 /// Unload-idle minutes (at most 1,440, 11 bits) sit above the switches.
 const MINUTES_SHIFT: u64 = 32;
 
@@ -827,6 +853,13 @@ pub fn meeting_summary_model() -> bool {
     on(MEETING_SUMMARY_MODEL) && Feature::MeetingSummaryModel.on_this_os()
 }
 
+/// Dictation cleanup may run on OpenRouter or the person's own
+/// OpenAI-compatible server instead of OpenCode (read as each dictation's
+/// rewrite starts).
+pub fn ai_cleanup_server() -> bool {
+    on(AI_CLEANUP_SERVER)
+}
+
 /// How long the speech model may sit unused before the engine unloads it,
 /// while Labs › Unload model when idle is on.
 pub fn unload_idle() -> Option<std::time::Duration> {
@@ -931,6 +964,16 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             Feature::MeetingSummaryModel,
             settings.meeting_summary_model,
             MEETING_SUMMARY_MODEL,
+        ),
+        (
+            Feature::AiCleanupServer,
+            settings.ai_cleanup_server,
+            AI_CLEANUP_SERVER,
+        ),
+        (
+            Feature::VocabularyPasteList,
+            settings.vocabulary_paste_list,
+            VOCABULARY_PASTE_LIST,
         ),
     ]
     .into_iter()

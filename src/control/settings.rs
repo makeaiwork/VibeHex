@@ -259,6 +259,26 @@ const KEYS: &[Key] = &[
         "Modes for specific apps and websites, as a JSON array",
     ),
     key(
+        "dictation_processing.server.runs_on",
+        Kind::Choice(&["opencode", "openrouter", "custom"]),
+        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, or your own OpenAI-compatible server",
+    ),
+    key(
+        "dictation_processing.server.url",
+        Kind::Text,
+        "Your own server's OpenAI-compatible base URL, such as http://127.0.0.1:1234/v1 for LM Studio",
+    ),
+    key(
+        "dictation_processing.server.openrouter_model",
+        Kind::Text,
+        "The OpenRouter model dictation cleanup uses, such as google/gemini-2.5-flash-lite",
+    ),
+    key(
+        "dictation_processing.server.custom_model",
+        Kind::Text,
+        "The model your own server runs dictation cleanup with, as it names it",
+    ),
+    key(
         "history_retention",
         Kind::Choice(&["off", "day", "week", "month", "forever"]),
         "How long dictation history is kept",
@@ -412,6 +432,16 @@ const KEYS: &[Key] = &[
         "labs.movable_meeting_capsules",
         Kind::Bool,
         "Labs: drag meeting capsules such as Meeting transcript ready out of the way; they show in the corner you left them, shared with the recording capsule (macOS)",
+    ),
+    key(
+        "labs.ai_cleanup_server",
+        Kind::Bool,
+        "Labs: dictation cleanup may run on OpenRouter or your own OpenAI-compatible server (dictation_processing.server) instead of OpenCode",
+    ),
+    key(
+        "labs.vocabulary_paste_list",
+        Kind::Bool,
+        "Labs: the Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like",
     ),
     key(
         "labs.meeting_summary_model",
@@ -761,10 +791,69 @@ fn recognition_hints(settings: &AppSettings) -> SettingValue {
     }
 }
 
+/// Labs › Clean up on your own server's API keys. They live in the OS
+/// credential store, never in settings.json: `set` saves one (`none`
+/// removes it) and `get` says only whether one is saved.
+const API_KEYS: [(&str, crate::dictation::cleanup_server::Provider); 2] = [
+    (
+        "dictation_processing.server.openrouter_api_key",
+        crate::dictation::cleanup_server::Provider::OpenRouter,
+    ),
+    (
+        "dictation_processing.server.custom_api_key",
+        crate::dictation::cleanup_server::Provider::Custom,
+    ),
+];
+
+fn api_key_value(name: &str, provider: crate::dictation::cleanup_server::Provider) -> SettingValue {
+    let saved = crate::dictation::cleanup_server::keys::has(provider);
+    SettingValue {
+        key: name.into(),
+        value: Value::String(if saved { "set" } else { "unset" }.into()),
+        kind: Kind::Text.name().into(),
+        choices: Vec::new(),
+        writable: true,
+        about: "API key for dictation cleanup, kept in the keychain (Credential Manager on \
+                Windows, an owner-only file on Linux); shows only set or unset"
+            .into(),
+        available: true,
+    }
+}
+
+/// Saves or removes an API key (`hex settings set`), or `None` when `name`
+/// isn't one. The reply never repeats the key.
+pub fn set_api_key(name: &str, raw: &str) -> Option<Result<super::ControlReply, ControlError>> {
+    let &(_, provider) = API_KEYS.iter().find(|(key, _)| *key == name)?;
+    let raw = raw.trim();
+    let clear = raw.is_empty() || raw.eq_ignore_ascii_case("none");
+    let label = match provider {
+        crate::dictation::cleanup_server::Provider::OpenRouter => "OpenRouter",
+        crate::dictation::cleanup_server::Provider::Custom => "your server's",
+    };
+    Some(
+        crate::dictation::cleanup_server::keys::set(provider, if clear { "" } else { raw })
+            .map(|()| {
+                super::ControlReply::done(if clear {
+                    format!("Removed {label} API key")
+                } else {
+                    format!("Saved {label} API key")
+                })
+            })
+            .map_err(|error| ControlError::new("internal", error)),
+    )
+}
+
 /// Every setting, in registry order.
 pub fn list(settings: &AppSettings) -> Vec<SettingValue> {
     let json = serde_json::to_value(settings).unwrap_or(Value::Null);
-    keys().map(|key| value_of(key, &json)).collect()
+    keys()
+        .map(|key| value_of(key, &json))
+        .chain(
+            API_KEYS
+                .iter()
+                .map(|&(name, provider)| api_key_value(name, provider)),
+        )
+        .collect()
 }
 
 /// One setting, or every setting under a prefix such as `meetings`.
@@ -777,6 +866,12 @@ pub fn get(settings: &AppSettings, name: &str) -> Result<Vec<SettingValue>, Cont
     let found: Vec<_> = keys()
         .filter(|key| key.key == name || key.key.starts_with(&prefix))
         .map(|key| value_of(key, &json))
+        .chain(
+            API_KEYS
+                .iter()
+                .filter(|(key, _)| *key == name || key.starts_with(&prefix))
+                .map(|&(key, provider)| api_key_value(key, provider)),
+        )
         .collect();
     if found.is_empty() {
         return Err(unknown(name));
@@ -954,6 +1049,15 @@ pub fn apply(
         }
         "dictation_processing.default_mode" => {
             candidate.dictation_processing.default_mode.name = "Global".into();
+        }
+        "dictation_processing.server.url" => {
+            let url = candidate.dictation_processing.server.url.trim().to_owned();
+            if !url.is_empty()
+                && !url::Url::parse(&url).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
+            {
+                return Err(invalid(name, "the URL must start with http:// or https://"));
+            }
+            candidate.dictation_processing.server.url = url;
         }
         "dictation_processing.modes" => {
             let mut names = std::collections::HashSet::new();
@@ -1541,11 +1645,78 @@ mod tests {
         }
     }
 
+    /// Labs › Clean up on your own server: the server's choices are
+    /// settings, and its API keys are write-only names outside settings.json.
+    #[test]
+    fn cleanup_server_settings_validate_and_keys_never_show() {
+        let settings = AppSettings::default();
+        let change = apply(
+            &settings,
+            "dictation_processing.server.runs_on",
+            "custom",
+            &rules(),
+        )
+        .unwrap();
+        let change = apply(
+            &change.settings,
+            "dictation_processing.server.url",
+            " http://127.0.0.1:1234/v1 ",
+            &rules(),
+        )
+        .unwrap();
+        let server = &change.settings.dictation_processing.server;
+        assert_eq!(server.runs_on, crate::app_settings::CleanupRunsOn::Custom);
+        assert_eq!(server.url, "http://127.0.0.1:1234/v1");
+        assert!(
+            apply(
+                &settings,
+                "dictation_processing.server.url",
+                "127.0.0.1:1234",
+                &rules()
+            )
+            .is_err()
+        );
+        assert!(
+            apply(
+                &settings,
+                "dictation_processing.server.runs_on",
+                "lmstudio",
+                &rules()
+            )
+            .is_err()
+        );
+
+        let server = get(&settings, "dictation_processing.server").unwrap();
+        let keys: Vec<_> = server
+            .iter()
+            .filter(|value| value.key.ends_with("_api_key"))
+            .collect();
+        assert_eq!(keys.len(), 2);
+        for key in keys {
+            assert!(
+                matches!(key.value.as_str(), Some("set" | "unset")),
+                "{key:?}"
+            );
+        }
+        assert!(set_api_key("dictation_processing.server.url", "x").is_none());
+        assert!(
+            serde_json::to_string(&settings)
+                .unwrap()
+                .contains("\"server\":{\"runs_on\":\"opencode\""),
+            "the server's choice is saved; no key is"
+        );
+        assert!(
+            !serde_json::to_string(&settings)
+                .unwrap()
+                .contains("api_key")
+        );
+    }
+
     #[test]
     fn settings_read_by_key_and_prefix() {
         let settings = AppSettings::default();
         let all = list(&settings);
-        assert_eq!(all.len(), keys().count());
+        assert_eq!(all.len(), keys().count() + API_KEYS.len());
         let calendar = get(&settings, "meetings.calendar").unwrap();
         assert_eq!(calendar.len(), 4);
         let lead = get(&settings, "meetings.calendar.lead_minutes").unwrap();

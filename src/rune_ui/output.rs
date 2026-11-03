@@ -21,6 +21,7 @@ use crate::app_settings::DictationMode;
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::text_replacements::ReplacementSet;
 
+mod ai_cleanup;
 mod examples;
 
 /// The agent card's spark, this many points square.
@@ -58,6 +59,8 @@ pub(super) struct OutputPane {
     pub(super) order: examples::Order,
     /// The agent card's turning spark.
     pub(super) spark: Spark,
+    /// Labs › Clean up on your own server's drafts and Test.
+    pub(super) cleanup: ai_cleanup::Cleanup,
 }
 
 impl OutputPane {
@@ -72,7 +75,8 @@ impl OutputPane {
 
 /// Steps the agent card's examples to `clock`; true when they changed.
 pub(super) fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
-    let (changed, wait) = examples::poll(&mut ui.output.examples, clock);
+    let (mut changed, wait) = examples::poll(&mut ui.output.examples, clock);
+    changed |= ai_cleanup::poll(ui);
     let wait = wait.min(super::spark::poll(&ui.output.spark, clock));
     if ui.window.as_ref().is_none_or(rune::AppHandle::is_visible) {
         tx.wake_after(std::time::Duration::from_secs_f64(wait.max(0.0)));
@@ -134,10 +138,28 @@ fn steps(ui: &Ui, mode: &DictationMode) -> Vec<Step> {
         });
     }
     if mode.post_processing.enabled {
-        steps.push(Step {
-            title: tr("Rewrite with OpenCode").into(),
-            detail: mode.post_processing.model.clone(),
-            runner: Runner::Rewrite,
+        // Labs › Clean up on your own server moves every mode's rewrite.
+        let server = ui
+            .settings
+            .labs
+            .ai_cleanup_server
+            .then(|| {
+                crate::dictation::cleanup_server::Server::from_settings(
+                    &ui.settings.dictation_processing.server,
+                )
+            })
+            .flatten();
+        steps.push(match server {
+            Some(server) => Step {
+                title: tr_fill("Rewrite with {}", &server.name()),
+                detail: (!server.model.is_empty()).then_some(server.model),
+                runner: Runner::Rewrite,
+            },
+            None => Step {
+                title: tr("Rewrite with OpenCode").into(),
+                detail: mode.post_processing.model.clone(),
+                runner: Runner::Rewrite,
+            },
         });
     }
     for id in &mode.transformations {
@@ -196,6 +218,7 @@ pub(super) fn pane(ui: &Ui, p: Paint, reduced: bool) -> El {
         .children(trust_card(ui, p))
         .child(agent_card(ui, p, reduced))
         .child(every_dictation(ui, p, &processing.default_mode))
+        .children(ai_cleanup::section(ui, p))
         .child(try_card(ui, p, &processing.default_mode));
     if !processing.modes.is_empty() {
         content = content.child(some_apps(ui, p, &processing.modes));
@@ -795,6 +818,11 @@ pub(super) fn fixture(ui: &mut Ui) {
 }
 
 /// The fixture with a config asking to fetch and run programs.
+/// Labs › Clean up on your own server on, with LM Studio chosen and tested.
+pub(super) fn ai_cleanup_fixture(ui: &mut Ui) {
+    ai_cleanup::fixture(ui);
+}
+
 pub(super) fn trust_fixture(ui: &mut Ui) {
     fixture(ui);
     ui.modes.status.permissions = Some(crate::personal_commands::Permissions {

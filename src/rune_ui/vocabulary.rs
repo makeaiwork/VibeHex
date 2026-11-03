@@ -5,7 +5,7 @@
 
 use rune::tok::motion::{SETTLE, SETTLE_EXIT};
 use rune::{El, SpringPair, TextEdit, Transition, Tx, col, edit_access, el, row, text};
-use rune_kit::{ControlSize, TextInput};
+use rune_kit::{ControlSize, TextArea, TextInput};
 
 use super::Ui;
 use super::controls::{
@@ -50,6 +50,9 @@ pub(super) struct VocabularyEditor {
     /// with motion, so opening the sheet never animates its rows.
     added: Option<u64>,
     pub(super) open: bool,
+    /// Labs › Paste vocabulary as a list: the pasted text while the sheet
+    /// shows the paste field instead of its rows.
+    paste: Option<TextEdit>,
 }
 
 impl VocabularyEditor {
@@ -168,6 +171,8 @@ pub(super) fn close(ui: &mut Ui) {
     if !ui.vocabulary.open {
         return;
     }
+    // A pasted list not yet added goes in, as Done means keep what's typed.
+    merge_pasted(ui);
     ui.vocabulary.open = false;
     ui.vocabulary.added = None;
     ui.flush_drafts();
@@ -191,6 +196,76 @@ fn add_row(ui: &mut Ui) -> u64 {
 fn add_term(ui: &mut Ui, tx: &mut Tx) {
     ui.vocabulary.added = Some(add_row(ui));
     tx.scroll_to_bottom("term-scroll");
+}
+
+/// Adds the pasted list's terms: a term already listed (any case) gains the
+/// spellings it lacks, a new one gets its own row at the end, and the list
+/// saves at once.
+fn add_pasted(ui: &mut Ui, tx: &mut Tx) {
+    if merge_pasted(ui) {
+        tx.scroll_to_bottom("term-scroll");
+    }
+}
+
+/// [`add_pasted`] without the scroll; false when nothing was pasted.
+fn merge_pasted(ui: &mut Ui) -> bool {
+    let Some(paste) = ui.vocabulary.paste.take() else {
+        return false;
+    };
+    for (term, spellings) in vocabulary::parse_list(&paste.text) {
+        let existing = ui
+            .vocabulary
+            .rows
+            .iter_mut()
+            .find(|row| row.term.text.trim().to_lowercase() == term.to_lowercase());
+        match existing {
+            Some(row) => {
+                let mut kept = vocabulary::parse_sounds_like(&row.sounds_like.text);
+                for spelling in spellings {
+                    if !kept
+                        .iter()
+                        .any(|old| old.to_lowercase() == spelling.to_lowercase())
+                    {
+                        kept.push(spelling);
+                    }
+                }
+                row.sounds_like = TextEdit::new(kept.join(", "));
+            }
+            None => {
+                ui.vocabulary
+                    .push(TextEdit::new(term), TextEdit::new(spellings.join(", ")));
+            }
+        }
+    }
+    // The blank row an empty list opens with has nothing to keep.
+    ui.vocabulary
+        .rows
+        .retain(|row| !row.term.text.trim().is_empty() || !row.sounds_like.text.trim().is_empty());
+    ui.flush_drafts();
+    true
+}
+
+/// The paste field, with how to write a line.
+fn paste_field(p: Paint, paste: &TextEdit) -> El {
+    col()
+        .key("paste")
+        .gap(8.0)
+        .child(
+            text(tr("One term per line: Term | sounds like, sounds like"))
+                .key("paste-hint")
+                .font(DESCRIPTION)
+                .color(p.muted())
+                .wrap(),
+        )
+        .child(
+            TextArea::new(paste)
+                .placeholder("Claude Code | клод код, клот код\nMCP | эм си пи\nGitHub | гитхаб")
+                .rows(10)
+                .width(None)
+                .on_edit(|ui: &mut Ui| ui.vocabulary.paste.get_or_insert_with(TextEdit::default))
+                .build(p.k)
+                .key("paste-text"),
+        )
 }
 
 fn row_key(id: u64) -> String {
@@ -273,18 +348,55 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
         .h(height.min(ROWS_HEIGHT))
         .mx(-SIDE_ROOM)
         .child(super::faded_body("term-scroll", rows, FADES));
-    let add = button(
-        p,
-        "add-term",
-        tr("Add term"),
-        ButtonKind::Secondary,
-        add_term,
-    );
+    let pasting = ui.vocabulary.paste.as_ref();
+    let leading = match pasting {
+        Some(_) => vec![
+            button(
+                p,
+                "add-pasted",
+                tr("Add to list"),
+                ButtonKind::Primary,
+                add_pasted,
+            ),
+            button(
+                p,
+                "cancel-paste",
+                tr("Cancel"),
+                ButtonKind::Secondary,
+                |ui: &mut Ui, _| ui.vocabulary.paste = None,
+            ),
+        ],
+        None => {
+            let mut buttons = vec![button(
+                p,
+                "add-term",
+                tr("Add term"),
+                ButtonKind::Secondary,
+                add_term,
+            )];
+            if ui.settings.labs.vocabulary_paste_list {
+                buttons.push(button(
+                    p,
+                    "paste-list",
+                    tr("Paste list"),
+                    ButtonKind::Secondary,
+                    |ui: &mut Ui, _| {
+                        if ui.settings.labs.vocabulary_paste_list {
+                            let mut paste = TextEdit::default();
+                            paste.focused = true;
+                            ui.vocabulary.paste = Some(paste);
+                        }
+                    },
+                ));
+            }
+            buttons
+        }
+    };
     let footer = row()
         .key("footer")
         .gap(12.0)
         .center_y()
-        .child(add)
+        .children(leading)
         .child(el().key("spacer").grow(1.0))
         .child(
             button(
@@ -354,7 +466,10 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
         // Presses inside the panel stay inside.
         .on_press(|_: &mut Ui| {})
         .child(heading)
-        .child(terms);
+        .child(match pasting {
+            Some(paste) => paste_field(p, paste),
+            None => terms,
+        });
     if ui.vocabulary.clamped() {
         panel = panel.child(
             note(
@@ -418,6 +533,15 @@ pub(super) fn fixture(ui: &mut Ui, filled: bool) {
     }
 }
 
+/// The paste field open over a filled list (Labs › Paste vocabulary as a
+/// list).
+pub(super) fn paste_fixture(ui: &mut Ui) {
+    ui.settings.labs.vocabulary_paste_list = true;
+    ui.vocabulary.paste = Some(TextEdit::new(
+        "Claude Code | клод код, клот код\nMCP | эм си пи, эмсипи\nGitHub | гитхаб, гит хаб",
+    ));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,6 +574,36 @@ mod tests {
 
         open(&mut ui);
         assert_eq!(ui.vocabulary.rows.len(), 1);
+    }
+
+    /// Labs › Paste vocabulary as a list: listed terms gain new spellings,
+    /// new ones get rows, and the list saves at once.
+    #[test]
+    fn a_pasted_list_merges_into_the_rows_and_saves() {
+        let mut ui = ui();
+        fixture(&mut ui, true);
+        ui.vocabulary.paste = Some(TextEdit::new(
+            "rune | rune engine, roon\nClaude Code | клод код\n\nMCP | эм си пи",
+        ));
+        assert!(merge_pasted(&mut ui));
+        assert!(ui.vocabulary.paste.is_none());
+        let saved = &ui.settings.vocabulary;
+        let rune = saved.iter().find(|entry| entry.term == "Rune").unwrap();
+        assert_eq!(rune.sounds_like, ["roon", "rune engine"]);
+        assert_eq!(saved.len(), 7);
+        assert_eq!(saved[5].term, "Claude Code");
+        assert_eq!(saved[5].sounds_like, ["клод код"]);
+        assert_eq!(saved[6].term, "MCP");
+        assert!(!merge_pasted(&mut ui), "nothing pasted twice");
+
+        ui.vocabulary.paste = Some(TextEdit::new("GitHub | гитхаб"));
+        close(&mut ui);
+        assert!(
+            ui.settings
+                .vocabulary
+                .iter()
+                .any(|entry| entry.term == "GitHub")
+        );
     }
 
     #[test]

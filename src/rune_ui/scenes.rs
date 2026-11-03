@@ -97,6 +97,12 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = portal_fixture();
         output::trust_fixture(ui);
     }),
+    ("output-ai-cleanup", |ui| {
+        *ui = portal_fixture();
+        output::fixture(ui);
+        output::ai_cleanup_fixture(ui);
+        ui.pane = Pane::Output;
+    }),
     ("output-empty", |ui| {
         *ui = portal_fixture();
         ui.pane = Pane::Output;
@@ -372,6 +378,11 @@ pub(super) const SCENES: &[Scene] = &[
     ("mac-settings-vocabulary", |ui| {
         *ui = mac_fixture();
         vocabulary::fixture(ui, true);
+    }),
+    ("mac-settings-vocabulary-paste", |ui| {
+        *ui = mac_fixture();
+        vocabulary::fixture(ui, true);
+        vocabulary::paste_fixture(ui);
     }),
     ("mac-settings-vocabulary-empty", |ui| {
         *ui = mac_fixture();

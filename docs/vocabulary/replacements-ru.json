@@ -1,0 +1,10 @@
+[
+  { "matched_phrase": "тот есть", "output": "то есть" },
+  { "matched_phrase": "у тебе", "output": "у тебя" },
+  { "matched_phrase": "от тебе", "output": "от тебя" },
+  { "matched_phrase": "для тебе", "output": "для тебя" },
+  { "matched_phrase": "без тебе", "output": "без тебя" },
+  { "matched_phrase": "кроме тебе", "output": "кроме тебя" },
+  { "matched_phrase": "в это случае", "output": "в этом случае" },
+  { "matched_phrase": "при это", "output": "при этом" }
+]
