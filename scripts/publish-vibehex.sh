@@ -3,20 +3,28 @@ set -eu
 
 # Publishes VibeHex <version> (X.Y.Z-vibe.N of the checked-out X.Y.Z) to the
 # fork's GitHub releases, where every VibeHex checks for updates
-# (docs/vibehex-releases.md):
-#   1. scripts/release-app.sh builds, signs (HEX_TEAM_ID, default 3M7AWY4D32),
-#      notarizes (HEX_NOTARY_PROFILE), and staples the DMG and update ZIP
-#      from a clean, pushed commit;
-#   2. release v<version> gets both files;
-#   3. the `updates` release's stable.json names them, which is what running
-#      apps read. A version is never published twice with different bytes.
+# (docs/vibehex-releases.md), in two steps that can run apart:
+#   prepare  scripts/release-app.sh builds, signs (HEX_TEAM_ID, default
+#            3M7AWY4D32), notarizes (HEX_NOTARY_PROFILE), and staples the DMG
+#            and update ZIP from a clean, pushed commit; the ZIP is checked
+#            against the update requirement, and dist/ gets the manifest
+#            (stable.json), the release notes (commits since the last
+#            VibeHex release), and the commit they belong to.
+#   upload   creates release v<version> with both files, then replaces the
+#            `updates` release's stable.json, which running apps read. It
+#            refuses files that no longer match the prepared manifest.
+# With no step, both run. A version is never published twice.
 #
-#   HEX_NOTARY_PROFILE=<notarytool profile> scripts/publish-vibehex.sh 3.3.0-vibe.1
+#   HEX_NOTARY_PROFILE=<profile> scripts/publish-vibehex.sh [prepare|upload] 3.3.0-vibe.2
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 repo=${VIBEHEX_REPO:-makeaiwork/hex}
 channel=stable
+step=all
+case "${1:-}" in
+  prepare | upload) step=$1; shift ;;
+esac
 if [ "$#" -ne 1 ]; then
-  echo "Usage: HEX_NOTARY_PROFILE=<profile> $0 <X.Y.Z-vibe.N>" >&2
+  echo "Usage: HEX_NOTARY_PROFILE=<profile> $0 [prepare|upload] <X.Y.Z-vibe.N>" >&2
   exit 1
 fi
 version=$1
@@ -25,28 +33,32 @@ case "$version" in
   "$current"-vibe.[0-9]*) ;;
   *) echo "Publish $current-vibe.N, not $version." >&2; exit 1 ;;
 esac
-: "${HEX_NOTARY_PROFILE:?Set HEX_NOTARY_PROFILE to your notarytool keychain profile}"
-export HEX_TEAM_ID=${HEX_TEAM_ID:-3M7AWY4D32}
 tag="v$version"
+dist="$root/dist"
+dmg="$dist/vibehex-$version-macos-arm64.dmg"
+zip="$dist/vibehex-$version-macos-arm64.zip"
+manifest="$dist/vibehex-$version-$channel.json"
+notes="$dist/vibehex-$version-notes.md"
+commit_file="$dist/vibehex-$version-commit"
 if gh release view "$tag" -R "$repo" >/dev/null 2>&1; then
   echo "$tag is already published; pick the next vibe number." >&2
   exit 1
 fi
 
-# release-app.sh stamps the version into Cargo.toml and Cargo.lock; put them back.
-trap 'git -C "$root" checkout -- Cargo.toml Cargo.lock' EXIT HUP INT TERM
-HEX_VERSION="$version" HEX_BUILD_CHANNEL="$channel" "$root/scripts/release-app.sh" prepare >/dev/null
-dmg="$root/dist/vibehex-$version-macos-arm64.dmg"
-zip="$root/dist/vibehex-$version-macos-arm64.zip"
-# The updater checks the same requirement before it swaps the bundle in.
-work=$(mktemp -d "${TMPDIR:-/tmp}/vibehex-publish.XXXXXX")
-trap 'git -C "$root" checkout -- Cargo.toml Cargo.lock; rm -rf "$work"' EXIT HUP INT TERM
-/usr/bin/ditto -x -k "$zip" "$work/unpacked"
-codesign --verify --deep --strict -R="$(cat "$root/app/update-requirement.txt")" "$work/unpacked/VibeHex.app"
+prepare() {
+  : "${HEX_NOTARY_PROFILE:?Set HEX_NOTARY_PROFILE to your notarytool keychain profile}"
+  export HEX_TEAM_ID=${HEX_TEAM_ID:-3M7AWY4D32}
+  commit=$(git -C "$root" rev-parse HEAD)
+  # release-app.sh stamps the version into Cargo.toml and Cargo.lock; put them back.
+  work=$(mktemp -d "${TMPDIR:-/tmp}/vibehex-publish.XXXXXX")
+  trap 'git -C "$root" checkout -- Cargo.toml Cargo.lock; rm -rf "$work"' EXIT HUP INT TERM
+  HEX_VERSION="$version" HEX_BUILD_CHANNEL="$channel" "$root/scripts/release-app.sh" prepare >/dev/null
+  # The updater checks the same requirement before it swaps the bundle in.
+  /usr/bin/ditto -x -k "$zip" "$work/unpacked"
+  codesign --verify --deep --strict -R="$(cat "$root/app/update-requirement.txt")" "$work/unpacked/VibeHex.app"
 
-downloads="https://github.com/$repo/releases/download/$tag"
-manifest="$work/$channel.json"
-python3 -I - "$version" "$channel" "$downloads" "$zip" "$dmg" > "$manifest" <<'PY'
+  downloads="https://github.com/$repo/releases/download/$tag"
+  python3 -I - "$version" "$channel" "$downloads" "$zip" "$dmg" > "$manifest" <<'PY'
 import hashlib, json, os, sys, time
 version, channel, downloads, zip_path, dmg_path = sys.argv[1:]
 def target(path):
@@ -72,14 +84,56 @@ print(json.dumps({
 }, indent=2))
 PY
 
-commit=$(git -C "$root" rev-parse HEAD)
-gh release create "$tag" -R "$repo" --target "$commit" --title "VibeHex $version" \
-  --notes "VibeHex $version for macOS (Apple silicon). Download the DMG; installed copies update themselves." \
-  --latest "$dmg" "$zip"
-if ! gh release view updates -R "$repo" >/dev/null 2>&1; then
-  gh release create updates -R "$repo" --target "$commit" --title "VibeHex update manifests" \
-    --notes "What installed VibeHex apps read to find their update. Not a release to download." \
-    --prerelease --latest=false
-fi
-gh release upload updates "$manifest" -R "$repo" --clobber
-echo "Published VibeHex $version: https://github.com/$repo/releases/tag/$tag"
+  # The notes list the commits since the last VibeHex release.
+  git -C "$root" fetch -q --tags origin 2>/dev/null || true
+  previous=$(git -C "$root" tag --list 'v*-vibe.*' --sort=-version:refname --merged "$commit" | head -1)
+  {
+    echo "VibeHex $version for macOS (Apple silicon). Download the DMG; installed copies update themselves."
+    if [ -n "$previous" ]; then
+      echo
+      echo "Changes since $previous:"
+      echo
+      git -C "$root" log --no-merges --format='- %s' "$previous..$commit" | sed 's/ \[skip ci\]$//'
+    fi
+  } > "$notes"
+  printf '%s\n' "$commit" > "$commit_file"
+  echo "Prepared VibeHex $version from $commit:"
+  echo "  $dmg"
+  echo "  $zip"
+  echo "  $manifest"
+  echo "  $notes"
+}
+
+upload() {
+  for file in "$dmg" "$zip" "$manifest" "$notes" "$commit_file"; do
+    [ -f "$file" ] || { echo "Missing $file; run prepare $version first." >&2; exit 1; }
+  done
+  python3 -I - "$manifest" "$zip" "$dmg" <<'PY'
+import hashlib, json, os, sys
+manifest, *files = sys.argv[1:]
+targets = json.load(open(manifest))["release"]["targets"].values()
+expected = {os.path.basename(t["url"]): (t["size"], t["sha256"]) for t in targets}
+for path in files:
+    digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    if expected.get(os.path.basename(path)) != (os.path.getsize(path), digest):
+        sys.exit(f"{path} no longer matches the prepared manifest")
+PY
+  commit=$(cat "$commit_file")
+  gh release create "$tag" -R "$repo" --target "$commit" --title "VibeHex $version" \
+    --notes-file "$notes" --latest "$dmg" "$zip"
+  if ! gh release view updates -R "$repo" >/dev/null 2>&1; then
+    gh release create updates -R "$repo" --target "$commit" --title "VibeHex update manifests" \
+      --notes "What installed VibeHex apps read to find their update. Not a release to download." \
+      --prerelease --latest=false
+  fi
+  # Running apps look for this exact name.
+  cp "$manifest" "$dist/$channel.json"
+  gh release upload updates "$dist/$channel.json" -R "$repo" --clobber
+  echo "Published VibeHex $version: https://github.com/$repo/releases/tag/$tag"
+}
+
+case "$step" in
+  prepare) prepare ;;
+  upload) upload ;;
+  all) prepare && upload ;;
+esac

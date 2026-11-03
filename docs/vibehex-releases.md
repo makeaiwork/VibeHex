@@ -33,15 +33,18 @@ From a clean commit pushed to `origin`:
 
 ```sh
 . /Volumes/DropboxSSD/dev/hex-env.sh
-HEX_NOTARY_PROFILE=<notarytool profile> scripts/publish-vibehex.sh 3.3.0-vibe.1
+HEX_NOTARY_PROFILE=DINGDONE_NOTARY scripts/publish-vibehex.sh prepare 3.3.0-vibe.2
+scripts/publish-vibehex.sh upload 3.3.0-vibe.2
 ```
 
-It builds and validates `VibeHex.app`, notarizes and staples the app and the
-DMG (`scripts/release-app.sh`), checks the update ZIP against the update
-requirement, creates the GitHub release `v3.3.0-vibe.1` with
-`vibehex-<version>-macos-arm64.dmg` and `.zip`, then replaces `stable.json`
-on the `updates` release. Each version is `X.Y.Z-vibe.N` of the checked-out
-crate version; never publish one twice with different bytes.
+`prepare` builds and validates `VibeHex.app`, notarizes and staples the app
+and the DMG (`scripts/release-app.sh`), checks the update ZIP against the
+update requirement, and leaves in `dist/` the DMG, the ZIP, the manifest,
+the release notes (commits since the last `v*-vibe.*` tag), and the commit.
+`upload` refuses files that no longer match that manifest, creates the GitHub
+release `v<version>` with the DMG and ZIP, then replaces `stable.json` on the
+`updates` release. Without a step name the script runs both. Each version is
+`X.Y.Z-vibe.N` of the checked-out crate version; never publish one twice.
 
 `scripts/build-app.sh` copies the binaries from `target/release`; with
 `hex-env.sh`'s `CARGO_TARGET_DIR` elsewhere, link `target/release` to
