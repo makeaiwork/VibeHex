@@ -653,6 +653,8 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Detected calls", "Appels détectés"),
     ("Ask", "Demander"),
     ("Always record", "Toujours enregistrer"),
+    ("Yandex Telemost", "Yandex Telemost"),
+    ("Yandex Telemost (web)", "Yandex Telemost (web)"),
     ("Slack huddles", "Huddles Slack"),
     ("Recording automatically", "Enregistrement automatique"),
     ("Started automatically · {}", "Démarré automatiquement · {}"),

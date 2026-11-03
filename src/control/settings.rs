@@ -1411,6 +1411,7 @@ mod tests {
             }],
             meetings: crate::app_settings::MeetingSettings {
                 retention: Some(crate::app_settings::MeetingRetention::Day),
+                opencode_model: Some("openai/gpt-5".into()),
                 ..Default::default()
             },
             ..Default::default()

@@ -1075,16 +1075,59 @@ fn meetings_settings_save_and_ask_for_system_audio() {
         policy(&rt, "us.zoom.xos"),
         Some(MeetingPolicy::AlwaysRecord)
     );
-    pick(&mut rt, "call7-policy", 0);
+    pick(&mut rt, "call9-policy", 0);
     assert_eq!(
         policy(&rt, "problems.kitlangton.com"),
         Some(MeetingPolicy::Ask)
     );
-    assert!(rt.find("call7").is_some());
+    assert!(rt.find("call9").is_some());
     tap(&mut rt, "meetings-enabled");
     assert!(!rt.state.settings.meetings.enabled);
     assert!(rt.find("meeting-folder").is_none());
     assert!(rt.find("meetings-enabled").is_some(), "the opt-in remains");
+}
+
+#[test]
+fn telemost_settings_show_web_only_where_the_watcher_reads_sites() {
+    use super::super::platform::Capabilities;
+    use crate::app_settings::{MeetingPolicy, TELEMOST_APP, TELEMOST_SITE};
+    for caps in [
+        Capabilities::MACOS,
+        Capabilities::WINDOWS,
+        Capabilities::LINUX,
+    ] {
+        let mut rt = runtime("meetings-settings", true, (980.0, 2800.0));
+        rt.state.platform.caps = caps;
+        refresh(&mut rt);
+        let shown = texts(&rt);
+        assert!(shown.iter().any(|text| text == "Yandex Telemost"));
+        assert_eq!(
+            shown.iter().any(|text| text == "Yandex Telemost (web)"),
+            caps.meeting_websites
+        );
+        pick(&mut rt, "call7-policy", 2);
+        assert!(
+            rt.state
+                .settings
+                .meetings
+                .providers
+                .iter()
+                .any(|choice| choice.key == TELEMOST_APP
+                    && choice.policy == MeetingPolicy::NeverOffer)
+        );
+        if caps.meeting_websites {
+            pick(&mut rt, "call8-policy", 1);
+            assert!(
+                rt.state
+                    .settings
+                    .meetings
+                    .providers
+                    .iter()
+                    .any(|choice| choice.key == TELEMOST_SITE
+                        && choice.policy == MeetingPolicy::AlwaysRecord)
+            );
+        }
+    }
 }
 
 #[test]

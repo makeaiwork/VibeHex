@@ -36,7 +36,8 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   ├── Calendar -> Connect calendar; reminders before meetings // meetings.calendar
 │   └── Detected calls -> Ask / Always record / Never offer per provider // meetings.policy
 │       ├── Slack huddles, Zoom, Google Meet, Microsoft Teams, FaceTime, WhatsApp,
-│       │   Gather (always listed)
+│       │   Gather, Yandex Telemost (always listed)
+│       ├── Yandex Telemost (web), on macOS only
 │       └── then each website or app chosen for from an offer's "…"
 └── Off -> Controller idles; no microphone-activity inspection or shortcut;
            the pane leaves the sidebar
@@ -297,6 +298,68 @@ The capsules have no `--snap` scene. `HEX_CAPSULE_SNAPS=<folder> cargo test
 --bin hex capsule_snapshots` renders the offer, its choices, the
 calendar reminders, and the automatic-recording states in light and dark on a
 Mac with a GPU.
+
+### Yandex Telemost
+
+```ts
+Labs > Meetings > Settings > Detected calls          // meetings.telemost
+├── Yandex Telemost -> native app policy; Ask by default
+│   ├── macOS: ru.yandex.desktop.telemost
+│   │   └── QtWebEngineProcess -> actual parent app, never its generic bundle ID alone
+│   └── Windows: YandexTelemost.exe (case insensitive)
+│       └── QtWebEngineProcess.exe -> bounded parent chain ending in YandexTelemost.exe
+├── Yandex Telemost (web), macOS only -> independent website policy; Ask by default
+│   ├── http(s)://telemost.yandex.ru/j/<numeric meeting ID> -> Telemost
+│   ├── Home, empty /j/, extra path segments, lookalike hosts -> not a known meeting
+│   └── No readable page -> ordinary browser-call fallback, no title-only guess
+├── Holds microphone for 20 s -> existing Ask / Always record / Never offer flow
+│   ├── Short microphone previews / voice messages -> no Telemost offer
+│   ├── A sustained preview can still qualify: this is microphone activity, not proof of joining
+│   └── Recording metadata -> Yandex Telemost; existing snooze and call-end handling
+└── Windows / Linux website -> generic browser call; no Telemost website policy
+```
+
+The integration uses the existing Meetings opt-in; it does not enable Meetings
+or automatic recording. App and website choices persist independently in
+`meetings.providers`; no settings migration. The website matcher is shared by
+the browser-tab selection (`names_call`) and the meeting detector. Calendar
+link recognition and additional browser adapters are outside this change.
+Linux uses the web version; no native Yandex Telemost process is added there.
+The existing known-provider list still includes the native row on every OS,
+like other native-only services such as FaceTime.
+
+Identity evidence: the installed macOS app's `Info.plist` identifies
+`ru.yandex.desktop.telemost` and its nested Qt helper identifies
+`org.qt-project.Qt.QtWebEngineProcess`. Yandex's
+[Windows settings instructions](https://yandex.by/support/yandex-360/customers/telemost/web/ru/settings?lang=ru)
+name `yandextelemost.exe`; its [MSI instructions](https://yandex.ru/support/yandex-360/business/admin/en/telemost-msi)
+link the official installer. Its downloaded CAB file table also names
+`YandexTelemost.exe` and `QtWebEngineProcess.exe` (the network transfer was
+incomplete; no installer was run). The numeric `/j/` URL format is documented in
+[Yandex's meeting-room instructions](https://yandex.ru/support/yandex-360/business/telemost/web/ru/call/join-meeting-room).
+
+Checks: `telemost_matches_only_its_application_identity`,
+`telemost_qt_helpers_are_resolved_through_their_actual_parent`,
+`telemost_windows_qt_helpers_require_a_known_owner`,
+`telemost_urls_name_only_meeting_pages_and_preserve_browser_fallback`,
+`telemost_native_and_web_policies_are_independent_and_round_trip`,
+`telemost_waits_twenty_seconds_and_snoozes_each_policy`, and
+`telemost_settings_show_web_only_where_the_watcher_reads_sites`.
+Observed (2026-11-03): macOS `scripts/check telemost` passed all six matching
+tests. Full `scripts/check` passed formatting, code-shape and Clippy; 2,059
+of 2,060 tests passed on the final run, with the unrelated Scrawl child-process
+deadline test passing on its isolated rerun (and the preceding full run).
+The existing CLI settings coverage fixture was corrected to populate the
+optional `opencode_model` before asserting that its serialized key exists.
+Linux compiled and passed the Telemost tests, including the settings UI test;
+both changed calendar-settings goldens were retrieved from `check-linux.yml`,
+visually reviewed in light and dark appearances, and committed. Windows x64
+and ARM64 compiled the new process attribution code. A native macOS settings
+fixture also rendered both Telemost rows with Ask selected. These results do
+not establish native Windows/Linux UI or audio behavior.
+These checks exercise fixtures, not live Telemost calls. Native recording,
+muted calls, capture-device matching and parent-process attribution during a
+real call have not been observed. No live device test was performed.
 
 ### Calendar Reminders
 
