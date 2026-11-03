@@ -1188,7 +1188,7 @@ fn open_arguments(
             if test_build {
                 "anomaly.hex.test"
             } else {
-                "anomaly.hex"
+                "ai.makeaiwork.vibehex"
             }
             .into(),
         ]),
@@ -1359,7 +1359,7 @@ mod tests {
         );
         assert_eq!(
             strings(open_arguments(None, false, vars())),
-            [&env[..], &["-b", "anomaly.hex"]].concat()
+            [&env[..], &["-b", "ai.makeaiwork.vibehex"]].concat()
         );
         assert_eq!(
             strings(open_arguments(None, true, [])),

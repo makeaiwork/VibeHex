@@ -40,7 +40,11 @@ pub use platform::finish_on_launch;
 
 const APP: &str = "hex";
 const ARTIFACT: &str = "desktop";
-const ORIGIN: &str = "https://anoma.ly/release";
+/// VibeHex's manifests: one asset per channel (`stable.json`) on the
+/// `updates` release of the fork's GitHub repository, rewritten by
+/// `scripts/publish-vibehex.sh`; its targets are files on the version's own
+/// release there, so every download stays on github.com.
+const ORIGIN: &str = "https://github.com/makeaiwork/hex/releases/download/updates";
 const STARTUP_DELAY: Duration = Duration::from_secs(10);
 const CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
 /// Dev builds land on every push to dev, so the Dev channel checks often.
@@ -754,17 +758,20 @@ fn replaces_staged(decision: &Decision, staged_sha256: &str) -> bool {
     )
 }
 
-/// `HEX_RELEASE_BASE_URL` (HTTPS only) points a build at another service
-/// origin, for local tests against a fixture service. Nothing defaults to the
-/// service's dev stage, which only tests the service itself.
+/// `HEX_RELEASE_BASE_URL` (HTTPS only) points a build at another Anomaly
+/// release service origin (`<origin>/hex/desktop/<channel>.json`), for local
+/// tests against a fixture service; otherwise the fork's GitHub manifests.
 fn manifest_url(channel: &str) -> String {
-    let origin = std::env::var("HEX_RELEASE_BASE_URL")
+    match std::env::var("HEX_RELEASE_BASE_URL")
         .ok()
-        .filter(|origin| origin.starts_with("https://"));
-    format!(
-        "{}/{APP}/{ARTIFACT}/{channel}.json",
-        origin.as_deref().unwrap_or(ORIGIN).trim_end_matches('/')
-    )
+        .filter(|origin| origin.starts_with("https://"))
+    {
+        Some(origin) => format!(
+            "{}/{APP}/{ARTIFACT}/{channel}.json",
+            origin.trim_end_matches('/')
+        ),
+        None => format!("{ORIGIN}/{channel}.json"),
+    }
 }
 
 /// This build's target SHA-256, when the platform can tell (the target is
@@ -1157,7 +1164,7 @@ mod tests {
     fn the_manifest_url_names_app_artifact_and_channel() {
         assert_eq!(
             manifest_url("stable"),
-            "https://anoma.ly/release/hex/desktop/stable.json"
+            "https://github.com/makeaiwork/hex/releases/download/updates/stable.json"
         );
     }
 }

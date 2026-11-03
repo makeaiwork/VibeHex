@@ -642,7 +642,7 @@ pub fn default_mac_bundle_id(test_build: Option<&str>) -> &'static str {
     if test_build == Some("1") {
         "anomaly.hex.test"
     } else {
-        "anomaly.hex"
+        "ai.makeaiwork.vibehex"
     }
 }
 
@@ -2024,8 +2024,8 @@ mod tests {
                 "com.kitlangton.Hex.debug"
             ]
         );
-        assert_eq!(default_mac_bundle_id(None), "anomaly.hex");
-        assert_eq!(default_mac_bundle_id(Some("0")), "anomaly.hex");
+        assert_eq!(default_mac_bundle_id(None), "ai.makeaiwork.vibehex");
+        assert_eq!(default_mac_bundle_id(Some("0")), "ai.makeaiwork.vibehex");
         assert_eq!(default_mac_bundle_id(Some("1")), "anomaly.hex.test");
 
         assert_eq!(

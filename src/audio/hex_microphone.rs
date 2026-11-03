@@ -671,6 +671,9 @@ fn bundled_driver_path() -> Option<PathBuf> {
         candidates.push(home.join("Library/Caches/hex-mic/HexMicrophone.driver"));
     }
     candidates.push(PathBuf::from(
+        "/Applications/VibeHex.app/Contents/Library/HexMicrophone.driver",
+    ));
+    candidates.push(PathBuf::from(
         "/Applications/Hex.app/Contents/Library/HexMicrophone.driver",
     ));
     candidates

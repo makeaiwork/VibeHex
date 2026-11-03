@@ -1,12 +1,12 @@
-//! macOS installs: a `Hex.app` this user can replace updates itself. The
+//! macOS installs: a `VibeHex.app` this user can replace updates itself. The
 //! update ZIP is unpacked beside the installed bundle (same volume), its code
-//! signature must satisfy Anomaly's Developer ID requirement for
-//! `anomaly.hex` and be notarized, and on "Restart to update" (or quit) the
+//! signature must satisfy the fork's Developer ID requirement for
+//! `ai.makeaiwork.vibehex` (team 3M7AWY4D32) and be notarized, and on "Restart to update" (or quit) the
 //! two bundles swap atomically (`renamex_np` with `RENAME_SWAP`). The old
 //! bundle stays beside it until the new version launches and removes it. A
 //! read-only, translocated, or root-owned location links to the DMG instead
 //! of escalating. Administrators turn updates off with `DisableUpdates` in
-//! the `anomaly.hex` defaults domain.
+//! the `ai.makeaiwork.vibehex` defaults domain.
 
 use std::ffi::CString;
 use std::fs;
@@ -21,14 +21,16 @@ use super::Method;
 
 pub const TARGET: &str = "macos-arm64";
 pub const DOWNLOAD_TARGET: &str = "macos-arm64-dmg";
-const BUNDLE_ID: &str = "anomaly.hex";
-/// A Developer ID application from Anomaly's team (5NZ4Q7NXJ4), identified
-/// as `anomaly.hex`, and notarized. The release build checks its artifacts
+const BUNDLE_ID: &str = "ai.makeaiwork.vibehex";
+/// A Developer ID application from the fork's team (3M7AWY4D32), identified
+/// as `ai.makeaiwork.vibehex`, and notarized. The release build checks its artifacts
 /// against the same file.
 const REQUIREMENT: &str = include_str!("../../app/update-requirement.txt");
 /// Unpacked updates (and, after a swap, the replaced bundle) live in
 /// `.<name>-update-<version>` beside the installed bundle.
 const STAGING_PREFIX: &str = ".Hex-update-";
+/// The bundle at the root of the update ZIP (`scripts/release-app.sh`).
+const BUNDLE_NAME: &str = "VibeHex.app";
 
 /// An unpacked, verified bundle and the installed bundle it replaces.
 #[derive(Clone, Debug)]
@@ -117,13 +119,14 @@ fn remove_staging(parent: &Path) {
 }
 
 pub fn stage(archive: &Path, version: &str) -> Result<Staged> {
-    let installed = installed_bundle().ok_or_else(|| eyre!("Hex is not running from Hex.app"))?;
+    let installed =
+        installed_bundle().ok_or_else(|| eyre!("VibeHex is not running from an app bundle"))?;
     let parent = installed
         .parent()
-        .ok_or_else(|| eyre!("Hex.app has no parent folder"))?;
+        .ok_or_else(|| eyre!("the app bundle has no parent folder"))?;
     let staging = parent.join(format!("{STAGING_PREFIX}{version}"));
     unpack(archive, &staging)?;
-    let update = staging.join("Hex.app");
+    let update = staging.join(BUNDLE_NAME);
     let result = verify_bundle(&update, version, REQUIREMENT);
     if let Err(error) = result {
         let _ = fs::remove_dir_all(&staging);
@@ -183,7 +186,7 @@ fn verify_bundle(bundle: &Path, version: &str, requirement: &str) -> Result<()> 
         .wrap_err("could not run codesign")?;
     if !output.status.success() {
         bail!(
-            "the update's code signature is not Anomaly's notarized Developer ID: {}",
+            "the update's code signature is not VibeHex's notarized Developer ID: {}",
             String::from_utf8_lossy(&output.stderr).trim()
         );
     }
@@ -281,16 +284,16 @@ mod tests {
         let root = temporary("verify");
         let app = bundle(&root, BUNDLE_ID, "9.9.9");
         // An ad-hoc signature satisfies a plain identifier requirement…
-        verify_bundle(&app, "9.9.9", "identifier \"anomaly.hex\"").unwrap();
-        // …but never Anomaly's Developer ID requirement.
+        verify_bundle(&app, "9.9.9", "identifier \"ai.makeaiwork.vibehex\"").unwrap();
+        // …but never VibeHex's Developer ID requirement.
         let error = verify_bundle(&app, "9.9.9", REQUIREMENT).unwrap_err();
         assert!(error.to_string().contains("code signature"), "{error}");
-        assert!(verify_bundle(&app, "9.9.8", "identifier \"anomaly.hex\"").is_err());
+        assert!(verify_bundle(&app, "9.9.8", "identifier \"ai.makeaiwork.vibehex\"").is_err());
         let other = bundle(&root.join("other"), "com.kitlangton.hex2", "9.9.9");
         assert!(verify_bundle(&other, "9.9.9", "identifier \"com.kitlangton.hex2\"").is_err());
         // A modified bundle no longer satisfies its signature.
         fs::write(app.join("Contents/MacOS/hex"), b"tampered").unwrap();
-        assert!(verify_bundle(&app, "9.9.9", "identifier \"anomaly.hex\"").is_err());
+        assert!(verify_bundle(&app, "9.9.9", "identifier \"ai.makeaiwork.vibehex\"").is_err());
         let _ = fs::remove_dir_all(root);
     }
 
@@ -344,7 +347,7 @@ mod tests {
         verify_bundle(
             &staging.join("Hex.app"),
             "9.9.9",
-            "identifier \"anomaly.hex\"",
+            "identifier \"ai.makeaiwork.vibehex\"",
         )
         .unwrap();
         let _ = fs::remove_dir_all(root);
