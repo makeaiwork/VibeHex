@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::app_settings::{KNOWN_MEETING_PROVIDERS, MeetingPolicy, MeetingProviderChoice};
+use crate::app_settings::{KNOWN_MEETING_PROVIDERS, MeetingPolicy, MeetingProviderChoice, TELEMOST_APP, TELEMOST_SITE};
 use crate::dictation::context::ContextSnapshot;
 use crate::microphone_activity::ActiveMicrophoneApplication;
 
@@ -227,8 +227,9 @@ impl MeetingCandidate {
     fn required_stability(&self) -> Duration {
         match self.source {
             // WhatsApp also takes the microphone for voice notes (#835), and
-            // Gather can hold it while you sit in a space (#855).
-            MeetingSource::BrowserCall | MeetingSource::WhatsApp | MeetingSource::Gather => {
+            // Gather can hold it while you sit in a space (#855). Telemost
+            // also offers microphone previews and voice messages.
+            MeetingSource::BrowserCall | MeetingSource::WhatsApp | MeetingSource::Gather | MeetingSource::Telemost => {
                 BROWSER_STABLE_FOR
             }
             _ => STABLE_FOR,
@@ -321,6 +322,7 @@ pub enum MeetingSource {
     WhatsApp,
     Gather,
     BrowserCall,
+    Telemost,
 }
 
 impl MeetingSource {
@@ -335,6 +337,7 @@ impl MeetingSource {
             Self::FaceTime => "FaceTime",
             Self::WhatsApp => "WhatsApp",
             Self::Gather => "Gather",
+            Self::Telemost => "Yandex Telemost",
             Self::BrowserCall => "Browser call",
         }
     }
@@ -547,6 +550,12 @@ pub fn candidate_from_context(context: &ContextSnapshot) -> Option<MeetingCandid
             &clean_google_meet_title(title),
         )));
     }
+    if is_browser_application(&application_lower)
+        && let Some(url) = &context.browser_url
+        && is_telemost_call(url)
+    {
+        return Some(candidate(MeetingSource::Telemost, url.as_str(), ""));
+    }
     // No page address (Automation off, no web area behind another app): a
     // Meet call's tab title still names it (#827).
     if is_browser_application(&application_lower)
@@ -618,6 +627,7 @@ pub fn candidate_from_microphone(
         return Some(candidate);
     }
     let (source, title) = match canonical_bundle {
+        TELEMOST_APP => (MeetingSource::Telemost, "Yandex Telemost"),
         "us.zoom.xos" => (MeetingSource::Zoom, "Zoom meeting"),
         "com.microsoft.teams2" => (MeetingSource::Teams, "Microsoft Teams meeting"),
         "com.tinyspeck.slackmacgap" => (MeetingSource::SlackHuddle, "Slack huddle"),
@@ -756,13 +766,24 @@ fn opaque_key(source: MeetingSource, identity: &str) -> String {
 /// call or a known call site.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn names_call(url: &Url) -> bool {
-    is_google_meet_call(url) || url.host_str().and_then(call_site_source).is_some()
+    is_google_meet_call(url) || is_telemost_call(url) || url.host_str().and_then(call_site_source).is_some()
 }
 
 /// Whether a browser tab's title names a call (a Google Meet call's).
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn title_names_call(title: &str) -> bool {
     is_google_meet_call_title(title)
+}
+
+fn is_telemost_call(url: &Url) -> bool {
+    if !matches!(url.scheme(), "https" | "http") || url.host_str() != Some(TELEMOST_SITE) {
+        return false;
+    }
+    let Some(id) = url.path().strip_prefix("/j/") else {
+        return false;
+    };
+    let id = id.strip_suffix('/').unwrap_or(id);
+    !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn is_google_meet_call(url: &Url) -> bool {
@@ -1927,4 +1948,109 @@ mod tests {
         watch.wall_ms = 30;
         assert_eq!(watch.stable(&slack, &[]), Some(Detection::Offer(slack)));
     }
+    fn telemost_app() -> MeetingCandidate {
+        candidate_from_microphone(
+            &ActiveMicrophoneApplication {
+                pid: 123,
+                bundle_id: TELEMOST_APP.into(),
+                name: "Yandex.Telemost".into(),
+            },
+            &ContextSnapshot::default(),
+        ).unwrap()
+    }
+
+    fn telemost_web() -> MeetingCandidate {
+        candidate_from_microphone(
+            &brave(),
+            &context("Brave Browser", Some("https://telemost.yandex.ru/j/1234567890"), "Телемост"),
+        ).unwrap()
+    }
+
+    #[test]
+    fn telemost_urls_name_only_meeting_pages_and_preserve_browser_fallback() {
+        for address in [
+            "https://telemost.yandex.ru/j/1234567890",
+            "https://telemost.yandex.ru/j/1234567890/?source=calendar#join",
+        ] {
+            let url = Url::parse(address).unwrap();
+            assert!(names_call(&url));
+            let call = candidate_from_microphone(&brave(), &context("Brave Browser", Some(address), "Телемост")).unwrap();
+            assert_eq!(call.source, MeetingSource::Telemost);
+            assert_eq!(call.site.as_deref(), Some(TELEMOST_SITE));
+        }
+        for address in [
+            "https://telemost.yandex.ru/",
+            "https://telemost.yandex.ru/j/",
+            "https://telemost.yandex.ru/j/not-a-meeting",
+            "https://telemost.yandex.ru/j/123/extra",
+            "https://telemost.yandex.ru.evil.example/j/123",
+            "https://evil.example/telemost.yandex.ru/j/123",
+            "https://telemost.yandex.ru@evil.example/j/123",
+            "file://telemost.yandex.ru/j/123",
+        ] {
+            assert!(!names_call(&Url::parse(address).unwrap()), "{address}");
+            let call = candidate_from_microphone(&brave(), &context("Brave Browser", Some(address), "Телемост")).unwrap();
+            assert_eq!(call.source, MeetingSource::BrowserCall, "{address}");
+        }
+        let unknown = candidate_from_microphone(&brave(), &context("Brave Browser", None, "Телемост")).unwrap();
+        assert_eq!(unknown.source, MeetingSource::BrowserCall);
+        assert!(!unknown.can_always_record());
+        assert!(!title_names_call("Телемост"));
+        assert!(candidate_from_context(&context("Other app", Some("https://telemost.yandex.ru/j/123"), "Телемост")).is_none());
+    }
+
+    #[test]
+    fn telemost_native_and_web_policies_are_independent_and_round_trip() {
+        let app = telemost_app();
+        let web = telemost_web();
+        assert_eq!(app.provider().unwrap().key, TELEMOST_APP);
+        assert_eq!(web.provider().unwrap().key, TELEMOST_SITE);
+        assert_eq!(web.provider().unwrap().label, "Yandex Telemost (web)");
+        assert_eq!(serde_json::to_string(&app.source).unwrap(), "\"telemost\"");
+        let mut settings = crate::app_settings::MeetingSettings::default();
+        assert!(!settings.enabled);
+        assert_eq!(app.policy(&settings.providers), MeetingPolicy::Ask);
+        assert_eq!(web.policy(&settings.providers), MeetingPolicy::Ask);
+        crate::app_settings::set_meeting_provider(&mut settings, app.provider().unwrap().choose(MeetingPolicy::NeverOffer));
+        assert_eq!(web.policy(&settings.providers), MeetingPolicy::Ask);
+        crate::app_settings::set_meeting_provider(&mut settings, web.provider().unwrap().choose(MeetingPolicy::AlwaysRecord));
+        let saved = serde_json::to_value(&settings).unwrap();
+        let loaded: crate::app_settings::MeetingSettings = serde_json::from_value(saved).unwrap();
+        assert_eq!(app.policy(&loaded.providers), MeetingPolicy::NeverOffer);
+        assert_eq!(web.policy(&loaded.providers), MeetingPolicy::AlwaysRecord);
+        for call in [app, web] {
+            assert_eq!(call.recording_start().app.as_deref(), Some("Yandex Telemost"));
+            assert_eq!(call.recording_start().title, None);
+            assert_eq!(call.offer_title(), "Yandex Telemost call detected");
+        }
+    }
+
+    #[test]
+    fn telemost_waits_twenty_seconds_and_snoozes_each_policy() {
+        for call in [telemost_app(), telemost_web()] {
+            assert_eq!(call.required_stability(), Duration::from_secs(20));
+            for policy in [MeetingPolicy::Ask, MeetingPolicy::AlwaysRecord, MeetingPolicy::NeverOffer] {
+                let choices = [call.provider().unwrap().choose(policy)];
+                let mut watch = Watch::new();
+                assert!(watch.run(Some(&call), &choices, 20_000).is_empty());
+                let expected = match policy {
+                    MeetingPolicy::Ask => vec![(20_000, Detection::Offer(call.clone()))],
+                    MeetingPolicy::AlwaysRecord => vec![(20_000, Detection::Record(call.clone()))],
+                    MeetingPolicy::NeverOffer => vec![],
+                };
+                assert_eq!(watch.run(Some(&call), &choices, 500), expected);
+                assert!(watch.run(Some(&call), &choices, 30_000).is_empty());
+                assert!(watch.run(None, &choices, 61_000).is_empty());
+                assert!(watch.run(Some(&call), &choices, 20_000).is_empty());
+                assert_eq!(watch.run(Some(&call), &choices, 500).len(), usize::from(policy != MeetingPolicy::NeverOffer));
+            }
+        }
+        let now = Instant::now();
+        let mut presence = CallPresence::default();
+        assert!(!presence.observe_at(true, now));
+        assert!(!presence.observe_at(false, now + Duration::from_secs(1)));
+        assert!(!presence.observe_at(false, now + Duration::from_secs(3)));
+        assert!(presence.observe_at(false, now + Duration::from_secs(4)));
+    }
+
 }

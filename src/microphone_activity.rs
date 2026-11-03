@@ -41,6 +41,11 @@ mod os;
 #[cfg(not(target_os = "macos"))]
 pub use os::active_microphone_applications;
 
+#[cfg(any(target_os = "windows", test))]
+mod telemost;
+
+use crate::app_settings::TELEMOST_APP;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ActiveMicrophoneApplication {
     pub pid: i32,
@@ -173,7 +178,7 @@ pub(crate) fn application_running_output(canonical_bundle_id: &str) -> Result<bo
             property_value::<u32>(process_object, kAudioProcessPropertyIsRunningOutput)
                 .is_ok_and(|running| running != 0)
                 && property_cf_string(process_object, kAudioProcessPropertyBundleID)
-                    .is_some_and(|bundle_id| is_process_of(&bundle_id, canonical_bundle_id))
+                    .is_some_and(|bundle_id| audio_process_is_of(process_object, &bundle_id, canonical_bundle_id))
         }))
     })
 }
@@ -194,7 +199,7 @@ pub(crate) fn application_input_devices(canonical_bundle_id: &str) -> Result<Vec
                 property_value::<u32>(process_object, kAudioProcessPropertyIsRunningInput)
                     .is_ok_and(|running| running != 0)
                     && property_cf_string(process_object, kAudioProcessPropertyBundleID)
-                        .is_some_and(|bundle_id| is_process_of(&bundle_id, canonical_bundle_id));
+                        .is_some_and(|bundle_id| audio_process_is_of(process_object, &bundle_id, canonical_bundle_id));
             if !recording {
                 continue;
             }
@@ -225,9 +230,33 @@ fn is_process_of(bundle_id: &str, canonical_bundle_id: &str) -> bool {
     canonical_bundle_id_for(bundle_id, None) == Some(canonical_bundle_id)
 }
 
+#[cfg(target_os = "macos")]
+fn audio_process_is_of(object: AudioObjectID, bundle: &str, canonical: &str) -> bool {
+    if is_process_of(bundle, canonical) {
+        return true;
+    }
+    if canonical != TELEMOST_APP
+        || !bundle.eq_ignore_ascii_case("org.qt-project.Qt.QtWebEngineProcess")
+    {
+        return false;
+    }
+    let Ok(pid) = property_value::<i32>(object, kAudioProcessPropertyPID) else {
+        return false;
+    };
+    resolve_application_with(
+        pid,
+        Some(bundle.into()),
+        running_application_info,
+        parent_pid,
+        running_application_by_bundle_id,
+    )
+    .is_some_and(|app| app.canonical_bundle_id() == Some(canonical))
+}
+
 /// Linux and Windows executables (lowercase, without `.exe`) by the bundle
 /// identifier of the same app on macOS.
-const EXECUTABLES: [(&str, &str); 26] = [
+const EXECUTABLES: [(&str, &str); 27] = [
+    ("yandextelemost", TELEMOST_APP),
     // Gather for Windows.
     ("gather", "com.gather.GatherV2"),
     ("gatherv2", "com.gather.GatherV2"),
@@ -271,6 +300,7 @@ fn canonical_bundle_id_for(bundle_id: &str, name: Option<&str>) -> Option<&'stat
             .then_some("com.apple.Safari");
     }
     [
+        (TELEMOST_APP, TELEMOST_APP),
         ("us.zoom.xos", "us.zoom.xos"),
         ("us.zoom.cpthost", "us.zoom.xos"),
         ("us.zoom.caphost", "us.zoom.xos"),
@@ -309,6 +339,7 @@ fn canonical_bundle_id_for(bundle_id: &str, name: Option<&str>) -> Option<&'stat
 
 pub(crate) fn canonical_application_name(canonical_bundle_id: &str) -> Option<&'static str> {
     match canonical_bundle_id {
+        TELEMOST_APP => Some("Yandex Telemost"),
         "us.zoom.xos" => Some("zoom.us"),
         "com.microsoft.teams2" => Some("Microsoft Teams"),
         "com.tinyspeck.slackmacgap" => Some("Slack"),
@@ -340,6 +371,7 @@ fn is_helper_bundle_id(bundle_id: &str) -> bool {
                 | "us.zoom.zoomcefhelper"
                 | "us.zoom.zccimeetinghost"
                 | "org.mozilla.plugincontainer"
+                | "org.qt-project.qt.qtwebengineprocess"
         )
 }
 
@@ -1011,4 +1043,42 @@ mod tests {
             assert_eq!(app.is_browser(), browser, "browser {bundle_id}");
         }
     }
+    #[test]
+    fn telemost_matches_only_its_application_identity() {
+        for id in [TELEMOST_APP, "RU.YANDEX.DESKTOP.TELEMOST", "YandexTelemost.exe"] {
+            assert_eq!(canonical_bundle_id_for(id, None), Some(TELEMOST_APP));
+        }
+        for id in ["org.qt-project.Qt.QtWebEngineProcess", "QtWebEngineProcess.exe", "YandexTelemostUpdateService.exe", "ru.yandex.desktop.telemostOther"] {
+            assert_eq!(canonical_bundle_id_for(id, Some("Yandex Telemost")), None);
+        }
+        assert!(!is_browser_id(Some(TELEMOST_APP)));
+        assert_eq!(canonical_application_name(TELEMOST_APP), Some("Yandex Telemost"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn telemost_qt_helpers_are_resolved_through_their_actual_parent() {
+        let helper = "org.qt-project.Qt.QtWebEngineProcess";
+        for owner in [TELEMOST_APP, "org.example.OtherQtApp"] {
+            let app = resolve_application_with(
+                300,
+                Some(helper.into()),
+                |pid| match pid {
+                    300 | 200 => Some((helper.into(), Some("QtWebEngineProcess".into()))),
+                    100 => Some((owner.into(), None)),
+                    _ => None,
+                },
+                |pid| match pid { 300 => Some(200), 200 => Some(100), _ => None },
+                |_| panic!("a generic helper must never be attributed to an arbitrary running app"),
+            ).unwrap();
+            assert_eq!(app.pid, 100);
+            assert_eq!(app.canonical_bundle_id(), (owner == TELEMOST_APP).then_some(TELEMOST_APP));
+        }
+        let orphan = resolve_application_with(
+            300, Some(helper.into()), |_| None, |_| None,
+            |_| panic!("an orphan helper must not use a running Telemost as evidence"),
+        ).unwrap();
+        assert_eq!(orphan.canonical_bundle_id(), None);
+    }
+
 }

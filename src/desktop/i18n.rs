@@ -990,6 +990,8 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Detected calls", ["Wykryte rozmowy", "检测到的通话", "検出された通話", "Erkannte Anrufe", "Llamadas detectadas", "Виявлені дзвінки"]),
     ("Ask", ["Pytaj", "询问", "確認する", "Fragen", "Preguntar", "Питати"]),
     ("Always record", ["Zawsze nagrywaj", "始终录制", "常に録音", "Immer aufnehmen", "Grabar siempre", "Завжди записувати"]),
+    ("Yandex Telemost", ["Yandex Telemost", "Yandex Telemost", "Yandex Telemost", "Yandex Telemost", "Yandex Telemost", "Яндекс Телеміст"]),
+    ("Yandex Telemost (web)", ["Yandex Telemost (przeglądarka)", "Yandex Telemost（网页版）", "Yandex Telemost（ウェブ）", "Yandex Telemost (Web)", "Yandex Telemost (web)", "Яндекс Телеміст (веб)"]),
     ("Slack huddles", ["Huddle w Slacku", "Slack 语音小组会", "Slack ハドル", "Slack-Huddles", "Huddles de Slack", "Хадли в Slack"]),
     ("Recording automatically", ["Automatyczne nagrywanie", "正在自动录制", "自動で録音中", "Automatische Aufnahme", "Grabando automáticamente", "Автоматичний запис"]),
     ("Started automatically · {}", ["Rozpoczęto automatycznie · {}", "已自动开始 · {}", "自動で開始 · {}", "Automatisch gestartet · {}", "Iniciada automáticamente · {}", "Розпочато автоматично · {}"]),

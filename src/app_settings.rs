@@ -18,6 +18,7 @@ use crate::transcription::models::{TranscriptionModelId, TranscriptionSelection}
 mod dictation_processing;
 mod hotkeys;
 mod meeting_folder;
+mod meeting_providers;
 mod persistence;
 mod shortcut_repair;
 
@@ -26,6 +27,7 @@ pub use dictation_processing::{
 };
 pub use hotkeys::*;
 pub use meeting_folder::default_meeting_output_folder;
+pub use meeting_providers::{KNOWN_MEETING_PROVIDERS, TELEMOST_APP, TELEMOST_SITE};
 
 static RECORDING_DUCK_VOLUME: AtomicU32 = AtomicU32::new(0.2_f32.to_bits());
 static RECORDING_AUDIO_BEHAVIOR: AtomicU8 = AtomicU8::new(0);
@@ -259,19 +261,6 @@ impl CalendarSettings {
             .any(|excluded| excluded == calendar)
     }
 }
-
-/// The call services Settings always lists, by provider key (the app's
-/// canonical bundle ID, or the website host for browser services) and
-/// English name.
-pub const KNOWN_MEETING_PROVIDERS: [(&str, &str); 7] = [
-    ("com.tinyspeck.slackmacgap", "Slack huddles"),
-    ("us.zoom.xos", "Zoom"),
-    ("meet.google.com", "Google Meet"),
-    ("com.microsoft.teams2", "Microsoft Teams"),
-    ("com.apple.FaceTime", "FaceTime"),
-    ("net.whatsapp.WhatsApp", "WhatsApp"),
-    ("com.gather.GatherV2", "Gather"),
-];
 
 /// What Hex does when it detects a call from a provider.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

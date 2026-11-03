@@ -56,13 +56,26 @@ pub fn active_microphone_applications() -> Result<Vec<ActiveMicrophoneApplicatio
         }
     })()
     .map_err(|error| eyre!("could not read microphone sessions: {error}"))?;
+    let mut parents = None;
     for pid in sessions {
         if pid == 0 || pid == own_pid {
             continue;
         }
-        let Some(path) = process_path(pid) else {
+        let Some(mut path) = process_path(pid) else {
             continue;
         };
+        let mut owner_pid = pid;
+        if super::telemost::is_qt_helper(&path) {
+            let parents = parents.get_or_insert_with(process_parents);
+            let Some((owner, owner_path)) = super::telemost::resolve_windows_helper(pid, |child| {
+                let parent = *parents.get(&child)?;
+                Some((parent, process_path(parent)?))
+            }) else {
+                continue;
+            };
+            owner_pid = owner;
+            path = owner_path;
+        }
         let Some(executable) = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -74,7 +87,7 @@ pub fn active_microphone_applications() -> Result<Vec<ActiveMicrophoneApplicatio
             .map(|stem| stem.to_string_lossy().into_owned())
             .unwrap_or_else(|| executable.clone());
         applications.push(ActiveMicrophoneApplication {
-            pid: pid as i32,
+            pid: owner_pid as i32,
             bundle_id: executable,
             name,
         });
@@ -99,4 +112,31 @@ fn process_path(pid: u32) -> Option<std::path::PathBuf> {
         CloseHandle(process);
         (ok != 0).then(|| String::from_utf16_lossy(&buffer[..length as usize]).into())
     }
+}
+
+/// One snapshot per poll, and only when a Qt helper owns a microphone session.
+fn process_parents() -> std::collections::HashMap<u32, u32> {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
+    };
+    let mut parents = std::collections::HashMap::new();
+    // SAFETY: A process-only snapshot with a correctly sized entry; the valid
+    // handle is closed on completion. No process is opened for mutation.
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return parents;
+        }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut found = Process32FirstW(snapshot, &mut entry);
+        while found != 0 {
+            parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
+            found = Process32NextW(snapshot, &mut entry);
+        }
+        CloseHandle(snapshot);
+    }
+    parents
 }

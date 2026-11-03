@@ -18,7 +18,7 @@ use super::settings::toggle_menu;
 use super::{Menu, Pane, ShortcutTarget, Ui, icons};
 use crate::app_settings::{
     AppSettings, CALENDAR_LEAD_MINUTES, HotkeyBinding, KNOWN_MEETING_PROVIDERS, MeetingPolicy,
-    MeetingProviderChoice, MeetingRetention, ModifierSide,
+    MeetingProviderChoice, MeetingRetention, ModifierSide, TELEMOST_SITE,
 };
 use crate::audio::hex_microphone::DriverActionState;
 use crate::calendar::{CalendarAccess, CallProvider};
@@ -814,6 +814,7 @@ fn detected_calls_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let choices = &ui.settings.meetings.providers;
     let known = KNOWN_MEETING_PROVIDERS
         .iter()
+        .filter(|(key, _)| *key != TELEMOST_SITE || ui.platform.caps.meeting_websites)
         .map(|(key, label)| (key.to_string(), label.to_string(), tr(label).to_owned()));
     let others = choices
         .iter()

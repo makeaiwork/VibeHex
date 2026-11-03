@@ -36,6 +36,8 @@ pub(super) struct Capabilities {
     /// Calendar meeting reminders: the Calendar card under Meetings
     /// (macOS, EventKit).
     pub(super) calendar: bool,
+    /// The meeting watcher can identify a browser call by its page address.
+    pub(super) meeting_websites: bool,
     /// Privacy permissions gate dictation (macOS).
     pub(super) permissions: bool,
     pub(super) launch_at_login: bool,
@@ -69,6 +71,7 @@ impl Capabilities {
         os: Os::Linux,
         meetings: true,
         calendar: false,
+        meeting_websites: false,
         permissions: false,
         launch_at_login: true,
         dock_icon: false,
@@ -86,6 +89,7 @@ impl Capabilities {
         os: Os::Macos,
         meetings: true,
         calendar: true,
+        meeting_websites: true,
         permissions: true,
         launch_at_login: true,
         dock_icon: true,
@@ -103,6 +107,7 @@ impl Capabilities {
         os: Os::Windows,
         meetings: true,
         calendar: false,
+        meeting_websites: false,
         permissions: false,
         launch_at_login: true,
         dock_icon: false,
@@ -803,6 +808,10 @@ impl Difference {
 #[cfg(test)]
 const DIFFERENCES: &[(&str, Difference)] = &[
     (
+        "meeting_websites",
+        Difference::Pending("the meeting watcher reads browser pages only on macOS"),
+    ),
+    (
         "calendar",
         Difference::OsPattern("EventKit; there is no cross-platform calendar source"),
     ),
@@ -845,11 +854,12 @@ const DIFFERENCES: &[(&str, Difference)] = &[
 impl Capabilities {
     /// Every capability by name. Destructuring makes a new capability a
     /// compile error here until it is named.
-    pub(super) fn fields(self) -> [(&'static str, bool); 13] {
+    pub(super) fn fields(self) -> [(&'static str, bool); 14] {
         let Self {
             os: _,
             meetings,
             calendar,
+            meeting_websites,
             permissions,
             launch_at_login,
             dock_icon,
@@ -865,6 +875,7 @@ impl Capabilities {
         [
             ("meetings", meetings),
             ("calendar", calendar),
+            ("meeting_websites", meeting_websites),
             ("permissions", permissions),
             ("launch_at_login", launch_at_login),
             ("dock_icon", dock_icon),
