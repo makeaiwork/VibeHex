@@ -341,7 +341,9 @@ fn model_list(ui: &Ui, p: Paint, server: &Server, saved: &str, layer: &mut Vec<E
     )
     .trigger(trigger)
     .placement(Placement::BottomEnd)
-    .width(360.0)
+    // As wide as the field and its button above it: a wider list is narrowed
+    // to the window, and its rows (and the check) would overflow it.
+    .width(FIELD + 8.0)
     .max_height(360.0)
     .current(current.as_deref())
     .search_placeholder(tr("Search models"))
