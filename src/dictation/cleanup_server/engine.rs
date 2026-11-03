@@ -318,6 +318,9 @@ fn arguments(
         ("--parallel", "1".as_ref()),
         ("--alias", alias.as_ref()),
         ("--log-file", log.as_os_str()),
+        // Cleanup wants the answer, not a chain of thought: models that can
+        // think (Gemma 4) answer straight away, faster and within the deadline.
+        ("--reasoning", "off".as_ref()),
     ] {
         push(&flag);
         push(&value);
@@ -430,6 +433,7 @@ mod tests {
         assert!(pairs.contains(&("--host", "127.0.0.1")));
         assert!(pairs.contains(&("--port", "4242")));
         assert!(pairs.contains(&("--model", "/models/m.gguf")));
+        assert!(pairs.contains(&("--reasoning", "off")));
         assert!(arguments.iter().any(|argument| argument == "--no-webui"));
         assert!(arguments.iter().any(|argument| argument == "--offline"));
         // The key travels in the environment, never in argv.

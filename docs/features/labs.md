@@ -912,7 +912,8 @@ moved into place; Delete stops the engine if it runs that model. The engine
 llama.cpp's `llama-server` (build b11960, pinned by SHA-256 in
 `scripts/build-app.sh`), bundled beside `hex` with its libraries in
 `Contents/Frameworks`. Hex starts it on 127.0.0.1, a free port, a random key,
-`--offline`, no web UI, every layer on Metal, and an 8,192-token context;
+`--offline`, no web UI, `--reasoning off` (Gemma 4 answers without
+thinking), every layer on Metal, and an 8,192-token context;
 it loads when a dictation's shortcut goes down (or the first rewrite or Test
 asks), is ready once `/health` answers (at most 120 s), serves rewrites
 through the same `generate` as Your own, unloads after 15 minutes without a
