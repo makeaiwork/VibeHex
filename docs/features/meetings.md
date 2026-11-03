@@ -357,8 +357,7 @@ Linux passed all 1,516 application tests, including the Telemost settings UI
 test, 161 router tests and the workflow's system integration checks;
 both changed calendar-settings goldens were retrieved from `check-linux.yml`,
 visually reviewed in light and dark appearances, and committed. Windows x64
-Clippy passed; Windows release tests and ARM64 validation are still running.
-A native macOS settings
+Clippy and the x64/ARM64 release test suites passed. A native macOS settings
 fixture also rendered both Telemost rows with Ask selected. These results do
 not establish native Windows/Linux UI or Telemost audio behavior. The signed
 local macOS build was installed and its CLI startup checked; replacing the
