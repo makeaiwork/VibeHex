@@ -245,6 +245,9 @@ fn merge_pasted(ui: &mut Ui) -> bool {
     true
 }
 
+/// The paste field's tallest: about 14 lines, then it scrolls.
+const PASTE_FIELD_MAX: f32 = 260.0;
+
 /// The paste field, with how to write a line.
 fn paste_field(p: Paint, paste: &TextEdit) -> El {
     col()
@@ -261,6 +264,9 @@ fn paste_field(p: Paint, paste: &TextEdit) -> El {
             TextArea::new(paste)
                 .placeholder("Claude Code | клод код, клот код\nMCP | эм си пи\nGitHub | гитхаб")
                 .rows(10)
+                // A long list scrolls inside the field, so Add to list and
+                // Cancel stay on screen.
+                .max_height(PASTE_FIELD_MAX)
                 .width(None)
                 .on_edit(|ui: &mut Ui| ui.vocabulary.paste.get_or_insert_with(TextEdit::default))
                 .build(p.k)
@@ -534,12 +540,13 @@ pub(super) fn fixture(ui: &mut Ui, filled: bool) {
 }
 
 /// The paste field open over a filled list (Labs › Paste vocabulary as a
-/// list).
+/// list), holding the whole Russian starter list, so it shows the field at
+/// its tallest with Add to list and Cancel below it.
 pub(super) fn paste_fixture(ui: &mut Ui) {
     ui.settings.labs.vocabulary_paste_list = true;
-    ui.vocabulary.paste = Some(TextEdit::new(
-        "Claude Code | клод код, клот код\nMCP | эм си пи, эмсипи\nGitHub | гитхаб, гит хаб",
-    ));
+    ui.vocabulary.paste = Some(TextEdit::new(include_str!(
+        "../../docs/vocabulary/vibe-coding-ru.txt"
+    )));
 }
 
 #[cfg(test)]

@@ -441,6 +441,9 @@ fn instructions(ui: &Ui, p: Paint) -> El {
             "Your own rules, added to Hex's prompt along with your vocabulary",
         ))
         .rows(4)
+        // Long instructions scroll inside the field instead of stretching
+        // the pane.
+        .max_height(280.0)
         .width(None)
         .on_edit(|ui: &mut Ui| {
             let saved = ui
