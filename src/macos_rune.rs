@@ -271,9 +271,8 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|error| error.into_inner())
 }
 
-/// Asks a running 2.3.1 or Swift Hex to quit once this Hex is ready to
-/// listen, so the two never answer the same shortcut. The old app stays
-/// installed.
+/// Asks a running 2.3.1 or Swift Hex to quit once this Hex is ready to listen,
+/// so the two never answer the same shortcut. The old app stays installed.
 fn quit_legacy_hex() {
     objc2::rc::autoreleasepool(|_| {
         for bundle_id in crate::desktop::onboarding::LEGACY_MAC_BUNDLE_IDS {
@@ -897,9 +896,8 @@ fn observe_termination(target: &MenuTarget) {
     }
 }
 
-/// Starts the main-thread setup after `seconds` if the window's first frame
-/// hasn't by then, so a window that never draws (no GPU, displays asleep)
-/// still leaves a status item.
+/// Starts the main-thread setup after `seconds` if the window's first frame hasn't
+/// by then, so a window that never draws (no GPU, displays asleep) still leaves a status item.
 fn start_main_thread_after(seconds: f64) {
     let block = RcBlock::new(|_: std::ptr::NonNull<NSTimer>| start_main_thread());
     // SAFETY: the timer runs its block on this (main) thread's run loop.

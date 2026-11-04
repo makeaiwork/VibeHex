@@ -172,9 +172,8 @@ pub(crate) fn run_app(
     }
 }
 
-/// The window as a Rune app whose lifetime the caller chooses, connected to
-/// its host through `connect`, with the playground that Labs › Playground
-/// opens.
+/// The window as a Rune app whose lifetime the caller chooses, connected to its
+/// host through `connect`, with the playground that Labs › Playground opens.
 pub(crate) fn app(connect: host::Connect) -> rune::App<Ui> {
     onboarding_kit::set_live_window(true);
     let app = build(move || Ui::load_with(connect), PlaygroundMode::Gated);
