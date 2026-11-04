@@ -26,6 +26,14 @@ pub struct LocalModel {
     pub filename: &'static str,
     pub bytes: u64,
     sha256: &'static str,
+    /// How fast it rewrites, 1 to 5, as measured on an M-series Mac with
+    /// Metal: Gemma 4 E2B about 93 tokens a second, Qwen3 4B about 61,
+    /// Gemma 4 E4B about 47.
+    pub speed: u8,
+    /// How well it cleans up, 1 to 5: on 44 misheard vocabulary forms from
+    /// real Russian dictations, E4B wrote 40 as their terms, Qwen3 37, E2B
+    /// 36; Qwen3 also follows instructions more closely than E2B.
+    pub quality: u8,
 }
 
 /// The models offered, the recommended one first.
@@ -40,6 +48,8 @@ pub const MODELS: &[LocalModel] = &[
         filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
         bytes: 2_497_281_120,
         sha256: "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+        speed: 4,
+        quality: 4,
     },
     LocalModel {
         id: "gemma-4-e4b-it",
@@ -51,6 +61,8 @@ pub const MODELS: &[LocalModel] = &[
         filename: "gemma-4-E4B-it-Q4_K_M.gguf",
         bytes: 4_977_171_584,
         sha256: "85a896a047553e842f25297ee5b031d64ff30147d9c4af17b1e4b394cd1fab87",
+        speed: 3,
+        quality: 5,
     },
     LocalModel {
         id: "gemma-4-e2b-it",
@@ -62,6 +74,8 @@ pub const MODELS: &[LocalModel] = &[
         filename: "gemma-4-E2B-it-Q4_K_M.gguf",
         bytes: 3_106_738_272,
         sha256: "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+        speed: 5,
+        quality: 3,
     },
 ];
 
@@ -219,6 +233,8 @@ mod tests {
             bytes: 5,
             // SHA-256 of "hello".
             sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            speed: 3,
+            quality: 3,
         };
         let partial = root.join("test.gguf.partial");
         let path = root.join("test.gguf");

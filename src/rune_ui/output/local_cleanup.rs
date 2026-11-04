@@ -125,6 +125,11 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
         None => (facts, p.muted()),
     };
     let controls = row().key("controls").gap(8.0).center_y();
+    let controls = if state.download(model.id).is_none() {
+        controls.child(ratings(p, model))
+    } else {
+        controls
+    };
     let controls = if let Some(download) = state.download(model.id) {
         let fraction = download.bytes.load(Ordering::Relaxed) as f32 / model.bytes as f32;
         controls
@@ -176,6 +181,48 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
         ))
     };
     described_row(p, &key, model.name, Some(description), controls)
+}
+
+/// Speed and quality, five stars each, labels beside them.
+fn ratings(p: Paint, model: &LocalModel) -> El {
+    const LINE: f32 = 15.0;
+    let label = |copy: &'static str| {
+        text(tr(copy))
+            .font(super::super::controls::DESCRIPTION)
+            .color(p.muted())
+            .h(LINE)
+    };
+    let stars = |key: &'static str, copy: &'static str, filled: u8| {
+        row()
+            .key(key)
+            .role("image")
+            .label(format!("{} {filled}/5", tr(copy)))
+            .h(LINE)
+            .gap(1.0)
+            .center_y()
+            .children((0..5u8).map(|index| {
+                let (glyph, color) = if index < filled {
+                    (&rune_kit::glyphs::STAR_FILLED, p.text())
+                } else {
+                    (&rune_kit::glyphs::STAR, p.muted())
+                };
+                rune::icon(glyph, 10.0).color(color)
+            }))
+    };
+    row()
+        .key("ratings")
+        .gap(6.0)
+        .child(
+            rune::col()
+                .items_end()
+                .child(label("Speed"))
+                .child(label("Quality")),
+        )
+        .child(
+            rune::col()
+                .child(stars("speed", "Speed", model.speed))
+                .child(stars("quality", "Quality", model.quality)),
+        )
 }
 
 fn choose(ui: &mut Ui, id: &'static str) {
