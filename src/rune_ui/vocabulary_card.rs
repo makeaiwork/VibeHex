@@ -43,7 +43,7 @@ pub(crate) struct Card {
     heard: TextEdit,
     term: TextEdit,
     /// Where the selection came from, to replace it once the term is in.
-    selection: Option<Selection>,
+    source: Option<Source>,
     /// Why the last Add didn't save.
     error: Option<String>,
     save: Option<Save>,
@@ -51,6 +51,15 @@ pub(crate) struct Card {
     /// The card sits above its selection, so it hangs from the overlay's
     /// bottom instead of its top.
     above: bool,
+}
+
+/// The app whose selection the card was opened over.
+pub(crate) struct Source {
+    pid: i32,
+    /// Read through Accessibility; `None` when it was copied with ⌘C.
+    selection: Option<Selection>,
+    /// Whether the selection can be edited, so a paste replaces it.
+    editable: bool,
 }
 
 static CARD: OnceLock<OverlayHandle<Card>> = OnceLock::new();
@@ -101,7 +110,7 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, save: Save) {
     let card = Card {
         heard: TextEdit::default(),
         term: TextEdit::default(),
-        selection: None,
+        source: None,
         error: None,
         save: Some(save),
         overlay: None,
@@ -116,7 +125,7 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, save: Save) {
 /// Opens the card for `heard`, the selected text (empty when no app said
 /// what was selected), from any thread. A term that already lists `heard`
 /// as a spelling, or is `heard` itself, starts in Should be.
-pub(crate) fn open(selection: Option<Selection>, heard: String) {
+pub(crate) fn open(source: Option<Source>, heard: String) {
     let Some(overlay) = CARD.get() else {
         return;
     };
@@ -128,8 +137,11 @@ pub(crate) fn open(selection: Option<Selection>, heard: String) {
         // With nothing selected, Heard is typed first.
         card.heard.focused = empty;
         card.term.focused = !empty;
-        let bounds = selection.as_ref().and_then(|selection| selection.bounds);
-        card.selection = selection;
+        let bounds = source
+            .as_ref()
+            .and_then(|source| source.selection.as_ref())
+            .and_then(|selection| selection.bounds);
+        card.source = source;
         card.error = None;
         tx.instant();
         if let Some(overlay) = &card.overlay {
@@ -215,13 +227,24 @@ pub(crate) fn open_for_selection() {
     let spawned = std::thread::Builder::new()
         .name("vocabulary-selection".into())
         .spawn(|| {
-            let selection = crate::dictation::context::frontmost_pid()
-                .and_then(crate::accessibility::selection);
+            let pid = crate::dictation::context::frontmost_pid();
+            let selection = pid.and_then(crate::accessibility::selection);
             let heard = match &selection {
                 Some(selection) => selection.text.clone(),
                 None => crate::paste::copy_selection(COPY_WAIT).unwrap_or_default(),
             };
-            open(selection, heard);
+            // Asked while the app is still in front: its menu says whether
+            // this selection can be cut, so edited, where Accessibility
+            // doesn't.
+            let source = pid.filter(|_| !heard.is_empty()).map(|pid| Source {
+                pid,
+                editable: selection
+                    .as_ref()
+                    .is_some_and(|selection| selection.editable)
+                    || crate::accessibility::can_cut(pid) == Some(true),
+                selection,
+            });
+            open(source, heard);
         });
     if let Err(error) = spawned {
         tracing::warn!(%error, "couldn't read the selection for Vocabulary");
@@ -251,7 +274,7 @@ fn known_term(entries: &[VocabularyEntry], heard: &str) -> Option<String> {
 }
 
 fn close(card: &mut Card) {
-    card.selection = None;
+    card.source = None;
     card.error = None;
     card.heard.focused = false;
     card.term.focused = false;
@@ -277,25 +300,58 @@ fn add(card: &mut Card) {
         card.error = Some(error);
         return;
     }
-    let selection = card.selection.take();
+    let source = card.source.take();
     close(card);
-    if let Some(selection) = selection
+    if let Some(source) = source.filter(|source| source.editable)
         && term != heard
     {
         std::thread::Builder::new()
             .name("vocabulary-replace".into())
-            .spawn(move || {
-                // After the card gives the keys back to the app.
-                std::thread::sleep(Duration::from_millis(60));
-                if !selection.replace(&term) {
-                    tracing::info!(
-                        replaceable = selection.replaceable,
-                        "the selection stays as it was; the term is in Vocabulary"
-                    );
-                }
-            })
+            .spawn(move || replace(&source, &term))
             .ok();
     }
+}
+
+/// Pastes `term` over the selection the card was opened for, once its app
+/// is in front again and, where Accessibility says, the same text is still
+/// selected; otherwise leaves the app alone.
+fn replace(source: &Source, term: &str) {
+    if !bring_back(source.pid) {
+        tracing::info!("the selection's app isn't in front; the term is in Vocabulary");
+        return;
+    }
+    if source
+        .selection
+        .as_ref()
+        .is_some_and(|selection| !selection.still_selected())
+    {
+        tracing::info!("the selection changed; the term is in Vocabulary");
+        return;
+    }
+    match crate::paste::paste_over_selection(term) {
+        Ok(()) => tracing::info!("replaced the selection with its Vocabulary term"),
+        Err(error) => tracing::warn!(%error, "couldn't replace the selection"),
+    }
+}
+
+/// Waits for app `pid` to be in front again once the card lets go of the
+/// keys, activating it if Hex kept them. False when it isn't.
+fn bring_back(pid: i32) -> bool {
+    let in_front = || crate::dictation::context::frontmost_pid() == Some(pid);
+    let wait = |limit: Duration| {
+        let deadline = std::time::Instant::now() + limit;
+        while !in_front() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        // Let the app take its key window back before keys arrive.
+        std::thread::sleep(Duration::from_millis(80));
+        in_front()
+    };
+    if wait(Duration::from_millis(300)) {
+        return true;
+    }
+    crate::dictation::context::activate(pid);
+    wait(Duration::from_millis(700))
 }
 
 fn on_key(card: &mut Card, event: &rune::KeyEvent, _: &mut Tx) -> bool {
@@ -356,9 +412,9 @@ fn term_field(card: &mut Card) -> &mut TextEdit {
 fn view(card: &Card, cx: &mut Cx<Card>) -> El {
     let p = Paint::new(cx.system_dark(), cx.env().scale);
     let c = &p.k.c;
-    let note = match (&card.error, &card.selection) {
+    let note = match (&card.error, &card.source) {
         (Some(error), _) => Some((tr_fill("Couldn't save: {}", error), p.danger())),
-        (None, Some(selection)) if !selection.replaceable => Some((
+        (None, Some(source)) if !source.editable => Some((
             tr("This text can't be edited here; the word still goes to Vocabulary").to_string(),
             p.muted(),
         )),

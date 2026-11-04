@@ -430,6 +430,33 @@ pub fn copy_selection(wait: Duration) -> Option<String> {
         .filter(|text| !text.is_empty())
 }
 
+/// Puts `text` in place of the frontmost app's selection with ⌘V (typed
+/// into a Chromium 155 or 156 app instead), for Labs › Add to vocabulary.
+/// The clipboard is put back once the app has read it, unless something
+/// newer has replaced it since.
+pub fn paste_over_selection(text: &str) -> Result<()> {
+    if crate::dictation::context::frontmost_bundle_path()
+        .is_some_and(|bundle| has_clipboard_race(&bundle))
+    {
+        return keyboard::type_text(text);
+    }
+    let clipboard = NSPasteboard::generalPasteboard();
+    let previous = capture_clipboard(&clipboard)?;
+    write_clipboard_text(&clipboard, text, true)?;
+    let staged = clipboard.changeCount();
+    let pasted = keyboard::post_command('v');
+    thread::sleep(PASTE_SETTLE);
+    if clipboard.changeCount() == staged
+        && let Err(error) = restore_clipboard(&clipboard, &previous)
+    {
+        tracing::warn!(%error, "could not restore the clipboard after replacing a selection");
+    }
+    pasted
+}
+
+/// How long an app takes to read a pasted clipboard.
+const PASTE_SETTLE: Duration = Duration::from_millis(500);
+
 pub(crate) fn commit_prepared_paste<P, T>(
     prepare: impl FnOnce() -> Result<P>,
     commit: impl FnOnce() -> bool,

@@ -1054,8 +1054,17 @@ misheard word into a Vocabulary entry where it was misheard.
 │   │           on that screen's visible frame: Heard (the selection) and Should be
 │   │           (focused; prefilled when Heard is already a term's spelling)
 │   ├── Add / Return -> saved as `hex vocabulary add` does (term + Heard as a spelling),
-│   │       Runtime ReloadSettings; then AXSelectedText := term where settable
-│   │       (a sent message keeps its text; the card says so before Add)
+│   │       Runtime ReloadSettings; then, where the selection is editable, pasted over
+│   │       (paste::paste_over_selection: ⌘V, the clipboard put back after 500 ms
+│   │       unless something newer replaced it; typed into Chromium 155/156)
+│   │   ├── Editable  a text role (AXTextField/TextArea/ComboBox/SearchField) or a
+│   │   │             settable AXSelectedText/AXValue, else the app's ⌘X menu item
+│   │   │             (accessibility::can_cut, found by its shortcut, so any language)
+│   │   │             enabled, asked while the app is still in front; a sent message
+│   │   │             or a terminal keeps its text and the card says so before Add
+│   │   └── Guards    the app back in front (activated if Hex kept the keys, 1 s at
+│   │                 most) and, read through Accessibility, the same element with the
+│   │                 same text selected; otherwise nothing is pasted
 │   └── Cancel, Escape, or a click into another app -> closes, nothing saved
 └── Nothing selected -> the card opens with Heard empty and focused
 ```
@@ -1064,8 +1073,10 @@ Checks: `the_vocabulary_shortcut_needs_its_lab_and_its_own_keys` in
 [app_settings.rs](../../src/app_settings.rs), `a_listed_spelling_or_term_finds_its_term` and `the_card_sits_by_its_selection`
 in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs), the taps in
 [suppression/modifier_tap.rs](../../src/suppression/modifier_tap.rs). The card
-has no scene. Not yet observed: the shortcut, card, and replacement in a
-running Hex, across native, Chromium, and terminal apps.
+has no scene. Observed: AXSelectedText alone was settable almost nowhere (three tries,
+all `replaceable=false`), hence the paste, as AliceMate does. Not yet
+observed: the paste replacement in a running Hex across native, Chromium,
+and terminal apps.
 
 Russian vibe coding (`russian-vibe-coding`, every OS) is a preset, not a
 runtime gate: turning it on (the row, `hex labs on`, or

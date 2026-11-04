@@ -87,7 +87,12 @@ unsafe extern "C" {
     fn CFArrayGetCount(array: CfTypeRef) -> isize;
     fn CFArrayGetValueAtIndex(array: CfTypeRef, index: isize) -> CfTypeRef;
     static kCFBooleanTrue: CfTypeRef;
+    fn CFNumberGetTypeID() -> usize;
+    fn CFNumberGetValue(number: CfTypeRef, number_type: isize, value: *mut c_void) -> u8;
 }
+
+/// `kCFNumberSInt64Type`.
+const CF_NUMBER_SINT64: isize = 4;
 
 pub fn focused_window_title(pid: i32) -> Option<String> {
     // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
@@ -254,11 +259,14 @@ pub fn char_before_caret(pid: i32) -> Option<char> {
 /// to vocabulary can put the right spelling in its place.
 pub struct Selection {
     element: CfObject,
+    /// The application it is in.
+    pub pid: i32,
     /// What is selected, trimmed.
     pub text: String,
-    /// Whether the element takes new text for its selection: false for a
-    /// message already sent or other text that can't be edited.
-    pub replaceable: bool,
+    /// Whether the element is text that can be edited: a text field or
+    /// area, or one whose selection or value takes new text. A message
+    /// already sent is neither.
+    pub editable: bool,
     /// Where the selected text is on screen, `[x, y, width, height]` in
     /// global top-left points, when the app says.
     pub bounds: Option<[f64; 4]>,
@@ -270,24 +278,25 @@ pub struct Selection {
 unsafe impl Send for Selection {}
 
 impl Selection {
-    /// Puts `text` in place of the selection; false when the app refuses.
-    pub fn replace(&self, text: &str) -> bool {
-        if !self.replaceable {
-            return false;
-        }
-        let Some(attribute) = cf_string_literal(c"AXSelectedText").map(CfObject) else {
-            return false;
-        };
-        let Ok(value) = std::ffi::CString::new(text) else {
+    /// Whether the same element still has the same text selected, so a
+    /// paste replaces exactly it.
+    pub fn still_selected(&self) -> bool {
+        // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
+        let Some(application) = bounded_element(unsafe { AXUIElementCreateApplication(self.pid) })
+        else {
             return false;
         };
-        let Some(value) = cf_string_literal(&value).map(CfObject) else {
+        let Some(focused) = copy_element(&application, c"AXFocusedUIElement") else {
             return false;
         };
-        // SAFETY: A live element, a CFString name, and a CFString value.
-        unsafe { AXUIElementSetAttributeValue(self.element.0, attribute.0, value.0) == 0 }
+        // SAFETY: Two live Core Foundation objects.
+        (unsafe { CFEqual(focused.0, self.element.0) } != 0)
+            && copy_string(&focused, c"AXSelectedText").is_some_and(|text| text.trim() == self.text)
     }
 }
+
+/// The roles of text a person types in.
+const TEXT_ROLES: [&str; 4] = ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"];
 
 /// The text selected in application `pid`'s focused element, through
 /// Accessibility, never the clipboard. Chromium-based apps (Electron
@@ -303,7 +312,22 @@ pub fn selection(pid: i32) -> Option<Selection> {
     if text.is_empty() {
         return None;
     }
-    let replaceable = cf_string_literal(c"AXSelectedText")
+    let editable = copy_string(&element, c"AXRole")
+        .is_some_and(|role| TEXT_ROLES.contains(&role.as_str()))
+        || settable(&element, c"AXSelectedText")
+        || settable(&element, c"AXValue");
+    let bounds = selection_bounds(&element);
+    Some(Selection {
+        element,
+        pid,
+        text,
+        editable,
+        bounds,
+    })
+}
+
+fn settable(element: &CfObject, name: &CStr) -> bool {
+    cf_string_literal(name)
         .map(CfObject)
         .is_some_and(|attribute| {
             let mut settable = 0_u8;
@@ -311,14 +335,40 @@ pub fn selection(pid: i32) -> Option<Selection> {
             let status =
                 unsafe { AXUIElementIsAttributeSettable(element.0, attribute.0, &mut settable) };
             status == 0 && settable != 0
-        });
-    let bounds = selection_bounds(&element);
-    Some(Selection {
-        element,
-        text,
-        replaceable,
-        bounds,
-    })
+        })
+}
+
+/// Whether application `pid`'s ⌘X menu item, Edit › Cut found by its
+/// shortcut so any language matches, is enabled: what is selected there
+/// can be edited. `None` when the app has no such item or doesn't say.
+pub fn can_cut(pid: i32) -> Option<bool> {
+    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
+    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    let bar = copy_element(&application, c"AXMenuBar")?;
+    copy_elements(&bar, c"AXChildren")
+        .iter()
+        .flat_map(|menu| copy_elements(menu, c"AXChildren"))
+        .flat_map(|list| copy_elements(&list, c"AXChildren"))
+        .find(|item| {
+            copy_string(item, c"AXMenuItemCmdChar").as_deref() == Some("X")
+                && copy_number(item, c"AXMenuItemCmdModifiers") == Some(0)
+        })
+        .map(|item| {
+            // SAFETY: A live value against the immortal kCFBooleanTrue.
+            copy_attribute(&item, c"AXEnabled")
+                .is_some_and(|enabled| unsafe { CFEqual(enabled.0, kCFBooleanTrue) } != 0)
+        })
+}
+
+fn copy_number(element: &CfObject, name: &CStr) -> Option<i64> {
+    let value = copy_attribute(element, name)?;
+    if unsafe { CFGetTypeID(value.0) } != unsafe { CFNumberGetTypeID() } {
+        return None;
+    }
+    let mut number = 0_i64;
+    // SAFETY: A CFNumber read into an i64 of the requested type.
+    (unsafe { CFNumberGetValue(value.0, CF_NUMBER_SINT64, (&mut number as *mut i64).cast()) } != 0)
+        .then_some(number)
 }
 
 /// The selected range's rectangle (`AXBoundsForRange`). Apps that answer
