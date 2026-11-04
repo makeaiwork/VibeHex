@@ -294,6 +294,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
             tr("Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"),
         ));
         rows.push(row(
+            Feature::CleanupProgress,
+            &SPARKLES,
+            tr("Cleanup progress"),
+            tr("While AI cleanup takes a while, a bar beside the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"),
+        ));
+        rows.push(row(
             Feature::MouseShortcuts,
             &MOUSE,
             tr("Mouse shortcuts"),
@@ -545,7 +551,8 @@ impl Group {
             | Feature::FillerWords
             | Feature::SkipPauses
             | Feature::OutputFixes
-            | Feature::AiCleanupServer => Self::TextCleanup,
+            | Feature::AiCleanupServer
+            | Feature::CleanupProgress => Self::TextCleanup,
             Feature::VocabularyBiasing
             | Feature::VocabularyPasteList
             | Feature::VocabularyQuickAdd
@@ -624,6 +631,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::VocabularyPasteList => "lab-vocabulary-paste-list",
         Feature::RussianVibeCoding => "lab-russian-vibe-coding",
         Feature::VocabularyQuickAdd => "lab-vocabulary-quick-add",
+        Feature::CleanupProgress => "lab-cleanup-progress",
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::SmartSpacing => "lab-smart-spacing",

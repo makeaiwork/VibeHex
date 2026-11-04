@@ -465,6 +465,11 @@ const KEYS: &[Key] = &[
         "Labs: a shortcut (vocabulary_add_hotkey) adds a selected misheard word to Vocabulary with its right spelling and replaces the selection where it can (macOS)",
     ),
     key(
+        "labs.cleanup_progress",
+        Kind::Bool,
+        "Labs: while AI cleanup takes a while, a bar beside the HUD shows its progress with Paste now, which pastes the part already cleaned and the rest as transcribed (macOS)",
+    ),
+    key(
         "labs.meeting_summary_model",
         Kind::Bool,
         "Labs: meeting notes written with OpenCode use meetings.opencode_model, with no fallback to another model (macOS)",

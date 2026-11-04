@@ -27,6 +27,7 @@ use color_eyre::eyre::{Result, eyre};
 use serde::{Deserialize, Serialize};
 
 use crate::app_settings::{CleanupRunsOn, CleanupServerSettings};
+use crate::dictation::cleanup_pieces::Streamed;
 
 pub const OPENROUTER_URL: &str = "https://openrouter.ai/api/v1";
 pub const LM_STUDIO_URL: &str = "http://127.0.0.1:1234/v1";
@@ -158,9 +159,17 @@ pub fn generate(
     transcript: &str,
     deadline: Duration,
     cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
 ) -> Result<String> {
     if server.provider == Provider::Local {
-        return generate_locally(server, instructions, transcript, deadline, cancelled);
+        return generate_locally(
+            server,
+            instructions,
+            transcript,
+            deadline,
+            cancelled,
+            streamed,
+        );
     }
     let key = keys::get(server.provider);
     generate_with_key(
@@ -170,6 +179,7 @@ pub fn generate(
         transcript,
         deadline,
         cancelled,
+        streamed,
     )
 }
 
@@ -181,6 +191,7 @@ fn generate_locally(
     transcript: &str,
     deadline: Duration,
     cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
 ) -> Result<String> {
     let started = Instant::now();
     let model = local_models::chosen(&server.model);
@@ -196,6 +207,7 @@ fn generate_locally(
         transcript,
         deadline.saturating_sub(started.elapsed()),
         cancelled,
+        streamed,
     )
 }
 
@@ -209,6 +221,7 @@ pub fn test(server: &Server, key: Option<&str>) -> Result<Duration> {
             "ping",
             ENGINE_TEST_DEADLINE,
             &AtomicBool::new(false),
+            None,
         )?;
         return Ok(started.elapsed());
     }
@@ -219,6 +232,7 @@ pub fn test(server: &Server, key: Option<&str>) -> Result<Duration> {
         "ping",
         TEST_DEADLINE,
         &AtomicBool::new(false),
+        None,
     )?;
     Ok(started.elapsed())
 }
@@ -230,6 +244,7 @@ fn generate_with_key(
     transcript: &str,
     deadline: Duration,
     cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
 ) -> Result<String> {
     let started = Instant::now();
     let name = server.name();
@@ -258,7 +273,9 @@ fn generate_with_key(
             },
         ],
         temperature: 0.0,
-        stream: false,
+        // Streamed only for Labs › Cleanup progress, which shows the
+        // answer arriving; a server that ignores it answers whole.
+        stream: streamed.is_some(),
     })?;
     let exchange = Exchange {
         loopback: is_loopback(&parsed),
@@ -269,6 +286,7 @@ fn generate_with_key(
         timeout: deadline,
         limit: MAX_RESPONSE_BYTES,
         name: name.clone(),
+        streamed,
     };
     let (sender, receiver) = mpsc::channel();
     let answered = name.clone();
@@ -362,6 +380,8 @@ struct Exchange {
     /// The most of the answer's body read.
     limit: u64,
     name: String,
+    /// Reads a streamed answer as it arrives, reporting its length.
+    streamed: Option<Streamed>,
 }
 
 impl Exchange {
@@ -398,6 +418,22 @@ impl Exchange {
         let mut response =
             sent.map_err(|error| eyre!(crate::net::unreachable(&self.url, &error)))?;
         let status = response.status().as_u16();
+        let event_stream = response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("text/event-stream"));
+        if let Some(streamed) = self.streamed.as_ref().filter(|_| event_stream)
+            && (200..300).contains(&status)
+        {
+            let reader = response.body_mut().with_config().limit(self.limit).reader();
+            let text = read_events(std::io::BufReader::new(reader), streamed.as_ref())
+                .map_err(|error| eyre!("{} stopped answering: {error}", self.name))?;
+            // The whole answer, as a non-streamed one reads.
+            return Ok(serde_json::to_vec(&serde_json::json!({
+                "choices": [{ "message": { "content": text } }]
+            }))?);
+        }
         let body = response
             .body_mut()
             .with_config()
@@ -409,6 +445,58 @@ impl Exchange {
         }
         Ok(body)
     }
+}
+
+/// A streamed chat answer (server-sent events) read to its end: each
+/// event's `choices[0].delta.content` appended, with `on` told how many
+/// characters have arrived.
+fn read_events(
+    reader: impl std::io::BufRead,
+    on: &(dyn Fn(usize) + Send + Sync),
+) -> std::io::Result<String> {
+    let mut text = String::new();
+    let mut chars = 0;
+    for line in reader.lines() {
+        let line = line?;
+        let Some(data) = line.strip_prefix("data:").map(str::trim) else {
+            continue;
+        };
+        if data == "[DONE]" {
+            break;
+        }
+        let Ok(event) = serde_json::from_str::<StreamEvent>(data) else {
+            continue;
+        };
+        if let Some(piece) = event
+            .choices
+            .into_iter()
+            .next()
+            .and_then(|choice| choice.delta.content)
+        {
+            chars += piece.chars().count();
+            text.push_str(&piece);
+            on(chars);
+        }
+    }
+    Ok(text)
+}
+
+#[derive(Deserialize)]
+struct StreamEvent {
+    #[serde(default)]
+    choices: Vec<StreamChoice>,
+}
+
+#[derive(Deserialize)]
+struct StreamChoice {
+    #[serde(default)]
+    delta: StreamDelta,
+}
+
+#[derive(Default, Deserialize)]
+struct StreamDelta {
+    #[serde(default)]
+    content: Option<String>,
 }
 
 /// Why a server refused, with the reason it gave when it gave one.

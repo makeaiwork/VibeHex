@@ -103,10 +103,11 @@ pub enum Feature {
     VocabularyPasteList,
     RussianVibeCoding,
     VocabularyQuickAdd,
+    CleanupProgress,
 }
 
 impl Feature {
-    pub const ALL: [Self; 44] = [
+    pub const ALL: [Self; 45] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -151,6 +152,7 @@ impl Feature {
         Self::VocabularyPasteList,
         Self::RussianVibeCoding,
         Self::VocabularyQuickAdd,
+        Self::CleanupProgress,
     ];
 
     /// The features this OS and build have.
@@ -217,7 +219,8 @@ impl Feature {
             | Self::AiCleanupServer
             | Self::VocabularyPasteList
             | Self::RussianVibeCoding
-            | Self::VocabularyQuickAdd => Audience::Everyone,
+            | Self::VocabularyQuickAdd
+            | Self::CleanupProgress => Audience::Everyone,
         }
     }
 
@@ -267,7 +270,8 @@ impl Feature {
             | Self::TapOrHold
             | Self::RecentDictations
             | Self::HideMenuBarIcon
-            | Self::VocabularyQuickAdd => cfg!(target_os = "macos"),
+            | Self::VocabularyQuickAdd
+            | Self::CleanupProgress => cfg!(target_os = "macos"),
             Self::KeyboardModelSwitching => crate::keyboard_input_sources::available(),
             Self::Playground
             | Self::LiveText
@@ -339,6 +343,7 @@ impl Feature {
             Self::VocabularyPasteList => "vocabulary-paste-list",
             Self::RussianVibeCoding => "russian-vibe-coding",
             Self::VocabularyQuickAdd => "vocabulary-quick-add",
+            Self::CleanupProgress => "cleanup-progress",
         }
     }
 
@@ -389,6 +394,7 @@ impl Feature {
             Self::VocabularyPasteList => "labs.vocabulary_paste_list",
             Self::RussianVibeCoding => "labs.russian_vibe_coding",
             Self::VocabularyQuickAdd => "labs.vocabulary_quick_add",
+            Self::CleanupProgress => "labs.cleanup_progress",
         }
     }
 
@@ -509,6 +515,9 @@ impl Feature {
             Self::VocabularyQuickAdd => {
                 "Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"
             }
+            Self::CleanupProgress => {
+                "While AI cleanup takes a while, a bar beside the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"
+            }
         }
     }
 
@@ -563,6 +572,7 @@ impl Feature {
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list,
             Self::RussianVibeCoding => settings.labs.russian_vibe_coding,
             Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add,
+            Self::CleanupProgress => settings.labs.cleanup_progress,
         }
     }
 
@@ -615,6 +625,7 @@ impl Feature {
             &mut labs.vocabulary_paste_list,
             &mut labs.russian_vibe_coding,
             &mut labs.vocabulary_quick_add,
+            &mut labs.cleanup_progress,
         ]
     }
 
@@ -666,6 +677,7 @@ impl Feature {
             Self::AiCleanupServer => settings.labs.ai_cleanup_server = on,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
             Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add = on,
+            Self::CleanupProgress => settings.labs.cleanup_progress = on,
             // The preset writes into the person's settings once, on the edge.
             Self::RussianVibeCoding => {
                 if settings.labs.russian_vibe_coding != on {
@@ -716,6 +728,7 @@ const AI_CLEANUP_SERVER: u64 = 1 << 25;
 const VOCABULARY_PASTE_LIST: u64 = 1 << 26;
 const RUSSIAN_VIBE_CODING: u64 = 1 << 27;
 const VOCABULARY_QUICK_ADD: u64 = 1 << 28;
+const CLEANUP_PROGRESS: u64 = 1 << 29;
 /// Unload-idle minutes (at most 1,440, 11 bits) sit above the switches.
 const MINUTES_SHIFT: u64 = 32;
 
@@ -764,6 +777,12 @@ pub fn vocabulary_biasing() -> bool {
 /// selected misheard word to Vocabulary (macOS).
 pub fn vocabulary_quick_add() -> bool {
     on(VOCABULARY_QUICK_ADD)
+}
+
+/// Labs › Cleanup progress: AI cleanup reports how far it is, which a plate
+/// beside the HUD shows with Paste now (macOS).
+pub fn cleanup_progress() -> bool {
+    on(CLEANUP_PROGRESS)
 }
 
 pub fn mouse_shortcuts() -> bool {
@@ -1022,6 +1041,11 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             Feature::VocabularyQuickAdd,
             settings.vocabulary_quick_add,
             VOCABULARY_QUICK_ADD,
+        ),
+        (
+            Feature::CleanupProgress,
+            settings.cleanup_progress,
+            CLEANUP_PROGRESS,
         ),
     ]
     .into_iter()

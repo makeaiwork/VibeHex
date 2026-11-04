@@ -505,6 +505,7 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
     };
     let hud = crate::rune_hud::install(&mut app);
     crate::rune_ui::live_text::install(&mut app, crate::rune_hud::live_text_place);
+    crate::rune_ui::cleanup_plate::install(&mut app, crate::rune_hud::live_text_place);
     // Labs › Add to vocabulary from a selection.
     crate::rune_ui::vocabulary_card::install(&mut app, {
         let runtime = handle.clone();

@@ -12,6 +12,8 @@
 mod activity;
 #[cfg(hex_capture)]
 pub(crate) mod capture_capsule;
+#[cfg(target_os = "macos")]
+pub(crate) mod cleanup_plate;
 mod controls;
 #[cfg(target_os = "macos")]
 pub(crate) mod deep_link;
@@ -674,8 +676,7 @@ pub(crate) struct Ui {
     labs_open: bool,
     /// The Labs row a link just opened, pulsing until it is cleared.
     lab_flash: Option<(crate::labs::Feature, Instant)>,
-    /// What the Labs page's search field filters its rows by.
-    lab_search: TextEdit,
+    lab_search: TextEdit, // The Labs page's search field.
     /// A scene previewing the badge of a build kind this binary is not.
     build_preview: Option<BuildKind>,
     capture: Capture,
@@ -845,9 +846,8 @@ impl Ui {
         if !self.commit(candidate) {
             return false;
         }
-        // A change an editor didn't make (Russian vibe coding writing the
-        // vocabulary and Global's fixes) reaches it too, or its next draft
-        // save would write the old rows back over it.
+        // A change an editor didn't make (vibe coding's vocabulary, Global's
+        // fixes) reaches it too, or its next draft save would write it back.
         if self.vocabulary.project() != self.settings.vocabulary {
             self.vocabulary.reload(&self.settings.vocabulary);
         }

@@ -59,6 +59,7 @@ fn run(server: &Server, key: Option<&str>) -> Result<String> {
         "<transcript>\nклод код\n</transcript>",
         Duration::from_secs(5),
         &AtomicBool::new(false),
+        None,
     )
 }
 
@@ -149,6 +150,7 @@ fn a_silent_server_is_bounded_by_the_deadline_and_cancellation() {
         "y",
         Duration::from_millis(400),
         &AtomicBool::new(false),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -163,6 +165,7 @@ fn a_silent_server_is_bounded_by_the_deadline_and_cancellation() {
         "y",
         Duration::from_secs(30),
         &AtomicBool::new(true),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -291,4 +294,19 @@ fn the_model_list_is_a_get_of_models_with_the_key() {
         why.contains("refused the API key") && why.contains("bad key"),
         "{why}"
     );
+}
+
+/// A streamed answer reads whole, its length reported as it arrives.
+#[test]
+fn a_streamed_answer_reads_whole_and_reports_its_length() {
+    let events = "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n\
+                  data: {\"choices\":[{\"delta\":{\"content\":\"Привет, \"}}]}\n\n\
+                  : keep-alive\n\n\
+                  data: {\"choices\":[{\"delta\":{\"content\":\"Labs\"}}]}\n\n\
+                  data: [DONE]\n\n";
+    let seen = std::sync::Mutex::new(Vec::new());
+    let text =
+        super::read_events(events.as_bytes(), &|chars| seen.lock().unwrap().push(chars)).unwrap();
+    assert_eq!(text, "Привет, Labs");
+    assert_eq!(*seen.lock().unwrap(), [8, 12]);
 }

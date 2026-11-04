@@ -74,6 +74,9 @@ pub struct LabsSettings {
     pub russian_vibe_coding: bool,
     /// A shortcut adds a selected misheard word to Vocabulary (macOS).
     pub vocabulary_quick_add: bool,
+    /// A plate beside the HUD shows AI cleanup's progress, with Paste now
+    /// (macOS).
+    pub cleanup_progress: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -121,6 +124,7 @@ impl Default for LabsSettings {
             vocabulary_paste_list: false,
             russian_vibe_coding: false,
             vocabulary_quick_add: false,
+            cleanup_progress: false,
         }
     }
 }

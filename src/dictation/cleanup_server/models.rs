@@ -47,6 +47,7 @@ pub fn list(server: &Server, key: Option<&str>) -> Result<Vec<ServerModel>> {
         timeout: LIST_DEADLINE,
         limit: MAX_LIST_BYTES,
         name: name.clone(),
+        streamed: None,
     }
     .run()?;
     parse(&name, &body)

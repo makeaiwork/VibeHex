@@ -379,35 +379,43 @@ impl Profiles {
         let started = Instant::now();
         // Labs › Clean up on your own server: the same instructions and
         // vocabulary, as chat messages to OpenRouter or the person's server.
-        let (text, observation) = match crate::dictation::cleanup_server::active() {
-            Some(server) => {
-                let (instructions, transcript) =
-                    prompt_parts(profile, &corrected, context, &vocabulary);
-                observe(
+        let server = crate::dictation::cleanup_server::active();
+        // In pieces of a few minutes' speech, each within the deadline, so a
+        // dictation of any length is cleaned whole (`cleanup_pieces`).
+        let cleaned = crate::dictation::cleanup_pieces::clean(
+            &corrected,
+            cancelled,
+            |piece, stop, streamed| match &server {
+                Some(server) => {
+                    let (instructions, transcript) =
+                        prompt_parts(profile, piece, context, &vocabulary);
                     crate::dictation::cleanup_server::generate(
-                        &server,
+                        server,
                         &instructions,
                         &transcript,
                         profile.deadline,
-                        cancelled,
-                    ),
-                    &profile.name,
-                    started,
-                )
-            }
-            None => {
-                let prompt = prompt(profile, &corrected, context, &vocabulary);
-                observe(
-                    generate_cancellable(
-                        &prompt,
-                        profile.model.as_ref(),
-                        profile.deadline,
-                        cancelled,
-                    ),
-                    &profile.name,
-                    started,
-                )
-            }
+                        stop,
+                        streamed,
+                    )
+                }
+                None => generate_cancellable(
+                    &prompt(profile, piece, context, &vocabulary),
+                    profile.model.as_ref(),
+                    profile.deadline,
+                    stop,
+                ),
+            },
+        );
+        if cleaned.early {
+            tracing::info!(
+                profile = profile.name,
+                "Paste now: pasted the cleanup so far, the rest as transcribed"
+            );
+        }
+        let observation = ProcessingObservation {
+            profile: profile.name.clone(),
+            latency_ms: started.elapsed().as_millis() as u64,
+            fallback: cleaned.failed,
         };
         match &observation.fallback {
             None => tracing::info!(
@@ -423,7 +431,7 @@ impl Profiles {
             ),
         }
         Processed {
-            text: text.unwrap_or(corrected),
+            text: cleaned.text,
             observation: Some(observation),
             transformations: profile.transformations.clone(),
         }
@@ -507,27 +515,6 @@ pub(crate) fn generate_text_with(
     cancelled: &AtomicBool,
 ) -> Result<String> {
     generate_cancellable(prompt, Some(model), deadline, cancelled)
-}
-
-/// Reports one generation as a processing observation. The text is `None`
-/// whenever the caller must fall back, with the reason recorded in the
-/// observation.
-fn observe(
-    generated: Result<String>,
-    profile_name: &str,
-    started: Instant,
-) -> (Option<String>, ProcessingObservation) {
-    let (text, fallback) = match generated {
-        Ok(text) if !text.trim().is_empty() => (Some(text.trim().into()), None),
-        Ok(_) => (None, Some("processor returned empty text".into())),
-        Err(error) => (None, Some(error.to_string())),
-    };
-    let observation = ProcessingObservation {
-        profile: profile_name.into(),
-        latency_ms: started.elapsed().as_millis() as u64,
-        fallback,
-    };
-    (text, observation)
 }
 
 #[derive(Clone, Debug)]
@@ -1414,12 +1401,78 @@ mod tests {
             &transcript,
             Duration::from_secs(60),
             &AtomicBool::new(false),
+            None,
         )
         .unwrap();
         eprintln!("{} ms: {text}", started.elapsed().as_millis());
         for term in ["Claude Code", "MCP", "GitHub"] {
             assert!(text.contains(term), "{term} missing from {text:?}");
         }
+    }
+
+    /// A long dictation cleaned in pieces on a running server, as Hex does:
+    /// `HEX_E2E_LONG_TEXT` (a transcript file), `HEX_E2E_PROMPT` (the
+    /// mode's instructions file), and `HEX_E2E_DATA_DIR` (whose
+    /// settings.json gives the vocabulary), with the variables of
+    /// `rewrites_on_a_live_server`. Every piece must be cleaned and keep
+    /// about as many words as it had.
+    #[test]
+    #[ignore = "needs a running OpenAI-compatible server"]
+    fn cleans_a_long_dictation_in_pieces_on_a_live_server() {
+        let var = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("set {name}"));
+        let server = crate::dictation::cleanup_server::Server {
+            provider: crate::dictation::cleanup_server::Provider::Custom,
+            url: var("HEX_E2E_CLEANUP_URL"),
+            model: var("HEX_E2E_CLEANUP_MODEL"),
+        };
+        let text = std::fs::read_to_string(var("HEX_E2E_LONG_TEXT")).unwrap();
+        let profile = Profile::new(
+            "Global",
+            std::fs::read_to_string(var("HEX_E2E_PROMPT")).unwrap(),
+        );
+        let vocabulary = crate::dictation::vocabulary::read_saved(std::path::Path::new(&var(
+            "HEX_E2E_DATA_DIR",
+        )));
+        let started = Instant::now();
+        let cleaned = crate::dictation::cleanup_pieces::clean(
+            &text,
+            &AtomicBool::new(false),
+            |piece, stop, _| {
+                let piece_started = Instant::now();
+                let (instructions, transcript) =
+                    prompt_parts(&profile, piece, &context("Code", None), &vocabulary);
+                let answer = crate::dictation::cleanup_server::generate(
+                    &server,
+                    &instructions,
+                    &transcript,
+                    Duration::from_secs(60),
+                    stop,
+                    None,
+                );
+                let words = |text: &str| text.split_whitespace().count();
+                eprintln!(
+                    "piece: {} words -> {:?} words in {} ms",
+                    words(piece),
+                    answer.as_ref().map(|text| words(text)),
+                    piece_started.elapsed().as_millis()
+                );
+                answer
+            },
+        );
+        let (before, after) = (
+            text.split_whitespace().count(),
+            cleaned.text.split_whitespace().count(),
+        );
+        eprintln!(
+            "{before} words -> {after} words in {} s",
+            started.elapsed().as_secs()
+        );
+        assert_eq!(cleaned.failed, None);
+        let ratio = after as f32 / before as f32;
+        assert!(
+            (0.85..=1.1).contains(&ratio),
+            "kept {ratio:.2} of the words"
+        );
     }
 
     /// The Russian vibe-coding preset in `docs/vocabulary` on a running
@@ -1476,6 +1529,7 @@ mod tests {
                 &transcript,
                 Duration::from_secs(60),
                 &AtomicBool::new(false),
+                None,
             )
             .unwrap_or_else(|error| format!("<error: {error}>"));
             total_ms += started.elapsed().as_millis();

@@ -73,6 +73,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Vocabulary text view no labs.vocabulary_paste_list  the Vocabulary sheet's Text view edits the whole list as text, "Term | sounds like, …" per line; Save replaces the list (vocabulary.md)
 ├── Add to vocabulary from a selection no labs.vocabulary_quick_add + vocabulary_add_hotkey (macOS)
 │                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
+├── Cleanup progress no labs.cleanup_progress (macOS) a bar beside the HUD while AI cleanup runs, with Paste now
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on); off: takes back what still reads as the preset wrote it
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
@@ -900,7 +901,49 @@ the app, as the system message; the transcript as the user message. One
 `POST {url}/chat/completions` with temperature 0; loopback URLs go through
 `net::loopback_agent`, others through the system proxy. The mode's deadline,
 cancellation, and fallback are unchanged: a refusal, timeout, or empty
-answer pastes the corrected transcript and History records why. Reasoning a
+answer pastes the corrected transcript and History records why.
+
+Every AI cleanup (OpenCode or a server, Labs or not) runs in pieces
+(`dictation::cleanup_pieces`): the corrected transcript is cut into pieces
+of at most about 400 words (about three minutes of speech), each after a
+sentence's end (`.`, `!`, `?`, `…`, closing quotes, or a line break), else
+between words, and the pieces join back into it exactly. Each piece is one
+request with the full prompt and the mode's deadline, so a dictation of any
+length is cleaned and there is no limit on the whole; a short dictation is
+one piece, as before. A failed piece keeps its transcribed text and the
+others are still cleaned ("1 of 3 pieces kept as transcribed: …" in History);
+when every piece fails the reason is the first one's. Measured with Gemma 4
+E2B built in, 2,462 words of the owner's own dictations (about 24 minutes)
+took 7 pieces of 4–10 s each, 48 s in all, and kept 2,444 words
+(`cleans_a_long_dictation_in_pieces_on_a_live_server`, ignored: it needs a
+running server). Checks: `pieces_join_back_into_the_text_and_end_at_sentences`,
+`each_piece_is_cleaned_and_a_failed_one_keeps_its_text`,
+`stopping_keeps_the_cleaned_pieces_and_the_rest_as_transcribed`.
+
+Cleanup progress (`cleanup-progress`, macOS): while a cleanup runs past
+1.5 s, a plate just past the HUD shows how far it is, with Paste now.
+
+```ts
+Cleanup running past 1.5 s, labs.cleanup_progress on   // rune_ui::cleanup_plate
+├── Plate where Live text's would be (rune_hud::live_text_place):
+│   "AI cleanup" ▓▓▓░░ 3/8 [Paste now]; the count only with more than one piece
+├── Progress -> pieces done, plus how much of the current piece's answer has
+│   arrived: with the toggle on, server requests ask for a streamed answer
+│   (`stream: true`, read event by event in cleanup_server::read_events), the
+│   characters so far against the piece's (at most 95% of it); OpenCode's
+│   answer isn't streamed, so its bar moves a piece at a time
+├── Paste now -> ends the piece in progress and pastes the pieces already
+│   cleaned, then the rest as transcribed (cleanup_pieces::paste_now); the
+│   job then finishes as usual (transformations, History, Paste Last)
+└── The cleanup ends -> the plate hides
+```
+
+The HUD stays click-through; only the plate takes a click, and as a
+nonactivating overlay it never takes focus, so the paste lands in the app
+dictated into. Off, nothing is streamed or reported and no plate exists on
+screen. Checks: `the_plate_fits_its_overlay_with_its_bar_and_paste_now`,
+`a_streamed_answer_reads_whole_and_reports_its_length`. Not yet observed:
+the plate and Paste now in a running Hex. Reasoning a
 server leaves in the answer (`<think>…</think>`, Gemma 4's `…<channel|>`,
 gpt-oss's final channel) and a fence around the whole answer are dropped.
 A managed `opencode_processing` lock turns this rewrite off too. Keys:

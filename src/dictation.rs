@@ -2,6 +2,7 @@
 pub(crate) mod audio;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) mod browser_page;
+pub(crate) mod cleanup_pieces;
 pub(crate) mod cleanup_server;
 #[cfg(target_os = "macos")]
 pub(crate) mod config;
