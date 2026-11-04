@@ -60,6 +60,43 @@ pub enum State {
 }
 
 static LOADING: AtomicBool = AtomicBool::new(false);
+/// While a model loads: when it started and how long it should take.
+static LOAD: Mutex<Option<(Instant, Duration)>> = Mutex::new(None);
+
+/// How far the model now loading is, from 0 to 1: an estimate, since
+/// llama-server doesn't say, from how long this model took last time (from
+/// its size the first time), never past 99% until it answers. `None` while
+/// nothing loads.
+pub fn load_progress() -> Option<f32> {
+    let (started, expected) = (*LOAD.lock().unwrap_or_else(|error| error.into_inner()))?;
+    Some(estimate(started.elapsed(), expected))
+}
+
+/// Linear to 90% at `expected`, then creeping towards 99%.
+fn estimate(elapsed: Duration, expected: Duration) -> f32 {
+    let t = elapsed.as_secs_f32() / expected.as_secs_f32().max(0.1);
+    if t <= 1.0 {
+        0.9 * t
+    } else {
+        0.99 - 0.09 * (1.0 - t).exp()
+    }
+}
+
+/// How long `model` should take to load: its last load, else about a
+/// second plus its file read at 1.5 GB/s.
+fn expected_load(model: &LocalModel) -> Duration {
+    load_time_file(model)
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|millis| millis.trim().parse().ok())
+        .map(Duration::from_millis)
+        .unwrap_or_else(|| Duration::from_secs_f64(1.0 + model.bytes as f64 / 1.5e9))
+}
+
+fn load_time_file(model: &LocalModel) -> Option<std::path::PathBuf> {
+    local_models::dir()
+        .ok()
+        .map(|dir| dir.join(format!("{}.load-ms", model.id)))
+}
 
 /// The loaded model's server, starting it (and waiting for the model to
 /// load) when it isn't running, within `deadline`.
@@ -85,6 +122,8 @@ pub fn endpoint(
         bail!("{} isn't downloaded yet; download it in Output", model.name);
     }
     LOADING.store(true, Ordering::Release);
+    let loading = Instant::now();
+    *LOAD.lock().unwrap_or_else(|error| error.into_inner()) = Some((loading, expected_load(model)));
     let result = start(model).and_then(|mut running| {
         let remaining = deadline.saturating_sub(started.elapsed()).min(LOAD_LIMIT);
         match wait_ready(&mut running, remaining, cancelled) {
@@ -96,7 +135,11 @@ pub fn endpoint(
         }
     });
     LOADING.store(false, Ordering::Release);
+    *LOAD.lock().unwrap_or_else(|error| error.into_inner()) = None;
     let running = result?;
+    if let Some(path) = load_time_file(model) {
+        let _ = fs::write(path, loading.elapsed().as_millis().to_string());
+    }
     let endpoint = Endpoint {
         url: running.url.clone(),
         key: running.key.clone(),
@@ -442,6 +485,16 @@ mod tests {
                 .iter()
                 .any(|argument| argument.contains("api-key"))
         );
+    }
+
+    #[test]
+    fn a_load_estimate_reaches_ninety_percent_on_time_and_never_finishes() {
+        let expected = Duration::from_secs(2);
+        assert_eq!(estimate(Duration::ZERO, expected), 0.0);
+        assert!((estimate(Duration::from_secs(1), expected) - 0.45).abs() < 1e-4);
+        assert!((estimate(expected, expected) - 0.9).abs() < 1e-4);
+        let late = estimate(Duration::from_secs(8), expected);
+        assert!(late > 0.95 && late < 0.99, "{late}");
     }
 
     #[test]

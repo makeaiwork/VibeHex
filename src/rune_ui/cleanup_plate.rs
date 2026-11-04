@@ -160,10 +160,14 @@ fn plate_row(p: Paint, progress: Progress) -> El {
         .fill(c.bg_base)
         .border(p.hair, c.text_base.alpha(0.12))
         .child(
-            text(tr("Cleaning up"))
-                .key("label")
-                .font(p.k.ty.ui)
-                .color(c.text_base.alpha(0.9)),
+            text(if progress.loading {
+                tr("Loading the model…")
+            } else {
+                tr("Cleaning up")
+            })
+            .key("label")
+            .font(p.k.ty.ui)
+            .color(c.text_base.alpha(0.9)),
         )
         .child(dots(p, progress.fraction))
         .child(
@@ -212,6 +216,7 @@ mod tests {
                 done: 3,
                 total: 8,
                 fraction: 0.5,
+                loading: false,
             };
             let rt = runtime(Some(progress), dark);
             let [x, _, w, h] = rect(&rt, "plate").expect("the plate draws");
@@ -236,12 +241,15 @@ mod tests {
     fn snapshots() {
         let folder = std::path::PathBuf::from(std::env::var("HEX_CLEANUP_PLATE_SNAPS").unwrap());
         let gpu = rune::render::Gpu::try_new(rune::render::Gpu::instance(), None).unwrap();
-        for (name, done, total, fraction) in [("one", 0, 1, 0.35), ("pieces", 3, 8, 0.44)] {
+        for (name, done, total, fraction, loading) in
+            [("loading", 0, 1, 0.0, true), ("pieces", 3, 8, 0.44, false)]
+        {
             for dark in [false, true] {
                 let progress = Progress {
                     done,
                     total,
                     fraction,
+                    loading,
                 };
                 let mut rt = runtime(Some(progress), dark);
                 let (w, h) = ((SIZE.0 * 2.0) as u32, (SIZE.1 * 2.0) as u32);

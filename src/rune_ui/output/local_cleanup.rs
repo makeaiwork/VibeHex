@@ -60,6 +60,22 @@ impl LocalModels {
     }
 }
 
+/// While the engine loads the model, a bar with its estimated percentage
+/// for the status row, in place of Test.
+pub(super) fn loading_bar(ui: &Ui, p: Paint) -> Option<El> {
+    if ui.output.cleanup.local.engine != Some(State::Loading) {
+        return None;
+    }
+    let fraction = engine::load_progress()?;
+    Some(
+        rune_kit::Progress::new(Some(fraction.clamp(0.0, 1.0)))
+            .show_value()
+            .build(p.k)
+            .key("loading-progress")
+            .w(120.0),
+    )
+}
+
 /// Whether the chosen model is downloaded, for the status row.
 pub(super) fn chosen_installed(ui: &Ui) -> bool {
     let chosen = chosen(ui);
@@ -141,13 +157,15 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
                 move |ui, _| choose(ui, model.id),
             )
         };
-        controls.child(in_use).child(button(
-            p,
-            &format!("{key}-delete"),
-            tr("Delete"),
-            ButtonKind::Secondary,
-            move |ui, _| delete(ui, index),
-        ))
+        controls.child(in_use).child(
+            rune_kit::IconButton::new(&rune_theme_opencode::icons::TRASH)
+                .variant(rune_kit::IconButtonVariant::Ghost)
+                .control_size(rune_kit::ControlSize::Regular)
+                .label(tr("Delete"))
+                .on_press(move |ui: &mut Ui| delete(ui, index))
+                .build(p.k)
+                .key(format!("{key}-delete")),
+        )
     } else {
         controls.child(button(
             p,
@@ -256,7 +274,8 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
     }
     if live {
         let engine = Some(engine::state());
-        if local.engine != engine {
+        // While loading, its percentage moves.
+        if local.engine != engine || engine == Some(State::Loading) {
             local.engine = engine;
             changed = true;
         }
@@ -264,12 +283,13 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
     changed
 }
 
-/// The fixture's built-in model: the model halfway downloaded.
+/// The fixture's built-in models: the first halfway downloaded, the
+/// others downloaded, with Use and their trash buttons.
 pub(super) fn fixture(local: &mut LocalModels) {
     let (sender, done) = channel::<Result<(), String>>();
     // Kept open, so the fixture's download never finishes.
     std::mem::forget(sender);
-    local.installed = Some(vec![false; MODELS.len()]);
+    local.installed = Some((0..MODELS.len()).map(|index| index > 0).collect());
     local.downloads.push(Download {
         model: MODELS[0].id,
         canceled: Arc::new(AtomicBool::new(false)),

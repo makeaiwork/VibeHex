@@ -43,6 +43,9 @@ pub(crate) struct Progress {
     pub done: usize,
     pub total: usize,
     pub fraction: f32,
+    /// The built-in engine is still loading its model, so nothing is
+    /// cleaned yet.
+    pub loading: bool,
 }
 
 /// What cleaning a transcript gave.
@@ -246,6 +249,8 @@ impl State {
             done: self.done,
             total: self.total,
             fraction: ((self.done as f32 + self.partial) / total as f32).clamp(0.0, 1.0),
+            loading: crate::dictation::cleanup_server::engine::state()
+                == crate::dictation::cleanup_server::engine::State::Loading,
         }
     }
 }

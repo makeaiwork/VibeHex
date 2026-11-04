@@ -874,8 +874,13 @@ Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 │   ├── OpenCode -> no further rows; rewriting is exactly as without the toggle
 │   └── Built in -> no URL, Model, or key rows; instead:
 │       ├── Built in -> "Download a model below" | "Loads when you dictate" | "Loading the model…" | "Loaded"; Test once one is downloaded
+│       │   while loading, a bar with a percentage takes Test's place: an estimate
+│       │   (engine::load_progress; llama-server reports none) from this model's last
+│       │   load (`<id>.load-ms` beside the models; else 1 s + its size at 1.5 GB/s),
+│       │   linear to 90% then creeping, never past 99% until it answers; Cleanup
+│       │   progress's plate says "Loading the model…" meanwhile
 │       └── one row per model (size · publisher · licence) -> Download | progress + Cancel |
-│           "In use" or Use (dictation_processing.server.local_model) + Delete; a failure shows in the row
+│           "In use" or Use (dictation_processing.server.local_model) + a trash button (Delete), as the speech-model picker's; a failure shows in the row
 ├── <server name> -> "Not tested · host" | "Testing…" | "Connected · 0.8 s" | the error; Test
 │   sends one short request on its own thread (30 s), a changed server forgets the result
 ├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama
