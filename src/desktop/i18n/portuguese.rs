@@ -749,6 +749,7 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Sound and interface", "Som e interface"),
     ("Cleanup progress", "Progresso da limpeza"),
     ("While AI cleanup takes a while, a bar in place of the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed", "Quando a limpeza com IA demora, uma barra no lugar do HUD mostra o andamento, e Colar agora cola a parte já limpa e o resto como foi transcrito"),
+    ("Added in VibeHex", "Adicionado no VibeHex"),
     ("Cleaning up", "Limpando"),
     ("Paste now", "Colar agora"),
     ("Search Labs", "Buscar no Labs"),

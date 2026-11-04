@@ -685,10 +685,11 @@ fn flip(ui: &mut Ui, feature: Feature) {
 /// or command-line name, ignoring case.
 fn matches(row: &Row, query: &str) -> bool {
     let haystack = format!(
-        "{} {} {}",
+        "{} {} {} {}",
         row.title,
         row.about,
-        row.feature.name().replace('-', " ")
+        row.feature.name().replace('-', " "),
+        if row.feature.vibehex() { "vibehex" } else { "" }
     )
     .to_lowercase();
     query
@@ -794,8 +795,12 @@ fn feature_row(p: Paint, row: Row, flashing: bool) -> CardRow {
     } else {
         row_switch(p, row.on)
     };
-    let tag = (row.feature.audience() == crate::labs::Audience::Dev)
+    let dev = (row.feature.audience() == crate::labs::Audience::Dev)
         .then(|| tone_tag(p, "dev-tag", tr("Dev"), Tone::Neutral));
+    let tag = match (dev, row.feature.vibehex().then(|| vibehex_star(p))) {
+        (Some(dev), Some(star)) => Some(rune::row().gap(6.0).center_y().child(dev).child(star)),
+        (dev, star) => dev.or(star),
+    };
     let mut item = icon_row_tagged(
         p,
         row_key(row.feature),
@@ -816,6 +821,18 @@ fn feature_row(p: Paint, row: Row, flashing: bool) -> CardRow {
         .hover(p.k.c.hover)
         .on_press(move |ui: &mut Ui| flip(ui, feature))
         .into()
+}
+
+/// The star beside a feature VibeHex added, raised to the title's top
+/// like a superscript; hovering it says so.
+fn vibehex_star(p: Paint) -> El {
+    rune::col()
+        .key("vibehex")
+        .role("image")
+        .label(tr("Added in VibeHex"))
+        .help(tr("Added in VibeHex"))
+        .pb(7.0)
+        .child(rune::icon(&rune_kit::glyphs::STAR_FILLED, 10.0).color(p.k.c.warning.icon))
 }
 
 /// How long the model sits unused before it unloads, under its row while on.

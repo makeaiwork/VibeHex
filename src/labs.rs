@@ -296,6 +296,19 @@ impl Feature {
         }
     }
 
+    /// Whether VibeHex added this feature: Hex itself (anomalyco/hex) has
+    /// no such lab. Settings › Labs marks these rows with a star.
+    pub const fn vibehex(self) -> bool {
+        matches!(
+            self,
+            Self::AiCleanupServer
+                | Self::CleanupProgress
+                | Self::RussianVibeCoding
+                | Self::VocabularyPasteList
+                | Self::VocabularyQuickAdd
+        )
+    }
+
     /// The name `hex labs on|off` takes.
     pub const fn name(self) -> &'static str {
         match self {

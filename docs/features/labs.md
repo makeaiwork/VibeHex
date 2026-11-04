@@ -22,6 +22,12 @@ doesn't show. Send feedback sits above them and Run setup again below. A search 
 rows whose name, description, or command-line name holds every word typed,
 ignoring case, and says "No Labs features match." when none do; a Labs link
 clears it so its row shows. Check: `labs_search_keeps_the_rows_holding_every_word`.
+A feature VibeHex added (`labs::Feature::vibehex`: Clean up on your own
+server, Cleanup progress, Russian vibe coding, Vocabulary text view, Add to
+vocabulary from a selection; Hex itself has none of them) carries a small
+yellow star (`warning.icon`) raised to its title's top right, whose tooltip
+and accessible label say "Added in VibeHex"; searching "vibehex" lists just
+these rows.
 
 ```ts
 Feature             Pane  Toggle (settings.json, hex settings)   On: what it does
