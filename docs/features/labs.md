@@ -73,7 +73,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Vocabulary text view no labs.vocabulary_paste_list  the Vocabulary sheet's Text view edits the whole list as text, "Term | sounds like, …" per line; Save replaces the list (vocabulary.md)
 ├── Add to vocabulary from a selection no labs.vocabulary_quick_add + vocabulary_add_hotkey (macOS)
 │                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
-├── Cleanup progress no labs.cleanup_progress (macOS) a bar beside the HUD while AI cleanup runs, with Paste now
+├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on); off: takes back what still reads as the preset wrote it
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
@@ -920,13 +920,21 @@ running server). Checks: `pieces_join_back_into_the_text_and_end_at_sentences`,
 `each_piece_is_cleaned_and_a_failed_one_keeps_its_text`,
 `stopping_keeps_the_cleaned_pieces_and_the_rest_as_transcribed`.
 
-Cleanup progress (`cleanup-progress`, macOS): while a cleanup runs past
-1.5 s, a plate just past the HUD shows how far it is, with Paste now.
+Cleanup progress (`cleanup-progress`, macOS): while a cleanup will plainly
+take a while, a plate in the HUD's colours takes its place and shows how far
+it is, with Paste now.
 
 ```ts
-Cleanup running past 1.5 s, labs.cleanup_progress on   // rune_ui::cleanup_plate
-├── Plate where Live text's would be (rune_hud::live_text_place):
-│   "AI cleanup" ▓▓▓░░ 3/8 [Paste now]; the count only with more than one piece
+Cleanup worth showing, labs.cleanup_progress on   // rune_ui::cleanup_plate
+├── When    cleanup_pieces::worth_showing: past 1.5 s with at least 2 s still to
+│           go at its pace so far, or past 3 s while nothing says its pace (no
+│           streamed answer yet, OpenCode); once shown it stays until the end,
+│           so a one-minute dictation's 2.4 s cleanup never flashes a plate
+├── Plate   where Live text's would be (rune_hud::live_text_place), and the HUD
+│           gives way (rune_hud::give_way) unless a new capture records:
+│           "Cleaning up" ⠿⠿⠿⠶⠶⠶ 44% [Paste now], black like the HUD in either
+│           appearance, its 40 × 9 dots lit up to the progress (the count of
+│           pieces done is gone: it read 1/2 until a two-piece cleanup ended)
 ├── Progress -> pieces done, plus how much of the current piece's answer has
 │   arrived: with the toggle on, server requests ask for a streamed answer
 │   (`stream: true`, read event by event in cleanup_server::read_events), the
@@ -935,15 +943,16 @@ Cleanup running past 1.5 s, labs.cleanup_progress on   // rune_ui::cleanup_plate
 ├── Paste now -> ends the piece in progress and pastes the pieces already
 │   cleaned, then the rest as transcribed (cleanup_pieces::paste_now); the
 │   job then finishes as usual (transformations, History, Paste Last)
-└── The cleanup ends -> the plate hides
+└── The cleanup ends -> the plate hides; the HUD shows again at the next capture
 ```
 
 The HUD stays click-through; only the plate takes a click, and as a
 nonactivating overlay it never takes focus, so the paste lands in the app
 dictated into. Off, nothing is streamed or reported and no plate exists on
-screen. Checks: `the_plate_fits_its_overlay_with_its_bar_and_paste_now`,
-`a_streamed_answer_reads_whole_and_reports_its_length`. Not yet observed:
-the plate and Paste now in a running Hex. Reasoning a
+screen. Checks: `the_plate_fits_its_overlay_with_its_dots_and_paste_now`,
+`only_a_cleanup_with_a_while_to_go_shows`,
+`a_streamed_answer_reads_whole_and_reports_its_length`. Observed: the first plate in a running Hex (0/2, then 1/2 through a
+5.8-minute dictation, the HUD above it); not yet observed: this plate. Reasoning a
 server leaves in the answer (`<think>…</think>`, Gemma 4's `…<channel|>`,
 gpt-oss's final channel) and a fence around the whole answer are dropped.
 A managed `opencode_processing` lock turns this rewrite off too. Keys:

@@ -1,35 +1,38 @@
-//! Labs › Cleanup progress (macOS): while AI cleanup runs past a moment,
-//! a plate just past the HUD shows how far it is, with Paste now, which
-//! pastes the part already cleaned and the rest as transcribed
-//! ([`crate::dictation::cleanup_pieces`]). The HUD stays click-through; only
-//! this plate takes a click, and it never takes focus, so the paste still
-//! lands in the app being dictated into.
+//! Labs › Cleanup progress (macOS): while an AI cleanup will plainly take a
+//! while, the HUD gives way to this plate in its colours, which shows how far
+//! the cleanup is with Paste now: the part already cleaned, then the rest as
+//! transcribed ([`crate::dictation::cleanup_pieces`]). Only this plate takes
+//! a click, and it never takes focus, so the paste still lands in the app
+//! being dictated into.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use rune::{Cx, El, OverlayHandle, OverlayPlacement, OverlaySpec, ScreenEdge, Tx, row, text};
-use rune_kit::{Button, ButtonVariant};
+use rune::{Cx, El, OverlayHandle, OverlayPlacement, OverlaySpec, ScreenEdge, col, row, text};
 
-use super::controls::{Paint, PushSize};
+use super::controls::Paint;
 use super::live_text::Spot;
 use crate::desktop::i18n::tr;
 use crate::dictation::cleanup_pieces::{self, Progress};
 
 /// The overlay's size: the plate and room for its border.
-pub(crate) const SIZE: (f32, f32) = (420.0, 48.0);
-const PLATE_H: f32 = 36.0;
+pub(crate) const SIZE: (f32, f32) = (380.0, 44.0);
+const PLATE_H: f32 = 30.0;
 const PAD: f32 = (SIZE.1 - PLATE_H) / 2.0;
-const BAR_W: f32 = 150.0;
-const BAR_H: f32 = 6.0;
+/// The dot field, as the HUD's Dot scope draws it: lit up to the progress.
+const COLUMNS: usize = 40;
+const ROWS: usize = 9;
+const DOT: f32 = 1.6;
+const DOT_GAP: f32 = 1.0;
+const BUTTON_H: f32 = 22.0;
 
 #[derive(Default)]
 pub(crate) struct Plate {
     progress: Option<Progress>,
 }
 
-/// The overlay's placement for the plate to start at `spot`, where the
-/// live text plate would.
+/// The overlay's placement for the plate to start at `spot`, just past
+/// where the HUD's plate sits.
 fn placement(spot: Spot) -> OverlayPlacement {
     match spot {
         Spot::Edge(edge, margin) => OverlayPlacement::Edge {
@@ -48,7 +51,8 @@ fn placement(spot: Spot) -> OverlayPlacement {
 }
 
 /// Adds the plate to the app. It shows only while a long cleanup reports
-/// its progress, which it does only with Labs › Cleanup progress on.
+/// its progress, which it does only with Labs › Cleanup progress on, and
+/// hides the HUD meanwhile.
 pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: super::live_text::Place) {
     let spec = OverlaySpec {
         name: "Hex cleanup progress",
@@ -67,6 +71,7 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: super::live_tex
         let handle = overlay.clone();
         let Some(progress) = progress else {
             if shown.swap(false, Ordering::AcqRel) {
+                crate::rune_hud::give_way(false);
                 overlay.update(move |plate, tx| {
                     plate.progress = None;
                     tx.instant();
@@ -76,6 +81,9 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: super::live_tex
             return;
         };
         let appearing = !shown.swap(true, Ordering::AcqRel);
+        if appearing {
+            crate::rune_hud::give_way(true);
+        }
         overlay.update(move |plate, tx| {
             plate.progress = Some(progress);
             tx.instant();
@@ -88,7 +96,8 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: super::live_tex
 }
 
 fn view(plate: &Plate, cx: &mut Cx<Plate>) -> El {
-    let p = Paint::new(cx.system_dark(), cx.env().scale);
+    // The HUD's colours in either appearance: dark, with light dots.
+    let p = Paint::new(true, cx.env().scale);
     let root = row().key("cleanup-progress").w_full().h_full().center();
     let Some(progress) = plate.progress else {
         return root;
@@ -96,60 +105,74 @@ fn view(plate: &Plate, cx: &mut Cx<Plate>) -> El {
     root.child(plate_row(p, progress))
 }
 
+/// The dot field lit from the left up to `fraction`, brightest along its
+/// middle rows and at the leading column, as Dot scope's trace is.
+fn dots(p: Paint, fraction: f32) -> El {
+    let ink = p.k.c.text_base;
+    let lit = (COLUMNS as f32 * fraction.clamp(0.0, 1.0)).round() as usize;
+    let middle = (ROWS as f32 - 1.0) / 2.0;
+    let rows = (0..ROWS).map(|r| {
+        let centre = 1.0 - (r as f32 - middle).abs() / (middle + 1.0);
+        row().gap(DOT_GAP).children((0..COLUMNS).map(|c| {
+            let alpha = if c + 1 == lit {
+                1.0
+            } else if c < lit {
+                0.35 + 0.55 * centre
+            } else {
+                0.10
+            };
+            rune::el()
+                .size(DOT, DOT)
+                .radius(DOT / 2.0)
+                .fill(ink.alpha(alpha))
+        }))
+    });
+    col().key("dots").gap(DOT_GAP).children(rows)
+}
+
 fn plate_row(p: Paint, progress: Progress) -> El {
     let c = &p.k.c;
-    let fill = (BAR_W * progress.fraction).clamp(0.0, BAR_W);
-    let bar = row()
-        .key("bar")
-        .w(BAR_W)
-        .h(BAR_H)
-        .radius(BAR_H / 2.0)
-        .fill(c.layer_03)
+    let percent = (progress.fraction.clamp(0.0, 1.0) * 100.0).floor() as u32;
+    let paste_now = row()
+        .key("paste-now")
+        .role("button")
+        .label(tr("Paste now"))
+        .h(BUTTON_H)
+        .px(10.0)
+        .center_y()
+        .radius(BUTTON_H / 2.0)
+        .fill(c.text_base.alpha(0.12))
+        .hover(c.text_base.alpha(0.2))
+        .on_press(|_: &mut Plate| cleanup_pieces::paste_now())
         .child(
-            row()
-                .key("bar-fill")
-                .w(fill)
-                .h(BAR_H)
-                .radius(BAR_H / 2.0)
-                .fill(c.icon_accent),
+            text(tr("Paste now"))
+                .font(p.k.ty.ui_medium)
+                .color(c.text_base.alpha(0.9)),
         );
-    let mut line = row()
+    row()
         .key("plate")
         .h(PLATE_H)
         .pl(14.0)
-        .pr(6.0)
+        .pr(4.0)
         .gap(10.0)
         .center_y()
         .radius(PLATE_H / 2.0)
         .fill(c.bg_base)
-        .border(p.hair, c.border_base)
+        .border(p.hair, c.text_base.alpha(0.12))
         .child(
-            text(tr("AI cleanup"))
+            text(tr("Cleaning up"))
                 .key("label")
                 .font(p.k.ty.ui)
-                .color(p.text()),
+                .color(c.text_base.alpha(0.9)),
         )
-        .child(bar);
-    // A count of pieces only means something when there are several.
-    if progress.total > 1 {
-        line = line.child(
-            text(format!(
-                "{}/{}",
-                progress.done.min(progress.total),
-                progress.total
-            ))
-            .key("count")
-            .font(p.k.ty.ui)
-            .color(p.muted()),
-        );
-    }
-    line.child(
-        Button::new(tr("Paste now"))
-            .variant(ButtonVariant::Neutral)
-            .on_press_tx(|_: &mut Plate, _: &mut Tx| cleanup_pieces::paste_now())
-            .build_small_push(p.k)
-            .key("paste-now"),
-    )
+        .child(dots(p, progress.fraction))
+        .child(
+            text(format!("{percent}%"))
+                .key("percent")
+                .font(p.k.ty.ui)
+                .color(c.text_base.alpha(0.5)),
+        )
+        .child(paste_now)
 }
 
 #[cfg(test)]
@@ -183,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn the_plate_fits_its_overlay_with_its_bar_and_paste_now() {
+    fn the_plate_fits_its_overlay_with_its_dots_and_paste_now() {
         for dark in [false, true] {
             let progress = Progress {
                 done: 3,
@@ -196,20 +219,13 @@ mod tests {
             assert_eq!(h, PLATE_H);
             let [button_x, _, button_w, _] = rect(&rt, "paste-now").unwrap();
             assert!(button_x + button_w <= x + w, "Paste now fits the plate");
-            let [_, _, fill, _] = rect(&rt, "bar-fill").unwrap();
-            assert!((fill - BAR_W / 2.0).abs() < 0.5, "half the bar: {fill}");
-            assert!(rect(&rt, "count").is_some());
+            assert!(rect(&rt, "dots").is_some());
+            assert!(rect(&rt, "percent").is_some());
         }
     }
 
     #[test]
-    fn one_piece_shows_no_count_and_no_progress_shows_nothing() {
-        let one = Progress {
-            done: 0,
-            total: 1,
-            fraction: 0.3,
-        };
-        assert!(rect(&runtime(Some(one), false), "count").is_none());
+    fn no_progress_shows_nothing() {
         assert!(rect(&runtime(None, false), "plate").is_none());
     }
 

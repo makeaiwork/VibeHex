@@ -297,7 +297,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
             Feature::CleanupProgress,
             &SPARKLES,
             tr("Cleanup progress"),
-            tr("While AI cleanup takes a while, a bar beside the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"),
+            tr("While AI cleanup takes a while, a bar in place of the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"),
         ));
         rows.push(row(
             Feature::MouseShortcuts,

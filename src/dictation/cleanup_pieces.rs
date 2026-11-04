@@ -4,10 +4,10 @@
 //! deadline however long the dictation. A piece that fails keeps its
 //! transcribed text; the others are still cleaned.
 //!
-//! While Labs › Cleanup progress is on, a cleanup that runs past
-//! `SHOW_AFTER` reports how far it is to its watchers (`watch`, the plate
-//! beside the HUD), and Paste now (`paste_now`) ends it early: the pieces
-//! already cleaned, then the rest as transcribed.
+//! While Labs › Cleanup progress is on, a cleanup that will plainly take a
+//! while (`worth_showing`) reports how far it is to its watchers (`watch`,
+//! the plate in the HUD's place), and Paste now (`paste_now`) ends it
+//! early: the pieces already cleaned, then the rest as transcribed.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -19,9 +19,15 @@ use color_eyre::Result;
 /// copies it whole and answers well within a deadline, long enough that a
 /// short dictation stays one piece.
 pub(crate) const PIECE_WORDS: usize = 400;
-/// How long a cleanup runs before its progress shows, so a quick one
+/// How long a cleanup runs before its progress may show, so a quick one
 /// never flashes a plate.
 const SHOW_AFTER: Duration = Duration::from_millis(1500);
+/// How much a cleanup must still have to go, by its pace so far, for its
+/// progress to show.
+const LEFT_TO_SHOW: Duration = Duration::from_secs(2);
+/// When a cleanup that says nothing of its pace (no streamed answer yet,
+/// as from OpenCode) shows anyway.
+const SHOW_BLIND: Duration = Duration::from_secs(3);
 const TICK: Duration = Duration::from_millis(200);
 /// The most of a piece the streamed answer fills before the piece ends,
 /// since an answer may run a little longer than its transcript.
@@ -255,7 +261,7 @@ fn state() -> std::sync::MutexGuard<'static, Option<State>> {
 }
 
 /// Calls `watcher` with a long cleanup's progress, about five times a
-/// second once it has run `SHOW_AFTER`, and with `None` when it ends.
+/// second once it is `worth_showing`, and with `None` when it ends.
 pub(crate) fn watch(watcher: impl Fn(Option<Progress>) + Send + Sync + 'static) {
     WATCHERS
         .lock()
@@ -340,11 +346,15 @@ impl Drop for Job {
 
 /// Reports job `id`'s progress until it ends, then `None` once.
 fn tick(id: u64) {
+    let mut shown = false;
     loop {
         std::thread::sleep(TICK);
         let progress = match state().as_ref() {
             Some(state) if state.id == id => {
-                (state.started.elapsed() >= SHOW_AFTER).then(|| state.progress())
+                let progress = state.progress();
+                // Once shown, it stays until the cleanup ends.
+                shown = shown || worth_showing(state.started.elapsed(), progress.fraction);
+                shown.then_some(progress)
             }
             _ => break,
         };
@@ -353,6 +363,19 @@ fn tick(id: u64) {
         }
     }
     notify(None);
+}
+
+/// Whether a cleanup `elapsed` in and `fraction` done is long enough to
+/// show: past `SHOW_AFTER` with `LEFT_TO_SHOW` still to go at its pace so
+/// far, or past `SHOW_BLIND` while it says nothing of its pace.
+fn worth_showing(elapsed: Duration, fraction: f32) -> bool {
+    if elapsed < SHOW_AFTER {
+        return false;
+    }
+    if fraction < 0.02 {
+        return elapsed >= SHOW_BLIND;
+    }
+    elapsed.mul_f32((1.0 - fraction.min(1.0)) / fraction) >= LEFT_TO_SHOW
 }
 
 #[cfg(test)]
@@ -365,6 +388,20 @@ mod tests {
             .map(|i| format!("w{i}"))
             .collect::<Vec<_>>()
             .join(" ")
+    }
+
+    #[test]
+    fn only_a_cleanup_with_a_while_to_go_shows() {
+        let ms = Duration::from_millis;
+        // Too soon, however slow.
+        assert!(!worth_showing(ms(1000), 0.1));
+        // A one-minute dictation: 60% done at 1.5 s, a second to go.
+        assert!(!worth_showing(ms(1500), 0.6));
+        // Six minutes: 10% done at 2 s, about 18 s to go.
+        assert!(worth_showing(ms(2000), 0.1));
+        // Nothing streamed yet: only past SHOW_BLIND.
+        assert!(!worth_showing(ms(2500), 0.0));
+        assert!(worth_showing(ms(3000), 0.0));
     }
 
     #[test]

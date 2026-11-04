@@ -66,6 +66,27 @@ pub(crate) fn live_text_place() -> Spot {
     spot.unwrap_or(Spot::Edge(ScreenEdge::Top, 40.0))
 }
 
+/// Labs › Cleanup progress: while its plate shows, the HUD gives way to it
+/// unless a capture records.
+#[cfg(target_os = "macos")]
+static GIVE_WAY: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "macos")]
+static HUD: std::sync::OnceLock<OverlayHandle<Hud>> = std::sync::OnceLock::new();
+
+/// Hides the HUD for the cleanup plate (`true`) until it is done (`false`);
+/// a new capture shows the HUD again either way.
+#[cfg(target_os = "macos")]
+pub(crate) fn give_way(give: bool) {
+    GIVE_WAY.store(give, Ordering::Release);
+    if give && let Some(overlay) = HUD.get() {
+        overlay.update(|hud, _| {
+            if !hud.model.capturing() {
+                hud.hide();
+            }
+        });
+    }
+}
+
 fn set_live_text(spot: Spot) {
     *LIVE_TEXT.lock().unwrap_or_else(|error| error.into_inner()) = Some(spot);
 }
@@ -274,6 +295,11 @@ impl Hud {
         {
             self.position = crate::app_settings::indicator_position();
         }
+        #[cfg(target_os = "macos")]
+        if GIVE_WAY.load(Ordering::Acquire) && !self.model.capturing() {
+            self.hide();
+            return;
+        }
         if self.position == IndicatorPosition::Hidden {
             #[cfg(target_os = "macos")]
             self.place_live_text_without_hud();
@@ -376,6 +402,8 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) -> HudSender {
     );
     let this = overlay.clone();
     overlay.update(move |hud, _| hud.this = Some(this));
+    #[cfg(target_os = "macos")]
+    let _ = HUD.set(overlay.clone());
     HudSender {
         overlay,
         #[cfg(target_os = "macos")]
