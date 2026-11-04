@@ -46,6 +46,9 @@ pub(crate) struct Card {
     source: Option<Source>,
     /// Why the last Add didn't save.
     error: Option<String>,
+    /// What AI cleanup wrote where transcription heard Heard, when the
+    /// selection is a word cleanup changed.
+    cleaned: Option<String>,
     save: Option<Save>,
     overlay: Option<OverlayHandle<Card>>,
     /// The card sits above its selection, so it hangs from the overlay's
@@ -60,6 +63,8 @@ pub(crate) struct Source {
     selection: Option<Selection>,
     /// Whether the selection can be edited, so a paste replaces it.
     editable: bool,
+    /// What is selected, which the term replaces.
+    text: String,
 }
 
 static CARD: OnceLock<OverlayHandle<Card>> = OnceLock::new();
@@ -112,6 +117,7 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, save: Save) {
         term: TextEdit::default(),
         source: None,
         error: None,
+        cleaned: None,
         save: Some(save),
         overlay: None,
         above: false,
@@ -122,15 +128,20 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, save: Save) {
     let _ = CARD.set(overlay);
 }
 
-/// Opens the card for `heard`, the selected text (empty when no app said
-/// what was selected), from any thread. A term that already lists `heard`
-/// as a spelling, or is `heard` itself, starts in Should be.
-pub(crate) fn open(source: Option<Source>, heard: String) {
+/// Opens the card for `selected`, the selected text (empty when no app
+/// said what was selected), from any thread; `before` is what transcription
+/// heard there when AI cleanup changed it, and goes in Heard instead. A
+/// term that already lists Heard as a spelling, or is Heard itself, starts
+/// in Should be.
+pub(crate) fn open(source: Option<Source>, selected: String, before: Option<String>) {
     let Some(overlay) = CARD.get() else {
         return;
     };
+    let cleaned = before.as_ref().map(|_| selected.clone());
+    let heard = before.unwrap_or(selected);
     let known = known_term(&vocabulary::entries(), &heard);
     overlay.update(move |card, tx| {
+        card.cleaned = cleaned;
         let empty = heard.is_empty();
         card.heard = TextEdit::new(heard);
         card.term = TextEdit::new(known.unwrap_or_default());
@@ -233,6 +244,9 @@ pub(crate) fn open_for_selection() {
                 Some(selection) => selection.text.clone(),
                 None => crate::paste::copy_selection(COPY_WAIT).unwrap_or_default(),
             };
+            let around = selection
+                .as_ref()
+                .and_then(|selection| selection.around.clone());
             // Asked while the app is still in front: its menu says whether
             // this selection can be cut, so edited, where Accessibility
             // doesn't.
@@ -243,8 +257,11 @@ pub(crate) fn open_for_selection() {
                     .is_some_and(|selection| selection.editable)
                     || crate::accessibility::can_cut(pid) == Some(true),
                 selection,
+                text: heard.clone(),
             });
-            open(source, heard);
+            // A word AI cleanup wrote: Heard is what transcription heard.
+            let before = crate::dictation::heard_before::from_history(&heard, around.as_ref());
+            open(source, heard, before);
         });
     if let Err(error) = spawned {
         tracing::warn!(%error, "couldn't read the selection for Vocabulary");
@@ -275,6 +292,7 @@ fn known_term(entries: &[VocabularyEntry], heard: &str) -> Option<String> {
 
 fn close(card: &mut Card) {
     card.source = None;
+    card.cleaned = None;
     card.error = None;
     card.heard.focused = false;
     card.term.focused = false;
@@ -302,9 +320,7 @@ fn add(card: &mut Card) {
     }
     let source = card.source.take();
     close(card);
-    if let Some(source) = source.filter(|source| source.editable)
-        && term != heard
-    {
+    if let Some(source) = source.filter(|source| source.editable && source.text != term) {
         std::thread::Builder::new()
             .name("vocabulary-replace".into())
             .spawn(move || replace(&source, &term))
@@ -412,14 +428,19 @@ fn term_field(card: &mut Card) -> &mut TextEdit {
 fn view(card: &Card, cx: &mut Cx<Card>) -> El {
     let p = Paint::new(cx.system_dark(), cx.env().scale);
     let c = &p.k.c;
-    let note = match (&card.error, &card.source) {
-        (Some(error), _) => Some((tr_fill("Couldn't save: {}", error), p.danger())),
-        (None, Some(source)) if !source.editable => Some((
+    let mut notes = Vec::new();
+    if let Some(error) = &card.error {
+        notes.push((tr_fill("Couldn't save: {}", error), p.danger()));
+    }
+    if let Some(cleaned) = &card.cleaned {
+        notes.push((tr_fill("AI cleanup wrote it as {}", cleaned), p.muted()));
+    }
+    if card.source.as_ref().is_some_and(|source| !source.editable) {
+        notes.push((
             tr("This text can't be edited here; the word still goes to Vocabulary").to_string(),
             p.muted(),
-        )),
-        _ => None,
-    };
+        ));
+    }
     let mut panel = col()
         .key("card")
         .role("dialog")
@@ -452,8 +473,14 @@ fn view(card: &Card, cx: &mut Cx<Card>) -> El {
             tr("The right spelling"),
             term_field,
         ));
-    if let Some((note, color)) = note {
-        panel = panel.child(text(note).key("note").font(DESCRIPTION).color(color).wrap());
+    for (index, (note, color)) in notes.into_iter().enumerate() {
+        panel = panel.child(
+            text(note)
+                .key(format!("note-{index}"))
+                .font(DESCRIPTION)
+                .color(color)
+                .wrap(),
+        );
     }
     panel = panel.child(
         row()

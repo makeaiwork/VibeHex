@@ -270,6 +270,9 @@ pub struct Selection {
     /// Where the selected text is on screen, `[x, y, width, height]` in
     /// global top-left points, when the app says.
     pub bounds: Option<[f64; 4]>,
+    /// The text just before and just after the selection, when the app
+    /// says: which of several dictations it came from.
+    pub around: Option<(String, String)>,
 }
 
 // SAFETY: An AXUIElement is an immutable Core Foundation reference to
@@ -317,13 +320,49 @@ pub fn selection(pid: i32) -> Option<Selection> {
         || settable(&element, c"AXSelectedText")
         || settable(&element, c"AXValue");
     let bounds = selection_bounds(&element);
+    let around = text_around_selection(&element);
     Some(Selection {
         element,
         pid,
         text,
         editable,
         bounds,
+        around,
     })
+}
+
+/// Up to `AROUND` UTF-16 units either side of `element`'s selection.
+fn text_around_selection(element: &CfObject) -> Option<(String, String)> {
+    const AROUND: isize = 300;
+    let selection = copy_range(element, c"AXSelectedTextRange")?;
+    let start = (selection.location - AROUND).max(0);
+    let before = copy_string_for_range(
+        element,
+        CfRange {
+            location: start,
+            length: selection.location - start,
+        },
+    )
+    .unwrap_or_default();
+    let after = copy_string_for_range(
+        element,
+        CfRange {
+            location: selection.location + selection.length,
+            length: AROUND,
+        },
+    )
+    // Past the end, an app may refuse the whole range; ask for less.
+    .or_else(|| {
+        copy_string_for_range(
+            element,
+            CfRange {
+                location: selection.location + selection.length,
+                length: AROUND / 10,
+            },
+        )
+    })
+    .unwrap_or_default();
+    (!before.is_empty() || !after.is_empty()).then_some((before, after))
 }
 
 fn settable(element: &CfObject, name: &CStr) -> bool {

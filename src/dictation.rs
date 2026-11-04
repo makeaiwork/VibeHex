@@ -11,6 +11,8 @@ pub(crate) mod context;
 #[cfg(target_os = "macos")]
 pub(crate) mod diagnostics;
 pub(crate) mod filler_words;
+#[cfg(target_os = "macos")]
+pub(crate) mod heard_before;
 pub(crate) mod indicator;
 pub(crate) mod live_text;
 #[cfg_attr(target_os = "macos", allow(dead_code))]

@@ -1084,6 +1084,12 @@ misheard word into a Vocabulary entry where it was misheard.
 │   │           the screen ends first, at the pointer when the app gives no bounds, kept
 │   │           on that screen's visible frame: Heard (the selection) and Should be
 │   │           (focused; prefilled when Heard is already a term's spelling)
+│   ├── Cleaned   a word AI cleanup wrote ("Directus" for a heard "Динкдан"): Heard is
+│   │             what transcription wrote there, Should be the selection, and the card
+│   │             says "AI cleanup wrote it as …" (dictation::heard_before: the newest 100
+│   │             History entries, transcript and cleaned text aligned word by word;
+│   │             the entry whose words around the selection match, read through
+│   │             AXStringForRange, else the newest whose spelling Vocabulary lacks)
 │   ├── Add / Return -> saved as `hex vocabulary add` does (term + Heard as a spelling),
 │   │       Runtime ReloadSettings; then, where the selection is editable, pasted over
 │   │       (paste::paste_over_selection: ⌘V, the clipboard put back after 500 ms
@@ -1102,12 +1108,15 @@ misheard word into a Vocabulary entry where it was misheard.
 
 Checks: `the_vocabulary_shortcut_needs_its_lab_and_its_own_keys` in
 [app_settings.rs](../../src/app_settings.rs), `a_listed_spelling_or_term_finds_its_term` and `the_card_sits_by_its_selection`
-in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs), the taps in
+in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs), the alignment and the entry's choice in
+[dictation/heard_before.rs](../../src/dictation/heard_before.rs), the taps in
 [suppression/modifier_tap.rs](../../src/suppression/modifier_tap.rs). The card
 has no scene. Observed: AXSelectedText alone was settable almost nowhere (three tries,
 all `replaceable=false`), hence the paste, as AliceMate does. Not yet
 observed: the paste replacement in a running Hex across native, Chromium,
-and terminal apps.
+and terminal apps. Observed against the real History: "Directus", "Claude
+Code", and "Labs" found "Директус", "плод код", and "лэб"; the choice by
+surrounding words is not yet observed in a running Hex.
 
 Russian vibe coding (`russian-vibe-coding`, every OS) is a preset, not a
 runtime gate: turning it on (the row, `hex labs on`, or

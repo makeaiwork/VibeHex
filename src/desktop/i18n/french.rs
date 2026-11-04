@@ -748,6 +748,7 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Sound and interface", "Son et interface"),
     ("Cleanup progress", "Progression du nettoyage"),
     ("While AI cleanup takes a while, a bar in place of the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed", "Quand le nettoyage par l’IA prend du temps, une barre à la place du HUD montre où il en est, et Coller maintenant colle la partie déjà nettoyée et le reste tel que transcrit"),
+    ("AI cleanup wrote it as {}", "Le nettoyage par l’IA l’a écrit {}"),
     ("Fast", "Rapide"),
     ("Slower", "Plus lent"),
     ("Best quality", "Meilleure qualité"),
