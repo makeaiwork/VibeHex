@@ -113,8 +113,13 @@ OpenCode rewriting (Modes)               // vocabulary.prompt
 ├── Labs › Clean up on your own server -> the same lines go to OpenRouter or
 │   the person's server in the system message; Russian presets and their
 │   eval in docs/vocabulary/ (labs.md)
-└── Prompt gains "Vocabulary (spell these exactly when the speaker means them):
-    term (may be transcribed as a, b); …" before the foreground application
+└── Prompt gains "Vocabulary: the speaker's names and terms, spelled exactly as
+    they must be written. Where the transcript has a form on the left of "→" and
+    the speaker means the term, write the term on the right instead:" and one
+    line per term ("- a, b → term", or "- term" without spellings) before the
+    foreground application. Replayed over 25 History dictations with 44
+    misheard forms, the arrow took Gemma 4 E2B from 23 terms written to 36
+    (Qwen3 4B 31 -> 37; Gemma 4 E4B 41 -> 40)
 
 Live meeting chapters (experiment live-chapters)  // vocabulary.chapters
 └── Chapter passes and the boundary pass start with "Names and terms that may

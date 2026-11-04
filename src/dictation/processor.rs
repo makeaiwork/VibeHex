@@ -877,7 +877,12 @@ fn prompt_parts(
 }
 
 /// The vocabulary as prompt lines, so a rewrite spells its terms right;
-/// nothing when it is empty (or its experiment is off).
+/// nothing when it is empty (or its experiment is off). A term's "sounds
+/// like" spellings point at it (`Лэбс → Labs`), as a replacement rule reads:
+/// small local models kept a listed spelling as acceptable when it read
+/// "Labs (may be transcribed as Лэбс)", and wrote the term far more often
+/// from the arrow (Gemma 4 E2B: 36 of 44 misheard forms against 23, on a
+/// person's own History).
 fn vocabulary_lines(vocabulary: &[VocabularyEntry]) -> String {
     if vocabulary.is_empty() {
         return String::new();
@@ -885,16 +890,16 @@ fn vocabulary_lines(vocabulary: &[VocabularyEntry]) -> String {
     let terms = vocabulary
         .iter()
         .map(|entry| match entry.sounds_like.as_slice() {
-            [] => entry.term.clone(),
-            spellings => format!(
-                "{} (may be transcribed as {})",
-                entry.term,
-                spellings.join(", ")
-            ),
+            [] => format!("- {}", entry.term),
+            spellings => format!("- {} → {}", spellings.join(", "), entry.term),
         })
         .collect::<Vec<_>>()
-        .join("; ");
-    format!("Vocabulary (spell these exactly when the speaker means them): {terms}\n\n")
+        .join("\n");
+    format!(
+        "Vocabulary: the speaker's names and terms, spelled exactly as they must be written. \
+         Where the transcript has a form on the left of \"→\" and the speaker means the term, \
+         write the term on the right instead:\n{terms}\n\n"
+    )
 }
 
 #[derive(Serialize)]
@@ -1358,8 +1363,8 @@ mod tests {
             &vocabulary,
         );
         assert!(prompt.contains(
-            "Vocabulary (spell these exactly when the speaker means them): cappuccino (may be \
-             transcribed as capuchin, cap a chino); Rune\n\nForeground application: Slack"
+            "write the term on the right instead:\n- capuchin, cap a chino → cappuccino\n- \
+             Rune\n\nForeground application: Slack"
         ));
     }
 
@@ -1520,7 +1525,7 @@ mod tests {
             prompt_parts(&profile, "запусти клод код", &context, &vocabulary);
         assert!(instructions.starts_with(PROTOCOL_PROMPT));
         assert!(instructions.contains("Write English terms in English."));
-        assert!(instructions.contains("Claude Code (may be transcribed as клод код)"));
+        assert!(instructions.contains("- клод код → Claude Code"));
         assert!(instructions.ends_with("Browser host: none"));
         assert!(!instructions.contains("запусти"));
         assert_eq!(
