@@ -1738,7 +1738,7 @@ fn hud_lab_picks_dot_scope_processing_placement_and_level() {
 }
 
 #[test]
-fn labs_is_one_flat_list_of_toggles_off_by_default() {
+fn labs_lists_every_toggle_off_by_default_in_sections() {
     let mut rt = runtime("mac-production", true, (980.0, 2000.0));
     rt.state.settings.experimental.hex_microphone = false;
     rt.state.platform.hex_microphone = None;
@@ -1755,6 +1755,12 @@ fn labs_is_one_flat_list_of_toggles_off_by_default() {
     }
     tap(&mut rt, "nav-labs");
     assert!(rt.find("send-feedback").is_some());
+    for section in ["labs-vocabulary", "labs-meetings", "labs-speech-models"] {
+        assert!(
+            rt.find(section).is_some(),
+            "Labs lacks its {section} section"
+        );
+    }
     assert!(rt.find("restart-onboarding").is_some());
     let settings = &rt.state.settings;
     for (row, on) in [
@@ -1807,6 +1813,11 @@ fn labs_search_keeps_the_rows_holding_every_word() {
     assert!(
         rt.find("lab-live-chapters").is_none(),
         "lacks the word text"
+    );
+    assert!(rt.find("labs-history").is_some(), "Live text's section");
+    assert!(
+        rt.find("labs-meetings").is_none(),
+        "an unmatched section hides"
     );
     assert!(rt.find("lab-meetings").is_none());
     assert!(rt.find("restart-onboarding").is_some(), "setup stays");

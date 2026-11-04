@@ -1,6 +1,7 @@
-//! Labs: one flat sidebar item listing every Labs feature (`crate::labs`)
-//! as a row with a toggle, each off by default, plus Send feedback and Run
-//! setup again, under a search field that narrows the rows to those whose
+//! Labs: one sidebar item listing every Labs feature (`crate::labs`) as a
+//! row with a toggle, each off by default, in titled sections by what it
+//! touches (`Group`), plus Send feedback and Run setup again, under a search
+//! field that narrows the rows to those whose
 //! name or description holds every word typed. A feature with its own pane (Meetings, Voice Filter,
 //! Playground) joins the main sidebar while on and is hidden while off.
 
@@ -499,6 +500,107 @@ fn rows(ui: &Ui) -> Vec<Row> {
     rows
 }
 
+/// The Labs page's sections, in the order they show.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Group {
+    Shortcuts,
+    Pasting,
+    TextCleanup,
+    Vocabulary,
+    SpeechModels,
+    Meetings,
+    HistoryAndRecording,
+    SoundAndInterface,
+}
+
+impl Group {
+    const ALL: [Self; 8] = [
+        Self::Shortcuts,
+        Self::Pasting,
+        Self::TextCleanup,
+        Self::Vocabulary,
+        Self::SpeechModels,
+        Self::Meetings,
+        Self::HistoryAndRecording,
+        Self::SoundAndInterface,
+    ];
+
+    fn of(feature: Feature) -> Self {
+        match feature {
+            Feature::SecondDictationShortcut
+            | Feature::TapOrHold
+            | Feature::SidedChords
+            | Feature::StandaloneSpecialKeys
+            | Feature::SectionKeyAlone
+            | Feature::MouseShortcuts
+            | Feature::RestoreShortcutDefault
+            | Feature::ShareShortcut => Self::Shortcuts,
+            Feature::CopyOnly
+            | Feature::KeepOnClipboard
+            | Feature::SmartSpacing
+            | Feature::TerminalPaste
+            | Feature::RecentDictations => Self::Pasting,
+            Feature::SpokenFormatting
+            | Feature::SpokenSymbols
+            | Feature::FillerWords
+            | Feature::SkipPauses
+            | Feature::OutputFixes
+            | Feature::AiCleanupServer => Self::TextCleanup,
+            Feature::VocabularyBiasing
+            | Feature::VocabularyPasteList
+            | Feature::VocabularyQuickAdd
+            | Feature::RussianVibeCoding => Self::Vocabulary,
+            Feature::ParakeetUltra
+            | Feature::KeyboardModelSwitching
+            | Feature::UnloadIdle
+            | Feature::PickerSortFilter
+            | Feature::PickerActiveFirst
+            | Feature::PickerDownloaded
+            | Feature::ModelInPlace
+            | Feature::BenchmarkDetails => Self::SpeechModels,
+            Feature::Meetings
+            | Feature::LiveChapters
+            | Feature::SubtitleExport
+            | Feature::StopWhenCallEnds
+            | Feature::MovableMeetingCapsules
+            | Feature::MeetingSummaryModel => Self::Meetings,
+            Feature::HistoryStats | Feature::KeepRecordings | Feature::LiveText => {
+                Self::HistoryAndRecording
+            }
+            Feature::VoiceFilter
+            | Feature::PauseBrowser
+            | Feature::HideMenuBarIcon
+            | Feature::Playground => Self::SoundAndInterface,
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Self::Shortcuts => tr("Shortcuts"),
+            Self::Pasting => tr("Pasting"),
+            Self::TextCleanup => tr("Text cleanup"),
+            Self::Vocabulary => tr("Vocabulary"),
+            Self::SpeechModels => tr("Speech models"),
+            Self::Meetings => tr("Meetings"),
+            Self::HistoryAndRecording => tr("History and recording"),
+            Self::SoundAndInterface => tr("Sound and interface"),
+        }
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::Shortcuts => "labs-shortcuts",
+            Self::Pasting => "labs-pasting",
+            Self::TextCleanup => "labs-text-cleanup",
+            Self::Vocabulary => "labs-vocabulary",
+            Self::SpeechModels => "labs-speech-models",
+            Self::Meetings => "labs-meetings",
+            Self::HistoryAndRecording => "labs-history",
+            Self::SoundAndInterface => "labs-interface",
+        }
+    }
+}
+
 fn row_key(feature: Feature) -> &'static str {
     match feature {
         Feature::Meetings => "lab-meetings",
@@ -628,7 +730,10 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
         )
         .child(feedback);
     let query = ui.lab_search.text.trim();
-    let mut cards: Vec<CardRow> = Vec::new();
+    let mut groups: Vec<(Group, Vec<CardRow>)> = Group::ALL
+        .iter()
+        .map(|group| (*group, Vec::new()))
+        .collect();
     for row in rows(ui)
         .into_iter()
         .filter(|row| row.feature.shipped() && matches(row, query))
@@ -637,28 +742,36 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
         let flashing = ui
             .lab_flash
             .is_some_and(|(feature, _)| feature == row.feature);
+        let group = Group::of(row.feature);
+        let Some((_, cards)) = groups.iter_mut().find(|(g, _)| *g == group) else {
+            continue;
+        };
         cards.push(feature_row(p, row, flashing));
         if unload_idle {
             cards.push(unload_after_row(ui, p));
         }
     }
+    let sections: Vec<El> = groups
+        .into_iter()
+        .filter(|(_, cards)| !cards.is_empty())
+        .map(|(group, cards)| controls::section(p, group.key(), group.title(), cards))
+        .collect();
     let search = row()
         .key("labs-search-row")
         .mx(controls::METRICS.row_px)
         .child(search(ui, p).grow(1.0));
-    let list = if cards.is_empty() {
-        text(tr("No Labs features match."))
-            .key("labs-none")
-            .font(p.k.ty.ui)
-            .color(p.muted())
-            .mx(controls::METRICS.row_px)
-    } else {
-        card(p, "labs", cards)
-    };
-    let content = controls::page("content")
-        .child(lede)
-        .child(search)
-        .child(list)
+    let mut content = controls::page("content").child(lede).child(search);
+    if sections.is_empty() {
+        content = content.child(
+            text(tr("No Labs features match."))
+                .key("labs-none")
+                .font(p.k.ty.ui)
+                .color(p.muted())
+                .mx(controls::METRICS.row_px),
+        );
+    }
+    let content = content
+        .children(sections)
         .child(card(p, "labs-setup", vec![run_setup_row(p)]));
     super::scroll_body("scroll", content)
 }

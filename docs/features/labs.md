@@ -12,9 +12,13 @@ drops it, its gate reads false even when `settings.json` says on, and the
 saved setting is kept untouched. In dev builds a Dev row carries a quiet
 "Dev" tag, and `hex labs` prints each feature's audience. Every feature
 below is `Everyone` today. There is no master switch. **Labs** is always the last item in the
-sidebar and lists every Labs feature as one flat row (name, one-line
-description, toggle), each **off by default**, plus Send feedback and Run
-setup again. A search field above the rows (`labs-search`) keeps only the
+sidebar and lists every Labs feature as a row (name, one-line
+description, toggle), each **off by default**, in titled sections by what it
+touches (`rune_ui::labs::Group`, every feature in exactly one, titles
+translated like the rest of the window): Shortcuts, Pasting, Text cleanup,
+Vocabulary, Speech models, Meetings, History and recording, Sound and
+interface. A section with no row on this OS, or none matching the search,
+doesn't show. Send feedback sits above them and Run setup again below. A search field above the rows (`labs-search`) keeps only the
 rows whose name, description, or command-line name holds every word typed,
 ignoring case, and says "No Labs features match." when none do; a Labs link
 clears it so its row shows. Check: `labs_search_keeps_the_rows_holding_every_word`.
@@ -1203,7 +1207,7 @@ vocabulary list itself (rewriting and search), and Linux's Terminal paste.
   apps that ignore a synthetic Ctrl+V (issue 477 / PR 478). Its toggle is the
   shared `paste_with_shift`; Linux keeps it as a General › Advanced row.
 
-Checks: `labs_is_one_flat_list_of_toggles_off_by_default`,
+Checks: `labs_lists_every_toggle_off_by_default_in_sections`,
 `contributed_options_are_labs_toggles_off_by_default`,
 `the_browser_labs_toggle_turns_on_and_asks_for_system_audio`,
 `keyboard_model_switching_is_a_labs_toggle_wherever_layouts_are_observable`,
