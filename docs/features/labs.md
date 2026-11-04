@@ -949,8 +949,11 @@ Cleanup worth showing, labs.cleanup_progress on   // rune_ui::cleanup_plate
 │           go at its pace so far, or past 3 s while nothing says its pace (no
 │           streamed answer yet, OpenCode); once shown it stays until the end,
 │           so a one-minute dictation's 2.4 s cleanup never flashes a plate
-├── Plate   where Live text's would be (rune_hud::live_text_place), and the HUD
-│           gives way (rune_hud::give_way) unless a new capture records:
+├── Plate   on the HUD's own spot (rune_hud::hud_center, its plate's centre) while
+│           the HUD gives way (rune_hud::give_way); while the HUD shows again for a
+│           new capture (rune_hud::hud_shown), just below it where Live text's
+│           would be (rune_hud::live_text_place), back up once it hides; always
+│           below in a notch island or with the HUD set to Hidden:
 │           "Cleaning up" ⠿⠿⠿⠶⠶⠶ 44% [Paste now], black like the HUD in either
 │           appearance, its 40 × 9 dots lit up to the progress (the count of
 │           pieces done is gone: it read 1/2 until a two-piece cleanup ended)

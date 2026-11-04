@@ -73,6 +73,31 @@ static GIVE_WAY: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "macos")]
 static HUD: std::sync::OnceLock<OverlayHandle<Hud>> = std::sync::OnceLock::new();
 
+/// The HUD's plate centre in global top-left points, as of its last show
+/// below or in the menu bar; `None` in a notch island or set to Hidden.
+#[cfg(target_os = "macos")]
+static HUD_CENTER: Mutex<Option<(f32, f32)>> = Mutex::new(None);
+/// Whether the HUD's overlay is on screen.
+#[cfg(target_os = "macos")]
+static HUD_SHOWN: AtomicBool = AtomicBool::new(false);
+
+/// Where the cleanup plate takes the HUD's place: its plate's centre.
+#[cfg(target_os = "macos")]
+pub(crate) fn hud_center() -> Option<(f32, f32)> {
+    *HUD_CENTER.lock().unwrap_or_else(|error| error.into_inner())
+}
+
+#[cfg(target_os = "macos")]
+fn set_hud_center(center: Option<(f32, f32)>) {
+    *HUD_CENTER.lock().unwrap_or_else(|error| error.into_inner()) = center;
+}
+
+/// Whether the HUD is on screen, so the cleanup plate makes room below it.
+#[cfg(target_os = "macos")]
+pub(crate) fn hud_shown() -> bool {
+    HUD_SHOWN.load(Ordering::Acquire)
+}
+
 /// Hides the HUD for the cleanup plate (`true`) until it is done (`false`);
 /// a new capture shows the HUD again either way.
 #[cfg(target_os = "macos")]
@@ -334,6 +359,8 @@ impl Hud {
             overlay.show();
             self.shown = true;
         }
+        #[cfg(target_os = "macos")]
+        HUD_SHOWN.store(true, Ordering::Release);
     }
 
     fn hide(&mut self) {
@@ -345,6 +372,8 @@ impl Hud {
         {
             self.placed = None;
         }
+        #[cfg(target_os = "macos")]
+        HUD_SHOWN.store(false, Ordering::Release);
         if std::mem::take(&mut self.shown)
             && let Some(overlay) = &self.this
         {

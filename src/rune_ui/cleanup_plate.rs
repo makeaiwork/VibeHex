@@ -31,6 +31,24 @@ pub(crate) struct Plate {
     progress: Option<Progress>,
 }
 
+/// Where the plate goes: on the HUD's own spot while the HUD gives way to
+/// it; just past the HUD's plate (`spot`) while the HUD shows, such as for a
+/// new dictation, or when the HUD sits in a notch island or is hidden.
+fn placement_now(spot: Spot) -> (bool, OverlayPlacement) {
+    match crate::rune_hud::hud_center().filter(|_| !crate::rune_hud::hud_shown()) {
+        Some((x, y)) => (
+            true,
+            OverlayPlacement::Rect {
+                x: x - SIZE.0 / 2.0,
+                y: y - SIZE.1 / 2.0,
+                width: SIZE.0,
+                height: SIZE.1,
+            },
+        ),
+        None => (false, placement(spot)),
+    }
+}
+
 /// The overlay's placement for the plate to start at `spot`, just past
 /// where the HUD's plate sits.
 fn placement(spot: Spot) -> OverlayPlacement {
@@ -67,10 +85,13 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: super::live_tex
     };
     let overlay: OverlayHandle<Plate> = app.overlay(spec, Plate::default());
     let shown = Arc::new(AtomicBool::new(false));
+    // Whether the plate sits on the HUD's spot, as last placed.
+    let on_hud = Arc::new(std::sync::Mutex::new(None::<bool>));
     cleanup_pieces::watch(move |progress| {
         let handle = overlay.clone();
         let Some(progress) = progress else {
             if shown.swap(false, Ordering::AcqRel) {
+                *on_hud.lock().unwrap_or_else(|error| error.into_inner()) = None;
                 crate::rune_hud::give_way(false);
                 overlay.update(move |plate, tx| {
                     plate.progress = None;
@@ -84,11 +105,19 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: super::live_tex
         if appearing {
             crate::rune_hud::give_way(true);
         }
+        let on_hud = on_hud.clone();
+        // On the main thread, after the HUD's own updates: moves to the HUD's
+        // spot once it hides and below it while it shows.
         overlay.update(move |plate, tx| {
             plate.progress = Some(progress);
             tx.instant();
+            let (at_hud, placement) = placement_now(place());
+            let mut last = on_hud.lock().unwrap_or_else(|error| error.into_inner());
+            if appearing || *last != Some(at_hud) {
+                *last = Some(at_hud);
+                handle.set_placement(Some(placement));
+            }
             if appearing {
-                handle.set_placement(Some(placement(place())));
                 handle.show();
             }
         });
