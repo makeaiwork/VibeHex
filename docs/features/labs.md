@@ -880,11 +880,15 @@ Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 │       │   linear to 90% then creeping, never past 99% until it answers; Cleanup
 │       │   progress's plate says "Loading the model…" meanwhile
 │       └── one row per model (size · publisher · licence) -> Download | progress + Cancel |
-│           "In use" or Use (dictation_processing.server.local_model) + a trash button (Delete), as the speech-model picker's; a failure shows in the row
-│           Speed and Quality, five stars each (LocalModel::speed/quality), beside the
-│           buttons except while downloading: E2B 5/3 (≈93 tok/s; 36 of 44 misheard
-│           vocabulary forms written as terms), Qwen3 4B 4/4 (≈61 tok/s; 37),
-│           E4B 3/5 (≈47 tok/s; 40), measured on an M-series Mac
+│           Use (dictation_processing.server.local_model), which loads the model at
+│           once (engine::warm; a choice made while another loads, once it is done):
+│           "Loading 45%" in its place while it loads (engine::load_progress), then
+│           a green "✓ In use" pill; a trash button asks first (Cancel | "Delete
+│           3.1 GB"); a failure shows in the row. The description names speed and
+│           quality in words (LocalModel::speed/quality, 1–5): E2B Fastest · Basic
+│           quality (≈93 tok/s; 36 of 44 misheard vocabulary forms written as
+│           terms), Qwen3 4B Fast · Good quality (≈61 tok/s; 37), E4B Slower · Best
+│           quality (≈47 tok/s; 40), measured on an M-series Mac
 ├── <server name> -> "Not tested · host" | "Testing…" | "Connected · 0.8 s" | the error; Test
 │   sends one short request on its own thread (30 s), a changed server forgets the result
 ├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama

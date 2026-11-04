@@ -60,16 +60,16 @@ pub enum State {
 }
 
 static LOADING: AtomicBool = AtomicBool::new(false);
-/// While a model loads: when it started and how long it should take.
-static LOAD: Mutex<Option<(Instant, Duration)>> = Mutex::new(None);
+/// While a model loads: which, when it started, and how long it should take.
+static LOAD: Mutex<Option<(&'static str, Instant, Duration)>> = Mutex::new(None);
 
-/// How far the model now loading is, from 0 to 1: an estimate, since
+/// The model now loading and how far it is, from 0 to 1: an estimate, since
 /// llama-server doesn't say, from how long this model took last time (from
 /// its size the first time), never past 99% until it answers. `None` while
 /// nothing loads.
-pub fn load_progress() -> Option<f32> {
-    let (started, expected) = (*LOAD.lock().unwrap_or_else(|error| error.into_inner()))?;
-    Some(estimate(started.elapsed(), expected))
+pub fn load_progress() -> Option<(&'static str, f32)> {
+    let (model, started, expected) = (*LOAD.lock().unwrap_or_else(|error| error.into_inner()))?;
+    Some((model, estimate(started.elapsed(), expected)))
 }
 
 /// Linear to 90% at `expected`, then creeping towards 99%.
@@ -123,7 +123,8 @@ pub fn endpoint(
     }
     LOADING.store(true, Ordering::Release);
     let loading = Instant::now();
-    *LOAD.lock().unwrap_or_else(|error| error.into_inner()) = Some((loading, expected_load(model)));
+    *LOAD.lock().unwrap_or_else(|error| error.into_inner()) =
+        Some((model.id, loading, expected_load(model)));
     let result = start(model).and_then(|mut running| {
         let remaining = deadline.saturating_sub(started.elapsed()).min(LOAD_LIMIT);
         match wait_ready(&mut running, remaining, cancelled) {

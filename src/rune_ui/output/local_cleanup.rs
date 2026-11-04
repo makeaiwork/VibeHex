@@ -10,7 +10,7 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use rune::{El, Waker, row, text};
 
 use super::super::Ui;
-use super::super::controls::{ButtonKind, CardRow, Paint, button, described_row};
+use super::super::controls::{ButtonKind, CardRow, Paint, PushSize, button, described_row};
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::engine::{self, State};
 use crate::dictation::cleanup_server::local_models::{self, LocalModel, MODELS};
@@ -24,6 +24,11 @@ pub(in crate::rune_ui) struct LocalModels {
     /// The last download or delete failure, per model id.
     errors: Vec<(&'static str, String)>,
     engine: Option<State>,
+    /// The model Use last chose, loaded at once and again whenever the
+    /// engine is free, until it runs.
+    wanted: Option<&'static LocalModel>,
+    /// The model whose trash was pressed, asking to confirm.
+    confirm_delete: Option<&'static str>,
 }
 
 struct Download {
@@ -66,7 +71,7 @@ pub(super) fn loading_bar(ui: &Ui, p: Paint) -> Option<El> {
     if ui.output.cleanup.local.engine != Some(State::Loading) {
         return None;
     }
-    let fraction = engine::load_progress()?;
+    let (_, fraction) = engine::load_progress()?;
     Some(
         rune_kit::Progress::new(Some(fraction.clamp(0.0, 1.0)))
             .show_value()
@@ -115,8 +120,10 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
     let state = &ui.output.cleanup.local;
     let key = format!("local-model-{}", model.id);
     let facts = format!(
-        "{} · {} · {}",
+        "{} · {} · {} · {} · {}",
         model.size_label(),
+        speed_label(model.speed),
+        quality_label(model.quality),
         model.publisher,
         model.license
     );
@@ -125,12 +132,23 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
         None => (facts, p.muted()),
     };
     let controls = row().key("controls").gap(8.0).center_y();
-    let controls = if state.download(model.id).is_none() {
-        controls.child(ratings(p, model))
-    } else {
+    let controls = if state.confirm_delete == Some(model.id) {
         controls
-    };
-    let controls = if let Some(download) = state.download(model.id) {
+            .child(button(
+                p,
+                &format!("{key}-keep"),
+                tr("Cancel"),
+                ButtonKind::Secondary,
+                |ui, _| ui.output.cleanup.local.confirm_delete = None,
+            ))
+            .child(button(
+                p,
+                &format!("{key}-delete-confirm"),
+                &tr_fill("Delete {}", &model.size_label()),
+                ButtonKind::Danger,
+                move |ui, _| delete(ui, index),
+            ))
+    } else if let Some(download) = state.download(model.id) {
         let fraction = download.bytes.load(Ordering::Relaxed) as f32 / model.bytes as f32;
         controls
             .child(
@@ -148,18 +166,25 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
                 move |ui, _| cancel(ui, model.id),
             ))
     } else if state.installed(index) {
-        let in_use: El = if chosen {
-            text(tr("In use"))
-                .key("in-use")
-                .font(super::super::controls::DESCRIPTION)
-                .color(p.muted())
+        let loading = engine::load_progress()
+            .filter(|(id, _)| *id == model.id && state.engine == Some(State::Loading));
+        let in_use: El = if let Some((_, fraction)) = loading {
+            rune_kit::Button::new(tr_fill(
+                "Loading {}",
+                &format!("{}%", (fraction * 100.0).floor() as u32),
+            ))
+            .variant(rune_kit::ButtonVariant::Loading)
+            .build_push(p.k)
+            .key(format!("{key}-loading"))
+        } else if chosen {
+            in_use_pill(p)
         } else {
             button(
                 p,
                 &format!("{key}-use"),
                 tr("Use"),
                 ButtonKind::Secondary,
-                move |ui, _| choose(ui, model.id),
+                move |ui, _| choose(ui, model),
             )
         };
         controls.child(in_use).child(
@@ -167,7 +192,9 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
                 .variant(rune_kit::IconButtonVariant::Ghost)
                 .control_size(rune_kit::ControlSize::Regular)
                 .label(tr("Delete"))
-                .on_press(move |ui: &mut Ui| delete(ui, index))
+                .on_press(move |ui: &mut Ui| {
+                    ui.output.cleanup.local.confirm_delete = Some(model.id)
+                })
                 .build(p.k)
                 .key(format!("{key}-delete")),
         )
@@ -183,50 +210,54 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
     described_row(p, &key, model.name, Some(description), controls)
 }
 
-/// Speed and quality, five stars each, labels beside them.
-fn ratings(p: Paint, model: &LocalModel) -> El {
-    const LINE: f32 = 15.0;
-    let label = |copy: &'static str| {
-        text(tr(copy))
-            .font(super::super::controls::DESCRIPTION)
-            .color(p.muted())
-            .h(LINE)
-    };
-    let stars = |key: &'static str, copy: &'static str, filled: u8| {
-        row()
-            .key(key)
-            .role("image")
-            .label(format!("{} {filled}/5", tr(copy)))
-            .h(LINE)
-            .gap(1.0)
-            .center_y()
-            .children((0..5u8).map(|index| {
-                let (glyph, color) = if index < filled {
-                    (&rune_kit::glyphs::STAR_FILLED, p.text())
-                } else {
-                    (&rune_kit::glyphs::STAR, p.muted())
-                };
-                rune::icon(glyph, 10.0).color(color)
-            }))
-    };
+/// The chosen model's mark: a pressed-looking success pill with a check.
+fn in_use_pill(p: Paint) -> El {
+    let c = &p.k.c;
     row()
-        .key("ratings")
-        .gap(6.0)
+        .key("in-use")
+        .role("status")
+        .label(tr("In use"))
+        .h(28.0)
+        .px(10.0)
+        .gap(5.0)
+        .center_y()
+        .radius(p.k.radius.sm)
+        .fill(c.success.bg)
+        .border(0.5, c.success.border)
+        .child(rune::icon(&rune_kit::glyphs::CHECK, 12.0).color(c.success.fg))
         .child(
-            rune::col()
-                .items_end()
-                .child(label("Speed"))
-                .child(label("Quality")),
-        )
-        .child(
-            rune::col()
-                .child(stars("speed", "Speed", model.speed))
-                .child(stars("quality", "Quality", model.quality)),
+            text(tr("In use"))
+                .font(p.k.ty.ui_medium)
+                .color(c.success.fg),
         )
 }
 
-fn choose(ui: &mut Ui, id: &'static str) {
-    ui.update(|settings| settings.dictation_processing.server.local_model = id.into());
+/// A model's speed in a word, from its 1–5 rating.
+fn speed_label(speed: u8) -> &'static str {
+    match speed {
+        5.. => tr("Fastest"),
+        4 => tr("Fast"),
+        _ => tr("Slower"),
+    }
+}
+
+/// A model's quality in a word, from its 1–5 rating.
+fn quality_label(quality: u8) -> &'static str {
+    match quality {
+        5.. => tr("Best quality"),
+        4 => tr("Good quality"),
+        _ => tr("Basic quality"),
+    }
+}
+
+/// Use: saves the choice and loads the model at once, so it is ready (and
+/// shows loading) before the next dictation.
+fn choose(ui: &mut Ui, model: &'static LocalModel) {
+    ui.update(|settings| settings.dictation_processing.server.local_model = model.id.into());
+    if ui.live() {
+        ui.output.cleanup.local.wanted = Some(model);
+        engine::warm(model);
+    }
 }
 
 fn start_download(ui: &mut Ui, model: &'static LocalModel) {
@@ -270,6 +301,10 @@ fn cancel(ui: &mut Ui, id: &str) {
 fn delete(ui: &mut Ui, index: usize) {
     let model = &MODELS[index];
     let local = &mut ui.output.cleanup.local;
+    local.confirm_delete = None;
+    if local.wanted.is_some_and(|wanted| wanted.id == model.id) {
+        local.wanted = None;
+    }
     local.errors.retain(|(id, _)| *id != model.id);
     if let Err(error) = model.remove() {
         local.errors.push((model.id, format!("{error:#}")));
@@ -319,6 +354,14 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         local.installed = Some(MODELS.iter().map(LocalModel::installed).collect());
         changed = true;
     }
+    if live && let Some(wanted) = local.wanted {
+        // A choice made while another model was loading loads once it is done.
+        if engine::running_model() == Some(wanted.id) {
+            local.wanted = None;
+        } else if engine::state() != State::Loading {
+            engine::warm(wanted);
+        }
+    }
     if live {
         let engine = Some(engine::state());
         // While loading, its percentage moves.
@@ -337,6 +380,8 @@ pub(super) fn fixture(local: &mut LocalModels) {
     // Kept open, so the fixture's download never finishes.
     std::mem::forget(sender);
     local.installed = Some((0..MODELS.len()).map(|index| index > 0).collect());
+    // The last asks to confirm its delete.
+    local.confirm_delete = MODELS.last().map(|model| model.id);
     local.downloads.push(Download {
         model: MODELS[0].id,
         canceled: Arc::new(AtomicBool::new(false)),
