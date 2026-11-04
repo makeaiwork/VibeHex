@@ -14,6 +14,8 @@ pub enum HotkeyAction {
     CancelShortcut,
     PasteLast,
     PasteMeeting,
+    /// Labs › Add to vocabulary from a selection (macOS).
+    VocabularyAdd,
 }
 
 impl HotkeyAction {

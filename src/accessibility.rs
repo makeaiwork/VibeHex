@@ -22,6 +22,11 @@ unsafe extern "C" {
         attribute: CfStringRef,
         value: CfTypeRef,
     ) -> i32;
+    fn AXUIElementIsAttributeSettable(
+        element: AxUiElementRef,
+        attribute: CfStringRef,
+        settable: *mut u8,
+    ) -> i32;
     fn AXUIElementCopyParameterizedAttributeValue(
         element: AxUiElementRef,
         parameterized_attribute: CfStringRef,
@@ -233,6 +238,72 @@ pub fn char_before_caret(pid: i32) -> Option<char> {
     })
 }
 
+/// Text selected in an application's focused element, kept so Labs › Add
+/// to vocabulary can put the right spelling in its place.
+pub struct Selection {
+    element: CfObject,
+    /// What is selected, trimmed.
+    pub text: String,
+    /// Whether the element takes new text for its selection: false for a
+    /// message already sent or other text that can't be edited.
+    pub replaceable: bool,
+}
+
+// SAFETY: An AXUIElement is an immutable Core Foundation reference to
+// another process's element; the Accessibility API may be called on it from
+// any thread.
+unsafe impl Send for Selection {}
+
+impl Selection {
+    /// Puts `text` in place of the selection; false when the app refuses.
+    pub fn replace(&self, text: &str) -> bool {
+        if !self.replaceable {
+            return false;
+        }
+        let Some(attribute) = cf_string_literal(c"AXSelectedText").map(CfObject) else {
+            return false;
+        };
+        let Ok(value) = std::ffi::CString::new(text) else {
+            return false;
+        };
+        let Some(value) = cf_string_literal(&value).map(CfObject) else {
+            return false;
+        };
+        // SAFETY: A live element, a CFString name, and a CFString value.
+        unsafe { AXUIElementSetAttributeValue(self.element.0, attribute.0, value.0) == 0 }
+    }
+}
+
+/// The text selected in application `pid`'s focused element, through
+/// Accessibility, never the clipboard. Chromium-based apps (Electron
+/// editors, browsers) build that tree only once asked, as `browser_pages`
+/// does. `None` when nothing is selected or the app doesn't say.
+pub fn selection(pid: i32) -> Option<Selection> {
+    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
+    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    request_web_accessibility(pid, &application);
+    let element = copy_element(&application, c"AXFocusedUIElement")?;
+    let text = copy_string(&element, c"AXSelectedText")?;
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let replaceable = cf_string_literal(c"AXSelectedText")
+        .map(CfObject)
+        .is_some_and(|attribute| {
+            let mut settable = 0_u8;
+            // SAFETY: A live element, a CFString name, and a byte for the Boolean.
+            let status =
+                unsafe { AXUIElementIsAttributeSettable(element.0, attribute.0, &mut settable) };
+            status == 0 && settable != 0
+        });
+    Some(Selection {
+        element,
+        text,
+        replaceable,
+    })
+}
+
 fn copy_range(element: &CfObject, name: &CStr) -> Option<CfRange> {
     let value = copy_attribute(element, name)?;
     if unsafe { CFGetTypeID(value.0) } != unsafe { AXValueGetTypeID() } {
@@ -357,5 +428,6 @@ mod tests {
         assert_eq!(focused_window_title(i32::MAX), None);
         assert_eq!(focused_web_url(i32::MAX), None);
         assert_eq!(char_before_caret(i32::MAX), None);
+        assert!(selection(i32::MAX).is_none());
     }
 }

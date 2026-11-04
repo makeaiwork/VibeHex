@@ -263,8 +263,11 @@ impl Hotkeys {
                 Some(HotkeyAction::Start) if others_recording => {
                     machine.suspend();
                 }
-                Some(HotkeyAction::PasteLast | HotkeyAction::PasteMeeting)
-                    if shortcut != Shortcut::Dictation => {}
+                Some(
+                    HotkeyAction::PasteLast
+                    | HotkeyAction::PasteMeeting
+                    | HotkeyAction::VocabularyAdd,
+                ) if shortcut != Shortcut::Dictation => {}
                 Some(action) => actions.push((shortcut, action)),
                 None => {}
             }
@@ -1308,6 +1311,15 @@ fn handle_hotkey_action(
                 events.dictation(DictationPhase::Failed(error.into()), "")?;
             }
             emit_engine_state(events, false, worker, device)
+        }
+        HotkeyAction::VocabularyAdd => {
+            // Its chord's modifier press started a provisional capture.
+            feedback::retract_start();
+            dictation.cancel()?;
+            if crate::labs::vocabulary_quick_add() {
+                crate::rune_ui::vocabulary_card::open_for_selection();
+            }
+            Ok(())
         }
     }?;
     Ok(true)

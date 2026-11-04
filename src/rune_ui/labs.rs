@@ -284,6 +284,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
     }
     if caps.os == super::platform::Os::Macos {
         rows.push(row(
+            Feature::VocabularyQuickAdd,
+            &BOOK,
+            tr("Add to vocabulary from a selection"),
+            tr("Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"),
+        ));
+        rows.push(row(
             Feature::MouseShortcuts,
             &MOUSE,
             tr("Mouse shortcuts"),
@@ -512,6 +518,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::AiCleanupServer => "lab-ai-cleanup-server",
         Feature::VocabularyPasteList => "lab-vocabulary-paste-list",
         Feature::RussianVibeCoding => "lab-russian-vibe-coding",
+        Feature::VocabularyQuickAdd => "lab-vocabulary-quick-add",
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::SmartSpacing => "lab-smart-spacing",

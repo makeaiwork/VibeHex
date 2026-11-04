@@ -220,6 +220,12 @@ const KEYS: &[Key] = &[
          external keyboard (macOS, with labs.second_dictation_shortcut); none (the default) \
          turns it off",
     ),
+    optional(
+        "vocabulary_add_hotkey",
+        Kind::Shortcut(HotkeySlot::VocabularyAdd),
+        "Labs: adds the selected misheard word to Vocabulary (macOS, with \
+         labs.vocabulary_quick_add); option+shift+a by default, none turns it off",
+    ),
     key(
         "show_dock_icon",
         Kind::Bool,
@@ -452,6 +458,11 @@ const KEYS: &[Key] = &[
         "labs.russian_vibe_coding",
         Kind::Bool,
         "Labs: turning it on adds the Russian vibe-coding vocabulary, Global's word fixes and AI cleanup instructions, and turns on Clean up with AI and labs.ai_cleanup_server and labs.vocabulary_paste_list; off takes back the terms, fixes, and instructions",
+    ),
+    key(
+        "labs.vocabulary_quick_add",
+        Kind::Bool,
+        "Labs: a shortcut (vocabulary_add_hotkey) adds a selected misheard word to Vocabulary with its right spelling and replaces the selection where it can (macOS)",
     ),
     key(
         "labs.meeting_summary_model",
@@ -1009,6 +1020,7 @@ pub fn apply(
         | "paste_last_hotkey"
         | "raw_dictation_hotkey"
         | "second_dictation_hotkey"
+        | "vocabulary_add_hotkey"
         | "cancel_hotkey"
         | "capture.hotkey" => {
             let Kind::Shortcut(slot) = key.kind else {
@@ -1019,6 +1031,7 @@ pub fn apply(
                 HotkeySlot::PasteLast => candidate.paste_last_hotkey.as_ref(),
                 HotkeySlot::RawDictation => candidate.raw_dictation_hotkey.as_ref(),
                 HotkeySlot::SecondDictation => candidate.second_dictation_hotkey.as_ref(),
+                HotkeySlot::VocabularyAdd => candidate.vocabulary_add_hotkey.as_ref(),
                 HotkeySlot::Cancel => Some(&candidate.cancel_hotkey),
                 #[cfg(hex_capture)]
                 HotkeySlot::Capture => Some(&candidate.capture.hotkey),

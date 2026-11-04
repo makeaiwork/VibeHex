@@ -64,6 +64,8 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Clean up on your own server no labs.ai_cleanup_server + dictation_processing.server
 │                                        every mode's rewrite runs on OpenRouter or an OpenAI-compatible server (LM Studio, Ollama) instead of OpenCode; Output shows its AI cleanup section
 ├── Vocabulary text view no labs.vocabulary_paste_list  the Vocabulary sheet's Text view edits the whole list as text, "Term | sounds like, …" per line; Save replaces the list (vocabulary.md)
+├── Add to vocabulary from a selection no labs.vocabulary_quick_add + vocabulary_add_hotkey (macOS)
+│                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on); off: takes back what still reads as the preset wrote it
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
@@ -983,6 +985,32 @@ Checks: `a_pasted_list_reads_terms_and_spellings_per_line`,
 `mac-settings-vocabulary-text` (no golden). Not yet observed: Text view in a
 running Hex.
 
+Add to vocabulary from a selection (`vocabulary-quick-add`, macOS): turn a
+misheard word into a Vocabulary entry where it was misheard.
+
+```ts
+⌥⇧A (vocabulary_add_hotkey; General › Output while on, rebindable, a key required)
+├── Gate        labs::vocabulary_quick_add() where the listener handles the action, and
+│               RuntimeHotkeys::vocabulary_add only while on (suppression::paste_action)
+├── Selection   accessibility::selection: the focused element's AXSelectedText (Chromium
+│               apps asked for their tree first), never the clipboard; else
+│               paste::copy_selection: ⌘C, read, the clipboard put back (400 ms)
+├── Card        rune_ui::vocabulary_card, a key-taking nonactivating overlay under the
+│   │           menu bar on the pointer's screen: Heard (the selection) and Should be
+│   │           (focused; prefilled when Heard is already a term's spelling)
+│   ├── Add / Return -> saved as `hex vocabulary add` does (term + Heard as a spelling),
+│   │       Runtime ReloadSettings; then AXSelectedText := term where settable
+│   │       (a sent message keeps its text; the card says so before Add)
+│   └── Cancel, Escape, or a click into another app -> closes, nothing saved
+└── Nothing selected -> the card opens with Heard empty and focused
+```
+
+Checks: `the_vocabulary_shortcut_needs_its_lab_and_its_own_keys` in
+[app_settings.rs](../../src/app_settings.rs), `a_listed_spelling_or_term_finds_its_term`
+in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs). The card
+has no scene. Not yet observed: the shortcut, card, and replacement in a
+running Hex, across native, Chromium, and terminal apps.
+
 Russian vibe coding (`russian-vibe-coding`, every OS) is a preset, not a
 runtime gate: turning it on (the row, `hex labs on`, or
 `hex settings set labs.russian_vibe_coding true`) writes
@@ -995,7 +1023,7 @@ on
 ├── replacements-ru.json      added to Global's word fixes, unless a fix for the same phrase exists
 ├── cleanup-instructions-ru.txt  Global's instructions: replaces Hex's default prompt, else appended once
 ├── Global's Clean up with AI    on (it runs where Output says: OpenCode, OpenRouter, or your server)
-└── Labs it builds on            Clean up on your own server and Paste vocabulary as a list on
+└── Labs it builds on            Clean up on your own server and Vocabulary text view on
 off
 ├── vocabulary entries and fixes exactly as the preset wrote them are removed; edited ones stay
 ├── instructions: only the preset's text is removed; if nothing else was there, Hex's default

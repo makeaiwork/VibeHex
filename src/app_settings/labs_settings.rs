@@ -72,6 +72,8 @@ pub struct LabsSettings {
     pub vocabulary_paste_list: bool,
     /// The Russian vibe-coding preset is written into these settings.
     pub russian_vibe_coding: bool,
+    /// A shortcut adds a selected misheard word to Vocabulary (macOS).
+    pub vocabulary_quick_add: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -118,6 +120,7 @@ impl Default for LabsSettings {
             ai_cleanup_server: false,
             vocabulary_paste_list: false,
             russian_vibe_coding: false,
+            vocabulary_quick_add: false,
         }
     }
 }

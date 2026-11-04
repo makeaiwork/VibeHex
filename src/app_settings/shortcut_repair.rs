@@ -157,6 +157,10 @@ impl AppSettings {
             self.raw_dictation_hotkey = None;
             reset = true;
         }
+        if self.vocabulary_add_hotkey.as_ref().is_some_and(&matches) {
+            self.vocabulary_add_hotkey = HotkeyBinding::vocabulary_add_default();
+            reset = true;
+        }
         if self.second_dictation_hotkey.as_ref().is_some_and(&matches) {
             self.second_dictation_hotkey = None;
             reset = true;

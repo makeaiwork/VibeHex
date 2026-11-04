@@ -102,10 +102,11 @@ pub enum Feature {
     AiCleanupServer,
     VocabularyPasteList,
     RussianVibeCoding,
+    VocabularyQuickAdd,
 }
 
 impl Feature {
-    pub const ALL: [Self; 43] = [
+    pub const ALL: [Self; 44] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -149,6 +150,7 @@ impl Feature {
         Self::AiCleanupServer,
         Self::VocabularyPasteList,
         Self::RussianVibeCoding,
+        Self::VocabularyQuickAdd,
     ];
 
     /// The features this OS and build have.
@@ -214,7 +216,8 @@ impl Feature {
             | Self::MeetingSummaryModel
             | Self::AiCleanupServer
             | Self::VocabularyPasteList
-            | Self::RussianVibeCoding => Audience::Everyone,
+            | Self::RussianVibeCoding
+            | Self::VocabularyQuickAdd => Audience::Everyone,
         }
     }
 
@@ -263,7 +266,8 @@ impl Feature {
             | Self::SidedChords
             | Self::TapOrHold
             | Self::RecentDictations
-            | Self::HideMenuBarIcon => cfg!(target_os = "macos"),
+            | Self::HideMenuBarIcon
+            | Self::VocabularyQuickAdd => cfg!(target_os = "macos"),
             Self::KeyboardModelSwitching => crate::keyboard_input_sources::available(),
             Self::Playground
             | Self::LiveText
@@ -334,6 +338,7 @@ impl Feature {
             Self::AiCleanupServer => "ai-cleanup-server",
             Self::VocabularyPasteList => "vocabulary-paste-list",
             Self::RussianVibeCoding => "russian-vibe-coding",
+            Self::VocabularyQuickAdd => "vocabulary-quick-add",
         }
     }
 
@@ -383,6 +388,7 @@ impl Feature {
             Self::AiCleanupServer => "labs.ai_cleanup_server",
             Self::VocabularyPasteList => "labs.vocabulary_paste_list",
             Self::RussianVibeCoding => "labs.russian_vibe_coding",
+            Self::VocabularyQuickAdd => "labs.vocabulary_quick_add",
         }
     }
 
@@ -500,6 +506,9 @@ impl Feature {
             Self::RussianVibeCoding => {
                 "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI; off takes back what it added and you haven't changed"
             }
+            Self::VocabularyQuickAdd => {
+                "Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"
+            }
         }
     }
 
@@ -553,6 +562,7 @@ impl Feature {
             Self::AiCleanupServer => settings.labs.ai_cleanup_server,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list,
             Self::RussianVibeCoding => settings.labs.russian_vibe_coding,
+            Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add,
         }
     }
 
@@ -604,6 +614,7 @@ impl Feature {
             &mut labs.ai_cleanup_server,
             &mut labs.vocabulary_paste_list,
             &mut labs.russian_vibe_coding,
+            &mut labs.vocabulary_quick_add,
         ]
     }
 
@@ -654,6 +665,7 @@ impl Feature {
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model = on,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server = on,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
+            Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add = on,
             // The preset writes into the person's settings once, on the edge.
             Self::RussianVibeCoding => {
                 if settings.labs.russian_vibe_coding != on {
@@ -703,6 +715,7 @@ const MEETING_SUMMARY_MODEL: u64 = 1 << 24;
 const AI_CLEANUP_SERVER: u64 = 1 << 25;
 const VOCABULARY_PASTE_LIST: u64 = 1 << 26;
 const RUSSIAN_VIBE_CODING: u64 = 1 << 27;
+const VOCABULARY_QUICK_ADD: u64 = 1 << 28;
 /// Unload-idle minutes (at most 1,440, 11 bits) sit above the switches.
 const MINUTES_SHIFT: u64 = 32;
 
@@ -747,6 +760,12 @@ pub fn vocabulary_biasing() -> bool {
 
 /// Mouse buttons may be recorded as shortcuts (macOS).
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+/// Labs › Add to vocabulary from a selection: the shortcut that adds a
+/// selected misheard word to Vocabulary (macOS).
+pub fn vocabulary_quick_add() -> bool {
+    on(VOCABULARY_QUICK_ADD)
+}
+
 pub fn mouse_shortcuts() -> bool {
     on(MOUSE_SHORTCUTS)
 }
@@ -998,6 +1017,11 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             Feature::RussianVibeCoding,
             settings.russian_vibe_coding,
             RUSSIAN_VIBE_CODING,
+        ),
+        (
+            Feature::VocabularyQuickAdd,
+            settings.vocabulary_quick_add,
+            VOCABULARY_QUICK_ADD,
         ),
     ]
     .into_iter()

@@ -994,6 +994,7 @@ impl ShortcutSuppression {
                 capture: None,
                 raw_dictation: None,
                 second_dictation: None,
+                vocabulary_add: None,
                 cancel: None,
             },
             delivered,
@@ -1020,6 +1021,12 @@ fn paste_action(input: InputEvent, hotkeys: RuntimeHotkeys) -> Option<HotkeyActi
                 .paste_meeting
                 .filter(|binding| binding.matches_key_press(code, flags))
                 .map(|_| HotkeyAction::PasteMeeting)
+        })
+        .or_else(|| {
+            hotkeys
+                .vocabulary_add
+                .filter(|binding| binding.matches_key_press(code, flags))
+                .map(|_| HotkeyAction::VocabularyAdd)
         })
 }
 

@@ -673,6 +673,26 @@ impl HotkeyBinding {
         binding
     }
 
+    /// Option-Shift-A, Labs › Add to vocabulary from a selection; macOS
+    /// only, so elsewhere unbound.
+    pub fn vocabulary_add_default() -> Option<Self> {
+        #[cfg(target_os = "macos")]
+        let binding = Some(Self {
+            modifiers: HotkeyModifiers {
+                option: Some(ModifierSide::Either),
+                shift: Some(ModifierSide::Either),
+                ..Default::default()
+            },
+            key: Some(HotkeyKey {
+                code: layout_key_code('a').unwrap_or(0),
+                label: "A".into(),
+            }),
+        });
+        #[cfg(not(target_os = "macos"))]
+        let binding = None;
+        binding
+    }
+
     /// Option-Shift-S, Scrawl's capture shortcut; F9 on Linux. Annotate's
     /// one key is held to draw while the other hand moves the mouse, so on
     /// Linux it's a single key one hand holds easily: F9 is free in Hex's
@@ -1017,6 +1037,9 @@ pub struct RuntimeHotkeys {
     pub raw_dictation: Option<RuntimeHotkey>,
     /// Labs › Second dictation shortcut (macOS), while it is on and bound.
     pub second_dictation: Option<RuntimeHotkey>,
+    /// Labs › Add to vocabulary from a selection (macOS), while it is on
+    /// and bound.
+    pub vocabulary_add: Option<RuntimeHotkey>,
     /// Toggle mode's cancel shortcut. Not among [`RuntimeHotkeys::all`]:
     /// Hex takes it only while a toggled recording runs.
     pub cancel: Option<RuntimeHotkey>,
@@ -1024,7 +1047,7 @@ pub struct RuntimeHotkeys {
 
 impl RuntimeHotkeys {
     /// Every shortcut Hex matches, for suppression and chord evidence.
-    pub fn all(self) -> [Option<RuntimeHotkey>; 6] {
+    pub fn all(self) -> [Option<RuntimeHotkey>; 7] {
         [
             Some(self.dictation),
             self.paste_last,
@@ -1032,6 +1055,7 @@ impl RuntimeHotkeys {
             self.capture,
             self.raw_dictation,
             self.second_dictation,
+            self.vocabulary_add,
         ]
     }
 }
@@ -1046,6 +1070,7 @@ impl Default for RuntimeHotkeys {
             capture: None,
             raw_dictation: None,
             second_dictation: None,
+            vocabulary_add: None,
             cancel: None,
         }
     }

@@ -395,6 +395,41 @@ impl Paster {
     }
 }
 
+/// The frontmost app's selected text, copied with ⌘C, for Labs › Add to
+/// vocabulary where Accessibility can't read the selection. The clipboard
+/// is put back as it was; `None` when the copy didn't change it within
+/// `wait` or held no text.
+pub fn copy_selection(wait: Duration) -> Option<String> {
+    let clipboard = NSPasteboard::generalPasteboard();
+    let before = clipboard.changeCount();
+    let previous = match capture_clipboard(&clipboard) {
+        Ok(previous) => previous,
+        Err(error) => {
+            tracing::debug!(%error, "couldn't keep the clipboard to copy a selection");
+            return None;
+        }
+    };
+    if let Err(error) = keyboard::post_command('c') {
+        tracing::debug!(%error, "couldn't copy the selection");
+        return None;
+    }
+    let deadline = Instant::now() + wait;
+    while clipboard.changeCount() == before && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    if clipboard.changeCount() == before {
+        return None;
+    }
+    let text = clipboard
+        .stringForType(unsafe { NSPasteboardTypeString })
+        .map(|text| text.to_string());
+    if let Err(error) = restore_clipboard(&clipboard, &previous) {
+        tracing::warn!(%error, "could not restore the clipboard after copying a selection");
+    }
+    text.map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+}
+
 pub(crate) fn commit_prepared_paste<P, T>(
     prepare: impl FnOnce() -> Result<P>,
     commit: impl FnOnce() -> bool,

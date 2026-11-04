@@ -663,6 +663,10 @@ pub struct AppSettings {
     /// exactly as `dictation_hotkey` does (macOS). Unbound by default and
     /// ignored while its Labs toggle is off.
     pub second_dictation_hotkey: Option<HotkeyBinding>,
+    /// Labs › Add to vocabulary from a selection (macOS): adds the selected
+    /// misheard word to Vocabulary. Option-Shift-A by default; ignored while
+    /// its Labs toggle is off.
+    pub vocabulary_add_hotkey: Option<HotkeyBinding>,
     pub show_dock_icon: bool,
     pub transcription: TranscriptionSelection,
     /// Where the speech model runs (Linux and Windows).
@@ -794,6 +798,7 @@ impl Default for AppSettings {
             cancel_hotkey: HotkeyBinding::cancel_default(),
             raw_dictation_hotkey: None,
             second_dictation_hotkey: None,
+            vocabulary_add_hotkey: HotkeyBinding::vocabulary_add_default(),
             show_dock_icon: true,
             transcription: default_transcription(),
             transcription_device: TranscriptionDevice::Auto,
@@ -1364,6 +1369,9 @@ impl AppSettings {
             second_dictation: self
                 .active_second_dictation_hotkey()
                 .map(HotkeyBinding::runtime),
+            vocabulary_add: self
+                .active_vocabulary_add_hotkey()
+                .map(HotkeyBinding::runtime),
             cancel: self.active_cancel_hotkey().map(HotkeyBinding::runtime),
         }
     }
@@ -1385,6 +1393,18 @@ impl AppSettings {
         self.second_dictation_hotkey
             .as_ref()
             .filter(|binding| !self.hotkey_in_use(HotkeySlot::SecondDictation, binding))
+    }
+
+    /// Labs › Add to vocabulary from a selection's binding while it takes
+    /// effect: macOS, its toggle on, bound, and sharing no key with another
+    /// active shortcut.
+    pub fn active_vocabulary_add_hotkey(&self) -> Option<&HotkeyBinding> {
+        if !cfg!(target_os = "macos") || !self.labs.vocabulary_quick_add {
+            return None;
+        }
+        self.vocabulary_add_hotkey
+            .as_ref()
+            .filter(|binding| !self.hotkey_in_use(HotkeySlot::VocabularyAdd, binding))
     }
 
     /// Annotate is on: the person hasn't turned it off.
@@ -1429,6 +1449,14 @@ impl AppSettings {
             tracing::warn!("cleared a left-click second dictation shortcut");
             self.second_dictation_hotkey = None;
         }
+        if self
+            .vocabulary_add_hotkey
+            .as_ref()
+            .is_some_and(HotkeyBinding::is_bare_primary_click)
+        {
+            tracing::warn!("cleared a left-click add-to-vocabulary shortcut");
+            self.vocabulary_add_hotkey = None;
+        }
         #[cfg(hex_capture)]
         if self.capture.hotkey.is_bare_primary_click() {
             tracing::warn!("replaced a left-click capture shortcut with the default");
@@ -1456,6 +1484,8 @@ pub enum HotkeySlot {
     Capture,
     /// Labs › Second dictation shortcut (macOS).
     SecondDictation,
+    /// Labs › Add to vocabulary from a selection (macOS).
+    VocabularyAdd,
     /// Toggle mode's cancel shortcut.
     Cancel,
 }
@@ -1489,6 +1519,13 @@ impl AppSettings {
             && let Some(second) = &self.second_dictation_hotkey
         {
             others.push(second.clone());
+        }
+        if slot != HotkeySlot::VocabularyAdd
+            && cfg!(target_os = "macos")
+            && self.labs.vocabulary_quick_add
+            && let Some(add) = &self.vocabulary_add_hotkey
+        {
+            others.push(add.clone());
         }
         if cfg!(target_os = "macos") && self.meetings.available() {
             others.push(HotkeyBinding::paste_meeting_default());
@@ -1988,6 +2025,30 @@ mod tests {
             AppSettings::load_from(&dir.path).unwrap().vocabulary,
             loaded.vocabulary
         );
+    }
+
+    /// Labs › Add to vocabulary from a selection: Option-Shift-A by
+    /// default, matched only on macOS with its toggle on and never over
+    /// another shortcut's keys.
+    #[test]
+    fn the_vocabulary_shortcut_needs_its_lab_and_its_own_keys() {
+        let mut settings = AppSettings::default();
+        assert!(!settings.labs.vocabulary_quick_add);
+        assert_eq!(settings.runtime_hotkeys().vocabulary_add, None);
+        settings.labs.vocabulary_quick_add = true;
+        let active = settings.runtime_hotkeys().vocabulary_add;
+        if cfg!(target_os = "macos") {
+            let default = HotkeyBinding::vocabulary_add_default().unwrap();
+            assert_eq!(default.keycaps(), ["⌥", "⇧", "A"]);
+            assert_eq!(active, Some(default.runtime()));
+            assert!(settings.hotkey_in_use(HotkeySlot::PasteLast, &default));
+            let paste = settings.paste_last_hotkey.clone().unwrap();
+            assert!(settings.hotkey_in_use(HotkeySlot::VocabularyAdd, &paste));
+            settings.vocabulary_add_hotkey = Some(paste);
+            assert_eq!(settings.runtime_hotkeys().vocabulary_add, None);
+        } else {
+            assert_eq!(active, None);
+        }
     }
 
     /// Labs › Second dictation shortcut (issue 627): its binding takes

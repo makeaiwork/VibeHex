@@ -118,6 +118,8 @@ pub(crate) enum ShortcutTarget {
     RawDictation,
     /// Labs › Second dictation shortcut.
     SecondDictation,
+    /// Labs › Add to vocabulary from a selection.
+    VocabularyAdd,
     /// Toggle mode's cancel shortcut.
     Cancel,
 }
@@ -139,6 +141,25 @@ type Wake = Arc<dyn Fn() + Send + Sync>;
 struct Shared {
     published: Mutex<Option<Arc<Published>>>,
     wakers: Mutex<Vec<Wake>>,
+}
+
+/// Saves `term`, with `heard` among its spellings, as `hex vocabulary add`
+/// does, then lets the runtime and an open window adopt it.
+fn save_vocabulary_word(
+    runtime: &RuntimeHandle,
+    term: &str,
+    heard: &str,
+) -> std::result::Result<(), String> {
+    let mut settings = AppSettings::load().map_err(|error| format!("{error:#}"))?;
+    let heard: Vec<String> = (!heard.trim().is_empty())
+        .then(|| heard.to_string())
+        .into_iter()
+        .collect();
+    if crate::dictation::vocabulary::add(&mut settings.vocabulary, term, &heard)? {
+        settings.save().map_err(|error| format!("{error:#}"))?;
+        let _ = runtime.send(Request::ReloadSettings);
+    }
+    Ok(())
 }
 
 /// The window's and the menu bar's connection to the runtime.
@@ -503,6 +524,11 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
     };
     let hud = crate::rune_hud::install(&mut app);
     crate::rune_ui::live_text::install(&mut app, crate::rune_hud::live_text_place);
+    // Labs › Add to vocabulary from a selection.
+    crate::rune_ui::vocabulary_card::install(&mut app, {
+        let runtime = handle.clone();
+        Arc::new(move |term, heard| save_vocabulary_word(&runtime, &term, &heard))
+    });
     // The capture capsule, picker, and ink.
     #[cfg(hex_capture)]
     let capture_overlays =

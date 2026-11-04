@@ -62,6 +62,8 @@ mod spark;
 #[cfg(target_os = "macos")]
 pub(crate) mod story_link;
 mod vocabulary;
+#[cfg(target_os = "macos")]
+pub(crate) mod vocabulary_card;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -466,6 +468,11 @@ pub(crate) fn shortcut_rule(
         // meets the dictation shortcut's rules.
         #[cfg(not(target_os = "macos"))]
         HotkeySlot::SecondDictation => ShortcutTarget::Dictation,
+        #[cfg(target_os = "macos")]
+        HotkeySlot::VocabularyAdd => ShortcutTarget::VocabularyAdd,
+        // macOS's only; elsewhere a saved one needs a key, as Paste Last.
+        #[cfg(not(target_os = "macos"))]
+        HotkeySlot::VocabularyAdd => ShortcutTarget::PasteLast,
     };
     host::validate_hotkey(target, binding)
 }

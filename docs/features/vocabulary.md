@@ -33,6 +33,9 @@ General › Vocabulary   // vocabulary.settings; after Language
 │       does nothing; closing the window or sheet from Text view saves nothing
 │   Starter list for Russian vibe coding: docs/vocabulary/vibe-coding-ru.txt
 │                                                   // vocabulary.text-view
+├── Labs › Add to vocabulary from a selection (macOS) -> ⌥⇧A over a misheard
+│   word in any app adds it as a spelling of the term typed in its card, and
+│   puts the term in place of an editable selection (labs.md)
 ├── Edits -> Debounced drafts, like Modes' corrections -> settings.json `vocabulary`
 ├── × -> Removes that row at any click speed or focus; rows keep an identity,
 │   so a late edit, focus change, or second × for a removed row touches nothing
