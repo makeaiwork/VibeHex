@@ -22,16 +22,21 @@ General › Vocabulary   // vocabulary.settings; after Language
 ├── Add term -> New empty row, focused; the list glides to its end and the row
 │   rises 8 pt as it fades in (SETTLE, bounce 0; Reduce Motion: fade only);
 │   saved once the term has text
-├── Labs › Paste vocabulary as a list -> Paste list beside Add term: a field for
-│   one term per line, "Term | sounds like, sounds like" (a tab works as |;
-│   blank and # lines skipped); Add to list, or Done, merges it: a listed term
-│   (any case) gains the spellings it lacks, a new one gets a row at the end,
-│   and the list saves at once; Cancel drops it. Starter list for Russian
-│   vibe coding: docs/vocabulary/vibe-coding-ru.txt   // vocabulary.paste-list
+├── Labs › Vocabulary text view -> Text view beside Add term: the whole list
+│   as text, one term per line, "Term | sounds like, sounds like" (a tab works
+│   as |; blank and # lines skipped), in a sheet up to 900 pt wide that fills
+│   the window's height (24 pt margin) and scrolls inside the field
+│   ├── Save -> the list becomes exactly that text: an edited line fixes its
+│   │   term, a deleted line removes it, a pasted one adds it, repeats (any
+│   │   case) merge; saves at once and returns to the rows
+│   └── Cancel or Escape -> back to the rows, nothing saved; a press outside
+│       does nothing; closing the window or sheet from Text view saves nothing
+│   Starter list for Russian vibe coding: docs/vocabulary/vibe-coding-ru.txt
+│                                                   // vocabulary.text-view
 ├── Edits -> Debounced drafts, like Modes' corrections -> settings.json `vocabulary`
 ├── × -> Removes that row at any click speed or focus; rows keep an identity,
 │   so a late edit, focus change, or second × for a removed row touches nothing
-├── Done, Escape, or a press outside -> Saves, drops blank rows, closes
+├── Done, Escape, or a press outside (rows) -> Saves, drops blank rows, closes
 ├── Past the limits -> Keep the term (cut to 64 characters) and the spellings
 │   that fit; inline danger note    // never drops the term
 └── Boost -> no control in the window: Normal (default) unless changed with

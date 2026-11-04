@@ -385,10 +385,10 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = mac_fixture();
         vocabulary::fixture(ui, true);
     }),
-    ("mac-settings-vocabulary-paste", |ui| {
+    ("mac-settings-vocabulary-text", |ui| {
         *ui = mac_fixture();
         vocabulary::fixture(ui, true);
-        vocabulary::paste_fixture(ui);
+        vocabulary::text_fixture(ui);
     }),
     ("mac-settings-vocabulary-empty", |ui| {
         *ui = mac_fixture();

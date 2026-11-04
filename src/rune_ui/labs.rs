@@ -265,14 +265,14 @@ fn rows(ui: &Ui) -> Vec<Row> {
     rows.push(row(
         Feature::VocabularyPasteList,
         &BOOK,
-        tr("Paste vocabulary as a list"),
-        tr("Add many terms at once in the Vocabulary sheet: one per line, Term | sounds like"),
+        tr("Vocabulary text view"),
+        tr("Edit the whole Vocabulary as text, one term per line as Term | sounds like, to paste, fix, or delete many terms at once"),
     ));
     rows.push(row(
         Feature::RussianVibeCoding,
         &BOOK,
         tr("Russian vibe coding"),
-        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI, Clean up on your own server, and Paste vocabulary as a list. Off takes back the terms, fixes, and instructions"),
+        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI, Clean up on your own server, and Vocabulary text view. Off takes back the terms, fixes, and instructions"),
     ));
     if caps.keyboard_model_switching {
         rows.push(row(

@@ -495,7 +495,7 @@ impl Feature {
                 "Clean up dictations with OpenRouter or your own OpenAI-compatible server, such as LM Studio or Ollama, instead of OpenCode"
             }
             Self::VocabularyPasteList => {
-                "The Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like"
+                "The Vocabulary sheet's Text view shows the whole list as text, one term per line as Term | sounds like, sounds like, to paste, fix, or delete many at once"
             }
             Self::RussianVibeCoding => {
                 "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI; off takes back what it added and you haven't changed"

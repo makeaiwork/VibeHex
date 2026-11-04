@@ -16,6 +16,12 @@ use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::vocabulary::{self, VocabularyEntry};
 
 const MODAL_WIDTH: f32 = 620.0;
+/// Text view's widest: wider than the rows, so long spelling lists fit on
+/// a line; a narrower window narrows it.
+const TEXT_MODAL_WIDTH: f32 = 900.0;
+/// Room around Text view's sheet: it fills the window's height inside it,
+/// so a taller window shows more of the list.
+const TEXT_MODAL_MARGIN: f32 = 24.0;
 const PADDING: f32 = 18.0;
 /// One term row: a regular text field and its padding.
 const ROW_HEIGHT: f32 = 36.0;
@@ -50,9 +56,10 @@ pub(super) struct VocabularyEditor {
     /// with motion, so opening the sheet never animates its rows.
     added: Option<u64>,
     pub(super) open: bool,
-    /// Labs › Paste vocabulary as a list: the pasted text while the sheet
-    /// shows the paste field instead of its rows.
-    paste: Option<TextEdit>,
+    /// Labs › Vocabulary text view: the whole list as text while the sheet
+    /// shows it instead of its rows. Save replaces the list with it; Cancel
+    /// and Escape leave the list as it was.
+    text: Option<TextEdit>,
 }
 
 impl VocabularyEditor {
@@ -171,8 +178,8 @@ pub(super) fn close(ui: &mut Ui) {
     if !ui.vocabulary.open {
         return;
     }
-    // A pasted list not yet added goes in, as Done means keep what's typed.
-    merge_pasted(ui);
+    // Text view not saved changes nothing, as Escape and Cancel do.
+    ui.vocabulary.text = None;
     ui.vocabulary.open = false;
     ui.vocabulary.added = None;
     ui.flush_drafts();
@@ -198,79 +205,87 @@ fn add_term(ui: &mut Ui, tx: &mut Tx) {
     tx.scroll_to_bottom("term-scroll");
 }
 
-/// Adds the pasted list's terms: a term already listed (any case) gains the
-/// spellings it lacks, a new one gets its own row at the end, and the list
-/// saves at once.
-fn add_pasted(ui: &mut Ui, tx: &mut Tx) {
-    if merge_pasted(ui) {
-        tx.scroll_to_bottom("term-scroll");
+/// Escape, or the sheet's dismissal: Text view goes back to the rows
+/// without saving; otherwise the sheet saves and closes.
+pub(super) fn dismiss(ui: &mut Ui) {
+    if ui.vocabulary.text.is_some() {
+        ui.vocabulary.text = None;
+    } else {
+        close(ui);
     }
 }
 
-/// [`add_pasted`] without the scroll; false when nothing was pasted.
-fn merge_pasted(ui: &mut Ui) -> bool {
-    let Some(paste) = ui.vocabulary.paste.take() else {
-        return false;
+/// Text view: the list as it would save, one term per line, in a field
+/// that takes the keyboard.
+fn open_text(ui: &mut Ui) {
+    if !ui.settings.labs.vocabulary_paste_list {
+        return;
+    }
+    for row in &mut ui.vocabulary.rows {
+        row.term.focused = false;
+        row.sounds_like.focused = false;
+    }
+    let mut text = TextEdit::new(vocabulary::to_list(&ui.vocabulary.project()));
+    text.focused = true;
+    ui.vocabulary.text = Some(text);
+}
+
+/// The entries Text view's `text` saves as, and whether the limits cut any:
+/// repeated terms merge, as rows do.
+fn parsed(text: &str) -> (Vec<VocabularyEntry>, bool) {
+    let mut entries = Vec::new();
+    let mut clamped = false;
+    for (term, spellings) in vocabulary::parse_list(text) {
+        clamped |= vocabulary::add_clamped(&mut entries, &term, &spellings);
+    }
+    (entries, clamped)
+}
+
+/// Save: the list becomes exactly what Text view holds, so a deleted line
+/// removes its term, and it saves at once.
+fn save_text(ui: &mut Ui) {
+    let Some(text) = ui.vocabulary.text.take() else {
+        return;
     };
-    for (term, spellings) in vocabulary::parse_list(&paste.text) {
-        let existing = ui
-            .vocabulary
-            .rows
-            .iter_mut()
-            .find(|row| row.term.text.trim().to_lowercase() == term.to_lowercase());
-        match existing {
-            Some(row) => {
-                let mut kept = vocabulary::parse_sounds_like(&row.sounds_like.text);
-                for spelling in spellings {
-                    if !kept
-                        .iter()
-                        .any(|old| old.to_lowercase() == spelling.to_lowercase())
-                    {
-                        kept.push(spelling);
-                    }
-                }
-                row.sounds_like = TextEdit::new(kept.join(", "));
-            }
-            None => {
-                ui.vocabulary
-                    .push(TextEdit::new(term), TextEdit::new(spellings.join(", ")));
-            }
-        }
-    }
-    // The blank row an empty list opens with has nothing to keep.
-    ui.vocabulary
-        .rows
-        .retain(|row| !row.term.text.trim().is_empty() || !row.sounds_like.text.trim().is_empty());
+    let entries = parsed(&text.text).0;
+    ui.vocabulary.reload(&entries);
     ui.flush_drafts();
-    true
+    // An emptied list shows a row to type into, as opening it empty does.
+    if ui.vocabulary.rows.is_empty() {
+        add_row(ui);
+    }
 }
 
-/// The paste field's tallest: about 14 lines, then it scrolls.
-const PASTE_FIELD_MAX: f32 = 260.0;
-
-/// The paste field, with how to write a line.
-fn paste_field(p: Paint, paste: &TextEdit) -> El {
+/// Text view's field, with how to write a line. It fills the sheet's
+/// height and scrolls past it.
+fn text_field(p: Paint, edit: &TextEdit) -> El {
     col()
-        .key("paste")
+        .key("text-view")
         .gap(8.0)
+        .grow(1.0)
+        .shrink()
+        // Without this its text's height would be its least, and a long
+        // list would push Save off the sheet instead of scrolling.
+        .min_h(0.0)
         .child(
             text(tr("One term per line: Term | sounds like, sounds like"))
-                .key("paste-hint")
+                .key("text-hint")
                 .font(DESCRIPTION)
                 .color(p.muted())
                 .wrap(),
         )
         .child(
-            TextArea::new(paste)
-                .placeholder("Claude Code | клод код, клот код\nMCP | эм си пи\nGitHub | гитхаб")
-                .rows(10)
-                // A long list scrolls inside the field, so Add to list and
-                // Cancel stay on screen.
-                .max_height(PASTE_FIELD_MAX)
+            TextArea::new(edit)
+                .placeholder("Claude Code | clod code, cloud code\nGitHub | git hub")
+                .rows(6)
+                // Far past any window: the sheet's height bounds it.
+                .max_height(f32::MAX / 4.0)
                 .width(None)
-                .on_edit(|ui: &mut Ui| ui.vocabulary.paste.get_or_insert_with(TextEdit::default))
+                .on_edit(|ui: &mut Ui| ui.vocabulary.text.get_or_insert_with(TextEdit::default))
                 .build(p.k)
-                .key("paste-text"),
+                .key("text")
+                .grow(1.0)
+                .shrink(),
         )
 }
 
@@ -354,24 +369,9 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
         .h(height.min(ROWS_HEIGHT))
         .mx(-SIDE_ROOM)
         .child(super::faded_body("term-scroll", rows, FADES));
-    let pasting = ui.vocabulary.paste.as_ref();
-    let leading = match pasting {
-        Some(_) => vec![
-            button(
-                p,
-                "add-pasted",
-                tr("Add to list"),
-                ButtonKind::Primary,
-                add_pasted,
-            ),
-            button(
-                p,
-                "cancel-paste",
-                tr("Cancel"),
-                ButtonKind::Secondary,
-                |ui: &mut Ui, _| ui.vocabulary.paste = None,
-            ),
-        ],
+    let editing = ui.vocabulary.text.as_ref();
+    let leading = match editing {
+        Some(_) => Vec::new(),
         None => {
             let mut buttons = vec![button(
                 p,
@@ -383,28 +383,33 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
             if ui.settings.labs.vocabulary_paste_list {
                 buttons.push(button(
                     p,
-                    "paste-list",
-                    tr("Paste list"),
+                    "text-view",
+                    tr("Text view"),
                     ButtonKind::Secondary,
-                    |ui: &mut Ui, _| {
-                        if ui.settings.labs.vocabulary_paste_list {
-                            let mut paste = TextEdit::default();
-                            paste.focused = true;
-                            ui.vocabulary.paste = Some(paste);
-                        }
-                    },
+                    |ui: &mut Ui, _| open_text(ui),
                 ));
             }
             buttons
         }
     };
-    let footer = row()
-        .key("footer")
-        .gap(12.0)
-        .center_y()
-        .children(leading)
-        .child(el().key("spacer").grow(1.0))
-        .child(
+    let trailing = match editing {
+        Some(_) => vec![
+            button(
+                p,
+                "cancel-text",
+                tr("Cancel"),
+                ButtonKind::Secondary,
+                |ui: &mut Ui, _| ui.vocabulary.text = None,
+            ),
+            button(
+                p,
+                "save-text",
+                tr("Save"),
+                ButtonKind::Primary,
+                |ui: &mut Ui, _| save_text(ui),
+            ),
+        ],
+        None => vec![
             button(
                 p,
                 "close-vocabulary",
@@ -413,7 +418,15 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
                 |ui: &mut Ui, _| close(ui),
             )
             .default_button(),
-        );
+        ],
+    };
+    let footer = row()
+        .key("footer")
+        .gap(12.0)
+        .center_y()
+        .children(leading)
+        .child(el().key("spacer").grow(1.0))
+        .children(trailing);
     let mut heading = col()
         .key("heading")
         .gap(4.0)
@@ -457,26 +470,33 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
                 .wrap(),
         );
     }
-    let mut panel = col()
+    let panel = col()
         .key("vocabulary")
         .role("dialog")
-        .label(tr("Vocabulary"))
-        .w(MODAL_WIDTH)
-        .pt(PADDING)
-        .px(PADDING)
-        .pb(14.0)
-        .gap(12.0)
-        .radius(p.k.radius.xl)
-        .fill(c.bg_base)
-        .border(p.hair, c.border_weak)
-        // Presses inside the panel stay inside.
-        .on_press(|_: &mut Ui| {})
-        .child(heading)
-        .child(match pasting {
-            Some(paste) => paste_field(p, paste),
-            None => terms,
-        });
-    if ui.vocabulary.clamped() {
+        .label(tr("Vocabulary"));
+    let mut panel = match editing {
+        Some(_) => panel.w_full().max_w(TEXT_MODAL_WIDTH).h_full(),
+        None => panel.w(MODAL_WIDTH),
+    }
+    .pt(PADDING)
+    .px(PADDING)
+    .pb(14.0)
+    .gap(12.0)
+    .radius(p.k.radius.xl)
+    .fill(c.bg_base)
+    .border(p.hair, c.border_weak)
+    // Presses inside the panel stay inside.
+    .on_press(|_: &mut Ui| {})
+    .child(heading)
+    .child(match editing {
+        Some(edit) => text_field(p, edit),
+        None => terms,
+    });
+    let clamped = match editing {
+        Some(edit) => parsed(&edit.text).1,
+        None => ui.vocabulary.clamped(),
+    };
+    if clamped {
         panel = panel.child(
             note(
                 "limits",
@@ -497,17 +517,28 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
             .w_full()
             .h_full()
     };
+    // A press outside Text view keeps it, so a stray click never throws
+    // away an edited list; only Save, Cancel, and Escape leave it.
+    let outside = editing.is_none();
+    let mut layer_el = layer("vocabulary-layer").center();
+    if !outside {
+        layer_el = layer_el.padding(TEXT_MODAL_MARGIN);
+    }
     Some([
         layer("vocabulary-scrim")
             .fill(c.scrim)
-            .on_press(close)
+            .on_press(move |ui: &mut Ui| {
+                if outside {
+                    close(ui);
+                }
+            })
             .transition(modal_scrim_transition(p)),
-        layer("vocabulary-layer")
-            .center()
+        layer_el
             .transition(modal_transition(p))
-            // Keys stay inside, Escape or a press outside closes, and focus
-            // returns to the row's button that opened it.
-            .child(panel.modal(true, close)),
+            // Keys stay inside, Escape (or a press outside the rows) closes
+            // or leaves Text view, and focus returns to the row's button
+            // that opened it.
+            .child(panel.modal(outside, dismiss)),
     ])
 }
 
@@ -539,14 +570,13 @@ pub(super) fn fixture(ui: &mut Ui, filled: bool) {
     }
 }
 
-/// The paste field open over a filled list (Labs › Paste vocabulary as a
-/// list), holding the whole Russian starter list, so it shows the field at
-/// its tallest with Add to list and Cancel below it.
-pub(super) fn paste_fixture(ui: &mut Ui) {
+/// Text view open over a filled list (Labs › Vocabulary text view),
+/// holding the whole Russian starter list, so the field fills the sheet and
+/// scrolls, with Cancel and Save below it.
+pub(super) fn text_fixture(ui: &mut Ui) {
     ui.settings.labs.vocabulary_paste_list = true;
-    ui.vocabulary.paste = Some(TextEdit::new(include_str!(
-        "../../docs/vocabulary/vibe-coding-ru.txt"
-    )));
+    let (entries, _) = parsed(include_str!("../../docs/vocabulary/vibe-coding-ru.txt"));
+    ui.vocabulary.text = Some(TextEdit::new(vocabulary::to_list(&entries)));
 }
 
 #[cfg(test)]
@@ -603,34 +633,88 @@ mod tests {
         );
     }
 
-    /// Labs › Paste vocabulary as a list: listed terms gain new spellings,
-    /// new ones get rows, and the list saves at once.
+    /// Labs › Vocabulary text view: the list opens as text, and Save makes
+    /// the list exactly that text: edits fix terms, deleted lines remove
+    /// them, pasted lines add them, and repeats merge.
     #[test]
-    fn a_pasted_list_merges_into_the_rows_and_saves() {
+    fn text_view_saves_the_list_it_shows() {
         let mut ui = ui();
         fixture(&mut ui, true);
-        ui.vocabulary.paste = Some(TextEdit::new(
-            "rune | rune engine, roon\nClaude Code | клод код\n\nMCP | эм си пи",
-        ));
-        assert!(merge_pasted(&mut ui));
-        assert!(ui.vocabulary.paste.is_none());
-        let saved = &ui.settings.vocabulary;
-        let rune = saved.iter().find(|entry| entry.term == "Rune").unwrap();
-        assert_eq!(rune.sounds_like, ["roon", "rune engine"]);
-        assert_eq!(saved.len(), 7);
-        assert_eq!(saved[5].term, "Claude Code");
-        assert_eq!(saved[5].sounds_like, ["клод код"]);
-        assert_eq!(saved[6].term, "MCP");
-        assert!(!merge_pasted(&mut ui), "nothing pasted twice");
-
-        ui.vocabulary.paste = Some(TextEdit::new("GitHub | гитхаб"));
-        close(&mut ui);
-        assert!(
-            ui.settings
-                .vocabulary
-                .iter()
-                .any(|entry| entry.term == "GitHub")
+        ui.settings.labs.vocabulary_paste_list = true;
+        open_text(&mut ui);
+        let shown = ui.vocabulary.text.as_ref().unwrap();
+        assert!(shown.focused);
+        assert_eq!(
+            shown.text,
+            "cappuccino | capuchin, cap a chino\nOpenCode | open code\nRune | roon\nParakeet\nDax | Dex, Docs\n"
         );
+        ui.vocabulary.text = Some(TextEdit::new(
+            "cappuccino | capuchin\nRune | roon, rune engine\nClaude Code | клод код\n\nclaude code | клот код\n",
+        ));
+        save_text(&mut ui);
+        assert!(ui.vocabulary.text.is_none());
+        assert!(ui.vocabulary.open);
+        let saved: Vec<(&str, Vec<&str>)> = ui
+            .settings
+            .vocabulary
+            .iter()
+            .map(|entry| {
+                (
+                    entry.term.as_str(),
+                    entry.sounds_like.iter().map(String::as_str).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            saved,
+            [
+                ("cappuccino", vec!["capuchin"]),
+                ("Rune", vec!["roon", "rune engine"]),
+                ("Claude Code", vec!["клод код", "клот код"]),
+            ]
+        );
+        assert_eq!(terms(&ui), ["cappuccino", "Rune", "Claude Code"]);
+    }
+
+    /// Escape and Cancel leave Text view without saving, and closing the
+    /// sheet from Text view saves nothing either.
+    #[test]
+    fn leaving_text_view_without_save_keeps_the_list() {
+        let mut ui = ui();
+        fixture(&mut ui, true);
+        ui.settings.labs.vocabulary_paste_list = true;
+        let before = ui.settings.vocabulary.clone();
+        open_text(&mut ui);
+        ui.vocabulary.text = Some(TextEdit::new("only this"));
+        dismiss(&mut ui);
+        assert!(ui.vocabulary.open, "Escape leaves Text view, not the sheet");
+        assert!(ui.vocabulary.text.is_none());
+        assert_eq!(ui.settings.vocabulary, before);
+
+        open_text(&mut ui);
+        ui.vocabulary.text = Some(TextEdit::new("only this"));
+        close(&mut ui);
+        assert!(!ui.vocabulary.open);
+        assert_eq!(ui.settings.vocabulary, before);
+
+        // Without the Labs switch, Text view doesn't open.
+        ui.settings.labs.vocabulary_paste_list = false;
+        open(&mut ui);
+        open_text(&mut ui);
+        assert!(ui.vocabulary.text.is_none());
+    }
+
+    /// Saving an empty Text view empties the list.
+    #[test]
+    fn an_emptied_text_view_saves_no_terms() {
+        let mut ui = ui();
+        fixture(&mut ui, true);
+        ui.settings.labs.vocabulary_paste_list = true;
+        open_text(&mut ui);
+        ui.vocabulary.text = Some(TextEdit::new("# nothing\n\n"));
+        save_text(&mut ui);
+        assert!(ui.settings.vocabulary.is_empty());
+        assert_eq!(summary(&ui), "None");
     }
 
     #[test]

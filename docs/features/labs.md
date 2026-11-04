@@ -63,7 +63,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 │                                        OpenCode meeting notes use exactly that provider/model, no fallback; Meetings › Settings › Advanced shows its field (#1107)
 ├── Clean up on your own server no labs.ai_cleanup_server + dictation_processing.server
 │                                        every mode's rewrite runs on OpenRouter or an OpenAI-compatible server (LM Studio, Ollama) instead of OpenCode; Output shows its AI cleanup section
-├── Paste vocabulary as a list no labs.vocabulary_paste_list  the Vocabulary sheet's Paste list adds many terms at once, "Term | sounds like, …" per line (vocabulary.md)
+├── Vocabulary text view no labs.vocabulary_paste_list  the Vocabulary sheet's Text view edits the whole list as text, "Term | sounds like, …" per line; Save replaces the list (vocabulary.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on); off: takes back what still reads as the preset wrote it
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
@@ -962,20 +962,25 @@ On 2026-11-03 against LM Studio with `gemma-4-e4b-it-mlx@4bit` it passed 62 of
 тот внизу» stays unfixed (should be «если… то»), and that answer dropped a
 word.
 
-Paste vocabulary as a list (`vocabulary-paste-list`, every OS; its row shows
-under Clean up on your own server): the Vocabulary sheet gains Paste list,
-so a long list goes in at once instead of row by row. The behaviour is in
-[vocabulary.md](vocabulary.md); the gate is the toggle itself, checked where
-the button shows and again when it is pressed. `dictation::vocabulary::parse_list`
-reads the text; the sheet merges it into its rows and saves. A starter list
-for Russian vibe coding lives in
+Vocabulary text view (`vocabulary-paste-list`, setting
+`labs.vocabulary_paste_list`, both kept from its first name, Paste
+vocabulary as a list; every OS; its row shows under Clean up on your own
+server): the Vocabulary sheet gains Text view, which shows the whole list as
+text to paste, fix, or delete many terms at once, and Save makes the list
+exactly that text. The behaviour is in [vocabulary.md](vocabulary.md); the
+gate is the toggle itself, checked where the button shows and again when it
+is pressed. `dictation::vocabulary::to_list` writes the text and
+`parse_list` reads it back. A starter list for Russian vibe coding lives in
 [docs/vocabulary/vibe-coding-ru.txt](../vocabulary/vibe-coding-ru.txt).
-Checks: `a_pasted_list_reads_terms_and_spellings_per_line` and
+Checks: `a_pasted_list_reads_terms_and_spellings_per_line`,
+`a_list_written_as_text_reads_back_the_same`, and
 `the_vibe_coding_starter_list_fits` in
 [dictation/vocabulary.rs](../../src/dictation/vocabulary.rs),
-`a_pasted_list_merges_into_the_rows_and_saves` in
+`text_view_saves_the_list_it_shows`,
+`leaving_text_view_without_save_keeps_the_list`, and
+`an_emptied_text_view_saves_no_terms` in
 [rune_ui/vocabulary.rs](../../src/rune_ui/vocabulary.rs); scene
-`mac-settings-vocabulary-paste` (no golden). Not yet observed: a paste in a
+`mac-settings-vocabulary-text` (no golden). Not yet observed: Text view in a
 running Hex.
 
 Russian vibe coding (`russian-vibe-coding`, every OS) is a preset, not a

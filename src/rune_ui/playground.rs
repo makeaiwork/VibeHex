@@ -63,8 +63,8 @@ const PATHS: &[(&str, &str)] = &[
     ),
     ("mac-settings-vocabulary", "Window/General/Vocabulary"),
     (
-        "mac-settings-vocabulary-paste",
-        "Window/General/Vocabulary paste list",
+        "mac-settings-vocabulary-text",
+        "Window/General/Vocabulary text view",
     ),
     (
         "mac-settings-vocabulary-empty",

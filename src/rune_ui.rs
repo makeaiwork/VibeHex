@@ -1163,7 +1163,7 @@ fn on_key(ui: &mut Ui, event: &rune::KeyEvent, tx: &mut Tx) -> bool {
         sound_sets::close(ui);
         true
     } else if ui.vocabulary.open {
-        vocabulary::close(ui);
+        vocabulary::dismiss(ui);
         true
     } else if ui.picker.open {
         picker::close(ui);

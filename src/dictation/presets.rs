@@ -2,7 +2,7 @@
 //! vibe-coding preset in `docs/vocabulary/` into the person's own settings
 //! (shared vocabulary, Global's word fixes, Global's cleanup instructions,
 //! and Clean up with AI on), turns on the Labs it builds on (Clean up on
-//! your own server, Paste vocabulary as a list), and takes back, when turned
+//! your own server, Vocabulary text view), and takes back, when turned
 //! off, only what still reads as the preset wrote it; those two Labs stay
 //! on, since a server or key set up there is the person's own. Everything it writes stays editable
 //! in Vocabulary and Output like anything typed there.
