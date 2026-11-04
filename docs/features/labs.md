@@ -14,7 +14,10 @@ saved setting is kept untouched. In dev builds a Dev row carries a quiet
 below is `Everyone` today. There is no master switch. **Labs** is always the last item in the
 sidebar and lists every Labs feature as one flat row (name, one-line
 description, toggle), each **off by default**, plus Send feedback and Run
-setup again.
+setup again. A search field above the rows (`labs-search`) keeps only the
+rows whose name, description, or command-line name holds every word typed,
+ignoring case, and says "No Labs features match." when none do; a Labs link
+clears it so its row shows. Check: `labs_search_keeps_the_rows_holding_every_word`.
 
 ```ts
 Feature             Pane  Toggle (settings.json, hex settings)   On: what it does
@@ -989,14 +992,19 @@ Add to vocabulary from a selection (`vocabulary-quick-add`, macOS): turn a
 misheard word into a Vocabulary entry where it was misheard.
 
 ```ts
-⌥⇧A (vocabulary_add_hotkey; General › Output while on, rebindable, a key required)
+⌥⇧A (vocabulary_add_hotkey; General › Output while on, rebindable)
+├── Modifiers alone (Right Control) -> suppression::ModifierTap: fires when exactly those
+│               modifiers, sides included, go down and all come up within 600 ms with no
+│               key, click, or other modifier between, so ⌃C and holds keep working
 ├── Gate        labs::vocabulary_quick_add() where the listener handles the action, and
 │               RuntimeHotkeys::vocabulary_add only while on (suppression::paste_action)
 ├── Selection   accessibility::selection: the focused element's AXSelectedText (Chromium
 │               apps asked for their tree first), never the clipboard; else
 │               paste::copy_selection: ⌘C, read, the clipboard put back (400 ms)
-├── Card        rune_ui::vocabulary_card, a key-taking nonactivating overlay under the
-│   │           menu bar on the pointer's screen: Heard (the selection) and Should be
+├── Card        rune_ui::vocabulary_card, a key-taking nonactivating overlay just below
+│   │           the selection (AXBoundsForRange of AXSelectedTextRange), above it when
+│   │           the screen ends first, at the pointer when the app gives no bounds, kept
+│   │           on that screen's visible frame: Heard (the selection) and Should be
 │   │           (focused; prefilled when Heard is already a term's spelling)
 │   ├── Add / Return -> saved as `hex vocabulary add` does (term + Heard as a spelling),
 │   │       Runtime ReloadSettings; then AXSelectedText := term where settable
@@ -1006,8 +1014,9 @@ misheard word into a Vocabulary entry where it was misheard.
 ```
 
 Checks: `the_vocabulary_shortcut_needs_its_lab_and_its_own_keys` in
-[app_settings.rs](../../src/app_settings.rs), `a_listed_spelling_or_term_finds_its_term`
-in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs). The card
+[app_settings.rs](../../src/app_settings.rs), `a_listed_spelling_or_term_finds_its_term` and `the_card_sits_by_its_selection`
+in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs), the taps in
+[suppression/modifier_tap.rs](../../src/suppression/modifier_tap.rs). The card
 has no scene. Not yet observed: the shortcut, card, and replacement in a
 running Hex, across native, Chromium, and terminal apps.
 

@@ -16,8 +16,11 @@ use crate::audio::CaptureInstant;
 use crate::dictation::{BOTH_SIDES_WINDOW, MINIMUM_HOLD_DURATION};
 
 mod hotkey;
+mod modifier_tap;
 mod tap;
+
 pub use hotkey::{DictationHotkey, HotkeyAction};
+pub(crate) use modifier_tap::ModifierTap;
 use tap::*;
 
 const DOUBLE_TAP_WINDOW: Duration = MINIMUM_HOLD_DURATION;

@@ -742,6 +742,8 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Finalizing…", "Finalizando…"),
     ("Failed", "Falhou"),
     ("Interrupted", "Interrompida"),
+    ("Search Labs", "Buscar no Labs"),
+    ("No Labs features match.", "Nenhum recurso do Labs corresponde."),
     ("Search meetings", "Buscar reuniões"),
     ("No meetings match.", "Nenhuma reunião corresponde."),
     ("No meetings yet.", "Nenhuma reunião ainda."),

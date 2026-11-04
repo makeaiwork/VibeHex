@@ -40,6 +40,18 @@ unsafe extern "C" {
 
 /// `kAXValueTypeCFRange`.
 const AX_VALUE_CF_RANGE: u32 = 4;
+/// `kAXValueTypeCGRect`.
+const AX_VALUE_CG_RECT: u32 = 3;
+
+/// Core Graphics' `CGRect`: origin, then size, in points.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct CgRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
 
 /// Core Foundation's `CFRange`, in UTF-16 code units.
 #[repr(C)]
@@ -247,6 +259,9 @@ pub struct Selection {
     /// Whether the element takes new text for its selection: false for a
     /// message already sent or other text that can't be edited.
     pub replaceable: bool,
+    /// Where the selected text is on screen, `[x, y, width, height]` in
+    /// global top-left points, when the app says.
+    pub bounds: Option<[f64; 4]>,
 }
 
 // SAFETY: An AXUIElement is an immutable Core Foundation reference to
@@ -297,11 +312,47 @@ pub fn selection(pid: i32) -> Option<Selection> {
                 unsafe { AXUIElementIsAttributeSettable(element.0, attribute.0, &mut settable) };
             status == 0 && settable != 0
         });
+    let bounds = selection_bounds(&element);
     Some(Selection {
         element,
         text,
         replaceable,
+        bounds,
     })
+}
+
+/// The selected range's rectangle (`AXBoundsForRange`). Apps that answer
+/// with nothing useful (an empty or screen-sized rectangle) count as silent.
+fn selection_bounds(element: &CfObject) -> Option<[f64; 4]> {
+    let range = copy_range(element, c"AXSelectedTextRange")?;
+    // SAFETY: AXValueCreate copies the CFRange and returns a retained object.
+    let parameter = unsafe { AXValueCreate(AX_VALUE_CF_RANGE, (&range as *const CfRange).cast()) };
+    if parameter.is_null() {
+        return None;
+    }
+    let parameter = CfObject(parameter);
+    let attribute = CfObject(cf_string_literal(c"AXBoundsForRange")?);
+    let mut value = ptr::null();
+    let status = unsafe {
+        AXUIElementCopyParameterizedAttributeValue(element.0, attribute.0, parameter.0, &mut value)
+    };
+    if status != 0 || value.is_null() {
+        return None;
+    }
+    let value = CfObject(value);
+    if unsafe { CFGetTypeID(value.0) } != unsafe { AXValueGetTypeID() } {
+        return None;
+    }
+    let mut rect = CgRect::default();
+    // SAFETY: `value` is an AXValue and `rect` has CGRect's layout.
+    let read =
+        unsafe { AXValueGetValue(value.0, AX_VALUE_CG_RECT, (&mut rect as *mut CgRect).cast()) };
+    (read && rect.height > 0.0 && rect.height < 600.0 && rect.width < 4000.0).then_some([
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+    ])
 }
 
 fn copy_range(element: &CfObject, name: &CStr) -> Option<CfRange> {

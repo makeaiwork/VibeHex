@@ -421,7 +421,8 @@ observe input-source changes or show these controls.
 - `vocabulary_add_hotkey` (macOS, `option+shift+a` by default; `none` clears
   it) adds the selected misheard word to Vocabulary. It acts only while
   `labs.vocabulary_quick_add` is on (`hex labs on vocabulary-quick-add`),
-  needs a key, and shares no key with another shortcut.
+  takes a key or modifiers alone (`right-control`, fired on a quick tap of
+  just that key), and shares no key with another shortcut.
 - `json` settings (modes, meeting providers, excluded calendars) take the JSON
   value the file stores.
 - `ui_language` takes `en`, `pl`, `zh` (Simplified Chinese), `zh-Hant`

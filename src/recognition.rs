@@ -147,6 +147,9 @@ struct Hotkeys {
     /// The recording (or the last) skips processing: the raw shortcut or
     /// `hex dictation start --raw` started it.
     raw_capture: bool,
+    /// Labs › Add to vocabulary from a selection bound to modifiers alone
+    /// (Right Control): a tap of them.
+    vocabulary_tap: crate::suppression::ModifierTap,
 }
 
 impl Hotkeys {
@@ -272,6 +275,10 @@ impl Hotkeys {
                 None => {}
             }
         }
+        let vocabulary = crate::app_settings::runtime_hotkeys().vocabulary_add;
+        if self.vocabulary_tap.process(event, at, vocabulary) {
+            actions.push((Shortcut::Dictation, HotkeyAction::VocabularyAdd));
+        }
         actions
     }
 
@@ -339,6 +346,7 @@ pub fn listen(
         second: None,
         raw: None,
         raw_capture: false,
+        vocabulary_tap: Default::default(),
     };
     hotkeys.configure(CaptureInstant::now());
     let recording_environment = RecordingEnvironmentController::start();
@@ -1872,6 +1880,7 @@ mod tests {
             second: Some(DictationHotkey::new(base, true, control)),
             raw: None,
             raw_capture: false,
+            vocabulary_tap: Default::default(),
         };
         let mut press = |flags: u64, ms: u64| hotkeys.process(InputEvent::Flags(flags), at(ms));
         const START: HotkeyAction = HotkeyAction::Start;

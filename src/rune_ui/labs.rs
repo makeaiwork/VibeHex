@@ -1,6 +1,7 @@
 //! Labs: one flat sidebar item listing every Labs feature (`crate::labs`)
 //! as a row with a toggle, each off by default, plus Send feedback and Run
-//! setup again. A feature with its own pane (Meetings, Voice Filter,
+//! setup again, under a search field that narrows the rows to those whose
+//! name or description holds every word typed. A feature with its own pane (Meetings, Voice Filter,
 //! Playground) joins the main sidebar while on and is hidden while off.
 
 use rune::{El, Icon, Tx, row, text};
@@ -110,6 +111,8 @@ pub(super) fn reveal(ui: &mut Ui, name: Option<&str>, tx: &mut Tx) {
     open(ui, tx);
     ui.lab_flash = None;
     let Some(name) = name else { return };
+    // The linked row shows whatever was searched for.
+    ui.lab_search = rune::TextEdit::default();
     match Feature::from_name(name).filter(|feature| rows(ui).iter().any(|r| r.feature == *feature))
     {
         Some(feature) => {
@@ -568,8 +571,34 @@ fn flip(ui: &mut Ui, feature: Feature) {
     }
 }
 
-/// The Labs page: what Labs is with Send feedback, every feature's row,
-/// then Run setup again.
+/// Whether `row` holds every word of `query`, in its title, description,
+/// or command-line name, ignoring case.
+fn matches(row: &Row, query: &str) -> bool {
+    let haystack = format!(
+        "{} {} {}",
+        row.title,
+        row.about,
+        row.feature.name().replace('-', " ")
+    )
+    .to_lowercase();
+    query
+        .to_lowercase()
+        .split_whitespace()
+        .all(|word| haystack.contains(word))
+}
+
+fn search(ui: &Ui, p: Paint) -> El {
+    rune_kit::TextInput::new(&ui.lab_search)
+        .placeholder(tr("Search Labs"))
+        .width(None)
+        .leading_icon(p.k.glyph.search)
+        .on_edit(|ui: &mut Ui| &mut ui.lab_search)
+        .build(p.k)
+        .key("labs-search")
+}
+
+/// The Labs page: what Labs is with Send feedback, the search field, every
+/// feature's row that matches it, then Run setup again.
 pub(super) fn page(ui: &Ui, p: Paint) -> El {
     let feedback = rune_kit::Button::new(tr("Send feedback"))
         .variant(rune_kit::ButtonVariant::Ghost)
@@ -598,8 +627,12 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
                 .grow(1.0),
         )
         .child(feedback);
+    let query = ui.lab_search.text.trim();
     let mut cards: Vec<CardRow> = Vec::new();
-    for row in rows(ui).into_iter().filter(|row| row.feature.shipped()) {
+    for row in rows(ui)
+        .into_iter()
+        .filter(|row| row.feature.shipped() && matches(row, query))
+    {
         let unload_idle = row.feature == Feature::UnloadIdle && row.on;
         let flashing = ui
             .lab_flash
@@ -609,10 +642,23 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
             cards.push(unload_after_row(ui, p));
         }
     }
-    let rows = cards;
+    let search = row()
+        .key("labs-search-row")
+        .mx(controls::METRICS.row_px)
+        .child(search(ui, p).grow(1.0));
+    let list = if cards.is_empty() {
+        text(tr("No Labs features match."))
+            .key("labs-none")
+            .font(p.k.ty.ui)
+            .color(p.muted())
+            .mx(controls::METRICS.row_px)
+    } else {
+        card(p, "labs", cards)
+    };
     let content = controls::page("content")
         .child(lede)
-        .child(card(p, "labs", rows))
+        .child(search)
+        .child(list)
         .child(card(p, "labs-setup", vec![run_setup_row(p)]));
     super::scroll_body("scroll", content)
 }

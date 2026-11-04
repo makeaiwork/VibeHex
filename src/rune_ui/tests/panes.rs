@@ -1797,6 +1797,29 @@ fn labs_is_one_flat_list_of_toggles_off_by_default() {
 }
 
 #[test]
+fn labs_search_keeps_the_rows_holding_every_word() {
+    let mut rt = runtime("mac-settings", true, (980.0, 2000.0));
+    tap(&mut rt, "nav-labs");
+    assert!(rt.find("labs-search").is_some());
+    rt.state.lab_search = rune::TextEdit::new("LIVE text".to_string());
+    refresh(&mut rt);
+    assert!(rt.find("lab-live-text").is_some());
+    assert!(
+        rt.find("lab-live-chapters").is_none(),
+        "lacks the word text"
+    );
+    assert!(rt.find("lab-meetings").is_none());
+    assert!(rt.find("restart-onboarding").is_some(), "setup stays");
+    rt.state.lab_search = rune::TextEdit::new("zzzz".to_string());
+    refresh(&mut rt);
+    assert!(rt.find("labs-none").is_some());
+    // A link to a row clears the search so it shows.
+    rt.update(|ui, tx| super::super::labs::reveal(ui, Some("meetings"), tx));
+    settle(&mut rt);
+    assert!(rt.find("lab-meetings").is_some());
+}
+
+#[test]
 fn a_labs_link_opens_labs_pulses_its_row_and_leaves_it_off() {
     use crate::labs::Feature;
     let mut rt = runtime("mac-settings", true, (980.0, 2000.0));

@@ -1076,6 +1076,8 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Finalizing…", ["Kończenie…", "正在完成…", "仕上げ中…", "Wird abgeschlossen…", "Finalizando…", "Завершення…"]),
     ("Failed", ["Niepowodzenie", "失败", "失敗", "Fehlgeschlagen", "Fallido", "Не вдалося"]),
     ("Interrupted", ["Przerwano", "已中断", "中断", "Unterbrochen", "Interrumpido", "Перервано"]),
+    ("Search Labs", ["Szukaj w Labs", "搜索 Labs", "Labs を検索", "Labs durchsuchen", "Buscar en Labs", "Пошук у Labs"]),
+    ("No Labs features match.", ["Brak pasujących funkcji Labs.", "没有匹配的 Labs 功能。", "一致する Labs 機能はありません。", "Keine passenden Labs-Funktionen.", "No hay funciones de Labs que coincidan.", "Відповідних функцій Labs немає."]),
     ("Search meetings", ["Szukaj spotkań", "搜索会议", "会議を検索", "Besprechungen suchen", "Buscar reuniones", "Пошук зустрічей"]),
     ("No meetings match.", ["Brak pasujących spotkań.", "没有匹配的会议。", "一致する会議はありません。", "Keine passenden Besprechungen.", "No hay reuniones que coincidan.", "Відповідних зустрічей немає."]),
     ("No meetings yet.", ["Brak spotkań.", "暂无会议。", "会議はまだありません。", "Noch keine Besprechungen.", "Aún no hay reuniones.", "Зустрічей ще немає."]),

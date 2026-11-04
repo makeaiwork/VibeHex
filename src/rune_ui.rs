@@ -314,10 +314,9 @@ fn build(init: impl FnOnce() -> Ui + 'static, playground: PlaygroundMode) -> run
     // alone reaches the recorder, which says Linux needs a key with it.
     #[cfg(target_os = "linux")]
     let app = app.modifier_keys();
-    // The window's view answers Edit's actions (cut:, copy:, paste:,
-    // selectAll:, undo:, redo:), which the Edit menu in `macos_rune`'s menu
-    // bar sends. AppKit matches those items under any layout, so ⌘V pastes
-    // with a Russian or Greek layout too, where the key alone reads as ⌘м.
+    // The window's view answers `macos_rune`'s Edit menu (cut:, copy:, paste:,
+    // selectAll:, undo:, redo:), which AppKit matches under any layout, so ⌘V
+    // pastes with a Russian or Greek layout too, where the key reads as ⌘м.
     #[cfg(target_os = "macos")]
     let app = app.standard_menus();
     let app = match playground {
@@ -470,8 +469,7 @@ pub(crate) fn shortcut_rule(
         HotkeySlot::SecondDictation => ShortcutTarget::Dictation,
         #[cfg(target_os = "macos")]
         HotkeySlot::VocabularyAdd => ShortcutTarget::VocabularyAdd,
-        // macOS's only; elsewhere a saved one needs a key, as Paste Last.
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(target_os = "macos"))] // macOS's only; a key, as Paste Last.
         HotkeySlot::VocabularyAdd => ShortcutTarget::PasteLast,
     };
     host::validate_hotkey(target, binding)
@@ -676,6 +674,8 @@ pub(crate) struct Ui {
     labs_open: bool,
     /// The Labs row a link just opened, pulsing until it is cleared.
     lab_flash: Option<(crate::labs::Feature, Instant)>,
+    /// What the Labs page's search field filters its rows by.
+    lab_search: TextEdit,
     /// A scene previewing the badge of a build kind this binary is not.
     build_preview: Option<BuildKind>,
     capture: Capture,
@@ -785,6 +785,7 @@ impl Ui {
             advanced: Vec::new(),
             labs_open: false,
             lab_flash: None,
+            lab_search: TextEdit::default(),
             build_preview: None,
             capture: Capture::Idle,
             vocabulary,
@@ -844,10 +845,9 @@ impl Ui {
         if !self.commit(candidate) {
             return false;
         }
-        // A change to what an editor shows that didn't come from it (Labs ›
-        // Russian vibe coding writing the vocabulary and Global's fixes)
-        // reaches the editor too, or its next draft save would write the old
-        // rows back over it.
+        // A change an editor didn't make (Russian vibe coding writing the
+        // vocabulary and Global's fixes) reaches it too, or its next draft
+        // save would write the old rows back over it.
         if self.vocabulary.project() != self.settings.vocabulary {
             self.vocabulary.reload(&self.settings.vocabulary);
         }
