@@ -58,6 +58,7 @@ use crate::transcription::preparation::TranscriptionPreparation;
 
 mod control;
 pub(crate) mod status_item;
+mod update_window;
 
 #[cfg(test)]
 mod tests;
@@ -537,6 +538,7 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
         meeting_menu_at: Instant::now(),
         model_menu_at: Instant::now(),
         show_dock_icon: settings.show_dock_icon,
+        announced_update: None,
     };
     // Quit ends the loop and finishes below; AppKit's own terminate (the quit
     // Apple event, logout) would `exit` from inside it, so its
@@ -855,6 +857,8 @@ struct Pump {
     meeting_menu_at: Instant,
     model_menu_at: Instant,
     show_dock_icon: bool,
+    /// The staged update the window was last brought up for.
+    announced_update: Option<String>,
 }
 
 struct PumpState {
@@ -1077,6 +1081,7 @@ impl Pump {
                 crate::app_settings::meetings_enabled(),
             );
             crate::macos_rune::status_item::update_software(&update_status());
+            update_window::announce(&self.window, &mut self.announced_update);
             self.meeting_menu_at = now + MEETING_MENU_REFRESH;
         }
     }

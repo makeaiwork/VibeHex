@@ -611,6 +611,8 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Replacement (e.g. OpenCode)", "Remplacement (ex. : OpenCode)"),
     ("Switch to {channel} {version}", "Passer à {channel} {version}"),
     ("Restart to update", "Redémarrer pour mettre à jour"),
+    ("Hex {version} is ready", "Hex {version} est prêt"),
+    ("You have {running}. Restart Hex to install it now, or it installs when you quit", "Vous avez {running}. Redémarrez Hex pour l'installer maintenant, ou elle s'installera à la fermeture"),
     ("Retry", "Réessayer"),
     ("Retry setup", "Relancer la configuration"),
     ("Right", "Droite"),

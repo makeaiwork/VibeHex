@@ -198,7 +198,7 @@ struct Shared {
     /// The newest staged update. Checks continue while one waits, and a
     /// different current release replaces it before the restart.
     staged: Mutex<Option<StagedUpdate>>,
-    /// What the staged dev build changed, when the dev notes said.
+    /// What the staged update changed, from the channel's notes.
     notes: Mutex<Option<UpdateNotes>>,
     restart: Mutex<Restart>,
 }
@@ -339,7 +339,7 @@ impl Updater {
         self.shared.signal.notify_all();
     }
 
-    /// What the staged dev build changed, while Restart to update shows.
+    /// What the staged update changed, while Restart to update shows.
     pub fn notes(&self) -> Option<UpdateNotes> {
         matches!(*lock(&self.shared.state), State::Ready | State::Applied)
             .then(|| lock(&self.shared.notes).clone())
@@ -631,9 +631,12 @@ fn check(
             if staged.is_some_and(|staged| !replaces_staged(&decision, &staged.sha256)) =>
         {
             // The notes may have been published after the build was staged.
+            let listed = lock(&shared.notes)
+                .as_ref()
+                .is_some_and(|notes| !notes.releases.is_empty());
             if let Some(staged) = staged
                 && !restarting
-                && lock(&shared.notes).is_none()
+                && !listed
             {
                 fetch_notes(shared, &channel, &user_agent, &updates, &staged.version);
             }
@@ -708,14 +711,17 @@ fn check(
     }
 }
 
-/// What the staged dev build changed; nothing for other channels or when
-/// the dev notes don't list it yet.
+/// What the staged release and any skipped since the running one changed;
+/// only its version when the channel's notes don't list it yet.
 fn fetch_notes(shared: &Shared, channel: &str, user_agent: &str, updates: &Path, version: &str) {
-    if channel != UpdateChannel::Dev.name() {
-        return;
-    }
-    let notes = notes::fetch(user_agent, &updates.join("notes"), crate::VERSION, version);
-    *lock(&shared.notes) = notes;
+    let notes = notes::fetch(
+        &notes::url(&manifest_url(channel)),
+        user_agent,
+        &updates.join("notes"),
+        crate::VERSION,
+        version,
+    );
+    *lock(&shared.notes) = Some(notes);
 }
 
 /// Checks the manifest's `<target>-sig` file: Anomaly's release key signing

@@ -948,6 +948,8 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Replacement (e.g. OpenCode)", ["Zamiennik (np. OpenCode)", "替换为（例如 OpenCode）", "置換後（例: OpenCode）", "Ersetzung (z. B. OpenCode)", "Reemplazo (p. ej. OpenCode)", "Заміна (наприклад, OpenCode)"]),
     ("Switch to {channel} {version}", ["Przełącz na {channel} {version}", "切换到{channel} {version}", "{channel} {version} に切り替え", "Zu {channel} {version} wechseln", "Cambiar a {channel} {version}", "Перейти на {channel} {version}"]),
     ("Restart to update", ["Uruchom ponownie, aby zaktualizować", "重启以更新", "再起動してアップデート", "Zum Aktualisieren neu starten", "Reiniciar para actualizar", "Перезапустити для оновлення"]),
+    ("Hex {version} is ready", ["Hex {version} jest gotowy", "Hex {version} 已就绪", "Hex {version} の準備ができました", "Hex {version} ist bereit", "Hex {version} está listo", "Hex {version} готовий"]),
+    ("You have {running}. Restart Hex to install it now, or it installs when you quit", ["Masz {running}. Uruchom Hex ponownie, aby zainstalować teraz, albo zainstaluje się po zamknięciu", "当前版本为 {running}。立即重启 Hex 进行安装，或在退出时自动安装", "現在のバージョンは {running} です。今すぐ Hex を再起動してインストールするか、終了時にインストールされます", "Du hast {running}. Starte Hex neu, um es jetzt zu installieren, oder es wird beim Beenden installiert", "Tienes {running}. Reinicia Hex para instalarla ahora, o se instalará al salir", "У вас {running}. Перезапустіть Hex, щоб установити зараз, або оновлення встановиться під час виходу"]),
     ("Retry", ["Ponów", "重试", "再試行", "Erneut versuchen", "Reintentar", "Повторити спробу"]),
     ("Retry setup", ["Ponów konfigurację", "重试设置", "セットアップを再試行", "Einrichtung wiederholen", "Reintentar configuración", "Повторити налаштування"]),
     ("Right", ["Prawy", "右", "右", "Rechts", "Derecha", "Права"]),

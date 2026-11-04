@@ -453,6 +453,10 @@ pub(super) const SCENES: &[Scene] = &[
             view.update_status = DesktopUpdateStatus::ReadyToRestart;
         }
     }),
+    ("mac-update-sheet", |ui| {
+        *ui = mac_fixture();
+        super::update_sheet::fixture(ui);
+    }),
     ("mac-update-checking", |ui| {
         *ui = mac_fixture();
         if let Some(view) = &mut ui.view {

@@ -99,12 +99,29 @@ pub(crate) enum DesktopUpdateStatus {
     },
 }
 
-/// What changed between the running build and a staged dev build: the
-/// titles of the PRs merged in between, and the dev changelog's entry.
+/// What changed between the running build and a staged update: every
+/// release from the staged one back to, not including, the running one
+/// (so skipped releases are listed too), their changes in one list, and the
+/// changelog's entry. The staged version is known even when no notes are.
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct UpdateNotes {
     pub(crate) items: Vec<String>,
     pub(crate) url: String,
+    /// The staged release's version.
+    #[serde(default)]
+    pub(crate) version: String,
+    /// Newest first.
+    #[serde(default)]
+    pub(crate) releases: Vec<ReleaseNotes>,
+}
+
+/// One release's changes.
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct ReleaseNotes {
+    pub(crate) version: String,
+    /// `YYYY-MM-DD`, when the notes say.
+    pub(crate) date: Option<String>,
+    pub(crate) items: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]

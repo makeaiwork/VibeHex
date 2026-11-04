@@ -1326,8 +1326,17 @@ Hex checks the release service            // maintain.updates
 │   ├── Staged -> checks continue; Restart to update stays offered meanwhile
 │   │   ├── Another release this install takes (update, required) -> download -> replaces the staged one
 │   │   └── Same release, rollout deferred, unconfirmed switch, rollback, failure -> keep the staged one
-│   └── Sidebar Update, menu bar / tray: Restart to update; a dev build lists its
-│       first changes and What's new (https://anoma.ly/hex/dev) under it (updater/notes.rs)
+│   ├── Staged -> notes: <channel>-notes.json beside the manifest (updater/notes.rs),
+│   │   every release from the staged one back to the running one, skipped ones too
+│   │   ├── Update sheet (rune_ui/update_sheet.rs): Hex <version> is ready, each release's
+│   │   │   version, date, and changes, Not now / Restart to update
+│   │   │   ├── Opens once per staged version, after anything else holding the window
+│   │   │   │   (another sheet, the first run, a shortcut recording) closes
+│   │   │   └── macOS window closed -> shown without focus, never while dictation
+│   │   │       captures or transcribes (macos_rune/update_window.rs)   // fork
+│   │   └── Notes missing or unlisted -> the sheet shows only the version
+│   └── Sidebar Update, menu bar / tray: Restart to update; the first changes and
+│       What's new (the release's page) under it
 │       ├── One more check first (manifest within 15 s) -> Checking / Downloading -> newest staged
 │       │   └── A release published after the relaunch -> the next launch's check
 │       └── macOS -> renamex_np swap (also at quit) -> relaunch -> old bundle removed at launch

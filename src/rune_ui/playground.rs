@@ -100,6 +100,7 @@ const PATHS: &[(&str, &str)] = &[
         "mac-update-ready",
         "Window/General/Updates/Ready to restart",
     ),
+    ("mac-update-sheet", "Window/General/Updates/Update sheet"),
     (
         "mac-settings-dev-channel",
         "Window/General/Updates/Dev channel",

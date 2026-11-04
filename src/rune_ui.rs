@@ -63,6 +63,7 @@ mod sound_sets;
 mod spark;
 #[cfg(target_os = "macos")]
 pub(crate) mod story_link;
+mod update_sheet;
 mod vocabulary;
 #[cfg(target_os = "macos")]
 pub(crate) mod vocabulary_card;
@@ -402,6 +403,7 @@ pub(crate) fn show(ui: &mut Ui, destination: Destination, tx: &mut Tx) {
     explainer::close(ui);
     sound_sets::close(ui);
     vocabulary::close(ui);
+    update_sheet::close(ui);
     if pane.shown(ui) {
         ui.select_pane(pane, tx);
     }
@@ -695,6 +697,7 @@ pub(crate) struct Ui {
     found: found::FoundState,
     explainer: explainer::Explainer,
     sound_sets: sound_sets::SoundSets,
+    update_sheet: update_sheet::UpdateSheet,
     tour: Option<onboarding::Tour>,
     /// The new first run over the tour (Labs).
     first_run: Option<onboarding_kit::Onboard>,
@@ -801,6 +804,7 @@ impl Ui {
             found: found::FoundState::default(),
             explainer: explainer::Explainer::default(),
             sound_sets: sound_sets::SoundSets::default(),
+            update_sheet: update_sheet::UpdateSheet::default(),
             tour: None,
             first_run: None,
             platform: platform::PlatformState::new(platform::Capabilities::current()),
@@ -1323,6 +1327,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
             ui.view = view;
             changed = true;
         }
+        changed |= update_sheet::follow(ui);
         if let Some(settings) = settings {
             changed |= ui.adopt(settings);
             // A pane the adopted settings hide (the Hex Microphone turned
@@ -1411,18 +1416,14 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .hover_motion_within(Anim::INSTANT, Anim::INSTANT)
         .child(sidebar(ui, p))
         .child(panel);
-    if let Some(modal) = picker::modal(ui, p) {
-        layer.extend(modal);
-    }
-    if let Some(modal) = explainer::modal(ui, cx, p) {
-        layer.extend(modal);
-    }
-    if let Some(modal) = sound_sets::modal(ui, p) {
-        layer.extend(modal);
-    }
-    if let Some(modal) = vocabulary::modal(ui, p) {
-        layer.extend(modal);
-    }
+    let modals = [
+        picker::modal(ui, p),
+        explainer::modal(ui, cx, p),
+        sound_sets::modal(ui, p),
+        vocabulary::modal(ui, p),
+        update_sheet::modal(ui, p),
+    ];
+    layer.extend(modals.into_iter().flatten().flatten());
     if let Some(first_run) = onboarding_kit::live::overlay(ui, p, cx.is_reduced_motion()) {
         layer.push(first_run);
     }
