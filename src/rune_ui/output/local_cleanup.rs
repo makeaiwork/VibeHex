@@ -72,20 +72,10 @@ impl LocalModels {
     }
 }
 
-/// While the engine loads the model, a bar with its estimated percentage
-/// for the status row, in place of Test.
-pub(super) fn loading_bar(ui: &Ui, p: Paint) -> Option<El> {
-    if ui.output.cleanup.local.engine != Some(State::Loading) {
-        return None;
-    }
-    let (_, fraction) = engine::load_progress()?;
-    Some(
-        rune_kit::Progress::new(Some(fraction.clamp(0.0, 1.0)))
-            .show_value()
-            .build(p.k)
-            .key("loading-progress")
-            .w(120.0),
-    )
+/// Whether the built-in engine is loading a model, which that model's row
+/// shows.
+pub(super) fn loading(ui: &Ui) -> bool {
+    ui.output.cleanup.local.engine == Some(State::Loading)
 }
 
 /// Whether the chosen model is downloaded, for the status row.

@@ -216,12 +216,9 @@ fn status_row(ui: &Ui, p: Paint, server: &Server) -> El {
     let testing = matches!(&ui.output.cleanup.test, Test::Testing(tested, _) if tested == server);
     let untestable =
         server.provider == Provider::Local && !super::local_cleanup::chosen_installed(ui);
-    let loading = (server.provider == Provider::Local)
-        .then(|| super::local_cleanup::loading_bar(ui, p))
-        .flatten();
-    let control = if let Some(bar) = loading {
-        bar
-    } else if testing || untestable {
+    // The model's own row shows its loading; Test waits until it is done.
+    let loading = server.provider == Provider::Local && super::local_cleanup::loading(ui);
+    let control = if testing || untestable || loading {
         text("").key("ai-cleanup-test")
     } else {
         button(

@@ -874,8 +874,8 @@ Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 │   ├── OpenCode -> no further rows; rewriting is exactly as without the toggle
 │   └── Built in -> no URL, Model, or key rows; instead:
 │       ├── Built in -> "Download a model below" | "Loads when you dictate" | "Loading the model…" | "Loaded"; Test once one is downloaded
-│       │   while loading, a bar with a percentage takes Test's place: an estimate
-│       │   (engine::load_progress; llama-server reports none) from this model's last
+│       │   while loading, Test hides and only the model's own row shows "Loading 45%",
+│       │   an estimate (engine::load_progress; llama-server reports none) from its last
 │       │   load (`<id>.load-ms` beside the models; else 1 s + its size at 1.5 GB/s),
 │       │   linear to 90% then creeping, never past 99% until it answers; Cleanup
 │       │   progress's plate says "Loading the model…" meanwhile
