@@ -131,7 +131,7 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Vocabulary text view", "Vocabulaire en texte"),
     ("Edit the whole Vocabulary as text, one term per line as Term | sounds like, to paste, fix, or delete many terms at once", "Modifiez tout le vocabulaire en texte, un terme par ligne sous la forme Terme | se prononce comme, pour coller, corriger ou supprimer beaucoup de termes à la fois"),
     ("Russian vibe coding", "Vibe coding en russe"),
-    ("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI and every Labs feature with a star. Off takes back the terms, fixes, and instructions", "Ajoute à vos réglages 80 termes comme Claude Code, GitHub et MCP, des corrections de mots russes et des instructions de nettoyage, et active le nettoyage par IA et chaque fonction Labs marquée d’une étoile. Désactivé, il retire les termes, corrections et instructions"),
+    ("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI and the other starred Labs features except Stop shortcut. Off takes back the terms, fixes, and instructions", "Ajoute à vos réglages 80 termes comme Claude Code, GitHub et MCP, des corrections de mots russes et des instructions de nettoyage, et active le nettoyage par IA et les autres fonctions Labs marquées d’une étoile, sauf le raccourci d'arrêt. Désactivé, il retire les termes, corrections et instructions"),
     ("One term per line: Term | sounds like, sounds like", "Un terme par ligne : Terme | se prononce comme, se prononce comme"),
     ("Text view", "Vue texte"),
     ("Add to vocabulary from a selection", "Ajouter au vocabulaire depuis une sélection"),

@@ -284,7 +284,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
         Feature::RussianVibeCoding,
         &BOOK,
         tr("Russian vibe coding"),
-        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI and every Labs feature with a star. Off takes back the terms, fixes, and instructions"),
+        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI and the other starred Labs features except Stop shortcut. Off takes back the terms, fixes, and instructions"),
     ));
     if caps.keyboard_model_switching {
         rows.push(row(

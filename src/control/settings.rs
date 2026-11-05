@@ -465,7 +465,7 @@ const KEYS: &[Key] = &[
     key(
         "labs.russian_vibe_coding",
         Kind::Bool,
-        "Labs: turning it on adds the Russian vibe-coding vocabulary, Global's word fixes and AI cleanup instructions, and turns on Clean up with AI and every other Labs feature VibeHex added that this Hex has; off takes back the terms, fixes, and instructions",
+        "Labs: turning it on adds the Russian vibe-coding vocabulary, Global's word fixes and AI cleanup instructions, and turns on Clean up with AI and every other Labs feature VibeHex added that this Hex has except labs.stop_shortcut; off takes back the terms, fixes, and instructions",
     ),
     key(
         "labs.vocabulary_quick_add",

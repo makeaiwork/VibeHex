@@ -31,8 +31,9 @@ right, whose tooltip and accessible label say "Added in VibeHex"; searching
 the search field (`labs-vibehex-only`, a star, the label, and a switch; it
 saves nothing, combines with the search, and a Labs link turns it off so its
 row shows). Turning on Russian vibe coding also turns on every other starred
-feature this OS and build have and no organization locks; turning it off
-leaves them on. Checks: `it_turns_on_every_starred_lab_this_hex_has`,
+feature this OS and build have and no organization locks, except Stop
+shortcut (it takes a key, Return, so it is left to the person); turning it
+off leaves them on. Checks: `it_turns_on_every_starred_lab_this_hex_has`,
 `vibehex_only_keeps_the_starred_rows`.
 
 ```ts
@@ -87,7 +88,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 │                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
-├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab; off: takes back what still reads as the preset wrote it
+├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)

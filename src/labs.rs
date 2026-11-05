@@ -561,7 +561,7 @@ impl Feature {
                 "The Vocabulary sheet's Text view shows the whole list as text, one term per line as Term | sounds like, sounds like, to paste, fix, or delete many at once"
             }
             Self::RussianVibeCoding => {
-                "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI and every other VibeHex feature; off takes back what it added and you haven't changed"
+                "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI and every other VibeHex feature but Stop shortcut; off takes back what it added and you haven't changed"
             }
             Self::VocabularyQuickAdd => {
                 "Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"
