@@ -420,7 +420,7 @@ fn entry_row(
         .key(format!("version{index}"))
         .role("menuitem")
         .label(name.clone())
-        .w(300.0)
+        .w(264.0)
         .px(10.0)
         .py(6.0)
         .gap(8.0)

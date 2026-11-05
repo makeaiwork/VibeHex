@@ -34,27 +34,32 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   else its newest; a new version opens at once
 │   ├── The version line ends with "1 of 3" while its tab holds more
 │   ├── Original: Timestamps | Plain text (files.show_timestamps opens it),
-│   │   Transcribe again ▾ (downloaded models; a model that takes a language
-│   │   asks for it first, starting at the saved one, with Transcribe and
-│   │   Cancel), Clean up while no Cleanup was made from it
-│   ├── Cleanup: "<model> in a 8K window", Clean up again ▾ (Built in,
+│   │   Transcribe again ▾ ("Transcribe the audio again with": downloaded
+│   │   models, "Same model" on the one that made the first Original; "Adds a
+│   │   version to Original"; More models in General); a model that takes a
+│   │   language asks for it first in a row under the line, starting at the
+│   │   saved one, with Transcribe and Cancel; Clean up while no Cleanup was
+│   │   made from it
+│   ├── Cleanup: "<model> in an 8K window", Clean up again ▾ (Built in,
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›
 │   │   AI cleanup)
 │   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
 │   │   32K window"
 │   └── A three-step version: a note with × (closed for that version for good)
 ├── Header   The name in up to two lines (a long word breaks anywhere), then the
-│            day and time, ⏱ length, 🎙 model; list rows wrap names the same way
+│            day and time (24-hour where the Mac uses it), ⏱ length, 🎙 model;
+│            list rows wrap names the same way
 ├── Actions  Copy ▾ (as Markdown / as plain text), Edit (Save marks it edited),
-│            … (Save as… .md or .txt, Show in Finder, Open original (plays it
-│            in its default app), Delete this version… (not the first
-│            Original), Delete file from list…, then "In <folder>", or "File
-│            not found" with the first two off), each delete confirmed under
-│            the tabs; the file on disk is never touched
-├── Ask      FILES-ASK: quick chips (files.quick_prompts), Recent ▾ (last 10
-│            typed requests, <support>/files/recent.json), "What should I do
-│            with this text?" -> works on the open version and adds the result
-│            to Requests
+│            … (Show in Finder, Open original with the app that opens it
+│            named on the right; Save as… .md or .txt; Delete this version…
+│            (not the first Original), Delete file from list… (red icon);
+│            then where the file is, "…/<folder>/<name>" with a long name cut
+│            in its middle, or "File not found" with the first two off), each
+│            delete confirmed under the tabs; the file on disk is never touched
+├── Ask      FILES-ASK: under a rule, quick chips (files.quick_prompts) and
+│            Recent ▾ (last 10 typed requests, <support>/files/recent.json)
+│            as pills, then "What should I do with this text?" -> works on
+│            the open version and adds the result to Requests
 └── Settings Model (Same as dictation or a downloaded one), Use vocabulary,
              Show timestamps, Clean up after transcription, Runs on (Same as
              dictation / built-in / OpenRouter / Your server / OpenCode), Use

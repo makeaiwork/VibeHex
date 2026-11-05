@@ -2078,13 +2078,9 @@ impl LocalTime {
         }
     }
 
+    /// `14:05` where the Mac's region uses a 24-hour clock, else `2:05 PM`.
     pub(super) fn clock(&self) -> String {
-        let hour = match self.hour % 12 {
-            0 => 12,
-            hour => hour,
-        };
-        let period = if self.hour < 12 { "AM" } else { "PM" };
-        format!("{hour}:{:02} {period}", self.minute)
+        super::hour_cycle::clock(self.hour, self.minute)
     }
 
     /// `2026-10-30T14:05:00`, as the Trash records a deletion.

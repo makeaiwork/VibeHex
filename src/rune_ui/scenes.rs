@@ -524,6 +524,7 @@ pub(super) const SCENES: &[Scene] = &[
     }),
     ("files-more", |ui| {
         files_scene(ui, files::FilesPane::fixture());
+        ui.files.opener = Some("QuickTime Player".into());
         ui.open = Some(Menu::Pick("files-more"));
     }),
     ("files-again", |ui| {

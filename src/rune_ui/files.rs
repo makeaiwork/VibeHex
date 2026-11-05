@@ -22,6 +22,7 @@ use crate::files::worker::{self, Config, Job, Stage, Task};
 use crate::files::{decode, text as file_text};
 use crate::transcription::models::TranscriptionModelId;
 
+mod actions;
 mod detail;
 mod settings;
 mod tabs;
@@ -98,6 +99,8 @@ pub(super) struct FilesPane {
     pub(super) again: Option<Again>,
     /// Transcribe again's models, read when its menu opens.
     pub(super) models: Vec<(TranscriptionModelId, &'static str)>,
+    /// The app that opens the file, read when the … menu opens.
+    pub(super) opener: Option<String>,
     /// Clean up again's engines, read when its menu opens.
     pub(super) engines: Vec<settings::EngineChoice>,
     /// Settings' own prompt while it holds typing not yet saved.
@@ -649,6 +652,7 @@ fn drop_zone(ui: &Ui, p: Paint) -> El {
         } else {
             rune::Color::TRANSPARENT
         })
+        .child(rune::icon(&UPLOAD_ICON, 18.0).key("icon").color(p.muted()))
         .child(
             col()
                 .key("words")
@@ -670,14 +674,21 @@ fn drop_zone(ui: &Ui, p: Paint) -> El {
                         .truncate(),
                 ),
         )
-        .child(button(
-            p,
-            "files-choose",
-            tr("Choose file…"),
-            ButtonKind::Secondary,
-            choose,
-        ))
+        .child(
+            rune_kit::Button::new(tr("Choose file…"))
+                .variant(rune_kit::ButtonVariant::Neutral)
+                .control_size(rune_kit::ControlSize::Small)
+                .on_press_tx(choose)
+                .build(p.k)
+                .key("files-choose"),
+        )
 }
+
+static UPLOAD_ICON: rune::Icon = rune::Icon {
+    name: "hex-files-upload",
+    view: 16.0,
+    body: r#"<path d="M8 10.5V2.5M5 5.3 8 2.3l3 3M2.5 10v3h11v-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#,
+};
 
 fn search(ui: &Ui, p: Paint) -> El {
     TextInput::new(&ui.files.search)
@@ -813,6 +824,24 @@ pub(super) fn open_file(path: &std::path::Path) {
     }
     #[cfg(not(target_os = "macos"))]
     let _ = path;
+}
+
+/// The app that opens `path` by default, such as `QuickTime Player`.
+pub(super) fn opener(path: &std::path::Path) -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::NSWorkspace;
+        use objc2_foundation::{NSString, NSURL};
+        let url = NSURL::fileURLWithPath(&NSString::from_str(path.to_str()?));
+        let app = NSWorkspace::sharedWorkspace().URLForApplicationToOpenURL(&url)?;
+        let name = app.lastPathComponent()?.to_string();
+        Some(name.trim_end_matches(".app").to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        None
+    }
 }
 
 /// Reveals `path` in Finder.
