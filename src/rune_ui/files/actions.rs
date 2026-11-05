@@ -42,13 +42,12 @@ pub(super) fn toggle(ui: &mut Ui, key: &'static str) {
     ui.open = (ui.open != Some(Menu::Pick(key))).then_some(Menu::Pick(key));
 }
 
-/// A small button that opens a menu: an optional icon, the label, and a
-/// chevron after it that turns up while the menu is open.
+/// A quiet small button that opens a menu, as the mockups draw it: an
+/// optional icon, the label, and a chevron that turns up while it is open.
 #[allow(clippy::too_many_arguments)]
 fn menu_button(
     p: Paint,
     key: &str,
-    variant: ButtonVariant,
     glyph: Option<&'static rune::Icon>,
     label: &str,
     open: bool,
@@ -60,23 +59,56 @@ fn menu_button(
     } else {
         p.k.glyph.chevron_down
     };
-    let words = label.to_string();
-    let mut button = rune_kit::Button::new(label)
-        .variant(variant)
-        .control_size(rune_kit::ControlSize::Small)
-        .disabled(disabled)
-        .label_with(move |font, ink| {
-            row()
-                .key("label")
-                .gap(4.0)
-                .center_y()
-                .child(text(words).key("words").font(font).color(ink))
-                .child(icon(chevron, 12.0).key("chevron").color(ink))
-        });
-    if let Some(glyph) = glyph {
-        button = button.icon(glyph);
+    quiet_button(p, key, glyph, label, Some(chevron), disabled, press)
+}
+
+/// The mockups' small button: a step above the card, a visible hairline,
+/// an optional icon before the label and chevron after it.
+pub(super) fn quiet_button(
+    p: Paint,
+    key: &str,
+    glyph: Option<&'static rune::Icon>,
+    label: &str,
+    chevron: Option<&'static rune::Icon>,
+    disabled: bool,
+    press: impl Fn(&mut Ui) + 'static,
+) -> El {
+    let c = &p.k.c;
+    let mut button = row()
+        .key(key)
+        .role("button")
+        .label(label)
+        .h(22.0)
+        .pl(8.0)
+        .pr(if chevron.is_some() { 6.0 } else { 8.0 })
+        .gap(5.0)
+        .center_y()
+        .radius(5.0)
+        .fill(c.layer_01)
+        .box_shadow(rune::Shadow {
+            spread: 0.5,
+            color: c.border_strong,
+            ..Default::default()
+        })
+        .children(glyph.map(|glyph| icon(glyph, 12.0).key("icon").color(c.icon_base)))
+        .child(
+            text(label.to_string())
+                .key("words")
+                .font(p.k.ty.small_medium)
+                .color(c.text_base),
+        )
+        .children(chevron.map(|glyph| icon(glyph, 11.0).key("chevron").color(c.icon_muted)));
+    if disabled {
+        button = button.dim(0.45);
+    } else {
+        button = button
+            .focusable(true)
+            .focus_ring(2.0, 0.0, c.border_focus)
+            .hover(c.hover)
+            .press(c.pressed)
+            .on_press(press);
     }
-    button.on_press(press).build(p.k).key(key)
+    button
 }
 
 /// A quick request above the field: a pill in the body's weight, with a
@@ -95,12 +127,12 @@ fn chip_button(
         .label(label)
         .focusable(true)
         .focus_ring(2.0, 0.0, c.border_focus)
-        .h(26.0)
-        .pl(10.0)
-        .pr(if chevron.is_some() { 8.0 } else { 10.0 })
+        .h(24.0)
+        .pl(9.0)
+        .pr(if chevron.is_some() { 7.0 } else { 9.0 })
         .gap(4.0)
         .center_y()
-        .radius(13.0)
+        .radius(12.0)
         .box_shadow(rune::Shadow {
             spread: 0.5,
             color: c.border_base,
@@ -112,7 +144,10 @@ fn chip_button(
         .child(
             text(label.to_string())
                 .key("label")
-                .font(p.k.ty.ui)
+                .font(rune::TextStyle {
+                    size: 12.0,
+                    ..p.k.ty.ui
+                })
                 .color(c.text_base),
         )
         .children(chevron.map(|glyph| icon(glyph, 12.0).key("chevron").color(c.icon_muted)))
@@ -341,7 +376,6 @@ pub(super) fn again_menu(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec
     let trigger = menu_button(
         p,
         "file-again",
-        ButtonVariant::Neutral,
         Some(&icons::REFRESH),
         label,
         open,
@@ -438,31 +472,32 @@ pub(super) fn again_row(ui: &Ui, p: Paint, again: &Again, layer: &mut Vec<El>) -
         .child(
             text(again.name)
                 .key("model")
-                .font(p.k.ty.ui_medium)
+                .font(p.k.ty.ui)
                 .color(p.text())
                 .grow(1.0)
                 .shrink()
                 .truncate(),
         )
         .child(languages)
-        .child(
-            rune_kit::Button::new(tr("Transcribe"))
-                .variant(ButtonVariant::Neutral)
-                .control_size(rune_kit::ControlSize::Small)
-                .on_press(|ui: &mut Ui| {
-                    if let Some(again) = ui.files.again.take() {
-                        transcribe_again(
-                            ui,
-                            &again.record,
-                            again.model,
-                            again.name,
-                            Some(again.language),
-                        );
-                    }
-                })
-                .build(p.k)
-                .key("again-start"),
-        )
+        .child(quiet_button(
+            p,
+            "again-start",
+            None,
+            tr("Transcribe"),
+            None,
+            false,
+            |ui: &mut Ui| {
+                if let Some(again) = ui.files.again.take() {
+                    transcribe_again(
+                        ui,
+                        &again.record,
+                        again.model,
+                        again.name,
+                        Some(again.language),
+                    );
+                }
+            },
+        ))
         .child(
             rune_kit::Button::new(tr("Cancel"))
                 .variant(ButtonVariant::Ghost)
@@ -527,7 +562,6 @@ pub(super) fn redo_menu(
     let trigger = menu_button(
         p,
         "file-redo",
-        ButtonVariant::Neutral,
         Some(&icons::REFRESH),
         tr("Clean up again"),
         open,
@@ -619,19 +653,28 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         });
         chips = chips.child(menu.trigger(trigger).build(p.k, layer));
     }
-    let send_button = IconButton::new(&SEND_ICON)
-        .variant(IconButtonVariant::Neutral)
-        .control_size(rune_kit::ControlSize::Small)
+    let c = &p.k.c;
+    let send_button = row()
+        .key("send")
+        .role("button")
         .label(tr("Send"))
+        .focusable(true)
+        .focus_ring(2.0, 0.0, c.border_focus)
+        .size(26.0, 26.0)
+        .center()
+        .radius(6.0)
+        .fill(c.layer_02)
+        .hover(c.hover)
+        .press(c.pressed)
         .on_press(|ui: &mut Ui| {
             let prompt = ui.files.ask.text.clone();
             send(ui, prompt);
         })
-        .build(p.k)
-        .key("send");
+        .child(icon(&SEND_ICON, 14.0).key("arrow").color(c.icon_muted));
     let field = TextInput::new(&ui.files.ask)
         .placeholder(tr("What should I do with this text?"))
         .width(None)
+        .height(34.0)
         .trailing(send_button)
         .on_edit(|ui: &mut Ui| &mut ui.files.ask)
         .on_submit(|ui: &mut Ui, _| {
@@ -643,7 +686,7 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     col()
         .key("files-ask-area")
         .gap(8.0)
-        .pb(4.0)
+        .pb(16.0)
         .child(
             rune::el()
                 .key("rule")

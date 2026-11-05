@@ -735,7 +735,7 @@ fn timestamp_switch(p: Paint, timed: bool) -> El {
             .center_y()
             .radius(p.k.radius.sm);
         cell = if on {
-            cell.fill(c.bg_base).box_shadow(rune::Shadow {
+            cell.fill(c.layer_02).box_shadow(rune::Shadow {
                 spread: 0.5,
                 color: c.border_strong,
                 ..Default::default()

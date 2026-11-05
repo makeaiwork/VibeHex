@@ -242,7 +242,7 @@ pub(super) fn strip(
                     .px(5.0)
                     .center()
                     .radius(8.0)
-                    .fill(if on { c.layer_03 } else { c.layer_02 })
+                    .fill(c.layer_03)
                     .child(
                         text(entries.len().to_string())
                             .font(TextStyle {
