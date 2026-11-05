@@ -226,7 +226,8 @@ pub(super) fn strip(
         let mut name = row()
             .key("name")
             .h(24.0)
-            .px(12.0)
+            .pl(12.0)
+            .pr(if on && entries.len() > 1 { 7.0 } else { 12.0 })
             .gap(6.0)
             .center_y()
             .child(text(label.clone()).key("label").font(font).color(if on {
