@@ -29,9 +29,14 @@ pub(super) static LABS_ICON: Icon = Icon {
 pub(super) fn main_panes(ui: &Ui) -> Vec<Pane> {
     let mut panes = vec![Pane::General, Pane::Output, Pane::History];
     #[cfg(hex_capture)]
-    let optional = [Pane::Meetings, Pane::Annotate, Pane::VoiceFilter];
+    let optional = [
+        Pane::Meetings,
+        Pane::Files,
+        Pane::Annotate,
+        Pane::VoiceFilter,
+    ];
     #[cfg(not(hex_capture))]
-    let optional = [Pane::Meetings, Pane::VoiceFilter];
+    let optional = [Pane::Meetings, Pane::Files, Pane::VoiceFilter];
     panes.extend(optional.into_iter().filter(|pane| pane.shown(ui)));
     panes
 }
@@ -292,6 +297,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
             &BOOK,
             tr("Add to vocabulary from a selection"),
             tr("Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"),
+        ));
+        rows.push(row(
+            Feature::Files,
+            Pane::Files.icon(),
+            tr("Files"),
+            tr("Drop audio and video files to transcribe them, clean them up, and rework the text with your own requests"),
         ));
         rows.push(row(
             Feature::CleanupProgress,
@@ -571,9 +582,10 @@ impl Group {
             | Feature::StopWhenCallEnds
             | Feature::MovableMeetingCapsules
             | Feature::MeetingSummaryModel => Self::Meetings,
-            Feature::HistoryStats | Feature::KeepRecordings | Feature::LiveText => {
-                Self::HistoryAndRecording
-            }
+            Feature::HistoryStats
+            | Feature::KeepRecordings
+            | Feature::LiveText
+            | Feature::Files => Self::HistoryAndRecording,
             Feature::VoiceFilter
             | Feature::PauseBrowser
             | Feature::HideMenuBarIcon
@@ -632,6 +644,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::RussianVibeCoding => "lab-russian-vibe-coding",
         Feature::VocabularyQuickAdd => "lab-vocabulary-quick-add",
         Feature::CleanupProgress => "lab-cleanup-progress",
+        Feature::Files => "lab-files",
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::SmartSpacing => "lab-smart-spacing",

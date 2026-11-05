@@ -77,6 +77,8 @@ pub struct LabsSettings {
     /// A plate beside the HUD shows AI cleanup's progress, with Paste now
     /// (macOS).
     pub cleanup_progress: bool,
+    /// The Files pane transcribes dropped audio and video files (macOS).
+    pub files: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -125,6 +127,7 @@ impl Default for LabsSettings {
             russian_vibe_coding: false,
             vocabulary_quick_add: false,
             cleanup_progress: false,
+            files: false,
         }
     }
 }

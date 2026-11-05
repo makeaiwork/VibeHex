@@ -164,6 +164,7 @@ pub fn generate(
     if server.provider == Provider::Local {
         return generate_locally(
             server,
+            engine::CONTEXT_TOKENS,
             instructions,
             transcript,
             deadline,
@@ -187,6 +188,7 @@ pub fn generate(
 /// isn't running (loading counts against `deadline`), then asks it.
 fn generate_locally(
     server: &Server,
+    context: u32,
     instructions: &str,
     transcript: &str,
     deadline: Duration,
@@ -195,7 +197,7 @@ fn generate_locally(
 ) -> Result<String> {
     let started = Instant::now();
     let model = local_models::chosen(&server.model);
-    let endpoint = engine::endpoint(model, deadline, cancelled)?;
+    let endpoint = engine::endpoint_with(model, context, deadline, cancelled)?;
     let running = Server {
         url: endpoint.url,
         ..server.clone()
@@ -211,12 +213,74 @@ fn generate_locally(
     )
 }
 
+/// Labs › Files: [`generate`] on the built-in engine in a window of at least
+/// `context` tokens (another server ignores it).
+pub fn generate_in_window(
+    server: &Server,
+    context: u32,
+    instructions: &str,
+    transcript: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+) -> Result<String> {
+    if server.provider != Provider::Local {
+        return generate(server, instructions, transcript, deadline, cancelled, None);
+    }
+    generate_locally(
+        server,
+        context,
+        instructions,
+        transcript,
+        deadline,
+        cancelled,
+        None,
+    )
+}
+
+/// How many tokens the built-in `model` reads `text` as, from its server's
+/// `/tokenize` (started at the usual window if it isn't running).
+pub fn count_tokens(
+    model: &'static local_models::LocalModel,
+    text: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+) -> Result<usize> {
+    #[derive(Serialize)]
+    struct Tokenize<'a> {
+        content: &'a str,
+    }
+    #[derive(Deserialize)]
+    struct Tokens {
+        tokens: Vec<serde_json::Value>,
+    }
+    // Any window will do: a wide one already running is kept.
+    let endpoint = engine::endpoint_with(model, engine::CONTEXT_TOKENS, deadline, cancelled)?;
+    let base = api_base(&endpoint.url);
+    let url = format!("{}/tokenize", base.strip_suffix("/v1").unwrap_or(base));
+    let exchange = Exchange {
+        loopback: true,
+        url,
+        key: Some(endpoint.key),
+        openrouter: false,
+        body: Some(serde_json::to_vec(&Tokenize { content: text })?),
+        timeout: deadline,
+        limit: MAX_RESPONSE_BYTES * 4,
+        name: model.name.into(),
+        streamed: None,
+    };
+    let body = exchange.run()?;
+    let tokens: Tokens = serde_json::from_slice(&body)
+        .map_err(|error| eyre!("{} sent token counts Hex can't read: {error}", model.name))?;
+    Ok(tokens.tokens.len())
+}
+
 /// Sends a one-word request and reports how long the answer took.
 pub fn test(server: &Server, key: Option<&str>) -> Result<Duration> {
     let started = Instant::now();
     if server.provider == Provider::Local {
         generate_locally(
             server,
+            engine::CONTEXT_TOKENS,
             "Reply with the single word OK.",
             "ping",
             ENGINE_TEST_DEADLINE,

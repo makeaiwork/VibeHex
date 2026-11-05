@@ -16,6 +16,7 @@ use crate::dictation::vocabulary::{VocabularyEntry, serialize_saved};
 use crate::transcription::models::{TranscriptionModelId, TranscriptionSelection};
 
 mod dictation_processing;
+mod files_settings;
 mod hotkeys;
 mod labs_settings;
 mod meeting_folder;
@@ -24,6 +25,7 @@ mod persistence;
 mod shortcut_repair;
 
 pub use dictation_processing::*;
+pub use files_settings::{DEFAULT_FILES_PROMPT, FilesSettings, QuickPrompt};
 pub use hotkeys::*;
 pub use labs_settings::{LabsSettings, UNLOAD_IDLE_MINUTES};
 pub use meeting_folder::default_meeting_output_folder;
@@ -694,6 +696,8 @@ pub struct AppSettings {
     pub experimental: ExperimentalSettings,
     /// The Labs features' own switches (`crate::labs`).
     pub labs: LabsSettings,
+    /// Labs › Files: transcribing dropped audio and video files.
+    pub files: FilesSettings,
     /// Start listening when Hex opens (Windows and Linux, where the
     /// listener can be off).
     pub enable_on_launch: bool,
@@ -814,6 +818,7 @@ impl Default for AppSettings {
             capture_from_other_build: None,
             experimental: ExperimentalSettings::default(),
             labs: LabsSettings::default(),
+            files: FilesSettings::default(),
             enable_on_launch: true,
             paste_with_shift: false,
             gnome_keyboard_shortcuts: false,

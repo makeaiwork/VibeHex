@@ -18,6 +18,7 @@ mod controls;
 #[cfg(target_os = "macos")]
 pub(crate) mod deep_link;
 mod explainer;
+mod files;
 mod found;
 mod found_choice;
 mod fun;
@@ -87,7 +88,7 @@ use host::{Backend, Request, ShortcutTarget};
 use onboarding_kit::live::Page;
 use scenes::{SCENES, Scene, fixture, mac_fixture, portal_fixture};
 use settings::Capture;
-use sidebar::{BuildKind, Pane, sidebar, title_bar};
+use sidebar::{BuildKind, Pane, pane_header, sidebar};
 
 /// How long typing pauses before a text field's edit is saved.
 const DRAFT_DELAY: Duration = Duration::from_millis(250);
@@ -704,6 +705,7 @@ pub(crate) struct Ui {
     platform: platform::PlatformState,
     host: platform::PlatformHost,
     meetings: meetings::MeetingsPane,
+    files: files::FilesPane,
     fun: fun::FunPane,
     activity: activity::ActivityPane,
     /// HUD Lab's preset was copied since it last changed.
@@ -809,6 +811,7 @@ impl Ui {
             platform: platform::PlatformState::new(platform::Capabilities::current()),
             host: platform::PlatformHost::Local(Default::default()),
             meetings: meetings::MeetingsPane::default(),
+            files: files::FilesPane::default(),
             fun: fun::FunPane::default(),
             activity: activity::ActivityPane::default(),
             hud_copied: false,
@@ -1254,6 +1257,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
             && ui.window.as_ref().is_some_and(rune::AppHandle::is_visible),
     );
     changed |= ui.history.poll(ui.pane == Pane::History);
+    changed |= files::poll(ui);
     if ui.pane == Pane::Output && !ui.labs_open {
         changed |= output::poll(ui, clock, tx);
     }
@@ -1376,6 +1380,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         Pane::Modes => modes::pane(ui, p, &mut layer),
         Pane::History => history::pane(ui, p, &mut layer),
         Pane::Meetings => meetings::pane(ui, p, &mut layer),
+        Pane::Files => files::pane(ui, p, &mut layer),
         #[cfg(hex_capture)]
         Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, &mut layer)),
         Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
@@ -1402,9 +1407,12 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
             } else {
                 ui.pane.title()
             },
-            (ui.pane == Pane::Meetings && !ui.labs_open)
-                .then(|| meetings::view_switch(ui, p))
-                .flatten(),
+            match ui.pane {
+                _ if ui.labs_open => None,
+                Pane::Meetings => meetings::view_switch(ui, p),
+                Pane::Files => files::view_switch(ui, p),
+                _ => None,
+            },
             actions,
         ))
         .child(body);
@@ -1442,28 +1450,6 @@ fn window_focused(ui: &mut Ui, focused: bool, tx: &mut Tx) {
             platform::ScrawlRequest::Refresh,
         ));
     }
-}
-
-/// The title bar of the content panel: the title, a view switch that stays
-/// beside it, and the pane's actions on the right.
-fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Vec<El>) -> El {
-    title_bar(row())
-        .key("pane-header")
-        .h(52.0)
-        .px(METRICS.gutter)
-        .gap(8.0)
-        .center_y()
-        .child(
-            text(title)
-                .key("pane-title")
-                .font(p.k.ty.body_medium)
-                .color(p.text())
-                .shrink()
-                .truncate(),
-        )
-        .children(switch.map(|switch| switch.ml(8.0)))
-        .child(el().key("header-spacer").grow(1.0))
-        .children(actions)
 }
 
 /// How far a scroll body's top and bottom edges fade out.

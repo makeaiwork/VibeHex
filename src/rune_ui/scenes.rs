@@ -505,6 +505,26 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
     }),
+    ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
+    ("files-working", |ui| {
+        files_scene(ui, files::FilesPane::working_fixture())
+    }),
+    ("files-original", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(1));
+    }),
+    ("files-summary", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(3));
+    }),
+    ("files-empty", |ui| {
+        files_scene(ui, files::FilesPane::empty_fixture())
+    }),
+    ("files-settings", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.files.use_default_prompt = false;
+        ui.files.view = files::View::Settings;
+    }),
     ("meetings-off", |ui| {
         *ui = mac_fixture();
         ui.settings.meetings.enabled = false;
@@ -783,6 +803,14 @@ pub(super) fn mac_fixture() -> Ui {
     });
     ui.meetings = meetings::MeetingsPane::fixture();
     ui
+}
+
+/// Labs › Files on a Mac, showing `pane`.
+fn files_scene(ui: &mut Ui, pane: files::FilesPane) {
+    *ui = mac_fixture();
+    ui.settings.labs.files = true;
+    ui.files = pane;
+    ui.pane = Pane::Files;
 }
 
 fn shortcut_row(ui: &mut Ui, capture: Capture) {

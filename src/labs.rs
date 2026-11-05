@@ -104,10 +104,11 @@ pub enum Feature {
     RussianVibeCoding,
     VocabularyQuickAdd,
     CleanupProgress,
+    Files,
 }
 
 impl Feature {
-    pub const ALL: [Self; 45] = [
+    pub const ALL: [Self; 46] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -153,6 +154,7 @@ impl Feature {
         Self::RussianVibeCoding,
         Self::VocabularyQuickAdd,
         Self::CleanupProgress,
+        Self::Files,
     ];
 
     /// The features this OS and build have.
@@ -220,7 +222,8 @@ impl Feature {
             | Self::VocabularyPasteList
             | Self::RussianVibeCoding
             | Self::VocabularyQuickAdd
-            | Self::CleanupProgress => Audience::Everyone,
+            | Self::CleanupProgress
+            | Self::Files => Audience::Everyone,
         }
     }
 
@@ -271,7 +274,8 @@ impl Feature {
             | Self::RecentDictations
             | Self::HideMenuBarIcon
             | Self::VocabularyQuickAdd
-            | Self::CleanupProgress => cfg!(target_os = "macos"),
+            | Self::CleanupProgress
+            | Self::Files => cfg!(target_os = "macos"),
             Self::KeyboardModelSwitching => crate::keyboard_input_sources::available(),
             Self::Playground
             | Self::LiveText
@@ -303,6 +307,7 @@ impl Feature {
             self,
             Self::AiCleanupServer
                 | Self::CleanupProgress
+                | Self::Files
                 | Self::RussianVibeCoding
                 | Self::VocabularyPasteList
                 | Self::VocabularyQuickAdd
@@ -357,6 +362,7 @@ impl Feature {
             Self::RussianVibeCoding => "russian-vibe-coding",
             Self::VocabularyQuickAdd => "vocabulary-quick-add",
             Self::CleanupProgress => "cleanup-progress",
+            Self::Files => "files",
         }
     }
 
@@ -408,6 +414,7 @@ impl Feature {
             Self::RussianVibeCoding => "labs.russian_vibe_coding",
             Self::VocabularyQuickAdd => "labs.vocabulary_quick_add",
             Self::CleanupProgress => "labs.cleanup_progress",
+            Self::Files => "labs.files",
         }
     }
 
@@ -531,6 +538,9 @@ impl Feature {
             Self::CleanupProgress => {
                 "While AI cleanup takes a while, a bar beside the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"
             }
+            Self::Files => {
+                "Drop audio and video files to transcribe them, clean them up, and rework the text with your own requests"
+            }
         }
     }
 
@@ -586,6 +596,7 @@ impl Feature {
             Self::RussianVibeCoding => settings.labs.russian_vibe_coding,
             Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add,
             Self::CleanupProgress => settings.labs.cleanup_progress,
+            Self::Files => settings.labs.files,
         }
     }
 
@@ -639,6 +650,7 @@ impl Feature {
             &mut labs.russian_vibe_coding,
             &mut labs.vocabulary_quick_add,
             &mut labs.cleanup_progress,
+            &mut labs.files,
         ]
     }
 
@@ -691,6 +703,7 @@ impl Feature {
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
             Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add = on,
             Self::CleanupProgress => settings.labs.cleanup_progress = on,
+            Self::Files => settings.labs.files = on,
             // The preset writes into the person's settings once, on the edge.
             Self::RussianVibeCoding => {
                 if settings.labs.russian_vibe_coding != on {
@@ -742,6 +755,7 @@ const VOCABULARY_PASTE_LIST: u64 = 1 << 26;
 const RUSSIAN_VIBE_CODING: u64 = 1 << 27;
 const VOCABULARY_QUICK_ADD: u64 = 1 << 28;
 const CLEANUP_PROGRESS: u64 = 1 << 29;
+const FILES: u64 = 1 << 30;
 /// Unload-idle minutes (at most 1,440, 11 bits) sit above the switches.
 const MINUTES_SHIFT: u64 = 32;
 
@@ -796,6 +810,11 @@ pub fn vocabulary_quick_add() -> bool {
 /// beside the HUD shows with Paste now (macOS).
 pub fn cleanup_progress() -> bool {
     on(CLEANUP_PROGRESS)
+}
+
+/// Labs › Files: the Files pane, its queue, and its worker (macOS).
+pub fn files() -> bool {
+    on(FILES)
 }
 
 pub fn mouse_shortcuts() -> bool {
@@ -1060,6 +1079,7 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             settings.cleanup_progress,
             CLEANUP_PROGRESS,
         ),
+        (Feature::Files, settings.files, FILES),
     ]
     .into_iter()
     .filter(|(feature, on, _)| *on && reaches(*feature))

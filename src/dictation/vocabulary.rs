@@ -122,6 +122,17 @@ static FOCUS: OnceLock<RwLock<Option<ContextSnapshot>>> = OnceLock::new();
 
 thread_local! {
     static DICTATING: Cell<bool> = const { Cell::new(false) };
+    /// Transcription on this thread reads no vocabulary (`heard_if`).
+    static WITHOUT: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Runs `run` with transcription on this thread reading the vocabulary
+/// only when `heard`, as Labs › Files does with Use vocabulary off.
+pub(crate) fn heard_if<T>(heard: bool, run: impl FnOnce() -> T) -> T {
+    let was = WITHOUT.replace(!heard);
+    let result = run();
+    WITHOUT.set(was);
+    result
 }
 
 /// Records the focused app and page, so the next dictation's transcription
@@ -150,6 +161,9 @@ pub(crate) fn for_dictation<R>(work: impl FnOnce() -> R) -> R {
 /// The focused mode's own terms first, so the bias cap keeps them, then the
 /// shared list, each term once.
 fn transcription_entries() -> Vec<VocabularyEntry> {
+    if WITHOUT.with(Cell::get) {
+        return Vec::new();
+    }
     let shared = entries();
     if !DICTATING.with(Cell::get) {
         return shared;

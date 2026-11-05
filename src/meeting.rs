@@ -49,7 +49,7 @@ mod notes;
 pub mod query;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 pub(crate) mod runtime;
-mod transcript;
+pub(crate) mod transcript;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) mod watcher;
 #[cfg(all(debug_assertions, target_os = "macos"))]

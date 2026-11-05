@@ -42,6 +42,8 @@ speaker's review yet. It offers 简体中文 (`zh`) and 繁體中文 (`zh-Hant`,
 Traditional Chinese is drafted from the Simplified strings by a character and
 Taiwan-usage phrase converter (`desktop/i18n/traditional_chinese.rs`), not yet
 reviewed by a native speaker.
+[Files](files.md) (Labs, macOS) transcribes dropped audio and video files and
+reworks their text with cleanup and your own requests.
 The [vocabulary](vocabulary.md) biases transcription toward names you list.
 [Your own speech models](own-models.md) covers adding a GGUF file and using
 models another app already downloaded.

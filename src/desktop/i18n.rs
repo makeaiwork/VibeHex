@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicU8, Ordering};
 
+mod files;
 mod french;
 mod portuguese;
 mod traditional_chinese;
@@ -314,12 +315,16 @@ pub(crate) fn event_age(timestamp_ms: u64) -> String {
     tr_fill(template, &value.to_string())
 }
 
+/// Every string with its six columns: the main table, then Files' (Labs).
+fn translations() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
+    TRANSLATIONS.iter().chain(files::TRANSLATIONS)
+}
+
 fn tables() -> &'static [HashMap<&'static str, &'static str>; 6] {
     static TABLES: OnceLock<[HashMap<&'static str, &'static str>; 6]> = OnceLock::new();
     TABLES.get_or_init(|| {
         std::array::from_fn(|column| {
-            TRANSLATIONS
-                .iter()
+            translations()
                 .map(|(english, translated)| (*english, translated[column]))
                 .collect()
         })
@@ -1436,7 +1441,6 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::TRANSLATIONS;
     use super::{language_from_env, primary_subtag};
 
     #[test]
@@ -1549,7 +1553,7 @@ mod tests {
 
     #[test]
     fn templates_keep_their_placeholder_in_every_language() {
-        for (english, translated) in TRANSLATIONS {
+        for (english, translated) in super::translations() {
             if english.contains("{}") {
                 for translation in translated {
                     assert!(
@@ -1570,6 +1574,9 @@ mod tests {
         include_str!("../rune_ui/fun.rs"),
         include_str!("../rune_ui/general.rs"),
         include_str!("../rune_ui/history.rs"),
+        include_str!("../rune_ui/files.rs"),
+        include_str!("../rune_ui/files/detail.rs"),
+        include_str!("../rune_ui/files/settings.rs"),
         include_str!("../rune_ui/hud_lab.rs"),
         include_str!("../rune_ui/labs.rs"),
         include_str!("../rune_ui/linux_host.rs"),
@@ -1646,7 +1653,7 @@ mod tests {
 
     #[test]
     fn every_translated_string_has_every_language() {
-        let table: std::collections::HashMap<_, _> = TRANSLATIONS.iter().copied().collect();
+        let table: std::collections::HashMap<_, _> = super::translations().copied().collect();
         let mut checked = 0;
         for source in SOURCES {
             for literal in translated_literals(source) {
@@ -1670,7 +1677,7 @@ mod tests {
     #[test]
     fn every_sound_set_string_has_every_language() {
         use crate::feedback::{Cue, SoundSet};
-        let table: std::collections::HashMap<_, _> = TRANSLATIONS.iter().copied().collect();
+        let table: std::collections::HashMap<_, _> = super::translations().copied().collect();
         let strings = SoundSet::ALL
             .into_iter()
             .flat_map(|set| [set.name(), set.character()])
@@ -1689,7 +1696,7 @@ mod tests {
 
     #[test]
     fn named_placeholders_survive_translation() {
-        for (english, translated) in TRANSLATIONS {
+        for (english, translated) in super::translations() {
             let names = english
                 .split('{')
                 .skip(1)
@@ -1710,7 +1717,7 @@ mod tests {
     #[test]
     fn keys_are_unique() {
         let mut seen = std::collections::HashSet::new();
-        for (english, _) in TRANSLATIONS {
+        for (english, _) in super::translations() {
             assert!(
                 seen.insert(english),
                 "duplicate translation key {english:?}"

@@ -43,6 +43,12 @@ static MEETINGS_ICON: Icon = Icon {
     view: 24.0,
     body: include_str!("../../assets/icons/meetings.svg"),
 };
+/// A page with a sound wave on it.
+static FILES_ICON: Icon = Icon {
+    name: "hex-files",
+    view: 16.0,
+    body: r#"<path d="M4 1.8h5l3.5 3.5v8.9H4z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M9 1.8v3.5h3.5M6.5 9v3M8.3 8v5M10.1 9.5v2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#,
+};
 #[cfg(hex_capture)]
 pub(super) static SCRAWL_ICON: Icon = Icon {
     name: "hex-scrawl",
@@ -64,6 +70,8 @@ pub(super) enum Pane {
     Modes,
     /// Recorded calls and their settings, or the opt-in (macOS beta).
     Meetings,
+    /// Audio and video files transcribed and reworked (Labs › Files, macOS).
+    Files,
     History,
     /// Annotate (Scrawl's captures inside Hex): the switch, shortcuts,
     /// permission, transcriber, folder, retention, and Scrawl's own app.
@@ -86,6 +94,7 @@ impl Pane {
         Pane::Output,
         Pane::Modes,
         Pane::Meetings,
+        Pane::Files,
         Pane::History,
         #[cfg(hex_capture)]
         Pane::Annotate,
@@ -99,6 +108,7 @@ impl Pane {
         match self {
             Pane::Modes | Pane::HudLab | Pane::Activity => false,
             Pane::Meetings => caps.meetings && meetings::available(ui),
+            Pane::Files => super::files::available(ui),
             // On from Labs, or kept by a driver apps already use.
             Pane::VoiceFilter => caps.fun && fun::running(ui),
             #[cfg(hex_capture)]
@@ -114,6 +124,7 @@ impl Pane {
             Pane::Modes => tr("Modes"),
             Pane::History => tr("History"),
             Pane::Meetings => tr("Meetings"),
+            Pane::Files => tr("Files"),
             #[cfg(hex_capture)]
             Pane::Annotate => tr("Annotate"),
             Pane::VoiceFilter => tr("Voice Filter"),
@@ -129,6 +140,7 @@ impl Pane {
             Pane::Modes => "nav-modes",
             Pane::History => "nav-history",
             Pane::Meetings => "nav-meetings",
+            Pane::Files => "nav-files",
             #[cfg(hex_capture)]
             Pane::Annotate => "nav-annotate",
             Pane::VoiceFilter => "nav-voice-filter",
@@ -144,6 +156,7 @@ impl Pane {
             Pane::Modes => &MODES_ICON,
             Pane::History => &HISTORY_ICON,
             Pane::Meetings => &MEETINGS_ICON,
+            Pane::Files => &FILES_ICON,
             #[cfg(hex_capture)]
             Pane::Annotate => &SCRAWL_ICON,
             Pane::VoiceFilter => &VOICE_FILTER_ICON,
@@ -466,4 +479,26 @@ fn quit_item(p: Paint) -> El {
                 .color(c.text_muted)
                 .truncate(),
         )
+}
+
+/// The title bar of the content panel: the title, a view switch that stays
+/// beside it, and the pane's actions on the right.
+pub(super) fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Vec<El>) -> El {
+    title_bar(row())
+        .key("pane-header")
+        .h(52.0)
+        .px(METRICS.gutter)
+        .gap(8.0)
+        .center_y()
+        .child(
+            text(title)
+                .key("pane-title")
+                .font(p.k.ty.body_medium)
+                .color(p.text())
+                .shrink()
+                .truncate(),
+        )
+        .children(switch.map(|switch| switch.ml(8.0)))
+        .child(el().key("header-spacer").grow(1.0))
+        .children(actions)
 }

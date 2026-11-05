@@ -24,7 +24,7 @@ ignoring case, and says "No Labs features match." when none do; a Labs link
 clears it so its row shows. Check: `labs_search_keeps_the_rows_holding_every_word`.
 A feature VibeHex added (`labs::Feature::vibehex`: Clean up on your own
 server, Cleanup progress, Russian vibe coding, Vocabulary text view, Add to
-vocabulary from a selection; Hex itself has none of them) carries a small
+vocabulary from a selection, Files; Hex itself has none of them) carries a small
 yellow star (`warning.icon`) raised to its title's top right, whose tooltip
 and accessible label say "Added in VibeHex"; searching "vibehex" lists just
 these rows.
@@ -80,6 +80,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Add to vocabulary from a selection no labs.vocabulary_quick_add + vocabulary_add_hotkey (macOS)
 │                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
+├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on); off: takes back what still reads as the preset wrote it
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 

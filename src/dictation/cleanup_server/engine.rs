@@ -29,8 +29,11 @@ const LOAD_LIMIT: Duration = Duration::from_secs(120);
 const IDLE_UNLOAD: Duration = Duration::from_secs(15 * 60);
 const POLL: Duration = Duration::from_millis(100);
 /// Room for Hex's instructions, the vocabulary, a long transcript, and its
-/// rewrite.
-const CONTEXT_TOKENS: &str = "8192";
+/// rewrite: the window dictation runs in.
+pub const CONTEXT_TOKENS: u32 = 8192;
+/// The wide window Labs › Files asks for when a whole text doesn't fit the
+/// usual one; its cache is kept at 8 bits to halve its memory.
+pub const WIDE_CONTEXT_TOKENS: u32 = 32_768;
 const PID_FILE: &str = "server.pid";
 
 static ENGINE: Mutex<Option<Running>> = Mutex::new(None);
@@ -38,6 +41,8 @@ static ENGINE: Mutex<Option<Running>> = Mutex::new(None);
 struct Running {
     child: Child,
     model: &'static str,
+    /// The server's context window, in tokens.
+    context: u32,
     url: String,
     key: String,
     last_used: Instant,
@@ -105,10 +110,23 @@ pub fn endpoint(
     deadline: Duration,
     cancelled: &AtomicBool,
 ) -> Result<Endpoint> {
+    endpoint_with(model, CONTEXT_TOKENS, deadline, cancelled)
+}
+
+/// [`endpoint`] with a window of at least `context` tokens: a server already
+/// running `model` with one that wide is kept, else it restarts with
+/// `context`.
+pub fn endpoint_with(
+    model: &'static LocalModel,
+    context: u32,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+) -> Result<Endpoint> {
     let started = Instant::now();
     let mut engine = lock_within(started, deadline, cancelled, model)?;
     if let Some(running) = engine.as_mut()
         && running.model == model.id
+        && running.context >= context
         && matches!(running.child.try_wait(), Ok(None))
     {
         running.last_used = Instant::now();
@@ -125,7 +143,7 @@ pub fn endpoint(
     let loading = Instant::now();
     *LOAD.lock().unwrap_or_else(|error| error.into_inner()) =
         Some((model.id, loading, expected_load(model)));
-    let result = start(model).and_then(|mut running| {
+    let result = start(model, context).and_then(|mut running| {
         let remaining = deadline.saturating_sub(started.elapsed()).min(LOAD_LIMIT);
         match wait_ready(&mut running, remaining, cancelled) {
             Ok(()) => Ok(running),
@@ -147,6 +165,34 @@ pub fn endpoint(
     };
     *engine = Some(running);
     Ok(endpoint)
+}
+
+/// The running server's window, in tokens.
+pub fn running_context() -> Option<u32> {
+    let mut engine = ENGINE.try_lock().ok()?;
+    let running = engine.as_mut()?;
+    matches!(running.child.try_wait(), Ok(None)).then_some(running.context)
+}
+
+/// Back to dictation's window once Labs › Files is done with a wide one:
+/// stops a server running wider and loads its model again at the usual
+/// size, in the background.
+pub fn narrow() {
+    let model = {
+        let mut engine = ENGINE.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(running) = engine.as_ref() else {
+            return;
+        };
+        if running.context <= CONTEXT_TOKENS {
+            return;
+        }
+        let model = running.model;
+        stop_locked(&mut engine);
+        model
+    };
+    if let Some(model) = local_models::find(model) {
+        warm(model);
+    }
 }
 
 /// Starts loading `model` in the background unless it already runs or loads.
@@ -305,7 +351,7 @@ fn binary() -> Result<PathBuf> {
     Ok(path)
 }
 
-fn start(model: &'static LocalModel) -> Result<Running> {
+fn start(model: &'static LocalModel, context: u32) -> Result<Running> {
     let binary = binary()?;
     stop_orphan();
     let port = free_port()?;
@@ -319,6 +365,7 @@ fn start(model: &'static LocalModel) -> Result<Running> {
             port,
             &log.join("llama-server.log"),
             model.id,
+            context,
         ))
         .env("LLAMA_API_KEY", &key)
         .stdin(Stdio::null())
@@ -333,12 +380,14 @@ fn start(model: &'static LocalModel) -> Result<Running> {
     tracing::info!(
         model = model.id,
         port,
+        context,
         pid = child.id(),
         "started the cleanup engine"
     );
     Ok(Running {
         child,
         model: model.id,
+        context,
         url: format!("http://127.0.0.1:{port}/v1"),
         key,
         last_used: Instant::now(),
@@ -350,6 +399,7 @@ fn arguments(
     port: u16,
     log: &std::path::Path,
     alias: &str,
+    context: u32,
 ) -> Vec<std::ffi::OsString> {
     let mut arguments: Vec<std::ffi::OsString> = Vec::new();
     let mut push = |value: &dyn AsRef<std::ffi::OsStr>| arguments.push(value.as_ref().to_owned());
@@ -357,7 +407,7 @@ fn arguments(
         ("--model", model.as_os_str()),
         ("--host", "127.0.0.1".as_ref()),
         ("--port", port.to_string().as_ref()),
-        ("--ctx-size", CONTEXT_TOKENS.as_ref()),
+        ("--ctx-size", context.to_string().as_ref()),
         ("--n-gpu-layers", "all".as_ref()),
         ("--parallel", "1".as_ref()),
         ("--alias", alias.as_ref()),
@@ -371,6 +421,20 @@ fn arguments(
     }
     push(&"--no-webui");
     push(&"--offline");
+    // A wide window's cache at 8 bits takes half the memory; quantizing the
+    // values needs flash attention.
+    if context > CONTEXT_TOKENS {
+        for argument in [
+            "--flash-attn",
+            "on",
+            "--cache-type-k",
+            "q8_0",
+            "--cache-type-v",
+            "q8_0",
+        ] {
+            push(&argument);
+        }
+    }
     arguments
 }
 
@@ -463,6 +527,7 @@ mod tests {
             4242,
             std::path::Path::new("/logs/l.log"),
             "m",
+            CONTEXT_TOKENS,
         )
         .into_iter()
         .map(|argument| argument.into_string().unwrap())

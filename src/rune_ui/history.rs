@@ -246,7 +246,7 @@ fn clear(ui: &mut Ui) {
 
 /// The models Transcribe again can use: every available one that is
 /// installed for the language it would run in.
-fn installed_models(ui: &Ui) -> Vec<(TranscriptionModelId, &'static str)> {
+pub(super) fn installed_models(ui: &Ui) -> Vec<(TranscriptionModelId, &'static str)> {
     crate::transcription::models::all_models()
         .into_iter()
         .filter(|model| model.available())

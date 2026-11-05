@@ -506,6 +506,18 @@ pub(crate) fn generate_text(
     generate_cancellable(prompt, None, deadline, cancelled)
 }
 
+/// Labs › Files: one generation on OpenCode with `mode`'s model (the Global
+/// mode's), or OpenCode's default when it names none.
+pub(crate) fn generate_for_mode(
+    prompt: &str,
+    mode: &crate::app_settings::DictationMode,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+) -> Result<String> {
+    let profile = Profile::from_mode(mode);
+    generate_cancellable(prompt, profile.model.as_ref(), deadline, cancelled)
+}
+
 /// One generation from exactly `model`, never another provider's: a failure
 /// is OpenCode's answer for that model (Labs › Choose meeting summary model).
 pub(crate) fn generate_text_with(
@@ -870,7 +882,7 @@ fn prompt_parts(
 /// "Labs (may be transcribed as Лэбс)", and wrote the term far more often
 /// from the arrow (Gemma 4 E2B: 36 of 44 misheard forms against 23, on a
 /// person's own History).
-fn vocabulary_lines(vocabulary: &[VocabularyEntry]) -> String {
+pub(crate) fn vocabulary_lines(vocabulary: &[VocabularyEntry]) -> String {
     if vocabulary.is_empty() {
         return String::new();
     }

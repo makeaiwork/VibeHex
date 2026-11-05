@@ -32,6 +32,8 @@ fn available() -> bool {
     true
 }
 
+mod files_keys;
+
 #[derive(Clone, Copy, Debug)]
 enum Kind {
     Bool,
@@ -751,7 +753,9 @@ fn managed(name: &str, lock: crate::policy::Lock) -> ControlError {
 
 /// Every key, in registry order.
 fn keys() -> impl Iterator<Item = &'static Key> {
-    KEYS.iter().chain(CAPTURE_KEYS)
+    KEYS.iter()
+        .chain(CAPTURE_KEYS)
+        .chain(files_keys::FILES_KEYS)
 }
 
 /// Settings `hex settings` never shows: Hex's own bookkeeping.
@@ -1563,6 +1567,12 @@ mod tests {
             meetings: crate::app_settings::MeetingSettings {
                 retention: Some(crate::app_settings::MeetingRetention::Day),
                 opencode_model: Some("openai/gpt-5".into()),
+                ..Default::default()
+            },
+            files: crate::app_settings::FilesSettings {
+                transcription: Some(Default::default()),
+                cleanup_engine: Some("opencode".into()),
+                last_folder: Some("/tmp".into()),
                 ..Default::default()
             },
             ..Default::default()
