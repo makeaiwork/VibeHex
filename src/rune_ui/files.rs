@@ -331,6 +331,7 @@ impl FilesPane {
             from: None,
             model: None,
             window_k: None,
+            draft: None,
         };
         Self {
             records: vec![
@@ -380,6 +381,13 @@ impl FilesPane {
                 from: Some(2),
                 model: Some("Qwen3 4B".into()),
                 window_k: Some(32),
+                draft: Some(crate::files::worker::Draft {
+                    kind: crate::files::rewrite::DraftKind::Outline,
+                    text: "1. Как клиент собирает отчёты сейчас\n2. Сколько это стоит команде\n\
+                           3. Автоматическая выгрузка из CRM"
+                        .into(),
+                    cut: false,
+                }),
             },
         );
         pane.tab = Some(Tab::Task(3));

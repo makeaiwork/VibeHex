@@ -33,8 +33,9 @@ const TICK: Duration = Duration::from_millis(200);
 /// since an answer may run a little longer than its transcript.
 const STREAMED_CAP: f32 = 0.95;
 
-/// Called with how many characters of a piece's answer have arrived.
-pub(crate) type Streamed = Arc<dyn Fn(usize) + Send + Sync>;
+/// Called as a streamed answer arrives: how many characters have come, and
+/// the text so far.
+pub(crate) type Streamed = Arc<dyn Fn(usize, &str) + Send + Sync>;
 
 /// How far a cleanup is: `done` of `total` pieces, and the whole as a
 /// fraction from 0 to 1.
@@ -325,7 +326,7 @@ impl Job {
     fn streamed(&self, piece_chars: usize) -> Streamed {
         let id = self.id;
         let piece_chars = piece_chars.max(1) as f32;
-        Arc::new(move |chars| {
+        Arc::new(move |chars, _| {
             if let Some(state) = state().as_mut().filter(|state| state.id == id) {
                 state.partial = (chars as f32 / piece_chars).min(STREAMED_CAP);
             }

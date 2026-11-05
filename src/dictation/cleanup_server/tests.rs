@@ -296,7 +296,8 @@ fn the_model_list_is_a_get_of_models_with_the_key() {
     );
 }
 
-/// A streamed answer reads whole, its length reported as it arrives.
+/// A streamed answer reads whole, its length and text so far reported as
+/// it arrives.
 #[test]
 fn a_streamed_answer_reads_whole_and_reports_its_length() {
     let events = "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n\
@@ -305,8 +306,16 @@ fn a_streamed_answer_reads_whole_and_reports_its_length() {
                   data: {\"choices\":[{\"delta\":{\"content\":\"Labs\"}}]}\n\n\
                   data: [DONE]\n\n";
     let seen = std::sync::Mutex::new(Vec::new());
-    let text =
-        super::read_events(events.as_bytes(), &|chars| seen.lock().unwrap().push(chars)).unwrap();
+    let text = super::read_events(events.as_bytes(), &|chars, so_far| {
+        seen.lock().unwrap().push((chars, so_far.to_string()))
+    })
+    .unwrap();
     assert_eq!(text, "Привет, Labs");
-    assert_eq!(*seen.lock().unwrap(), [8, 12]);
+    assert_eq!(
+        *seen.lock().unwrap(),
+        [
+            (8, "Привет, ".to_string()),
+            (12, "Привет, Labs".to_string())
+        ]
+    );
 }

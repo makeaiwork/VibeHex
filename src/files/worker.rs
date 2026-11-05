@@ -8,11 +8,11 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use color_eyre::eyre::{Result, eyre};
 
-use super::rewrite::{self, Engine};
+use super::rewrite::{self, DraftKind, Drafts, Engine};
 use super::store::{self, Segment, Version, VersionKind};
 use super::text;
 use crate::app_settings::{AppSettings, CleanupServerSettings, DictationMode, FilesSettings};
@@ -132,6 +132,43 @@ pub struct Task {
     pub model: Option<String>,
     /// The built-in engine's window in K tokens, once it is chosen.
     pub window_k: Option<u32>,
+    /// What a cleanup or request has written so far.
+    pub draft: Option<Draft>,
+}
+
+/// The end of what a running cleanup or request has written.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Draft {
+    pub kind: DraftKind,
+    pub text: String,
+    /// Earlier text was left out.
+    pub cut: bool,
+}
+
+/// How often a growing draft reaches the window.
+const DRAFT_EVERY: Duration = Duration::from_millis(80);
+
+/// Drafts for task `id`, at most one each [`DRAFT_EVERY`] unless what is
+/// written changes.
+fn drafts(id: u64) -> Drafts {
+    let last: Mutex<Option<(DraftKind, Instant)>> = Mutex::new(None);
+    Arc::new(move |kind, text| {
+        let now = Instant::now();
+        {
+            let mut last = last.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            if last.is_some_and(|(was, at)| was == kind && now - at < DRAFT_EVERY) {
+                return;
+            }
+            *last = Some((kind, now));
+        }
+        let (tail, cut) = rewrite::draft_tail(text);
+        let draft = Draft {
+            kind,
+            text: tail.to_string(),
+            cut,
+        };
+        update_task(id, |task| task.draft = Some(draft));
+    })
 }
 
 struct Queued {
@@ -236,6 +273,7 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
             from,
             model: None,
             window_k: None,
+            draft: None,
         },
         job,
         config,
@@ -485,9 +523,14 @@ fn cleanup(
     });
     let started = Instant::now();
     let instructions = rewrite::cleanup_instructions(config.cleanup_prompt(), config.vocabulary());
-    let made = rewrite::clean(&engine, &instructions, &input, cancel, &mut |fraction| {
-        update_task(task.id, |task| task.fraction = fraction);
-    })?;
+    let made = rewrite::clean(
+        &engine,
+        &instructions,
+        &input,
+        cancel,
+        &mut |fraction| update_task(task.id, |task| task.fraction = fraction),
+        &drafts(task.id),
+    )?;
     let model = engine.model_name();
     store::update(&task.record, |record| {
         let first = !record
@@ -544,6 +587,7 @@ fn request(
                 task.window_k = window_k;
             });
         },
+        &drafts(task.id),
     )?;
     let model = engine.model_name();
     store::update(&task.record, |record| {

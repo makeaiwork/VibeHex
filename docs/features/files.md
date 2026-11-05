@@ -52,8 +52,12 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   └── A running job's tab turns a ring before its name and shows "Made from
 │       Cleanup by Qwen3 4B, 32K window", then a card: title and percent,
 │       Stop, a thin bar, and for three steps each step with a green tick,
-│       a turning ring, or an empty ring; the chips and field stay, faded,
-│       saying "Wait for <name>, or stop it"
+│       a turning ring, or an empty ring; under it what the job writes so
+│       far, as Markdown with a cursor ("Summary of part 2 so far:", "Outline
+│       so far:", "Text so far:"; its last ~1,500 characters), streamed from
+│       the built-in engine, OpenRouter, or Your server as it arrives
+│       (OpenCode answers whole, so its draft grows a piece at a time); the
+│       chips and field stay, faded, saying "Wait for <name>, or stop it"
 ├── Header   The name in up to two lines (a long word breaks anywhere), then the
 │            day and time (24-hour where the Mac uses it), ⏱ length, 🎙 model;
 │            list rows wrap names the same way
@@ -104,7 +108,9 @@ stays until Delete file from list….
 
 Checks: `files::store`, `files::text`, `files::rewrite`
 (`requests_take_the_usual_window_then_the_wide_one_then_three_steps`, the
-three-step fake generator), `files::worker` (tab names); scenes `files`,
+three-step fake generator and its drafts, a draft's tail),
+`dictation::cleanup_server` (a streamed answer's text so far),
+`files::worker` (tab names); scenes `files`,
 `files-working`, `files-original`, `files-summary`, `files-versions` (the
 open tab's list), `files-more` (the … menu), `files-again` (Transcribe
 again's language), `files-empty`, `files-settings`, `files-settings-prompt`

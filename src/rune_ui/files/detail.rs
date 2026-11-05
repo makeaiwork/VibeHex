@@ -12,9 +12,10 @@ use super::actions;
 use super::tabs;
 use super::{Armed, Tab, failure, stage_label, submit};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
+use crate::files::rewrite::DraftKind;
 use crate::files::store::{self, FileRecord, Version, VersionKind};
 use crate::files::text as file_text;
-use crate::files::worker::{self, Job, Stage, Task};
+use crate::files::worker::{self, Draft, Job, Stage, Task};
 
 static CLOCK_ICON: rune::Icon = rune::Icon {
     name: "hex-files-clock",
@@ -201,6 +202,7 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
             if let Some(task) = tasks.iter().find(|task| task.id == id) {
                 body = body.children(task_line(p, record, task));
                 body = body.child(progress(p, record, task));
+                body = body.children(task.draft.as_ref().map(|d| draft(p, d)));
                 if task.kind != VersionKind::Original {
                     let name = task.name.clone().unwrap_or_else(|| tr("Cleanup").into());
                     ask = Some(actions::ask_area(ui, p, Some(&name), layer));
@@ -604,6 +606,38 @@ fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
         card = card.child(steps(p, task.fraction, parts));
     }
     card
+}
+
+/// What a running cleanup or request has written so far, as Markdown that
+/// is still arriving, with a cursor at its end.
+fn draft(p: Paint, draft: &Draft) -> El {
+    let label = match draft.kind {
+        DraftKind::Summary(part) => tr_fill("Summary of part {} so far:", &part.to_string()),
+        DraftKind::Outline => tr("Outline so far:").to_string(),
+        DraftKind::Result => tr("Text so far:").to_string(),
+    };
+    let mut source = String::new();
+    if draft.cut {
+        source.push_str("…\n\n");
+    }
+    source.push_str(draft.text.trim_end());
+    source.push('▌');
+    col()
+        .key("file-draft")
+        .gap(8.0)
+        .pt(4.0)
+        .child(text(label).key("label").font(p.k.ty.ui).color(p.muted()))
+        .child(
+            rune_kit::Markdown::new(source)
+                .style(
+                    rune_kit::MarkdownStyle::from_kit(p.k)
+                        .body_font(p.k.ty.ui)
+                        .text(p.muted()),
+                )
+                .streaming(true)
+                .build(p.k)
+                .key("markdown"),
+        )
 }
 
 /// What a running cleanup or request is made from and runs on, as its

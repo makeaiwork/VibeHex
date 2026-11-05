@@ -6,13 +6,14 @@
 //! worked in three steps (summaries of its parts, an outline from them, then
 //! each part with the outline) and the parts joined.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use color_eyre::eyre::{Result, eyre};
 
 use crate::app_settings::{CleanupRunsOn, CleanupServerSettings, DictationMode};
-use crate::dictation::cleanup_pieces::{PIECE_WORDS, split};
+use crate::dictation::cleanup_pieces::{PIECE_WORDS, Streamed, split};
 use crate::dictation::cleanup_server::{self, Provider, Server, engine, local_models::LocalModel};
 use crate::dictation::vocabulary::VocabularyEntry;
 
@@ -26,6 +27,58 @@ const FILL: f32 = 0.9;
 const STEP_PART_WORDS: usize = 2_500;
 /// Parts for a server whose window isn't known.
 const SMALL_STEP_PART_WORDS: usize = 1_000;
+/// About how much of a draft the window shows: its end, from a line start.
+const DRAFT_CHARS: usize = 1_500;
+
+/// What a running cleanup or request is writing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DraftKind {
+    /// The summary of this part (from 1), in three steps.
+    Summary(usize),
+    /// The outline from the summaries, in three steps.
+    Outline,
+    /// The text it makes.
+    Result,
+}
+
+/// Hears a draft as it grows: what it is and all of its text so far. A
+/// server that streams its answer reports it as it arrives; OpenCode, which
+/// doesn't, reports each finished piece.
+pub type Drafts = Arc<dyn Fn(DraftKind, &str) + Send + Sync>;
+
+/// The end of `text` the window shows, starting at a line where one starts
+/// near the cut, and whether anything was cut.
+pub fn draft_tail(text: &str) -> (&str, bool) {
+    let count = text.chars().count();
+    if count <= DRAFT_CHARS {
+        return (text, false);
+    }
+    let start = text
+        .char_indices()
+        .nth(count - DRAFT_CHARS)
+        .map_or(0, |(index, _)| index);
+    let tail = &text[start..];
+    let from_line = tail
+        .char_indices()
+        .take(300)
+        .find(|&(_, c)| c == '\n')
+        .map_or(0, |(index, _)| index + 1);
+    (tail[from_line..].trim_start(), true)
+}
+
+/// Reports a streamed answer as `kind`, after `before` (what earlier pieces
+/// made, already cut to its end).
+fn streamed(drafts: &Drafts, kind: DraftKind, before: &str) -> Streamed {
+    let drafts = drafts.clone();
+    let before = before.to_string();
+    Arc::new(move |_, text| {
+        if before.is_empty() {
+            drafts(kind, text);
+        } else {
+            drafts(kind, &format!("{before}{text}"));
+        }
+    })
+}
 
 /// Where cleanup and requests run.
 #[derive(Clone, Debug)]
@@ -111,6 +164,7 @@ impl Engine {
         instructions: &str,
         input: &str,
         cancelled: &AtomicBool,
+        streamed: Option<Streamed>,
     ) -> Result<String> {
         if cancelled.load(Ordering::Acquire) {
             return Err(eyre!("stopped"));
@@ -123,7 +177,9 @@ impl Engine {
                 input,
                 DEADLINE,
                 cancelled,
+                streamed,
             ),
+            // OpenCode answers whole: its drafts come a piece at a time.
             Self::OpenCode(mode) => crate::dictation::processor::generate_for_mode(
                 &format!("{instructions}\n\n{input}"),
                 mode,
@@ -165,13 +221,14 @@ pub fn cleanup_instructions(prompt: &str, vocabulary: &[VocabularyEntry]) -> Str
 }
 
 /// Cleans `text` piece by piece; a piece that fails keeps its text.
-/// `progress` hears the fraction done.
+/// `progress` hears the fraction done, `drafts` the text cleaned so far.
 pub fn clean(
     engine: &Engine,
     instructions: &str,
     text: &str,
     cancelled: &AtomicBool,
     progress: &mut dyn FnMut(f32),
+    drafts: &Drafts,
 ) -> Result<Made> {
     let pieces = split(text, PIECE_WORDS);
     let mut made = String::new();
@@ -180,7 +237,14 @@ pub fn clean(
         let body = piece.trim_end();
         let tail = &piece[body.len()..];
         let input = format!("Transcript:\n<transcript>\n{body}\n</transcript>");
-        match engine.generate(engine::CONTEXT_TOKENS, instructions, &input, cancelled) {
+        let arriving = streamed(drafts, DraftKind::Result, draft_tail(&made).0);
+        match engine.generate(
+            engine::CONTEXT_TOKENS,
+            instructions,
+            &input,
+            cancelled,
+            Some(arriving),
+        ) {
             Ok(cleaned) if !cleaned.is_empty() => {
                 made.push_str(&cleaned);
                 made.push_str(if tail.is_empty() { "" } else { "\n\n" });
@@ -196,6 +260,7 @@ pub fn clean(
             }
         }
         progress((index + 1) as f32 / pieces.len().max(1) as f32);
+        drafts(DraftKind::Result, made.trim_end());
     }
     if failures.len() == pieces.len() {
         return Err(eyre!("{}", failures[0]));
@@ -276,7 +341,7 @@ pub fn cleanup_window_k(engine: &Engine) -> Option<u32> {
 
 /// Applies `prompt` to `text`: whole when it fits a window, else in three
 /// steps. `progress` hears the fraction done and, once known, the parts and
-/// the built-in engine's window in K tokens.
+/// the built-in engine's window in K tokens; `drafts` what it writes.
 pub fn request(
     engine: &Engine,
     prompt: &str,
@@ -284,6 +349,7 @@ pub fn request(
     vocabulary: &[VocabularyEntry],
     cancelled: &AtomicBool,
     progress: &mut dyn FnMut(f32, Option<usize>, Option<u32>),
+    drafts: &Drafts,
 ) -> Result<Made> {
     let instructions = request_instructions(vocabulary);
     let input = request_input(prompt, text);
@@ -310,7 +376,8 @@ pub fn request(
         Fit::Whole(window) => {
             let shown = local.map(|_| ran_window_k(window));
             progress(0.05, None, shown);
-            let text = engine.generate(window, &instructions, &input, cancelled)?;
+            let arriving = streamed(drafts, DraftKind::Result, "");
+            let text = engine.generate(window, &instructions, &input, cancelled, Some(arriving))?;
             if text.is_empty() {
                 return Err(eyre!("the model returned empty text"));
             }
@@ -322,8 +389,8 @@ pub fn request(
             })
         }
         Fit::Steps(window, part_words) => {
-            let generate = |instructions: &str, input: &str| {
-                engine.generate(window, instructions, input, cancelled)
+            let generate = |instructions: &str, input: &str, arriving: Option<Streamed>| {
+                engine.generate(window, instructions, input, cancelled, arriving)
             };
             let shown = local.map(|_| ran_window_k(window));
             let made = in_steps(
@@ -334,6 +401,7 @@ pub fn request(
                 &instructions,
                 cancelled,
                 &mut |fraction, parts| progress(fraction, parts, shown),
+                drafts,
             )?;
             Ok(Made {
                 window_k: shown,
@@ -353,16 +421,21 @@ fn window_k(tokens: u32) -> u32 {
     tokens / 1_024
 }
 
+/// One generation: instructions, input, and where its answer streams.
+type Generate<'a> = dyn Fn(&str, &str, Option<Streamed>) -> Result<String> + 'a;
+
 /// The three steps: a summary of each part, an outline of the whole from
 /// them, then each part with the outline, joined.
+#[allow(clippy::too_many_arguments)]
 fn in_steps(
-    generate: &dyn Fn(&str, &str) -> Result<String>,
+    generate: &Generate<'_>,
     part_words: usize,
     prompt: &str,
     text: &str,
     instructions: &str,
     cancelled: &AtomicBool,
     progress: &mut dyn FnMut(f32, Option<usize>),
+    drafts: &Drafts,
 ) -> Result<Made> {
     let parts = split(text, part_words);
     let count = parts.len();
@@ -377,9 +450,12 @@ fn in_steps(
                      its language, keeping names, numbers, and decisions. Return only the \
                      bullet points.";
     let mut summaries = Vec::with_capacity(count);
-    for part in &parts {
+    for (index, part) in parts.iter().enumerate() {
         let input = format!("Part of the text:\n<text>\n{}\n</text>", part.trim());
-        summaries.push(generate(summarize, &input)?);
+        let kind = DraftKind::Summary(index + 1);
+        let summary = generate(summarize, &input, Some(streamed(drafts, kind, "")))?;
+        drafts(kind, &summary);
+        summaries.push(summary);
         step(progress);
     }
     let joined = summaries
@@ -394,9 +470,11 @@ fn in_steps(
     let outline = generate(
         outline_instructions,
         &format!("User's request: {prompt}\n\nSummaries:\n{joined}"),
+        Some(streamed(drafts, DraftKind::Outline, "")),
     )?;
+    drafts(DraftKind::Outline, &outline);
     step(progress);
-    let mut results = Vec::with_capacity(count);
+    let mut results: Vec<String> = Vec::with_capacity(count);
     let mut failures = Vec::new();
     for (index, part) in parts.iter().enumerate() {
         let input = format!(
@@ -407,8 +485,15 @@ fn in_steps(
             index + 1,
             part.trim()
         );
-        match generate(instructions, &input) {
-            Ok(result) if !result.is_empty() => results.push(result),
+        let before = results
+            .iter()
+            .fold(String::new(), |all, result| all + result + "\n\n");
+        let arriving = streamed(drafts, DraftKind::Result, draft_tail(&before).0);
+        match generate(instructions, &input, Some(arriving)) {
+            Ok(result) if !result.is_empty() => {
+                results.push(result);
+                drafts(DraftKind::Result, &results.join("\n\n"));
+            }
             _ if cancelled.load(Ordering::Acquire) => return Err(eyre!("stopped")),
             Ok(_) => failures.push("the model returned empty text".to_string()),
             Err(error) => failures.push(error.to_string()),
@@ -485,7 +570,7 @@ mod tests {
         let parts = split(&text, STEP_PART_WORDS).len();
         assert!(parts > 1);
         let calls = std::sync::Mutex::new(0);
-        let fake = |instructions: &str, input: &str| -> Result<String> {
+        let fake = |instructions: &str, input: &str, _: Option<Streamed>| -> Result<String> {
             *calls.lock().unwrap() += 1;
             Ok(if instructions.starts_with("Summarize") {
                 "- point".into()
@@ -499,6 +584,11 @@ mod tests {
             })
         };
         let mut seen = Vec::new();
+        let kinds = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let heard = kinds.clone();
+        let drafts: Drafts = Arc::new(move |kind, text: &str| {
+            heard.lock().unwrap().push((kind, text.to_string()));
+        });
         let made = in_steps(
             &fake,
             STEP_PART_WORDS,
@@ -507,11 +597,50 @@ mod tests {
             "rework",
             &AtomicBool::new(false),
             &mut |fraction, count| seen.push((fraction, count)),
+            &drafts,
         )
         .unwrap();
         assert_eq!(made.text, vec!["result"; parts].join("\n\n"));
         assert_eq!(made.parts, Some(parts));
         assert_eq!(*calls.lock().unwrap(), parts * 2 + 1);
         assert_eq!(seen.last(), Some(&(1.0, Some(parts))));
+        // Without a streaming server, each finished step is the draft.
+        let kinds = kinds.lock().unwrap();
+        assert_eq!(kinds[0], (DraftKind::Summary(1), "- point".to_string()));
+        assert!(kinds.contains(&(DraftKind::Outline, "OUTLINE".to_string())));
+        assert_eq!(
+            kinds.last().unwrap(),
+            &(DraftKind::Result, vec!["result"; parts].join("\n\n"))
+        );
+    }
+
+    #[test]
+    fn a_long_draft_shows_its_end_from_a_line_start() {
+        let short = "1. Как клиент собирает отчёты";
+        assert_eq!(draft_tail(short), (short, false));
+        let long = (0..200)
+            .map(|n| format!("Line {n} of the draft."))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let (tail, cut) = draft_tail(&long);
+        assert!(cut);
+        assert!(tail.starts_with("Line "), "{tail:.40}");
+        assert!(tail.ends_with("Line 199 of the draft."));
+        assert!(tail.chars().count() <= DRAFT_CHARS);
+    }
+
+    #[test]
+    fn a_streamed_piece_follows_what_earlier_pieces_made() {
+        let heard = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = heard.clone();
+        let drafts: Drafts = Arc::new(move |kind, text: &str| {
+            sink.lock().unwrap().push((kind, text.to_string()));
+        });
+        let arriving = streamed(&drafts, DraftKind::Result, "First part.\n\n");
+        arriving(6, "Second");
+        assert_eq!(
+            *heard.lock().unwrap(),
+            [(DraftKind::Result, "First part.\n\nSecond".to_string())]
+        );
     }
 }
