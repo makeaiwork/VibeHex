@@ -393,6 +393,7 @@ pub(super) fn conflicts(
         ShortcutTarget::SecondDictation => HotkeySlot::SecondDictation,
         #[cfg(target_os = "macos")]
         ShortcutTarget::VocabularyAdd => HotkeySlot::VocabularyAdd,
+        #[cfg(target_os = "macos")]
         ShortcutTarget::Stop => HotkeySlot::Stop,
     };
     settings.hotkey_in_use(slot, binding)
@@ -426,6 +427,7 @@ pub(super) fn binding(settings: &AppSettings, target: ShortcutTarget) -> Option<
         ShortcutTarget::SecondDictation => settings.second_dictation_hotkey.as_ref(),
         #[cfg(target_os = "macos")]
         ShortcutTarget::VocabularyAdd => settings.vocabulary_add_hotkey.as_ref(),
+        #[cfg(target_os = "macos")]
         ShortcutTarget::Stop => Some(&settings.stop_hotkey),
     }
 }
@@ -446,6 +448,7 @@ pub(super) fn set_binding(
         ShortcutTarget::SecondDictation => settings.second_dictation_hotkey = Some(binding),
         #[cfg(target_os = "macos")]
         ShortcutTarget::VocabularyAdd => settings.vocabulary_add_hotkey = Some(binding),
+        #[cfg(target_os = "macos")]
         ShortcutTarget::Stop => settings.stop_hotkey = binding,
     }
 }
@@ -1195,6 +1198,7 @@ pub(super) fn hotkey_key(target: ShortcutTarget) -> &'static str {
         ShortcutTarget::SecondDictation => "second-dictation-hotkey",
         #[cfg(target_os = "macos")]
         ShortcutTarget::VocabularyAdd => "vocabulary-add-hotkey",
+        #[cfg(target_os = "macos")]
         ShortcutTarget::Stop => "stop-hotkey",
     }
 }

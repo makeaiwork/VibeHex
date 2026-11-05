@@ -119,12 +119,10 @@ pub(crate) enum ShortcutTarget {
     RawDictation,
     /// Labs › Second dictation shortcut.
     SecondDictation,
-    /// Labs › Add to vocabulary from a selection.
-    VocabularyAdd,
+    VocabularyAdd, // Labs › Add to vocabulary from a selection.
     /// Toggle mode's cancel shortcut.
     Cancel,
-    /// Labs › Stop shortcut: finishes a shortcut's recording.
-    Stop,
+    Stop, // Labs › Stop shortcut: finishes a shortcut's recording.
 }
 
 /// What the runtime last published for the window and the menu bar.

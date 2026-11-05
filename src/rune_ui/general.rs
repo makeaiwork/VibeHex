@@ -97,8 +97,7 @@ fn basics(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
                 Some(tr("Dictates like the shortcut above")),
             ));
         }
-        // Labs › Stop shortcut (macOS): another key, Return by default,
-        // finishes and pastes what a shortcut started recording.
+        // Labs › Stop shortcut (macOS): another key finishes what a shortcut started.
         #[cfg(target_os = "macos")]
         if crate::labs::Feature::StopShortcut.on(&ui.settings) {
             rows.extend(shortcut_rows(
@@ -293,19 +292,16 @@ pub(super) fn shortcut_rows(
     // offered while the shortcut is something else or off. Cancel's
     // default, Escape, can't be recorded (Escape ends the recorder), so its
     // restore is always offered.
+    use crate::app_settings::HotkeyBinding;
     let mut default_note = None;
+    let restore = crate::labs::Feature::RestoreShortcutDefault.on(&ui.settings);
     let default = match target {
-        ShortcutTarget::PasteLast
-            if crate::labs::Feature::RestoreShortcutDefault.on(&ui.settings) =>
-        {
-            Some(crate::app_settings::HotkeyBinding::paste_last_default())
-        }
-        ShortcutTarget::Cancel => Some(crate::app_settings::HotkeyBinding::cancel_default()),
+        ShortcutTarget::PasteLast if restore => Some(HotkeyBinding::paste_last_default()),
+        ShortcutTarget::Cancel => Some(HotkeyBinding::cancel_default()),
         #[cfg(target_os = "macos")]
-        ShortcutTarget::VocabularyAdd => {
-            crate::app_settings::HotkeyBinding::vocabulary_add_default()
-        }
-        ShortcutTarget::Stop => Some(crate::app_settings::HotkeyBinding::stop_default()),
+        ShortcutTarget::VocabularyAdd => HotkeyBinding::vocabulary_add_default(),
+        #[cfg(target_os = "macos")]
+        ShortcutTarget::Stop => Some(HotkeyBinding::stop_default()),
         _ => None,
     };
     if let Some(default) = default {
