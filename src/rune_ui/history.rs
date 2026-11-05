@@ -430,6 +430,7 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
                         time: event_age(entry.timestamp_ms),
                         hover: vec![copy_action(ui, p, id, true)],
                         selected: pane.selected == Some(id),
+                        title_lines: 1,
                     },
                     move |ui: &mut Ui| {
                         ui.history.selected = Some(id);

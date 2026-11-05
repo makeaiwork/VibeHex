@@ -23,8 +23,8 @@ use crate::files::{decode, text as file_text};
 use crate::transcription::models::TranscriptionModelId;
 
 mod detail;
-mod markdown;
 mod settings;
+mod tabs;
 
 /// What the pane shows, picked in its header.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,6 +46,15 @@ pub(super) enum Armed {
 pub(super) enum Tab {
     Version(u32),
     Task(u64),
+}
+
+/// Transcribe again's model while its language is being chosen.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Again {
+    pub(super) record: String,
+    pub(super) model: TranscriptionModelId,
+    pub(super) name: &'static str,
+    pub(super) language: String,
 }
 
 /// A record with the day and time the list shows it under.
@@ -72,6 +81,8 @@ pub(super) struct FilesPane {
     pub(super) search: TextEdit,
     pub(super) selected: Option<String>,
     pub(super) tab: Option<Tab>,
+    /// The version last opened in each of a file's tabs, until Hex quits.
+    last: std::collections::HashMap<(String, tabs::Group), Tab>,
     /// Original tabs' view until the setting changes; `None` follows it.
     pub(super) timestamps: Option<bool>,
     pub(super) editing: Option<u32>,
@@ -83,6 +94,8 @@ pub(super) struct FilesPane {
     /// What was last copied, for the menu's "Copied".
     pub(super) copied: Option<(u32, &'static str)>,
     pub(super) error: Option<String>,
+    /// Transcribe again's model waiting for its language.
+    pub(super) again: Option<Again>,
     /// Transcribe again's models, read when its menu opens.
     pub(super) models: Vec<(TranscriptionModelId, &'static str)>,
     /// Clean up again's engines, read when its menu opens.
@@ -97,6 +110,9 @@ pub(super) struct FilesPane {
     fixture: bool,
 }
 
+/// The scenes' "now": Thursday, November 5, 2026, 15:10 UTC.
+const FIXTURE_NOW_MS: u64 = 1_793_891_400_000;
+
 /// Labs › Files is on, on a Mac.
 pub(super) fn available(ui: &Ui) -> bool {
     ui.platform.caps.os == super::platform::Os::Macos && ui.settings.labs.files
@@ -108,6 +124,15 @@ impl FilesPane {
             .iter()
             .map(|listed| &listed.record)
             .find(|record| record.id == id)
+    }
+
+    /// Now, or the scenes' fixed moment.
+    pub(super) fn now(&self) -> u64 {
+        if self.fixture {
+            FIXTURE_NOW_MS
+        } else {
+            store::now_ms()
+        }
     }
 
     pub(super) fn selected(&self) -> Option<&FileRecord> {
@@ -125,6 +150,7 @@ impl FilesPane {
             self.editing = None;
             self.armed = None;
             self.copied = None;
+            self.again = None;
         }
         self.selected = Some(id);
     }
@@ -169,6 +195,7 @@ impl FilesPane {
     /// lecture waiting, and a recording without audio.
     pub(super) fn fixture() -> Self {
         use crate::files::store::{Segment, Version, VersionKind};
+        let ago = |minutes: u64| FIXTURE_NOW_MS - minutes * 60_000;
         let record = |id: &str, name: &str, minutes: u64| FileRecord {
             id: id.into(),
             name: name.into(),
@@ -204,6 +231,7 @@ impl FilesPane {
             text: file_text::plain(&segments),
             segments,
             model: "Parakeet v3".into(),
+            created_ms: ago(50),
             ..Version::default()
         };
         let cleanup = Version {
@@ -214,6 +242,7 @@ impl FilesPane {
             model: "Qwen3 4B".into(),
             from: Some(1),
             window_k: Some(8),
+            created_ms: ago(48),
             ..Version::default()
         };
         let summary = Version {
@@ -223,15 +252,62 @@ impl FilesPane {
             text: "## Summary\n\n- Reports are built **by hand**: CRM → Excel, about a day a week\n- Mistakes only surface on the call\n- Next: an automatic Friday report, piloted with one team\n- Prototype due by the end of the month".into(),
             model: "Qwen3 4B".into(),
             from: Some(2),
-            prompt: Some("Write a short summary".into()),
+            prompt: None,
             window_k: Some(32),
             parts: Some(6),
+            created_ms: ago(30),
             ..Version::default()
         };
-        let mut interview = record("preview-interview", "Client interview.m4a", 42);
-        interview.versions = vec![original, cleanup, summary];
+        let again = Version {
+            id: 4,
+            name: "Original (Whisper Large v3 Turbo)".into(),
+            model: "Whisper Large v3 Turbo".into(),
+            created_ms: ago(26 * 60),
+            ..original.clone()
+        };
+        let gemma = Version {
+            id: 5,
+            name: "Cleanup (Gemma 4 E4B)".into(),
+            model: "Gemma 4 E4B".into(),
+            created_ms: ago(24 * 60),
+            ..cleanup.clone()
+        };
+        let actions = Version {
+            id: 6,
+            name: "Action items".into(),
+            text: "- [ ] Connect the CRM export\n- [ ] Show a prototype by the end of the month"
+                .into(),
+            prompt: None,
+            window_k: Some(8),
+            parts: None,
+            created_ms: ago(20),
+            ..summary.clone()
+        };
+        let letter = Version {
+            id: 7,
+            name: "Rewrite as an email".into(),
+            text: "Hi Anna,\n\nThanks for the call. Next we connect the CRM export and show a prototype by the end of the month.".into(),
+            prompt: Some("Rewrite it as an email to the client: short, in points, without jargon, with the outcome of the meeting and a date for each step".into()),
+            model: "Claude Sonnet 4.6".into(),
+            window_k: None,
+            parts: None,
+            created_ms: ago(12),
+            ..summary.clone()
+        };
+        let mut interview = record(
+            "preview-interview",
+            "Client interview about automating CRM and Excel reports, part 2.m4a",
+            42,
+        );
+        interview.versions = vec![original, cleanup, summary, again, gemma, actions, letter];
         let mut planning = record("preview-planning", "Planning, November 4.mov", 27);
         planning.versions = interview.versions[..2].to_vec();
+        let mut zoom = record(
+            "preview-zoom",
+            "Zoom_Meeting_2026-11-04_18-05-33_recording_final_v2_audio_only.m4a",
+            31,
+        );
+        zoom.versions = interview.versions[..2].to_vec();
         let podcast = record("preview-podcast", "Podcast #41.mp3", 54);
         let lecture = record("preview-lecture", "Lecture 3.mp4", 72);
         let mut silent = record("preview-silent", "Screen recording.mov", 0);
@@ -248,6 +324,7 @@ impl FilesPane {
             fraction,
             parts: None,
             name: None,
+            kind: VersionKind::Original,
         };
         Self {
             records: vec![
@@ -256,6 +333,7 @@ impl FilesPane {
                 listed(interview, "Today", "14:20"),
                 listed(silent, "Today", "13:02"),
                 listed(planning, "Yesterday", "18:05"),
+                listed(zoom, "Yesterday", "11:40"),
             ],
             tasks: vec![
                 task(1, "preview-podcast", Stage::Transcribing, 0.58),
@@ -292,6 +370,7 @@ impl FilesPane {
                 fraction: 0.45,
                 parts: Some(6),
                 name: Some("Structure".into()),
+                kind: crate::files::store::VersionKind::Request,
             },
         );
         pane.tab = Some(Tab::Task(3));
@@ -680,6 +759,7 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
             time,
             hover: Vec::new(),
             selected: pane.selected.as_deref() == Some(record.id.as_str()),
+            title_lines: 2,
         },
         move |ui: &mut Ui| ui.files.select(id.clone()),
     )
@@ -720,6 +800,19 @@ pub(super) fn failure(p: Paint, record: &FileRecord, error: &str) -> El {
                 submit(ui, &id, job);
             },
         ))
+}
+
+/// Opens `path` in the app that plays it.
+pub(super) fn open_file(path: &std::path::Path) {
+    #[cfg(target_os = "macos")]
+    if let Err(error) = std::process::Command::new("/usr/bin/open")
+        .arg(path)
+        .spawn()
+    {
+        tracing::error!(%error, "couldn't open the file");
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = path;
 }
 
 /// Reveals `path` in Finder.

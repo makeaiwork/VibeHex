@@ -60,7 +60,7 @@ impl Config {
         }
     }
 
-    /// Where cleanup and requests run; `choice` overrides Settings' choice.
+    /// Where cleanup runs; `choice` overrides Settings' choice.
     pub fn engine(&self, choice: Option<&str>) -> Engine {
         Engine::resolve(
             choice.or(self.files.cleanup_engine.as_deref()),
@@ -125,6 +125,8 @@ pub struct Task {
     pub parts: Option<usize>,
     /// The tab a request or cleanup will add.
     pub name: Option<String>,
+    /// What it adds: an Original, a Cleanup, or a request.
+    pub kind: VersionKind,
 }
 
 struct Queued {
@@ -212,10 +214,10 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
     let mut state = state();
     let id = state.next;
     state.next += 1;
-    let name = match &job {
-        Job::Request { name, .. } => Some(name.clone()),
-        Job::Cleanup { .. } => Some("Cleanup".into()),
-        Job::Transcribe { .. } => None,
+    let (name, kind) = match &job {
+        Job::Request { name, .. } => (Some(name.clone()), VersionKind::Request),
+        Job::Cleanup { .. } => (Some("Cleanup".into()), VersionKind::Cleanup),
+        Job::Transcribe { .. } => (None, VersionKind::Original),
     };
     let queued = Queued {
         task: Task {
@@ -225,6 +227,7 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
             fraction: 0.0,
             parts: None,
             name,
+            kind,
         },
         job,
         config,
@@ -510,7 +513,7 @@ fn request(
 ) -> Result<()> {
     let record = store::load(&task.record)?;
     let input = source(&record, from)?;
-    let engine = config.engine(None);
+    let engine = config.engine(config.files.request_engine.as_deref());
     update_task(task.id, |task| task.stage = Stage::Working);
     let started = Instant::now();
     let made = rewrite::request(

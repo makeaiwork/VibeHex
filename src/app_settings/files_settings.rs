@@ -17,10 +17,14 @@ pub struct FilesSettings {
     pub show_timestamps: bool,
     /// A file is cleaned up as soon as it is transcribed.
     pub cleanup_after: bool,
-    /// Where cleanup and requests run: `local:<model id>`, `openrouter`,
-    /// `custom`, or `opencode`; `None` follows dictation's AI cleanup.
+    /// Where cleanup runs: `local:<model id>`, `openrouter`, `custom`, or
+    /// `opencode`; `None` follows dictation's AI cleanup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup_engine: Option<String>,
+    /// Where requests run, in `cleanup_engine`'s form; `None` follows
+    /// cleanup's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_engine: Option<String>,
     /// Cleanup follows the Global mode's instructions; off, it follows
     /// `prompt`.
     pub use_default_prompt: bool,
@@ -54,6 +58,7 @@ impl Default for FilesSettings {
             show_timestamps: true,
             cleanup_after: true,
             cleanup_engine: None,
+            request_engine: None,
             use_default_prompt: true,
             prompt: DEFAULT_FILES_PROMPT.into(),
             quick_prompts: default_quick_prompts(),

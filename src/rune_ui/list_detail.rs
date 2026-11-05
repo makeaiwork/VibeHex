@@ -90,6 +90,8 @@ pub(super) struct Item {
     pub(super) time: String,
     pub(super) hover: Vec<El>,
     pub(super) selected: bool,
+    /// Lines the title may take before "…"; a long word breaks anywhere.
+    pub(super) title_lines: usize,
 }
 
 /// A selectable list row hung past the gutter: a hover fill (and the row's
@@ -125,22 +127,22 @@ pub(super) fn item(p: Paint, item: Item, select: impl Fn(&mut Ui) + 'static) -> 
         .radius(p.k.radius.md)
         .hover(c.hover)
         .hover_group()
-        .child(
-            row()
-                .key("top")
-                .gap(12.0)
-                .center_y()
-                .child(
-                    text(item.title)
-                        .key("title")
-                        .font(p.k.ty.ui_medium)
-                        .color(p.text())
-                        .grow(1.0)
-                        .shrink()
-                        .truncate(),
-                )
-                .child(end),
-        )
+        .child({
+            let title = text(item.title)
+                .key("title")
+                .font(p.k.ty.ui_medium)
+                .color(p.text())
+                .grow(1.0)
+                .shrink();
+            let top = row().key("top").gap(12.0);
+            if item.title_lines > 1 {
+                top.items_start()
+                    .child(title.wrap_anywhere().max_lines(item.title_lines))
+                    .child(end)
+            } else {
+                top.center_y().child(title.truncate()).child(end)
+            }
+        })
         .child(
             text(item.meta)
                 .key("meta")

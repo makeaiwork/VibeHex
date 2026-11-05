@@ -517,6 +517,25 @@ pub(super) const SCENES: &[Scene] = &[
         files_scene(ui, files::FilesPane::fixture());
         ui.files.tab = Some(files::Tab::Version(3));
     }),
+    ("files-versions", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(3));
+        ui.open = Some(Menu::Pick("files-versions"));
+    }),
+    ("files-more", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.open = Some(Menu::Pick("files-more"));
+    }),
+    ("files-again", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(1));
+        ui.files.again = Some(files::Again {
+            record: "preview-interview".into(),
+            model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+            name: "Whisper Large v3 Turbo",
+            language: "ru".into(),
+        });
+    }),
     ("files-empty", |ui| {
         files_scene(ui, files::FilesPane::empty_fixture())
     }),

@@ -128,7 +128,7 @@ pub fn strip_markdown(markdown: &str) -> String {
 }
 
 /// A `---`, `***`, or `___` line.
-pub fn is_rule(line: &str) -> bool {
+fn is_rule(line: &str) -> bool {
     let line = line.trim();
     line.len() >= 3
         && (line.chars().all(|c| c == '-' || c == ' ')
@@ -137,7 +137,7 @@ pub fn is_rule(line: &str) -> bool {
 }
 
 /// `| a | b |` → `a, b`; a `|---|` separator row is dropped.
-pub fn table_row(row: &str) -> String {
+fn table_row(row: &str) -> String {
     let cells: Vec<String> = row
         .trim()
         .trim_matches('|')
@@ -154,7 +154,7 @@ pub fn table_row(row: &str) -> String {
 }
 
 /// Emphasis and code marks dropped, `[text](url)` as its text.
-pub fn inline(text: &str) -> String {
+fn inline(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let chars: Vec<char> = text.chars().collect();
     let mut index = 0;

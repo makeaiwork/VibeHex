@@ -2,7 +2,7 @@
 //! add more), the open version with its line, actions, and text, and the
 //! request field under it.
 
-use rune::{El, TextEdit, Tx, col, row, text};
+use rune::{El, TextEdit, Tx, col, icon, row, text};
 use rune_kit::{
     IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement, TextArea, TextInput,
 };
@@ -10,7 +10,8 @@ use rune_kit::{
 use super::super::controls::{ButtonKind, DESCRIPTION, Paint, button, segmented_tx};
 use super::super::list_detail as ld;
 use super::super::{Menu, Pane, Ui};
-use super::{Armed, Tab, failure, stage_label, submit};
+use super::tabs;
+use super::{Again, Armed, Tab, failure, stage_label, submit};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::files::store::{self, FileRecord, Version, VersionKind};
 use crate::files::text as file_text;
@@ -20,6 +21,18 @@ static MORE_ICON: rune::Icon = rune::Icon {
     name: "hex-files-more",
     view: 16.0,
     body: r#"<circle cx="3.5" cy="8" r="1.25" fill="currentColor"/><circle cx="8" cy="8" r="1.25" fill="currentColor"/><circle cx="12.5" cy="8" r="1.25" fill="currentColor"/>"#,
+};
+
+static CLOCK_ICON: rune::Icon = rune::Icon {
+    name: "hex-files-clock",
+    view: 16.0,
+    body: r#"<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.3 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>"#,
+};
+
+static MIC_ICON: rune::Icon = rune::Icon {
+    name: "hex-files-mic",
+    view: 16.0,
+    body: r#"<rect x="5.5" y="1.8" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>"#,
 };
 
 static SEND_ICON: rune::Icon = rune::Icon {
@@ -137,28 +150,42 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
         actions.push(more_menu(ui, p, record, version, layer));
     }
     let listed = pane.records.iter().find(|l| l.record.id == record.id);
-    let mut meta_line = Vec::new();
+    let mut meta = Vec::new();
     if let Some(listed) = listed {
-        meta_line.push(format!(
-            "{}, {}",
-            super::day_label(&listed.day),
-            listed.clock
+        meta.push(ld::meta_text(
+            p,
+            &format!("{}, {}", super::day_label(&listed.day), listed.clock),
         ));
     }
+    let with_icon = |key: &str, glyph: &'static rune::Icon, words: String| {
+        row()
+            .key(key)
+            .gap(4.0)
+            .center_y()
+            .shrink()
+            .child(icon(glyph, 12.0).color(p.muted()))
+            .child(ld::meta_text(p, &words))
+    };
     if record.duration_ms > 0 {
-        meta_line.push(file_text::clock(record.duration_ms));
+        meta.push(with_icon(
+            "length",
+            &CLOCK_ICON,
+            file_text::clock(record.duration_ms),
+        ));
     }
     if let Some(first) = record.versions.first() {
-        meta_line.push(first.model.clone());
+        meta.push(with_icon("model", &MIC_ICON, first.model.clone()));
     }
-    let header = ld::card_header(
-        ld::card_title(p, &record.name),
-        vec![ld::meta_text(p, &meta_line.join(" · "))],
-        actions,
-    );
+    let title = text(record.name.clone())
+        .key("detail-title")
+        .font(p.k.ty.body_medium)
+        .color(p.text())
+        .wrap_anywhere()
+        .max_lines(2);
+    let header = ld::card_header(title, meta, actions);
 
     let mut body = col().key("file-body").gap(14.0).pb(8.0);
-    let tabs = tabs(ui, p, record, tab);
+    let tabs = tabs::strip(ui, p, record, tab, layer);
     let tasks: Vec<&Task> = pane.tasks_of(&record.id).collect();
     if let Some(tabs) = tabs {
         body = body.child(tabs);
@@ -190,6 +217,14 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
         }
         (_, Some(version)) => {
             body = body.child(version_line(ui, p, record, version, layer));
+            if let Some(again) = pane
+                .again
+                .as_ref()
+                .filter(|again| again.record == record.id)
+                .filter(|_| version.kind == VersionKind::Original)
+            {
+                body = body.child(again_row(ui, p, again, layer));
+            }
             if let Some(parts) = version.parts.filter(|_| !version.note_closed) {
                 body = body.child(steps_note(p, record, version.id, parts));
             }
@@ -228,43 +263,6 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
         .child(header)
         .child(ld::card_scroll("file-text", body))
         .children(ask)
-}
-
-/// The versions and the jobs that will add one, as a segmented switch.
-fn tabs(ui: &Ui, p: Paint, record: &FileRecord, tab: Option<Tab>) -> Option<El> {
-    let mut entries: Vec<(Tab, String)> = record
-        .versions
-        .iter()
-        .map(|version| (Tab::Version(version.id), tab_label(&version.name)))
-        .collect();
-    entries.extend(ui.files.tasks_of(&record.id).filter_map(|task| {
-        let name = task.name.as_deref()?;
-        Some((Tab::Task(task.id), format!("{}…", tab_label(name))))
-    }));
-    if entries.len() < 2 {
-        return None;
-    }
-    let labels: Vec<&str> = entries.iter().map(|(_, label)| label.as_str()).collect();
-    let selected = entries
-        .iter()
-        .position(|(entry, _)| Some(*entry) == tab)
-        .unwrap_or(0);
-    let tabs: Vec<Tab> = entries.iter().map(|(tab, _)| *tab).collect();
-    Some(row().key("file-tabs").child(segmented_tx(
-        p,
-        "file-tabs-switch",
-        &labels,
-        selected,
-        move |ui: &mut Ui, index: usize, tx: &mut Tx| {
-            if let Some(tab) = tabs.get(index) {
-                tx.settle();
-                ui.files.tab = Some(*tab);
-                ui.files.editing = None;
-                ui.files.armed = None;
-                ui.open = None;
-            }
-        },
-    )))
 }
 
 /// The open version's line: where it came from, and what it can do again.
@@ -314,6 +312,26 @@ fn version_line(
         }
     }
     let mut line = row().key("version-line").gap(8.0).center_y();
+    if let Some(name) = tabs::tag(version) {
+        line = line.child(
+            row()
+                .key("tag")
+                .h(20.0)
+                .px(7.0)
+                .center_y()
+                .radius(p.k.radius.sm)
+                .fill(p.k.c.layer_02)
+                .border(p.hair, p.k.c.border_weak)
+                .child(
+                    text(name)
+                        .key("name")
+                        .font(p.k.ty.small_medium)
+                        .color(p.text())
+                        .max_w(180.0)
+                        .truncate(),
+                ),
+        );
+    }
     if version.kind == VersionKind::Original && !version.edited {
         let selected = usize::from(!timestamps(ui));
         line = line.child(segmented_tx(
@@ -338,6 +356,14 @@ fn version_line(
         );
     }
     line = line.child(rune::el().key("spacer").grow(1.0));
+    if let Some(position) = tabs::position(ui, record, version) {
+        line = line.child(
+            text(position)
+                .key("position")
+                .font(DESCRIPTION)
+                .color(p.faint()),
+        );
+    }
     match version.kind {
         VersionKind::Original => {
             let cleaned = record
@@ -448,7 +474,11 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
             .font(DESCRIPTION)
             .color(p.faint());
     }
-    super::markdown::view(p, &version.text)
+    rune_kit::Markdown::new(version.text.clone())
+        .selectable(true)
+        .tasks_read_only()
+        .build(p.k)
+        .key("markdown")
 }
 
 /// Editing a version by hand, with Save and Cancel.
@@ -748,7 +778,18 @@ fn copy_menu(ui: &Ui, p: Paint, version: &Version, layer: &mut Vec<El>) -> El {
         .build(p.k, layer)
 }
 
-/// Save as…, Reveal in Finder, and the two deletes.
+/// Where the file is: `In Downloads`, its folder's name.
+fn short_path(path: &std::path::Path) -> String {
+    let folder = path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .map(|folder| folder.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "/".into());
+    tr_fill("In {}", &folder)
+}
+
+/// Save as…, Show in Finder, Open original, the two deletes, and where the
+/// file is.
 fn more_menu(
     ui: &Ui,
     p: Paint,
@@ -799,15 +840,30 @@ fn more_menu(
             },
         ));
     }
+    let found = ui.files.fixture || record.path.exists();
     let path = record.path.clone();
-    menu = menu.item(
-        MenuItem::new(tr("Reveal file in Finder"))
-            .disabled(ui.files.fixture || !path.exists())
-            .on_select(move |ui: &mut Ui| {
-                ui.open = None;
-                super::reveal(&path);
-            }),
-    );
+    let shown = path.clone();
+    menu = menu
+        .item(
+            MenuItem::new(tr("Show in Finder"))
+                .disabled(!found)
+                .on_select(move |ui: &mut Ui| {
+                    ui.open = None;
+                    if !ui.files.fixture {
+                        super::reveal(&path);
+                    }
+                }),
+        )
+        .item(
+            MenuItem::new(tr("Open original"))
+                .disabled(!found)
+                .on_select(move |ui: &mut Ui| {
+                    ui.open = None;
+                    if !ui.files.fixture {
+                        super::open_file(&shown);
+                    }
+                }),
+        );
     menu = menu.separator();
     if let Some(version) = version
         && record.versions.first().map(|first| first.id) != Some(version.id)
@@ -821,12 +877,19 @@ fn more_menu(
         ));
     }
     let armed = Armed::File(record.id.clone());
-    menu = menu.item(
-        MenuItem::new(tr("Delete file from list…")).on_select(move |ui: &mut Ui| {
-            ui.open = None;
-            ui.files.armed = Some(armed.clone());
-        }),
-    );
+    menu = menu
+        .item(
+            MenuItem::new(tr("Delete file from list…")).on_select(move |ui: &mut Ui| {
+                ui.open = None;
+                ui.files.armed = Some(armed.clone());
+            }),
+        )
+        .separator()
+        .group_label(if found {
+            short_path(&record.path)
+        } else {
+            tr("File not found").into()
+        });
     let trigger = IconButton::new(&MORE_ICON)
         .variant(IconButtonVariant::Ghost)
         .control_size(rune_kit::ControlSize::Small)
@@ -849,18 +912,9 @@ fn again_menu(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) -> El
         .group_label(tr("Downloaded models"));
     for &(model, name) in &ui.files.models {
         let id = record.id.clone();
-        menu = menu.item(MenuItem::new(name).on_select(move |ui: &mut Ui| {
-            ui.open = None;
-            let selection = ui.settings.transcription_for_model(model);
-            let job = Job::Transcribe {
-                selection: Some(selection),
-                model_name: name.into(),
-                again: true,
-            };
-            if let Some(task) = submit(ui, &id, job) {
-                ui.files.tab = Some(Tab::Task(task));
-            }
-        }));
+        menu = menu.item(
+            MenuItem::new(name).on_select(move |ui: &mut Ui| choose_model(ui, &id, model, name)),
+        );
     }
     let trigger = rune_kit::Button::new(if gone {
         tr("The file is gone")
@@ -879,7 +933,124 @@ fn again_menu(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) -> El
     menu.trigger(trigger).build(p.k, layer)
 }
 
-/// Clean up again on another engine, as a new Cleanup tab beside this one.
+/// A model chosen from Transcribe again: one that takes a language asks
+/// for it first, starting at the saved language; any other runs at once.
+fn choose_model(
+    ui: &mut Ui,
+    record: &str,
+    model: crate::transcription::models::TranscriptionModelId,
+    name: &'static str,
+) {
+    ui.open = None;
+    let Some(choices) = super::super::history::language_choices(model) else {
+        ui.files.again = None;
+        transcribe_again(ui, record, model, name, None);
+        return;
+    };
+    let saved = &ui.settings.transcription.language;
+    let language = if choices.contains(&saved.as_str()) {
+        saved.clone()
+    } else {
+        ui.settings.transcription_for_model(model).language
+    };
+    ui.files.again = Some(Again {
+        record: record.into(),
+        model,
+        name,
+        language,
+    });
+}
+
+/// Queues Transcribe again with `model`, in `language` when given.
+fn transcribe_again(
+    ui: &mut Ui,
+    record: &str,
+    model: crate::transcription::models::TranscriptionModelId,
+    name: &'static str,
+    language: Option<String>,
+) {
+    let mut selection = ui.settings.transcription_for_model(model);
+    if let Some(language) = language {
+        selection.language = language;
+    }
+    let job = Job::Transcribe {
+        selection: Some(selection),
+        model_name: name.into(),
+        again: true,
+    };
+    if let Some(task) = submit(ui, record, job) {
+        ui.files.tab = Some(Tab::Task(task));
+    }
+}
+
+/// The language for Transcribe again's model, with Transcribe and Cancel.
+fn again_row(ui: &Ui, p: Paint, again: &Again, layer: &mut Vec<El>) -> El {
+    use crate::transcription::models::language_name;
+    let choices = super::super::history::language_choices(again.model).unwrap_or_default();
+    let labels: Vec<&str> = choices.iter().map(|code| language_name(code)).collect();
+    let languages = rune_kit::Select::new("files-again-language", &labels)
+        .appearance(rune_kit::SelectAppearance::Inline)
+        .current(Some(language_name(&again.language)))
+        .open(menu_open(ui, "files-again-language"))
+        .on_toggle(|ui: &mut Ui| toggle(ui, "files-again-language"))
+        .on_close(|ui: &mut Ui| ui.open = None)
+        .on_choose(|ui: &mut Ui, choice: &str, _: &mut Tx| {
+            ui.open = None;
+            if let Some(again) = &mut ui.files.again
+                && let Some(code) =
+                    super::super::history::language_choices(again.model).and_then(|choices| {
+                        choices
+                            .into_iter()
+                            .find(|code| language_name(code) == choice)
+                    })
+            {
+                again.language = code.into();
+            }
+        })
+        .build(p.k, layer);
+    row()
+        .key("again-pending")
+        .gap(8.0)
+        .center_y()
+        .child(
+            text(again.name)
+                .key("model")
+                .font(DESCRIPTION)
+                .color(p.muted())
+                .shrink()
+                .truncate(),
+        )
+        .child(languages)
+        .child(rune::el().key("spacer").grow(1.0))
+        .child(
+            rune_kit::Button::new(tr("Transcribe"))
+                .variant(rune_kit::ButtonVariant::Neutral)
+                .control_size(rune_kit::ControlSize::Small)
+                .on_press(|ui: &mut Ui| {
+                    if let Some(again) = ui.files.again.take() {
+                        transcribe_again(
+                            ui,
+                            &again.record,
+                            again.model,
+                            again.name,
+                            Some(again.language),
+                        );
+                    }
+                })
+                .build(p.k)
+                .key("again-start"),
+        )
+        .child(
+            rune_kit::Button::new(tr("Cancel"))
+                .variant(rune_kit::ButtonVariant::Ghost)
+                .control_size(rune_kit::ControlSize::Small)
+                .on_press(|ui: &mut Ui| ui.files.again = None)
+                .build(p.k)
+                .key("again-cancel"),
+        )
+}
+
+/// Clean up again on another engine, as a new Cleanup version.
 fn redo_menu(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, layer: &mut Vec<El>) -> El {
     let from = version
         .from
@@ -1042,8 +1213,8 @@ fn ask_area(ui: &Ui, p: Paint, version: &Version, layer: &mut Vec<El>) -> El {
         .child(field)
         .child(
             text(tr_fill(
-                "Works on the {} tab and adds a new tab.",
-                &tab_label(&version.name),
+                "Works on {} and adds the result to Requests.",
+                &tabs::title(ui, version),
             ))
             .key("hint")
             .font(p.k.ty.small)

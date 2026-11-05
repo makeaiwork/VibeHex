@@ -24,26 +24,43 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   ├── Each row: Queued / percent, then "42 min, 3 versions"; a failure in red
 │   ├── Stop (Remove while queued) ends a job between chunks or pieces
 │   └── The queue empties -> the built-in engine goes back to its 8K window
-├── Tabs     FILES-TABS: Original, Cleanup, each request; a job shows as "Name…"
+├── Tabs     FILES-TABS (rune_ui::files::tabs): at most three, Original,
+│   │        Cleanup, Requests; every version and job lands in its kind's tab
+│   ├── A tab with more than one shows its count; the open one adds ▾, which
+│   │   lists them newest first under day headers (Today, Yesterday, a date):
+│   │   name (a typed request in quotes, two lines at most), model ↳ source
+│   │   tab, time, ✓ on the open one; a job shows its stage and percent
+│   ├── Clicking a tab opens the version last opened there (until Hex quits),
+│   │   else its newest; a new version opens at once
+│   ├── The version line ends with "1 of 3" while its tab holds more
 │   ├── Original: Timestamps | Plain text (files.show_timestamps opens it),
-│   │   Transcribe again ▾ (downloaded models; new tab "Original (<model>)"),
-│   │   Clean up while no Cleanup was made from it
+│   │   Transcribe again ▾ (downloaded models; a model that takes a language
+│   │   asks for it first, starting at the saved one, with Transcribe and
+│   │   Cancel), Clean up while no Cleanup was made from it
 │   ├── Cleanup: "<model> in a 8K window", Clean up again ▾ (Built in,
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›
-│   │   AI cleanup); new tab "Cleanup (<model>)"
-│   ├── Request: "Made from <tab> by <model>, 32K window"
+│   │   AI cleanup)
+│   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
+│   │   32K window"
 │   └── A three-step version: a note with × (closed for that version for good)
+├── Header   The name in up to two lines (a long word breaks anywhere), then the
+│            day and time, ⏱ length, 🎙 model; list rows wrap names the same way
 ├── Actions  Copy ▾ (as Markdown / as plain text), Edit (Save marks it edited),
-│            … (Save as… .md or .txt, Reveal file in Finder, Delete this
-│            version… (not the first Original), Delete file from list…), each
-│            delete confirmed under the tabs; the file on disk is never touched
+│            … (Save as… .md or .txt, Show in Finder, Open original (plays it
+│            in its default app), Delete this version… (not the first
+│            Original), Delete file from list…, then "In <folder>", or "File
+│            not found" with the first two off), each delete confirmed under
+│            the tabs; the file on disk is never touched
 ├── Ask      FILES-ASK: quick chips (files.quick_prompts), Recent ▾ (last 10
 │            typed requests, <support>/files/recent.json), "What should I do
-│            with this text?" -> works on the open tab and opens a new one
+│            with this text?" -> works on the open version and adds the result
+│            to Requests
 └── Settings Model (Same as dictation or a downloaded one), Use vocabulary,
              Show timestamps, Clean up after transcription, Runs on (Same as
              dictation / built-in / OpenRouter / Your server / OpenCode), Use
-             the Default mode's prompt or Files' own, Quick requests
+             the Default mode's prompt or Files' own; Requests › Runs on
+             (files.request_engine: Same as cleanup or any of those); Quick
+             requests
 ```
 
 ```ts
@@ -69,11 +86,13 @@ stays until Delete file from list….
 Checks: `files::store`, `files::text`, `files::rewrite`
 (`requests_take_the_usual_window_then_the_wide_one_then_three_steps`, the
 three-step fake generator), `files::worker` (tab names); scenes `files`,
-`files-working`, `files-original`, `files-summary`, `files-empty`,
-`files-settings` (no goldens yet).
+`files-working`, `files-original`, `files-summary`, `files-versions` (the
+open tab's list), `files-more` (the … menu), `files-again` (Transcribe
+again's language), `files-empty`, `files-settings` (no goldens yet).
 
 Gaps: macOS only (decoding needs AVFoundation). The queue doesn't survive a
-quit: a file that was transcribing lists as Stopped, with Try again. Markdown renders through a small block renderer
-(headings, lists, quotes, code, rules), with inline marks dropped; rune-kit's
-`Markdown` needs its `markdown` feature (`pulldown-cmark`). Many tabs overflow
-the card's width. Not yet verified end to end on a Mac with real files.
+quit: a file that was transcribing lists as Stopped, with Try again. Text
+renders through rune-kit's `Markdown` (its `markdown` feature,
+`pulldown-cmark`), selectable. The full name and request show on no hover
+(Rune has no tooltip here); the row's accessibility label holds them. Not yet
+verified end to end on a Mac with real files.

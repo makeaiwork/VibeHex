@@ -155,36 +155,6 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
         ],
     );
 
-    let engines = engine_choices(ui);
-    let engine_label = match &files.cleanup_engine {
-        None => tr("Same as dictation").to_string(),
-        Some(value) => engines
-            .iter()
-            .find(|engine| &engine.value == value)
-            .map_or_else(|| value.clone(), |engine| engine.label.clone()),
-    };
-    let mut engine_menu = vec![Choice {
-        label: tr("Same as dictation").into(),
-        detail: None,
-        selected: files.cleanup_engine.is_none(),
-        choose: Box::new(|ui: &mut Ui| {
-            ui.open = None;
-            ui.update(|settings| settings.files.cleanup_engine = None);
-        }),
-    }];
-    for engine in engines {
-        let value = engine.value.clone();
-        engine_menu.push(Choice {
-            label: engine.label,
-            detail: engine.local.then(|| tr("built in").to_string()),
-            selected: files.cleanup_engine.as_deref() == Some(engine.value.as_str()),
-            choose: Box::new(move |ui: &mut Ui| {
-                ui.open = None;
-                let value = value.clone();
-                ui.update(|settings| settings.files.cleanup_engine = Some(value));
-            }),
-        });
-    }
     let mut cleanup_rows = vec![
         toggle_row(
             p,
@@ -201,16 +171,14 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             p,
             "files-engine",
             tr("Runs on"),
-            Some(tr(
-                "Cleanup and requests. More models are in Output › AI cleanup.",
-            )),
-            select(
+            Some(tr("More models are in Output › AI cleanup.")),
+            engine_select(
+                ui,
                 p,
                 "files-engine",
-                &engine_label,
-                open(ui, "files-engine"),
-                engine_menu,
-                toggle("files-engine"),
+                files.cleanup_engine.as_deref(),
+                tr("Same as dictation"),
+                |files, value| files.cleanup_engine = value,
                 layer,
             ),
         ),
@@ -230,7 +198,73 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
         cleanup_rows.push(prompt_row(ui, p));
     }
     let cleanup = section(p, "files-cleanup", tr("AI cleanup"), cleanup_rows);
-    vec![transcription, cleanup, quick_section(ui, p)]
+    let requests = section(
+        p,
+        "files-requests",
+        tr("Requests"),
+        vec![setting_row(
+            p,
+            "files-request-engine",
+            tr("Runs on"),
+            Some(tr(
+                "Summary, Action items, and your own requests. A model with a large window reads a long file whole.",
+            )),
+            engine_select(
+                ui,
+                p,
+                "files-request-engine",
+                files.request_engine.as_deref(),
+                tr("Same as cleanup"),
+                |files, value| files.request_engine = value,
+                layer,
+            ),
+        )],
+    );
+    vec![transcription, cleanup, requests, quick_section(ui, p)]
+}
+
+/// Where cleanup or requests run: `inherit` (saved as none), then each
+/// engine.
+fn engine_select(
+    ui: &Ui,
+    p: Paint,
+    key: &'static str,
+    current: Option<&str>,
+    inherit: &str,
+    set: fn(&mut crate::app_settings::FilesSettings, Option<String>),
+    layer: &mut Vec<El>,
+) -> El {
+    let engines = engine_choices(ui);
+    let label = match current {
+        None => inherit.to_string(),
+        Some(value) => engines
+            .iter()
+            .find(|engine| engine.value == value)
+            .map_or_else(|| value.to_string(), |engine| engine.label.clone()),
+    };
+    let mut choices = vec![Choice {
+        label: inherit.into(),
+        detail: None,
+        selected: current.is_none(),
+        choose: Box::new(move |ui: &mut Ui| {
+            ui.open = None;
+            ui.update(|settings| set(&mut settings.files, None));
+        }),
+    }];
+    for engine in engines {
+        let value = engine.value.clone();
+        choices.push(Choice {
+            label: engine.label,
+            detail: engine.local.then(|| tr("built in").to_string()),
+            selected: current == Some(engine.value.as_str()),
+            choose: Box::new(move |ui: &mut Ui| {
+                ui.open = None;
+                let value = value.clone();
+                ui.update(|settings| set(&mut settings.files, Some(value)));
+            }),
+        });
+    }
+    select(p, key, &label, open(ui, key), choices, toggle(key), layer)
 }
 
 /// Files' own cleanup prompt, with Save while it differs.
