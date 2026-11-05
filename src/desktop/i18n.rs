@@ -1577,6 +1577,8 @@ mod tests {
         include_str!("../rune_ui/files.rs"),
         include_str!("../rune_ui/files/detail.rs"),
         include_str!("../rune_ui/files/settings.rs"),
+        include_str!("../rune_ui/files/actions.rs"),
+        include_str!("../rune_ui/files/tabs.rs"),
         include_str!("../rune_ui/hud_lab.rs"),
         include_str!("../rune_ui/labs.rs"),
         include_str!("../rune_ui/linux_host.rs"),

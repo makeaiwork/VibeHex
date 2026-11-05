@@ -1571,6 +1571,7 @@ mod tests {
             },
             files: crate::app_settings::FilesSettings {
                 transcription: Some(Default::default()),
+                language: Some("ru".into()),
                 cleanup_engine: Some("opencode".into()),
                 request_engine: Some("openrouter".into()),
                 last_folder: Some("/tmp".into()),

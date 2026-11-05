@@ -11,7 +11,7 @@ use super::super::list_detail as ld;
 use super::super::{Menu, Pane, Ui, icons};
 use super::detail::{current, tab_label, texts};
 use super::{Again, Armed, Tab, submit};
-use crate::desktop::i18n::tr;
+use crate::desktop::i18n::{tr, tr_fill};
 use crate::files::store::{self, FileRecord, Version};
 use crate::files::worker::{self, Job};
 use crate::transcription::models::TranscriptionModelId;
@@ -118,15 +118,14 @@ fn chip_button(
     key: &str,
     label: &str,
     chevron: Option<&'static rune::Icon>,
+    live: bool,
     press: impl Fn(&mut Ui) + 'static,
 ) -> El {
     let c = &p.k.c;
-    row()
+    let chip = row()
         .key(key)
         .role("button")
         .label(label)
-        .focusable(true)
-        .focus_ring(2.0, 0.0, c.border_focus)
         .h(24.0)
         .pl(9.0)
         .pr(if chevron.is_some() { 7.0 } else { 9.0 })
@@ -138,9 +137,6 @@ fn chip_button(
             color: c.border_base,
             ..Default::default()
         })
-        .hover(c.hover)
-        .press(c.pressed)
-        .on_press(press)
         .child(
             text(label.to_string())
                 .key("label")
@@ -150,7 +146,15 @@ fn chip_button(
                 })
                 .color(c.text_base),
         )
-        .children(chevron.map(|glyph| icon(glyph, 12.0).key("chevron").color(c.icon_muted)))
+        .children(chevron.map(|glyph| icon(glyph, 12.0).key("chevron").color(c.icon_muted)));
+    if !live {
+        return chip;
+    }
+    chip.focusable(true)
+        .focus_ring(2.0, 0.0, c.border_focus)
+        .hover(c.hover)
+        .press(c.pressed)
+        .on_press(press)
 }
 
 /// Copy as Markdown or as plain text.
@@ -604,7 +608,11 @@ fn send(ui: &mut Ui, prompt: String) {
 
 /// The quick requests as outlined chips, Recent, and the request field,
 /// under a rule.
-pub(super) fn ask_area(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+///
+/// While `waiting` names a job running on this file, everything shows but
+/// rests, faded, and the field says to wait for it or stop it.
+pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec<El>) -> El {
+    let live = waiting.is_none();
     let mut chips = row().key("chips").gap(6.0).center_y();
     for (index, chip) in ui.settings.files.quick_prompts.iter().enumerate() {
         let prompt = chip.prompt.clone();
@@ -613,10 +621,20 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             &format!("chip{index}"),
             &chip.label,
             None,
+            live,
             move |ui: &mut Ui| send(ui, prompt.clone()),
         ));
     }
-    if !ui.files.recent.is_empty() {
+    if !ui.files.recent.is_empty() && !live {
+        chips = chips.child(chip_button(
+            p,
+            "recent",
+            tr("Recent"),
+            Some(p.k.glyph.chevron_down),
+            false,
+            |_: &mut Ui| {},
+        ));
+    } else if !ui.files.recent.is_empty() {
         let open = menu_open(ui, "files-recent");
         let mut menu = KitMenu::new("files-recent-menu")
             .placement(Placement::TopStart)
@@ -648,33 +666,46 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         } else {
             p.k.glyph.chevron_down
         };
-        let trigger = chip_button(p, "recent", tr("Recent"), Some(chevron), |ui: &mut Ui| {
-            toggle(ui, "files-recent")
-        });
+        let trigger = chip_button(
+            p,
+            "recent",
+            tr("Recent"),
+            Some(chevron),
+            true,
+            |ui: &mut Ui| toggle(ui, "files-recent"),
+        );
         chips = chips.child(menu.trigger(trigger).build(p.k, layer));
     }
     let c = &p.k.c;
-    let send_button = row()
+    let mut send_button = row()
         .key("send")
         .role("button")
         .label(tr("Send"))
-        .focusable(true)
-        .focus_ring(2.0, 0.0, c.border_focus)
         .size(26.0, 26.0)
         .center()
         .radius(6.0)
         .fill(c.layer_02)
-        .hover(c.hover)
-        .press(c.pressed)
-        .on_press(|ui: &mut Ui| {
-            let prompt = ui.files.ask.text.clone();
-            send(ui, prompt);
-        })
         .child(icon(&SEND_ICON, 14.0).key("arrow").color(c.icon_muted));
+    if live {
+        send_button = send_button
+            .focusable(true)
+            .focus_ring(2.0, 0.0, c.border_focus)
+            .hover(c.hover)
+            .press(c.pressed)
+            .on_press(|ui: &mut Ui| {
+                let prompt = ui.files.ask.text.clone();
+                send(ui, prompt);
+            });
+    }
+    let placeholder = match waiting {
+        Some(name) => tr_fill("Wait for {}, or stop it", name),
+        None => tr("What should I do with this text?").to_string(),
+    };
     let field = TextInput::new(&ui.files.ask)
-        .placeholder(tr("What should I do with this text?"))
+        .placeholder(placeholder)
         .width(None)
         .height(34.0)
+        .disabled(!live)
         .trailing(send_button)
         .on_edit(|ui: &mut Ui| &mut ui.files.ask)
         .on_submit(|ui: &mut Ui, _| {
@@ -683,7 +714,7 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         })
         .build(p.k)
         .key("files-ask");
-    col()
+    let area = col()
         .key("files-ask-area")
         .gap(8.0)
         .pb(16.0)
@@ -695,7 +726,8 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
                 .mb(4.0),
         )
         .child(chips)
-        .child(field)
+        .child(field);
+    if live { area } else { area.dim(0.55) }
 }
 
 #[cfg(test)]

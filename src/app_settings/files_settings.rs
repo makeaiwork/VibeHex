@@ -11,6 +11,10 @@ pub struct FilesSettings {
     /// The model files are transcribed with; `None` follows dictation's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transcription: Option<TranscriptionSelection>,
+    /// The language files are transcribed in, for models that take a
+    /// language hint; `None` follows the model's selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
     /// Transcription and cleanup read the shared Vocabulary.
     pub use_vocabulary: bool,
     /// The text open on a file's Original tab keeps its timestamps.
@@ -54,6 +58,7 @@ impl Default for FilesSettings {
     fn default() -> Self {
         Self {
             transcription: None,
+            language: None,
             use_vocabulary: true,
             show_timestamps: true,
             cleanup_after: true,
@@ -63,6 +68,22 @@ impl Default for FilesSettings {
             prompt: DEFAULT_FILES_PROMPT.into(),
             quick_prompts: default_quick_prompts(),
             last_folder: None,
+        }
+    }
+}
+
+impl FilesSettings {
+    /// The model and language a new file is transcribed with: `None` while
+    /// both follow dictation, so it runs on dictation's loaded model.
+    pub fn selection(&self, dictation: &TranscriptionSelection) -> Option<TranscriptionSelection> {
+        match (&self.transcription, &self.language) {
+            (None, None) => None,
+            (Some(selection), None) => Some(selection.clone()),
+            (selection, Some(language)) => {
+                let mut selection = selection.clone().unwrap_or_else(|| dictation.clone());
+                selection.language = language.clone();
+                Some(selection)
+            }
         }
     }
 }
@@ -92,4 +113,34 @@ pub fn default_quick_prompts() -> Vec<QuickPrompt> {
         prompt: prompt.into(),
     })
     .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FilesSettings;
+    use crate::transcription::models::{TranscriptionModelId, TranscriptionSelection};
+
+    #[test]
+    fn a_file_follows_dictation_until_its_model_or_language_is_chosen() {
+        let dictation = TranscriptionSelection {
+            model: TranscriptionModelId::WhisperLargeV3Turbo,
+            language: "en".into(),
+        };
+        let mut files = FilesSettings::default();
+        assert_eq!(files.selection(&dictation), None);
+
+        files.language = Some("ru".into());
+        let chosen = files.selection(&dictation).unwrap();
+        assert_eq!(chosen.model, TranscriptionModelId::WhisperLargeV3Turbo);
+        assert_eq!(chosen.language, "ru");
+
+        files.transcription = Some(TranscriptionSelection {
+            model: TranscriptionModelId::ParakeetV3,
+            language: "de".into(),
+        });
+        files.language = None;
+        let chosen = files.selection(&dictation).unwrap();
+        assert_eq!(chosen.model, TranscriptionModelId::ParakeetV3);
+        assert_eq!(chosen.language, "de");
+    }
 }

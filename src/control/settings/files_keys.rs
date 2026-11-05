@@ -13,6 +13,11 @@ pub(super) const FILES_KEYS: &[Key] = &[
         Kind::Json,
         "Labs › Files: the model and language files are transcribed with, as {\"model\": …, \"language\": …}; none follows dictation's model",
     ),
+    optional(
+        "files.language",
+        Kind::Text,
+        "Labs › Files: the language files are transcribed in, for models that take a language hint; none follows the model's selection",
+    ),
     key(
         "files.use_vocabulary",
         Kind::Bool,

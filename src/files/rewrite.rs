@@ -202,7 +202,7 @@ pub fn clean(
     }
     Ok(Made {
         text: made.trim().to_string(),
-        window_k: engine.local().map(|_| window_k(engine::CONTEXT_TOKENS)),
+        window_k: cleanup_window_k(engine),
         parts: None,
         failed: (!failures.is_empty()).then(|| {
             format!(
@@ -268,15 +268,22 @@ fn estimate_tokens(text: &str) -> usize {
     text.chars().count() / 3 + 1
 }
 
+/// The built-in engine's window for cleanup, in K tokens: always the usual
+/// one, since cleanup goes in pieces.
+pub fn cleanup_window_k(engine: &Engine) -> Option<u32> {
+    engine.local().map(|_| window_k(engine::CONTEXT_TOKENS))
+}
+
 /// Applies `prompt` to `text`: whole when it fits a window, else in three
-/// steps. `progress` hears the fraction done and, once known, the parts.
+/// steps. `progress` hears the fraction done and, once known, the parts and
+/// the built-in engine's window in K tokens.
 pub fn request(
     engine: &Engine,
     prompt: &str,
     text: &str,
     vocabulary: &[VocabularyEntry],
     cancelled: &AtomicBool,
-    progress: &mut dyn FnMut(f32, Option<usize>),
+    progress: &mut dyn FnMut(f32, Option<usize>, Option<u32>),
 ) -> Result<Made> {
     let instructions = request_instructions(vocabulary);
     let input = request_input(prompt, text);
@@ -301,7 +308,8 @@ pub fn request(
     };
     match fit {
         Fit::Whole(window) => {
-            progress(0.05, None);
+            let shown = local.map(|_| ran_window_k(window));
+            progress(0.05, None, shown);
             let text = engine.generate(window, &instructions, &input, cancelled)?;
             if text.is_empty() {
                 return Err(eyre!("the model returned empty text"));
@@ -317,6 +325,7 @@ pub fn request(
             let generate = |instructions: &str, input: &str| {
                 engine.generate(window, instructions, input, cancelled)
             };
+            let shown = local.map(|_| ran_window_k(window));
             let made = in_steps(
                 &generate,
                 part_words,
@@ -324,10 +333,10 @@ pub fn request(
                 text,
                 &instructions,
                 cancelled,
-                progress,
+                &mut |fraction, parts| progress(fraction, parts, shown),
             )?;
             Ok(Made {
-                window_k: local.map(|_| ran_window_k(window)),
+                window_k: shown,
                 ..made
             })
         }

@@ -199,7 +199,12 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
     match (tab, version) {
         (Some(Tab::Task(id)), _) => {
             if let Some(task) = tasks.iter().find(|task| task.id == id) {
+                body = body.children(task_line(p, record, task));
                 body = body.child(progress(p, record, task));
+                if task.kind != VersionKind::Original {
+                    let name = task.name.clone().unwrap_or_else(|| tr("Cleanup").into());
+                    ask = Some(actions::ask_area(ui, p, Some(&name), layer));
+                }
             }
         }
         (_, Some(version)) => {
@@ -228,7 +233,7 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
                 body = body.child(editor(p, ui, record, version.id));
             } else {
                 body = body.child(content(ui, p, version));
-                ask = Some(actions::ask_area(ui, p, layer));
+                ask = Some(actions::ask_area(ui, p, None, layer));
             }
         }
         _ => {
@@ -511,6 +516,7 @@ fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
 /// A job at work: its stage, a bar, and Stop; a request in three steps
 /// also lists the steps.
 fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
+    let c = &p.k.c;
     let percent = (task.fraction * 100.0).round() as u32;
     let title = match (task.stage, task.parts) {
         (Stage::Working, Some(_)) => tr("Working in 3 steps").to_string(),
@@ -531,55 +537,61 @@ fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
         _ => None,
     };
     let id = task.id;
+    let stop = actions::quiet_button(
+        p,
+        "file-stop",
+        None,
+        if task.stage == Stage::Queued {
+            tr("Remove")
+        } else {
+            tr("Stop")
+        },
+        None,
+        false,
+        move |ui: &mut Ui| {
+            if !ui.files.fixture {
+                worker::cancel(id);
+            }
+            ui.files.stale = true;
+        },
+    );
     let mut card = col()
         .key("file-progress")
-        .gap(10.0)
+        .gap(9.0)
         .px(14.0)
         .py(12.0)
-        .radius(p.k.radius.md)
-        .border(p.hair, p.k.c.border_weak)
+        .radius(9.0)
+        .fill(c.layer_01)
+        .box_shadow(rune::Shadow {
+            spread: 0.5,
+            color: c.border_base,
+            ..Default::default()
+        })
         .child(
             row()
                 .key("head")
-                .gap(10.0)
+                .gap(8.0)
                 .center_y()
                 .child(
                     text(title)
                         .key("title")
                         .font(p.k.ty.ui_medium)
                         .color(p.text())
-                        .grow(1.0)
                         .shrink()
                         .truncate(),
                 )
                 .children((task.stage != Stage::Queued).then(|| {
                     text(format!("{percent}%"))
                         .key("percent")
-                        .font(p.k.ty.small)
+                        .font(p.k.ty.text_xsmall_medium)
                         .color(p.muted())
                 }))
-                .child(button(
-                    p,
-                    "file-stop",
-                    if task.stage == Stage::Queued {
-                        tr("Remove")
-                    } else {
-                        tr("Stop")
-                    },
-                    ButtonKind::Secondary,
-                    move |ui: &mut Ui, _| {
-                        if !ui.files.fixture {
-                            worker::cancel(id);
-                        }
-                        ui.files.stale = true;
-                    },
-                )),
-        )
-        .child(
-            rune_kit::Progress::new(Some(task.fraction.clamp(0.0, 1.0)))
-                .build(p.k)
-                .key("bar"),
+                .child(rune::el().key("spacer").grow(1.0))
+                .child(stop),
         );
+    if task.stage != Stage::Queued {
+        card = card.child(ld::thin_bar(p, task.fraction));
+    }
     if let Some(detail) = detail {
         card = card.child(
             text(detail)
@@ -594,7 +606,71 @@ fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
     card
 }
 
-/// The three steps, the current one in full ink.
+/// What a running cleanup or request is made from and runs on, as its
+/// version's line will read.
+fn task_line(p: Paint, record: &FileRecord, task: &Task) -> Option<El> {
+    let model = task.model.as_deref()?;
+    let window = task.window_k.map(|k| k.to_string());
+    let words = match task.kind {
+        VersionKind::Cleanup => match &window {
+            Some(window) => tr_named(
+                "{model} in an {window}K window",
+                &[("model", model), ("window", window)],
+            ),
+            None => model.to_string(),
+        },
+        _ => {
+            let from = task
+                .from
+                .and_then(|from| record.version(from))
+                .map_or_else(|| tr("a deleted tab").to_string(), |v| tab_label(&v.name));
+            match &window {
+                Some(window) => tr_named(
+                    "Made from {from} by {model}, {window}K window",
+                    &[("from", &from), ("model", model), ("window", window)],
+                ),
+                None => tr_named(
+                    "Made from {from} by {model}",
+                    &[("from", &from), ("model", model)],
+                ),
+            }
+        }
+    };
+    Some(
+        text(words)
+            .key("task-line")
+            .font(DESCRIPTION)
+            .color(p.muted())
+            .truncate(),
+    )
+}
+
+/// One step's mark: a green tick when done, a turning ring while it runs,
+/// an empty ring until then.
+fn step_mark(p: Paint, order: std::cmp::Ordering) -> El {
+    let c = &p.k.c;
+    match order {
+        std::cmp::Ordering::Less => row()
+            .key("mark")
+            .size(14.0, 14.0)
+            .center()
+            .radius(7.0)
+            .fill(p.success())
+            .child(
+                icon(p.k.glyph.check_small, 12.0)
+                    .key("tick")
+                    .color(c.bg_base),
+            ),
+        std::cmp::Ordering::Equal => rune_kit::Loader::new().size(14.0).build(p.k).key("mark"),
+        std::cmp::Ordering::Greater => rune::el()
+            .key("mark")
+            .size(14.0, 14.0)
+            .radius(7.0)
+            .border(1.5, c.border_strong),
+    }
+}
+
+/// The three steps, each with its mark; the ones still to come in faint ink.
 fn steps(p: Paint, fraction: f32, parts: usize) -> El {
     let calls = (parts * 2 + 1) as f32;
     let done = (fraction * calls).round() as usize;
@@ -616,7 +692,11 @@ fn steps(p: Paint, fraction: f32, parts: usize) -> El {
         tr("Overall outline from the summaries").to_string(),
         tr("Each part with the outline, then joined").to_string(),
     ];
-    let mut list = col().key("steps").gap(4.0).child(
+    let font = rune::TextStyle {
+        size: 12.5,
+        ..p.k.ty.ui
+    };
+    let mut list = col().key("steps").gap(9.0).child(
         text(tr_fill(
             "The text is longer than the model's window, so it goes in {} parts.",
             &parts.to_string(),
@@ -627,23 +707,19 @@ fn steps(p: Paint, fraction: f32, parts: usize) -> El {
         .wrap(),
     );
     for (index, label) in labels.into_iter().enumerate() {
-        let (mark, ink) = match index.cmp(&step) {
-            std::cmp::Ordering::Less => ("✓", p.muted()),
-            std::cmp::Ordering::Equal => ("•", p.text()),
-            std::cmp::Ordering::Greater => ("○", p.faint()),
+        let order = index.cmp(&step);
+        let ink = if order == std::cmp::Ordering::Greater {
+            p.faint()
+        } else {
+            p.text()
         };
         list = list.child(
             row()
                 .key(format!("step{index}"))
-                .gap(8.0)
-                .child(text(mark).key("mark").font(p.k.ty.small).color(ink).w(12.0))
-                .child(
-                    text(label)
-                        .key("label")
-                        .font(p.k.ty.small)
-                        .color(ink)
-                        .wrap(),
-                ),
+                .gap(9.0)
+                .center_y()
+                .child(step_mark(p, order))
+                .child(text(label).key("label").font(font).color(ink).wrap()),
         );
     }
     list

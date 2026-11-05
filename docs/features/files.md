@@ -21,7 +21,10 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   meeting chunker on dictation's engine, yielding to dictation; Settings'
 │   │   own model loads its own copy) -> the Original tab, with timestamps
 │   ├── Clean up after transcription on -> Cleanup queued right after
-│   ├── Each row: Queued / percent, then "42 min, 3 versions"; a failure in red
+│   ├── Each row: "1 h 12 min, 2nd in line" with Queued; "Extracting audio" or
+│   │   "Transcribing, 54 min" with its percent; "42 min, Structure 45%" while
+│   │   a request runs; a thin bar under every running job; when done
+│   │   "42 min, 3 versions"; a failure in red
 │   ├── Stop (Remove while queued) ends a job between chunks or pieces
 │   └── The queue empties -> the built-in engine goes back to its 8K window
 ├── Tabs     FILES-TABS (rune_ui::files::tabs): at most three, Original,
@@ -45,7 +48,12 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   AI cleanup)
 │   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
 │   │   32K window"
-│   └── A three-step version: a note with × (closed for that version for good)
+│   ├── A three-step version: a note with × (closed for that version for good)
+│   └── A running job's tab turns a ring before its name and shows "Made from
+│       Cleanup by Qwen3 4B, 32K window", then a card: title and percent,
+│       Stop, a thin bar, and for three steps each step with a green tick,
+│       a turning ring, or an empty ring; the chips and field stay, faded,
+│       saying "Wait for <name>, or stop it"
 ├── Header   The name in up to two lines (a long word breaks anywhere), then the
 │            day and time (24-hour where the Mac uses it), ⏱ length, 🎙 model;
 │            list rows wrap names the same way
@@ -60,12 +68,18 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │            Recent ▾ (last 10 typed requests, <support>/files/recent.json)
 │            as pills, then "What should I do with this text?" -> works on
 │            the open version and adds the result to Requests
-└── Settings Model (Same as dictation or a downloaded one), Use vocabulary,
-             Show timestamps, Clean up after transcription, Runs on (Same as
-             dictation / built-in / OpenRouter / Your server / OpenCode), Use
-             the Default mode's prompt or Files' own; Requests › Runs on
-             (files.request_engine: Same as cleanup or any of those); Quick
-             requests
+└── Settings Rows lead with icons; each choice is borderless and shows what it
+             resolves to in grey ("Same as dictation  Parakeet v3"). Model
+             (Same as dictation or a downloaded one), Language (files.language,
+             only for a model that takes a hint: Same as dictation or one of
+             its languages; a new model choice clears it), Use vocabulary, Show
+             timestamps; Cleanup: Clean up after transcription, Runs on (Same
+             as dictation / built in / OpenRouter / Your server / OpenCode),
+             Use the Default mode's prompt (its start in italics while on;
+             off, Files' own prompt); Requests › Runs on (files.request_engine:
+             Same as cleanup or any of those); Quick requests as a list (name,
+             what it asks, ✎ edits in place with Save and Cancel, 🗑 removes),
+             Add request, and a note that the chips follow the list
 ```
 
 ```ts
@@ -93,7 +107,10 @@ Checks: `files::store`, `files::text`, `files::rewrite`
 three-step fake generator), `files::worker` (tab names); scenes `files`,
 `files-working`, `files-original`, `files-summary`, `files-versions` (the
 open tab's list), `files-more` (the … menu), `files-again` (Transcribe
-again's language), `files-empty`, `files-settings` (no goldens yet).
+again's language), `files-empty`, `files-settings`, `files-settings-prompt`
+(Files' own prompt and a quick request being edited); no goldens yet.
+`app_settings::files_settings` checks how files.language and the model
+combine.
 
 Gaps: macOS only (decoding needs AVFoundation). The queue doesn't survive a
 quit: a file that was transcribing lists as Stopped, with Try again. Text

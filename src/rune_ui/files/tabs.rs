@@ -214,11 +214,7 @@ pub(super) fn strip(
         let on = open == Some(group);
         let tabs: Vec<Tab> = entries.iter().map(Entry::tab).collect();
         let working = entries.iter().any(|entry| matches!(entry, Entry::Task(_)));
-        let label = if working {
-            format!("{}…", group.label())
-        } else {
-            group.label().into()
-        };
+        let label = group.label().to_string();
         let font = TextStyle {
             line_height: 13.0,
             ..p.k.ty.ui
@@ -230,6 +226,7 @@ pub(super) fn strip(
             .pr(if on && entries.len() > 1 { 7.0 } else { 12.0 })
             .gap(6.0)
             .center_y()
+            .children(working.then(|| rune_kit::Loader::new().size(11.0).build(p.k).key("working")))
             .child(text(label.clone()).key("label").font(font).color(if on {
                 c.text_base
             } else {

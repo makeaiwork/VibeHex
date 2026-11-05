@@ -37,8 +37,7 @@ impl Config {
     pub fn from_settings(settings: &AppSettings) -> Self {
         let selection = settings
             .files
-            .transcription
-            .clone()
+            .selection(&settings.transcription)
             .unwrap_or_else(|| settings.transcription.clone());
         Self {
             files: settings.files.clone(),
@@ -127,6 +126,12 @@ pub struct Task {
     pub name: Option<String>,
     /// What it adds: an Original, a Cleanup, or a request.
     pub kind: VersionKind,
+    /// The version a cleanup or request works on.
+    pub from: Option<u32>,
+    /// The model it runs on, once it starts.
+    pub model: Option<String>,
+    /// The built-in engine's window in K tokens, once it is chosen.
+    pub window_k: Option<u32>,
 }
 
 struct Queued {
@@ -214,10 +219,10 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
     let mut state = state();
     let id = state.next;
     state.next += 1;
-    let (name, kind) = match &job {
-        Job::Request { name, .. } => (Some(name.clone()), VersionKind::Request),
-        Job::Cleanup { .. } => (Some("Cleanup".into()), VersionKind::Cleanup),
-        Job::Transcribe { .. } => (None, VersionKind::Original),
+    let (name, kind, from) = match &job {
+        Job::Request { name, from, .. } => (Some(name.clone()), VersionKind::Request, Some(*from)),
+        Job::Cleanup { from, .. } => (Some("Cleanup".into()), VersionKind::Cleanup, Some(*from)),
+        Job::Transcribe { .. } => (None, VersionKind::Original, None),
     };
     let queued = Queued {
         task: Task {
@@ -228,6 +233,9 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
             parts: None,
             name,
             kind,
+            from,
+            model: None,
+            window_k: None,
         },
         job,
         config,
@@ -470,7 +478,11 @@ fn cleanup(
     let record = store::load(&task.record)?;
     let input = source(&record, from)?;
     let engine = config.engine(choice);
-    update_task(task.id, |task| task.stage = Stage::CleaningUp);
+    update_task(task.id, |task| {
+        task.stage = Stage::CleaningUp;
+        task.model = Some(engine.model_name());
+        task.window_k = rewrite::cleanup_window_k(&engine);
+    });
     let started = Instant::now();
     let instructions = rewrite::cleanup_instructions(config.cleanup_prompt(), config.vocabulary());
     let made = rewrite::clean(&engine, &instructions, &input, cancel, &mut |fraction| {
@@ -514,7 +526,10 @@ fn request(
     let record = store::load(&task.record)?;
     let input = source(&record, from)?;
     let engine = config.engine(config.files.request_engine.as_deref());
-    update_task(task.id, |task| task.stage = Stage::Working);
+    update_task(task.id, |task| {
+        task.stage = Stage::Working;
+        task.model = Some(engine.model_name());
+    });
     let started = Instant::now();
     let made = rewrite::request(
         &engine,
@@ -522,10 +537,11 @@ fn request(
         &input,
         config.vocabulary(),
         cancel,
-        &mut |fraction, parts| {
+        &mut |fraction, parts, window_k| {
             update_task(task.id, |task| {
                 task.fraction = fraction;
                 task.parts = parts;
+                task.window_k = window_k;
             });
         },
     )?;

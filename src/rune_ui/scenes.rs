@@ -542,7 +542,22 @@ pub(super) const SCENES: &[Scene] = &[
     }),
     ("files-settings", |ui| {
         files_scene(ui, files::FilesPane::fixture());
+        ui.settings.transcription = crate::transcription::models::TranscriptionSelection {
+            model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+            language: "ru".into(),
+        };
+        ui.settings.labs.ai_cleanup_server = true;
+        ui.settings.dictation_processing.server.runs_on = crate::app_settings::CleanupRunsOn::Local;
+        ui.files.view = files::View::Settings;
+    }),
+    ("files-settings-prompt", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
         ui.settings.files.use_default_prompt = false;
+        ui.files.quick = Some(files::settings::QuickEdit {
+            index: Some(1),
+            label: rune::TextEdit::new("Summary".to_string()),
+            prompt: rune::TextEdit::new("A short summary, as bullet points".to_string()),
+        });
         ui.files.view = files::View::Settings;
     }),
     ("meetings-off", |ui| {
