@@ -1832,6 +1832,28 @@ fn labs_search_keeps_the_rows_holding_every_word() {
 }
 
 #[test]
+fn vibehex_only_keeps_the_starred_rows() {
+    let mut rt = runtime("mac-settings", true, (980.0, 2000.0));
+    tap(&mut rt, "nav-labs");
+    assert!(rt.find("lab-live-text").is_some());
+    tap(&mut rt, "labs-vibehex-only");
+    assert!(rt.state.lab_vibehex_only);
+    assert!(rt.find("lab-ai-cleanup-server").is_some());
+    assert!(rt.find("lab-russian-vibe-coding").is_some());
+    assert!(rt.find("lab-live-text").is_none(), "Hex's own lab hides");
+    assert!(rt.find("restart-onboarding").is_some(), "setup stays");
+    // With the search, a row needs both.
+    rt.state.lab_search = rune::TextEdit::new("live".to_string());
+    refresh(&mut rt);
+    assert!(rt.find("labs-none").is_some());
+    // A link to a row turns it off so its row shows.
+    rt.update(|ui, tx| super::super::labs::reveal(ui, Some("live-text"), tx));
+    settle(&mut rt);
+    assert!(!rt.state.lab_vibehex_only);
+    assert!(rt.find("lab-live-text").is_some());
+}
+
+#[test]
 fn a_labs_link_opens_labs_pulses_its_row_and_leaves_it_off() {
     use crate::labs::Feature;
     let mut rt = runtime("mac-settings", true, (980.0, 2000.0));

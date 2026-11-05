@@ -685,6 +685,8 @@ pub(crate) struct Ui {
     /// The Labs row a link just opened, pulsing until it is cleared.
     lab_flash: Option<(crate::labs::Feature, Instant)>,
     lab_search: TextEdit, // The Labs page's search field.
+    /// The Labs page lists only the starred features VibeHex added.
+    lab_vibehex_only: bool,
     /// A scene previewing the badge of a build kind this binary is not.
     build_preview: Option<BuildKind>,
     capture: Capture,
@@ -797,6 +799,7 @@ impl Ui {
             labs_open: false,
             lab_flash: None,
             lab_search: TextEdit::default(),
+            lab_vibehex_only: false,
             build_preview: None,
             capture: Capture::Idle,
             vocabulary,

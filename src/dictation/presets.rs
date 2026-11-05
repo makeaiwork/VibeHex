@@ -1,15 +1,18 @@
 //! Labs › Russian vibe coding: one switch that writes the Russian
 //! vibe-coding preset in `docs/vocabulary/` into the person's own settings
 //! (shared vocabulary, Global's word fixes, Global's cleanup instructions,
-//! and Clean up with AI on), turns on the Labs it builds on (Clean up on
-//! your own server, Vocabulary text view), and takes back, when turned
-//! off, only what still reads as the preset wrote it; those two Labs stay
-//! on, since a server or key set up there is the person's own. Everything it writes stays editable
+//! and Clean up with AI on), turns on every other Lab VibeHex added (the
+//! starred rows: Clean up on your own server, Vocabulary text view, Add to
+//! vocabulary, Cleanup progress, Files, Stop shortcut, those this Hex has),
+//! and takes back, when turned off, only what still reads as the preset
+//! wrote it; those Labs stay on, since a server, key, or shortcut set up
+//! there is the person's own. Everything it writes stays editable
 //! in Vocabulary and Output like anything typed there.
 
 use crate::app_settings::{AppSettings, DictationPostProcessing};
 use crate::dictation::text_replacements::TextReplacement;
 use crate::dictation::vocabulary::{self, VocabularyEntry};
+use crate::labs::Feature;
 
 const VOCABULARY: &str = include_str!("../../docs/vocabulary/vibe-coding-ru.txt");
 const REPLACEMENTS: &str = include_str!("../../docs/vocabulary/replacements-ru.json");
@@ -47,8 +50,17 @@ fn add(settings: &mut AppSettings) {
         rewrite.prompt = format!("{prompt}\n\n{instructions}");
     }
     rewrite.enabled = true;
-    settings.labs.ai_cleanup_server = true;
-    settings.labs.vocabulary_paste_list = true;
+    for feature in vibehex_labs() {
+        feature.set(settings, true);
+    }
+}
+
+/// The other Labs VibeHex added (the starred rows) that this Hex has and
+/// no organization locks: the preset turns them all on.
+fn vibehex_labs() -> impl Iterator<Item = Feature> {
+    Feature::available().filter(|feature| {
+        feature.vibehex() && *feature != Feature::RussianVibeCoding && feature.managed().is_none()
+    })
 }
 
 fn take_back(settings: &mut AppSettings) {
@@ -126,6 +138,29 @@ mod tests {
         assert!(settings.labs.vocabulary_paste_list);
         settings.labs = fresh.labs.clone();
         assert_eq!(settings, fresh);
+    }
+
+    #[test]
+    fn it_turns_on_every_starred_lab_this_hex_has() {
+        let mut settings = AppSettings::default();
+        russian_vibe_coding(&mut settings, true);
+        // Its own switch is the Lab's, not the preset's.
+        let starred: Vec<Feature> = Feature::available()
+            .filter(|feature| feature.vibehex() && *feature != Feature::RussianVibeCoding)
+            .collect();
+        assert!(starred.contains(&Feature::AiCleanupServer));
+        for feature in starred {
+            assert!(feature.on(&settings), "{} stayed off", feature.name());
+        }
+        // Labs Hex itself has stay as they were.
+        for feature in Feature::ALL.into_iter().filter(|f| !f.vibehex()) {
+            assert_eq!(
+                feature.on(&settings),
+                feature.on(&AppSettings::default()),
+                "{} changed",
+                feature.name()
+            );
+        }
     }
 
     #[test]

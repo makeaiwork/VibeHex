@@ -337,6 +337,7 @@ impl Feature {
                 | Self::CleanupProgress
                 | Self::Files
                 | Self::RussianVibeCoding
+                | Self::StopShortcut
                 | Self::VocabularyPasteList
                 | Self::VocabularyQuickAdd
         )
@@ -560,7 +561,7 @@ impl Feature {
                 "The Vocabulary sheet's Text view shows the whole list as text, one term per line as Term | sounds like, sounds like, to paste, fix, or delete many at once"
             }
             Self::RussianVibeCoding => {
-                "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI; off takes back what it added and you haven't changed"
+                "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI and every other VibeHex feature; off takes back what it added and you haven't changed"
             }
             Self::VocabularyQuickAdd => {
                 "Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"
@@ -1303,14 +1304,12 @@ mod tests {
 
     #[test]
     fn every_feature_is_off_by_default_and_round_trips() {
-        let mut settings = AppSettings::default();
+        let fresh = AppSettings::default();
         for feature in Feature::ALL {
-            assert!(
-                !feature.on(&settings),
-                "{} is on by default",
-                feature.name()
-            );
+            assert!(!feature.on(&fresh), "{} is on by default", feature.name());
             assert_eq!(Feature::from_name(feature.name()), Some(feature));
+            // Each on its own: Russian vibe coding turns other Labs on too.
+            let mut settings = fresh.clone();
             feature.set(&mut settings, true);
             assert!(feature.on(&settings));
         }

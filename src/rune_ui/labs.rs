@@ -2,8 +2,10 @@
 //! row with a toggle, each off by default, in titled sections by what it
 //! touches (`Group`), plus Send feedback and Run setup again, under a search
 //! field that narrows the rows to those whose
-//! name or description holds every word typed. A feature with its own pane (Meetings, Voice Filter,
-//! Playground) joins the main sidebar while on and is hidden while off.
+//! name or description holds every word typed, and a VibeHex only switch
+//! that keeps just the starred features VibeHex added. A feature with its
+//! own pane (Meetings, Voice Filter, Playground) joins the main sidebar
+//! while on and is hidden while off.
 
 use rune::{El, Icon, Tx, row, text};
 
@@ -117,8 +119,9 @@ pub(super) fn reveal(ui: &mut Ui, name: Option<&str>, tx: &mut Tx) {
     open(ui, tx);
     ui.lab_flash = None;
     let Some(name) = name else { return };
-    // The linked row shows whatever was searched for.
+    // The linked row shows whatever was searched for or filtered.
     ui.lab_search = rune::TextEdit::default();
+    ui.lab_vibehex_only = false;
     match Feature::from_name(name).filter(|feature| rows(ui).iter().any(|r| r.feature == *feature))
     {
         Some(feature) => {
@@ -281,7 +284,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
         Feature::RussianVibeCoding,
         &BOOK,
         tr("Russian vibe coding"),
-        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI, Clean up on your own server, and Vocabulary text view. Off takes back the terms, fixes, and instructions"),
+        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI and every Labs feature with a star. Off takes back the terms, fixes, and instructions"),
     ));
     if caps.keyboard_model_switching {
         rows.push(row(
@@ -730,18 +733,34 @@ fn search(ui: &Ui, p: Paint) -> El {
         .key("labs-search")
 }
 
-/// The Labs page: what Labs is with Send feedback, the search field, every
-/// feature's row that matches it, then Run setup again.
+/// VibeHex only, beside the search field: a star, the label, and a switch
+/// that keeps just the starred rows. It saves nothing.
+fn vibehex_filter(ui: &Ui, p: Paint) -> El {
+    let label = tr("VibeHex only");
+    pressable_row(
+        row()
+            .key("labs-vibehex-only")
+            .label(label)
+            .gap(6.0)
+            .center_y()
+            .child(rune::icon(&rune_kit::glyphs::STAR_FILLED, 12.0).color(p.k.c.warning.icon))
+            .child(text(label).key("label").font(p.k.ty.small).color(p.text()))
+            .child(row_switch(p, ui.lab_vibehex_only)),
+    )
+    .on_press(|ui: &mut Ui| ui.lab_vibehex_only = !ui.lab_vibehex_only)
+}
+
+/// The Labs page: what Labs is with Send feedback, the search field and
+/// VibeHex only, every feature's row that passes them, then Run setup again.
 pub(super) fn page(ui: &Ui, p: Paint) -> El {
     let feedback = rune_kit::Button::new(tr("Send feedback"))
         .variant(rune_kit::ButtonVariant::Ghost)
         .control_size(rune_kit::ControlSize::Small)
         .on_press(|ui: &mut Ui| {
             if ui.live()
-                && let Err(error) =
-                    crate::desktop::opencode_catalog::open_url(&crate::labs::feedback_mailto(
-                        crate::VERSION,
-                    ))
+                && let Err(error) = crate::desktop::opencode_catalog::open_url(
+                    &crate::labs::feedback_mailto(crate::VERSION),
+                )
             {
                 ui.error = Some(format!("{error:#}"));
             }
@@ -767,10 +786,11 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
         .iter()
         .map(|group| (*group, Vec::new()))
         .collect();
-    for row in rows(ui)
-        .into_iter()
-        .filter(|row| row.feature.shipped() && matches(row, query))
-    {
+    for row in rows(ui).into_iter().filter(|row| {
+        row.feature.shipped()
+            && matches(row, query)
+            && (!ui.lab_vibehex_only || row.feature.vibehex())
+    }) {
         let unload_idle = row.feature == Feature::UnloadIdle && row.on;
         let flashing = ui
             .lab_flash
@@ -792,7 +812,10 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
     let search = row()
         .key("labs-search-row")
         .mx(controls::METRICS.row_px)
-        .child(search(ui, p).grow(1.0));
+        .gap(12.0)
+        .center_y()
+        .child(search(ui, p).grow(1.0))
+        .child(vibehex_filter(ui, p));
     let mut content = controls::page("content").child(lede).child(search);
     if sections.is_empty() {
         content = content.child(
