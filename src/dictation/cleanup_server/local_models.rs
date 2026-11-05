@@ -117,6 +117,30 @@ impl LocalModel {
             .is_ok_and(|metadata| metadata.is_file() && metadata.len() == self.bytes)
     }
 
+    /// Its full name where it comes from, as LM Studio shows it:
+    /// `unsloth/gemma-4-E4B-it-GGUF`.
+    pub fn repository(&self) -> &'static str {
+        self.repository
+    }
+
+    /// Its quantization from the file name, such as `Q4_K_M`.
+    pub fn quantization(&self) -> &'static str {
+        let stem = self.filename.trim_end_matches(".gguf");
+        stem.rsplit_once('-')
+            .map_or(stem, |(_, quantization)| quantization)
+    }
+
+    /// The bits a weight mostly has, such as 4 for `Q4_K_M`.
+    pub fn bits(&self) -> Option<u32> {
+        let quantization = self.quantization();
+        let digits: String = quantization
+            .strip_prefix(['Q', 'q'])?
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+        digits.parse().ok()
+    }
+
     /// Size for a person, such as "2.5 GB".
     pub fn size_label(&self) -> String {
         format!("{:.1} GB", self.bytes as f64 / 1e9)
@@ -210,6 +234,9 @@ mod tests {
             assert_eq!(model.revision.len(), 40, "{}", model.id);
             assert_eq!(model.sha256.len(), 64, "{}", model.id);
             assert!(model.filename.ends_with(".gguf"));
+            assert_eq!(model.quantization(), "Q4_K_M");
+            assert_eq!(model.bits(), Some(4));
+            assert!(model.repository().contains('/'));
             assert!(model.url().starts_with("https://huggingface.co/"));
             assert!(model.bytes > 0);
         }

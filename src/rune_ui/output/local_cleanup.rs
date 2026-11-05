@@ -7,13 +7,20 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use rune::{El, Waker, row, text};
+use rune::{El, Waker, col, row, text};
 
 use super::super::Ui;
-use super::super::controls::{ButtonKind, CardRow, Paint, PushSize, button, described_row};
+use super::super::controls::{
+    ButtonKind, CardRow, DESCRIPTION, Paint, PushSize, button, copy_row_tagged,
+};
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::engine::{self, State};
 use crate::dictation::cleanup_server::local_models::{self, LocalModel, MODELS};
+
+/// One segment of a speed or quality meter.
+const SEGMENT: (f32, f32) = (7.0, 6.0);
+/// A file fact's tag.
+const CHIP_H: f32 = 18.0;
 
 /// Downloads under way, what is installed, and the engine as last seen.
 #[derive(Default)]
@@ -119,17 +126,64 @@ pub(super) fn rows(ui: &Ui, p: Paint) -> Vec<CardRow> {
 fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen: bool) -> El {
     let state = &ui.output.cleanup.local;
     let key = format!("local-model-{}", model.id);
-    let facts = format!(
-        "{} · {} · {} · {} · {}",
-        model.size_label(),
-        speed_label(model.speed),
-        quality_label(model.quality),
-        model.publisher,
-        model.license
-    );
+    let facts = row()
+        .key("facts")
+        .gap(6.0)
+        .center_y()
+        .flex_wrap()
+        .child(chip(
+            p,
+            "quantization",
+            model.quantization().to_owned(),
+            true,
+        ))
+        .children(
+            model
+                .bits()
+                .map(|bits| chip(p, "bits", tr_fill("{}-bit", &bits.to_string()), false)),
+        )
+        .child(chip(p, "size", model.size_label(), false))
+        // The licence stays a hover away.
+        .child(
+            text(model.publisher)
+                .key("publisher")
+                .font(DESCRIPTION)
+                .color(p.muted())
+                .help(model.license),
+        );
     let description = match state.error(model.id) {
-        Some(why) => (why.to_owned(), p.danger()),
-        None => (facts, p.muted()),
+        Some(why) => text(why)
+            .key("description")
+            .font(DESCRIPTION)
+            .color(p.danger())
+            .wrap(),
+        None => col()
+            .key("description")
+            .gap(3.0)
+            .child(
+                row()
+                    .key("meters")
+                    .gap(16.0)
+                    .center_y()
+                    .flex_wrap()
+                    .child(meter(
+                        p,
+                        "speed",
+                        tr("Speed"),
+                        model.speed,
+                        speed_label(model.speed),
+                        p.k.c.success.fg,
+                    ))
+                    .child(meter(
+                        p,
+                        "quality",
+                        tr("Quality"),
+                        model.quality,
+                        quality_label(model.quality),
+                        p.k.c.info.fg,
+                    )),
+            )
+            .child(facts),
     };
     let controls = row().key("controls").gap(8.0).center_y();
     let controls = if state.confirm_delete == Some(model.id) {
@@ -207,7 +261,73 @@ fn model_row(ui: &Ui, p: Paint, index: usize, model: &'static LocalModel, chosen
             move |ui, _| start_download(ui, model),
         ))
     };
-    described_row(p, &key, model.name, Some(description), controls)
+    // Its full name, as LM Studio shows a model; who converted it is in
+    // the line below.
+    let full_name = model
+        .repository()
+        .rsplit_once('/')
+        .map_or(model.repository(), |(_, name)| name);
+    let source = text(full_name)
+        .key("source")
+        .font(DESCRIPTION)
+        .color(p.faint());
+    copy_row_tagged(
+        p,
+        &key,
+        None,
+        model.name,
+        Some(source),
+        Some(description),
+        controls,
+        false,
+    )
+}
+
+/// A fact about the file as a rounded tag, in the code font when `code`.
+fn chip(p: Paint, key: &str, label: String, code: bool) -> El {
+    let font = if code {
+        rune::TextStyle {
+            size: 11.0,
+            line_height: 14.0,
+            ..p.k.ty.mono
+        }
+    } else {
+        DESCRIPTION
+    };
+    row()
+        .key(key)
+        .h(CHIP_H)
+        .px(7.0)
+        .center_y()
+        .radius(CHIP_H / 2.0)
+        .border(0.5, p.k.c.border_base)
+        .child(text(label).font(font).color(p.muted()))
+}
+
+/// A rating out of five as five segments, lit in `color` up to `level`,
+/// after its name; `word` says it to a screen reader.
+fn meter(p: Paint, key: &str, name: &str, level: u8, word: &str, color: rune::Color) -> El {
+    let segments = row()
+        .key("segments")
+        .gap(2.0)
+        .children((1..=5).map(|segment| {
+            rune::el()
+                .size(SEGMENT.0, SEGMENT.1)
+                .radius(2.0)
+                .fill(if segment <= level {
+                    color
+                } else {
+                    p.faint().alpha(0.3)
+                })
+        }));
+    row()
+        .key(key)
+        .gap(6.0)
+        .center_y()
+        .role("meter")
+        .label(format!("{name}: {word}"))
+        .child(text(name).font(DESCRIPTION).color(p.muted()))
+        .child(segments)
 }
 
 /// The chosen model's mark: a pressed-looking success pill with a check.
@@ -244,9 +364,9 @@ fn speed_label(speed: u8) -> &'static str {
 /// A model's quality in a word, from its 1–5 rating.
 fn quality_label(quality: u8) -> &'static str {
     match quality {
-        5.. => tr("Best quality"),
-        4 => tr("Good quality"),
-        _ => tr("Basic quality"),
+        5.. => tr("Best"),
+        4 => tr("Good"),
+        _ => tr("Basic"),
     }
 }
 
