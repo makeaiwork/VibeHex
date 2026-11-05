@@ -199,9 +199,11 @@ pub(super) fn strip(
     let mut strip = row()
         .key("file-tabs")
         .role("tablist")
-        .h(28.0)
+        .h(30.0)
         .center_y()
-        .radius(6.0)
+        .radius(7.0)
+        .px(2.0)
+        .gap(2.0)
         .fill(c.layer_01)
         .box_shadow(Shadow {
             spread: 0.5,
@@ -223,7 +225,7 @@ pub(super) fn strip(
         };
         let mut name = row()
             .key("name")
-            .h(28.0)
+            .h(24.0)
             .px(12.0)
             .gap(6.0)
             .center_y()
@@ -257,7 +259,7 @@ pub(super) fn strip(
             .role("tab")
             .label(label)
             .hover(c.hover)
-            .radius(6.0)
+            .radius(5.0)
             .on_press(move |ui: &mut Ui| {
                 if let Some(current) = current
                     && let Some(from) = open
@@ -268,9 +270,9 @@ pub(super) fn strip(
                     open_group(ui, &id, group, &tabs);
                 }
             });
-        let mut cell = row().key(format!("tab-{group:?}")).radius(6.0).child(name);
+        let mut cell = row().key(format!("tab-{group:?}")).radius(5.0).child(name);
         if on {
-            cell = cell.fill(c.bg_base).box_shadow(Shadow {
+            cell = cell.fill(c.layer_02).box_shadow(Shadow {
                 spread: 0.5,
                 color: c.border_strong,
                 ..Default::default()
@@ -303,10 +305,10 @@ fn versions_menu(
         .key("chevron")
         .role("button")
         .label(tr("Versions"))
-        .h(28.0)
+        .h(24.0)
         .w(22.0)
         .center()
-        .radius(6.0)
+        .radius(5.0)
         .hover(c.hover)
         .child(
             icon(
