@@ -229,6 +229,12 @@ const KEYS: &[Key] = &[
          labs.vocabulary_quick_add); option+shift+a by default, none turns it off",
     ),
     key(
+        "stop_hotkey",
+        Kind::Shortcut(HotkeySlot::Stop),
+        "Labs: finishes and pastes a recording a shortcut started, in any mode, Return by \
+         default (macOS, with labs.stop_shortcut). Hex takes the key only while one runs",
+    ),
+    key(
         "show_dock_icon",
         Kind::Bool,
         "Keep Hex in the Dock when Settings is closed (macOS)",
@@ -470,6 +476,11 @@ const KEYS: &[Key] = &[
         "labs.cleanup_progress",
         Kind::Bool,
         "Labs: while AI cleanup takes a while, a bar beside the HUD shows its progress with Paste now, which pastes the part already cleaned and the rest as transcribed (macOS)",
+    ),
+    key(
+        "labs.stop_shortcut",
+        Kind::Bool,
+        "Labs: stop_hotkey finishes and pastes a recording a shortcut started (macOS)",
     ),
     key(
         "labs.meeting_summary_model",
@@ -1031,6 +1042,7 @@ pub fn apply(
         | "second_dictation_hotkey"
         | "vocabulary_add_hotkey"
         | "cancel_hotkey"
+        | "stop_hotkey"
         | "capture.hotkey" => {
             let Kind::Shortcut(slot) = key.kind else {
                 unreachable!("shortcut keys have the shortcut kind");
@@ -1042,6 +1054,7 @@ pub fn apply(
                 HotkeySlot::SecondDictation => candidate.second_dictation_hotkey.as_ref(),
                 HotkeySlot::VocabularyAdd => candidate.vocabulary_add_hotkey.as_ref(),
                 HotkeySlot::Cancel => Some(&candidate.cancel_hotkey),
+                HotkeySlot::Stop => Some(&candidate.stop_hotkey),
                 #[cfg(hex_capture)]
                 HotkeySlot::Capture => Some(&candidate.capture.hotkey),
             };

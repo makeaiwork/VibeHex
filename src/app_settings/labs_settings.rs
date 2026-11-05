@@ -79,6 +79,8 @@ pub struct LabsSettings {
     pub cleanup_progress: bool,
     /// The Files pane transcribes dropped audio and video files (macOS).
     pub files: bool,
+    /// `stop_hotkey` finishes a shortcut's dictation and pastes it (macOS).
+    pub stop_shortcut: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -128,6 +130,7 @@ impl Default for LabsSettings {
             vocabulary_quick_add: false,
             cleanup_progress: false,
             files: false,
+            stop_shortcut: false,
         }
     }
 }

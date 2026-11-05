@@ -475,6 +475,12 @@ pub(crate) fn shortcut_rule(
         HotkeySlot::VocabularyAdd => ShortcutTarget::VocabularyAdd,
         #[cfg(not(target_os = "macos"))] // macOS's only; a key, as Paste Last.
         HotkeySlot::VocabularyAdd => ShortcutTarget::PasteLast,
+        #[cfg(target_os = "macos")]
+        HotkeySlot::Stop => ShortcutTarget::Stop,
+        // Labs › Stop shortcut is macOS's; elsewhere a saved one meets the
+        // cancel shortcut's rules, a key that may stand alone.
+        #[cfg(not(target_os = "macos"))]
+        HotkeySlot::Stop => ShortcutTarget::Cancel,
     };
     host::validate_hotkey(target, binding)
 }

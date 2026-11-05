@@ -247,6 +247,7 @@ impl Hotkeys {
             machine.set_double_tap_only(crate::app_settings::double_tap_only());
             machine.set_toggle(crate::app_settings::shortcut_toggle());
             machine.set_cancel(hotkeys.cancel);
+            machine.set_stop(hotkeys.stop);
         }
         raw_cancelled || second_cancelled
     }
@@ -1019,8 +1020,9 @@ pub fn listen(
         #[cfg(not(hex_capture))]
         let capture_escape = false;
         input_monitor.set_takes_escape(claims_escape(programmatic.is_some(), capture_escape));
-        // Toggle's cancel key is Hex's only while one of its shortcuts'
-        // recordings runs; the listener ignores keys during a programmatic one.
+        // Toggle's cancel key and Labs' stop key are Hex's only while one of
+        // its shortcuts' recordings runs; the listener ignores keys during a
+        // programmatic one.
         input_monitor.set_takes_cancel(programmatic.is_none() && hotkeys.any_recording());
         if received_worker_event {
             emit_engine_state(

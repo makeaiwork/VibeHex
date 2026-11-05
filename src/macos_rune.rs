@@ -123,6 +123,8 @@ pub(crate) enum ShortcutTarget {
     VocabularyAdd,
     /// Toggle mode's cancel shortcut.
     Cancel,
+    /// Labs › Stop shortcut: finishes a shortcut's recording.
+    Stop,
 }
 
 /// What the runtime last published for the window and the menu bar.

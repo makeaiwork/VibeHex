@@ -639,6 +639,12 @@ Labs > Second dictation shortcut (macOS, off)   // labs.md; issue 627
   -> it dictates like the shortcut: Hold/Toggle, double-tap lock, release
   -> the shortcut that starts a capture finishes it; the other stands down meanwhile
 
+Labs > Stop shortcut (macOS, off)   // labs.md
+  -> General shows "Stop shortcut" under Shortcut (Return by default, restorable)
+  -> while a shortcut's recording runs, in any mode: Return -> Finish -> pastes
+     (also with the held shortcut's own modifiers down: hold Right ⌥, press Return)
+  -> Hex takes Return from the app only then; idle it is the app's
+
 Labs > Unload model when idle (off; 5/15/30/60 min, default 15)   // labs.md; transcription/engine
   -> nothing used the model that long and nothing records -> the model unloads
   -> next press, meeting chunk, or API request -> reloads first; audio waits, nothing lost

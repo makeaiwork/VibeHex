@@ -97,6 +97,20 @@ fn basics(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
                 Some(tr("Dictates like the shortcut above")),
             ));
         }
+        // Labs › Stop shortcut (macOS): another key, Return by default,
+        // finishes and pastes what a shortcut started recording.
+        #[cfg(target_os = "macos")]
+        if crate::labs::Feature::StopShortcut.on(&ui.settings) {
+            rows.extend(shortcut_rows(
+                ui,
+                p,
+                "stop-shortcut",
+                &KEYBOARD,
+                tr("Stop shortcut"),
+                ShortcutTarget::Stop,
+                Some(tr("Finishes the recording and pastes it")),
+            ));
+        }
         // Annotate's shortcut beside dictation's on Linux, where the desktop
         // lists both and a lone F9 is otherwise easy to miss (#723).
         #[cfg(all(target_os = "linux", hex_capture))]
@@ -291,6 +305,7 @@ pub(super) fn shortcut_rows(
         ShortcutTarget::VocabularyAdd => {
             crate::app_settings::HotkeyBinding::vocabulary_add_default()
         }
+        ShortcutTarget::Stop => Some(crate::app_settings::HotkeyBinding::stop_default()),
         _ => None,
     };
     if let Some(default) = default {

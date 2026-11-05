@@ -105,10 +105,11 @@ pub enum Feature {
     VocabularyQuickAdd,
     CleanupProgress,
     Files,
+    StopShortcut,
 }
 
 impl Feature {
-    pub const ALL: [Self; 46] = [
+    pub const ALL: [Self; 47] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -155,6 +156,7 @@ impl Feature {
         Self::VocabularyQuickAdd,
         Self::CleanupProgress,
         Self::Files,
+        Self::StopShortcut,
     ];
 
     /// The features this OS and build have.
@@ -223,7 +225,8 @@ impl Feature {
             | Self::RussianVibeCoding
             | Self::VocabularyQuickAdd
             | Self::CleanupProgress
-            | Self::Files => Audience::Everyone,
+            | Self::Files
+            | Self::StopShortcut => Audience::Everyone,
         }
     }
 
@@ -268,6 +271,7 @@ impl Feature {
             | Self::KeepOnClipboard
             | Self::CopyOnly
             | Self::SecondDictationShortcut
+            | Self::StopShortcut
             | Self::SmartSpacing
             | Self::SidedChords
             | Self::TapOrHold
@@ -363,6 +367,7 @@ impl Feature {
             Self::VocabularyQuickAdd => "vocabulary-quick-add",
             Self::CleanupProgress => "cleanup-progress",
             Self::Files => "files",
+            Self::StopShortcut => "stop-shortcut",
         }
     }
 
@@ -415,6 +420,7 @@ impl Feature {
             Self::VocabularyQuickAdd => "labs.vocabulary_quick_add",
             Self::CleanupProgress => "labs.cleanup_progress",
             Self::Files => "labs.files",
+            Self::StopShortcut => "labs.stop_shortcut",
         }
     }
 
@@ -541,6 +547,9 @@ impl Feature {
             Self::Files => {
                 "Drop audio and video files to transcribe them, clean them up, and rework the text with your own requests"
             }
+            Self::StopShortcut => {
+                "Another key, such as Return, finishes a dictation and pastes it, while your shortcut starts it (stop_hotkey)"
+            }
         }
     }
 
@@ -597,6 +606,7 @@ impl Feature {
             Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add,
             Self::CleanupProgress => settings.labs.cleanup_progress,
             Self::Files => settings.labs.files,
+            Self::StopShortcut => settings.labs.stop_shortcut,
         }
     }
 
@@ -651,6 +661,7 @@ impl Feature {
             &mut labs.vocabulary_quick_add,
             &mut labs.cleanup_progress,
             &mut labs.files,
+            &mut labs.stop_shortcut,
         ]
     }
 
@@ -711,6 +722,7 @@ impl Feature {
                 }
                 settings.labs.russian_vibe_coding = on;
             }
+            Self::StopShortcut => settings.labs.stop_shortcut = on,
             // Off, no shortcut keeps a key only the feature allows.
             Self::StandaloneSpecialKeys => {
                 settings.labs.standalone_special_keys = on;

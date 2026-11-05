@@ -718,6 +718,22 @@ impl HotkeyBinding {
         binding
     }
 
+    /// Return, with no modifier: Labs › Stop shortcut's key (macOS).
+    pub fn stop_default() -> Self {
+        #[cfg(target_os = "macos")]
+        let binding = Self {
+            modifiers: HotkeyModifiers::default(),
+            // Return's virtual key code, the same on every layout.
+            key: Some(HotkeyKey {
+                code: 36,
+                label: "Return".into(),
+            }),
+        };
+        #[cfg(not(target_os = "macos"))]
+        let binding = Self::chord(HotkeyModifiers::default(), "return");
+        binding
+    }
+
     /// Escape, with no modifier.
     pub fn cancel_default() -> Self {
         #[cfg(target_os = "macos")]
@@ -978,6 +994,42 @@ impl RuntimeHotkey {
     pub fn matches_key_press(self, code: u16, flags: u64) -> bool {
         self.key_code == Some(code) && self.exact_modifiers(flags)
     }
+
+    /// The key press matches while `held`, a shortcut still down, keeps its
+    /// own modifiers down: Return with Right ⌥ held, while a Right ⌥
+    /// dictation records, reads as Return.
+    pub fn matches_key_press_beside(self, code: u16, flags: u64, held: RuntimeHotkey) -> bool {
+        self.matches_key_press(code, flags)
+            || (!held.modifiers.is_empty()
+                && held.required_modifiers_down(flags)
+                && self.matches_key_press(code, flags & !modifier_flags(held.modifiers)))
+    }
+}
+
+/// Every flag that reports one of `modifiers`, on either side.
+fn modifier_flags(modifiers: HotkeyModifiers) -> u64 {
+    [
+        (
+            modifiers.control.is_some(),
+            CONTROL_KEY_MASK | LEFT_CONTROL_MASK | RIGHT_CONTROL_MASK,
+        ),
+        (
+            modifiers.option.is_some(),
+            OPTION_KEY_MASK | LEFT_OPTION_MASK | RIGHT_OPTION_MASK,
+        ),
+        (
+            modifiers.shift.is_some(),
+            SHIFT_KEY_MASK | LEFT_SHIFT_MASK | RIGHT_SHIFT_MASK,
+        ),
+        (
+            modifiers.command.is_some(),
+            COMMAND_KEY_MASK | LEFT_COMMAND_MASK | RIGHT_COMMAND_MASK,
+        ),
+        (modifiers.function, FUNCTION_KEY_MASK),
+    ]
+    .into_iter()
+    .filter(|(held, _)| *held)
+    .fold(0, |mask, (_, bits)| mask | bits)
 }
 
 /// macOS virtual key codes whose events always carry SecondaryFn: F1–F20,
@@ -1043,6 +1095,9 @@ pub struct RuntimeHotkeys {
     /// Toggle mode's cancel shortcut. Not among [`RuntimeHotkeys::all`]:
     /// Hex takes it only while a toggled recording runs.
     pub cancel: Option<RuntimeHotkey>,
+    /// Labs › Stop shortcut (macOS): finishes a shortcut's recording. Not
+    /// among [`RuntimeHotkeys::all`]: Hex takes it only while one runs.
+    pub stop: Option<RuntimeHotkey>,
 }
 
 impl RuntimeHotkeys {
@@ -1058,6 +1113,21 @@ impl RuntimeHotkeys {
             self.vocabulary_add,
         ]
     }
+
+    /// A press of the stop shortcut, counting it beside a recording
+    /// shortcut whose modifiers are still held.
+    pub fn stop_pressed(self, code: u16, flags: u64) -> bool {
+        self.stop.is_some_and(|stop| {
+            [
+                Some(self.dictation),
+                self.raw_dictation,
+                self.second_dictation,
+            ]
+            .into_iter()
+            .flatten()
+            .any(|held| stop.matches_key_press_beside(code, flags, held))
+        })
+    }
 }
 
 impl Default for RuntimeHotkeys {
@@ -1072,6 +1142,7 @@ impl Default for RuntimeHotkeys {
             second_dictation: None,
             vocabulary_add: None,
             cancel: None,
+            stop: None,
         }
     }
 }

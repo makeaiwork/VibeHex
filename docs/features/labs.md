@@ -82,6 +82,8 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on); off: takes back what still reads as the preset wrote it
+├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
+│                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
 Settings › Labs                          // labs.page
@@ -322,6 +324,41 @@ suppressed, or checked for it, and Hex is unchanged. Checks:
 [recognition.rs](../../src/recognition.rs) (macOS only). Not yet observed: a
 real Mac with an external keyboard, or the recorder row's rendering (macOS
 builds only; no golden).
+
+Stop shortcut (`stop-shortcut`, macOS): start with one key, finish with
+another, such as Right ⌥ to start and Return to finish so the text appears
+where you were typing. While on, General shows a "Stop shortcut" recorder
+under Shortcut, Return by default (`stop_hotkey`, also `hex settings set
+stop_hotkey return`); unlike the other shortcuts its recorder takes a key
+alone, and its restore button puts Return back. It is refused when it shares
+a key with another Hex shortcut, and the others' checks count it while the
+toggle is on. The gate is `AppSettings::active_stop_hotkey`: only on macOS,
+with the toggle on and no overlap, does `RuntimeHotkeys::stop` carry it.
+
+```ts
+A shortcut's recording runs (Hold, Toggle, double-tap lock, second or raw shortcut)
+├── Return                        -> Finish: transcribed and pasted, as a release would be
+├── Return, its modifiers held    -> Finish (hold Right ⌥, press Return), never a chord discard
+├── Shift-Return, any other key   -> what it did before (a chord in Hold, nothing once locked)
+└── the shortcut itself           -> still finishes too
+Idle, or a programmatic dictation -> Return is the app's, untouched
+```
+
+Each shortcut machine (`suppression/hotkey.rs`) finishes on
+`RuntimeHotkey::matches_key_press_beside`, which reads the press without the
+held shortcut's own modifiers. The session tap keeps the key, down and up,
+from the app in front only while the listener arms the recording keys
+(`InputMonitor::set_takes_cancel`, the same arming as Toggle's cancel), and
+the HID tap never reports it as chord evidence, so it can't discard a hold
+before its session event finishes it. The finish keeps audio through the
+Return press plus the release tail, as a locked press's does. Off, nothing
+is matched, suppressed, or checked for it, and Hex is unchanged. Checks:
+`suppression::tests::stop_shortcut` (Toggle with Right ⌥, Hold with Right ⌥
+held, a double-tap lock, off and Shift-Return, the tap's arming, chord
+evidence) and `the_stop_shortcut_needs_its_lab_and_its_own_keys` in
+[app_settings.rs](../../src/app_settings.rs). Not yet observed: a real Mac
+pressing Return into a chat app; the recorder row has no golden (macOS
+builds only).
 
 Smart spacing (`smart-spacing`, issue 632, macOS): while on, a dictation
 pasted right after typed text gets one leading space, so words don't merge

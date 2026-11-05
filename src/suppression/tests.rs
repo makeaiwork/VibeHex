@@ -449,6 +449,7 @@ fn mouse_hotkeys() -> RuntimeHotkeys {
         second_dictation: None,
         vocabulary_add: None,
         cancel: None,
+        stop: None,
     }
 }
 
@@ -4044,4 +4045,195 @@ fn one_sided_options_never_start_with_both_held_but_either_side_does() {
         ),
         Some(HotkeyAction::Discard(DiscardCause::ExtraModifier))
     );
+}
+
+/// Labs › Stop shortcut, Return by default: started with Right ⌥.
+mod stop_shortcut {
+    use super::*;
+    use crate::app_settings::{ModifierSide, RIGHT_OPTION_MASK, RIGHT_SHIFT_MASK};
+
+    const RETURN: u16 = 36;
+    const RIGHT_OPTION: u64 = OPTION_KEY_MASK | RIGHT_OPTION_MASK;
+
+    fn right_option() -> RuntimeHotkey {
+        RuntimeHotkey {
+            modifiers: crate::app_settings::HotkeyModifiers {
+                option: Some(ModifierSide::Right),
+                ..Default::default()
+            },
+            key_code: None,
+        }
+    }
+
+    fn stop() -> Option<RuntimeHotkey> {
+        let binding = HotkeyBinding::stop_default().runtime();
+        assert_eq!(binding.key_code, Some(RETURN));
+        Some(binding)
+    }
+
+    fn return_key(down: bool, flags: u64) -> InputEvent {
+        InputEvent::Key {
+            code: RETURN,
+            down,
+            flags,
+        }
+    }
+
+    fn machine(toggle: bool, stop: Option<RuntimeHotkey>) -> DictationHotkey {
+        let mut hotkey = DictationHotkey::with_binding(false, capture_time(), true, right_option());
+        hotkey.set_toggle(toggle);
+        hotkey.set_stop(stop);
+        hotkey
+    }
+
+    /// Toggle: Right ⌥ starts, Return finishes, and the next Right ⌥
+    /// starts again. Idle, Return is the app's.
+    #[test]
+    fn return_finishes_a_toggled_recording() {
+        let now = capture_time();
+        let ms = |ms| now + Duration::from_millis(ms);
+        let mut hotkey = machine(true, stop());
+
+        assert_eq!(hotkey.process(return_key(true, NO_FLAGS), now), None);
+        assert_eq!(hotkey.process(return_key(false, NO_FLAGS), ms(20)), None);
+
+        assert_eq!(
+            hotkey.process(InputEvent::Flags(RIGHT_OPTION), ms(100)),
+            Some(HotkeyAction::Start)
+        );
+        assert_eq!(hotkey.process(InputEvent::Flags(NO_FLAGS), ms(160)), None);
+        assert!(hotkey.is_locked());
+        assert_eq!(
+            hotkey.process(return_key(true, NO_FLAGS), ms(3_000)),
+            Some(HotkeyAction::Finish)
+        );
+        assert!(!hotkey.is_recording());
+        assert_eq!(hotkey.process(return_key(false, NO_FLAGS), ms(3_050)), None);
+        assert_eq!(
+            hotkey.process(InputEvent::Flags(RIGHT_OPTION), ms(4_000)),
+            Some(HotkeyAction::Start)
+        );
+        assert_eq!(hotkey.process(InputEvent::Flags(NO_FLAGS), ms(4_060)), None);
+        // The shortcut itself still finishes too.
+        assert_eq!(
+            hotkey.process(InputEvent::Flags(RIGHT_OPTION), ms(5_000)),
+            Some(HotkeyAction::Finish)
+        );
+    }
+
+    /// Hold: Return pressed with Right ⌥ still held finishes the
+    /// recording, where without the stop shortcut it is a chord.
+    #[test]
+    fn return_beside_the_held_shortcut_finishes_instead_of_discarding() {
+        let now = capture_time();
+        let ms = |ms| now + Duration::from_millis(ms);
+        let mut hotkey = machine(false, stop());
+        assert_eq!(
+            hotkey.process(InputEvent::Flags(RIGHT_OPTION), now),
+            Some(HotkeyAction::Start)
+        );
+        assert_eq!(
+            hotkey.process(return_key(true, RIGHT_OPTION), ms(1_500)),
+            Some(HotkeyAction::Finish)
+        );
+        assert_eq!(
+            hotkey.process(return_key(false, RIGHT_OPTION), ms(1_550)),
+            None
+        );
+        // Lifting Right ⌥ afterwards finishes nothing more.
+        assert_eq!(hotkey.process(InputEvent::Flags(NO_FLAGS), ms(1_600)), None);
+        assert!(!hotkey.is_recording());
+
+        let mut without = machine(false, None);
+        without.process(InputEvent::Flags(RIGHT_OPTION), now);
+        assert!(matches!(
+            without.process(return_key(true, RIGHT_OPTION), ms(1_500)),
+            Some(HotkeyAction::Discard(_))
+        ));
+    }
+
+    /// A double-tap lock in Hold mode finishes on Return as well.
+    #[test]
+    fn return_finishes_a_double_tap_lock() {
+        let now = capture_time();
+        let ms = |ms| now + Duration::from_millis(ms);
+        let mut hotkey = machine(false, stop());
+        assert_eq!(
+            hotkey.process(InputEvent::Flags(RIGHT_OPTION), now),
+            Some(HotkeyAction::Start)
+        );
+        assert_eq!(
+            hotkey.process(InputEvent::Flags(NO_FLAGS), ms(80)),
+            Some(HotkeyAction::Finish)
+        );
+        assert_eq!(
+            hotkey.process(InputEvent::Flags(RIGHT_OPTION), ms(160)),
+            Some(HotkeyAction::Start)
+        );
+        assert_eq!(hotkey.process(InputEvent::Flags(NO_FLAGS), ms(240)), None);
+        assert!(hotkey.is_locked());
+        assert_eq!(
+            hotkey.process(return_key(true, NO_FLAGS), ms(2_000)),
+            Some(HotkeyAction::Finish)
+        );
+    }
+
+    /// Off, Return leaves a lock recording; on, Shift-Return is not Return.
+    #[test]
+    fn only_the_bound_stop_key_finishes() {
+        let now = capture_time();
+        let ms = |ms| now + Duration::from_millis(ms);
+        for (stop, flags) in [
+            (None, NO_FLAGS),
+            (stop(), SHIFT_KEY_MASK | RIGHT_SHIFT_MASK),
+        ] {
+            let mut hotkey = machine(true, stop);
+            hotkey.process(InputEvent::Flags(RIGHT_OPTION), now);
+            hotkey.process(InputEvent::Flags(NO_FLAGS), ms(60));
+            assert!(hotkey.is_locked());
+            assert_eq!(hotkey.process(return_key(true, flags), ms(1_000)), None);
+            assert!(hotkey.is_recording());
+        }
+    }
+
+    /// The tap keeps Return from the app only while the listener arms the
+    /// recording keys, alone or beside the held dictation shortcut.
+    #[test]
+    fn the_tap_takes_return_only_while_armed() {
+        let mut suppression = ShortcutSuppression::default();
+        let idle = RuntimeHotkeys {
+            dictation: right_option(),
+            ..RuntimeHotkeys::default()
+        };
+        assert!(!suppression.process_all(return_key(true, NO_FLAGS), idle, true, false));
+        assert!(!suppression.process_all(return_key(false, NO_FLAGS), idle, true, false));
+        let armed = RuntimeHotkeys {
+            stop: stop(),
+            ..idle
+        };
+        for flags in [NO_FLAGS, RIGHT_OPTION] {
+            assert!(suppression.process_all(return_key(true, flags), armed, true, false));
+            assert!(suppression.process_all(return_key(false, flags), armed, true, false));
+        }
+        let shifted = SHIFT_KEY_MASK | RIGHT_SHIFT_MASK;
+        assert!(!suppression.process_all(return_key(true, shifted), armed, true, false));
+        assert!(!suppression.process_all(return_key(false, shifted), armed, true, false));
+    }
+
+    /// The HID tap never reports the stop key as a chord, so it can't
+    /// discard a hold before its session event finishes it.
+    #[test]
+    fn the_stop_key_is_no_chord_evidence() {
+        let hotkeys = RuntimeHotkeys {
+            dictation: right_option(),
+            ..RuntimeHotkeys::default()
+        };
+        assert!(is_chord_evidence(RETURN, RIGHT_OPTION, hotkeys));
+        let with_stop = RuntimeHotkeys {
+            stop: stop(),
+            ..hotkeys
+        };
+        assert!(!is_chord_evidence(RETURN, RIGHT_OPTION, with_stop));
+        assert!(is_chord_evidence(0, RIGHT_OPTION, with_stop));
+    }
 }
