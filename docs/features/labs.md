@@ -87,7 +87,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
 Settings › Labs                          // labs.page
-├── "Try unfinished features. They may change or break." + Send feedback -> https://github.com/anomalyco/hex/issues/new
+├── "Try unfinished features. They may change or break." + Send feedback -> opens a new mail to zelenpro@gmail.com, subject "Hex feedback (version <VERSION>)" (mailto:)
 ├── Opened by a link (macOS) -> hex://labs opens this page; hex://labs/<feature> also scrolls to the
 │   feature's row (centred) and pulses it for ~1.4 s (layer_02 fill, then back); it never turns the
 │   feature on. An unknown or absent name -> the page opens and process.log notes it. hex://settings/<pane>

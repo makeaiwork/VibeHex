@@ -27,8 +27,32 @@ use color_eyre::eyre::eyre;
 
 use crate::app_settings::{AppSettings, LabsSettings};
 
-/// Where people send feedback on Labs features.
-pub const FEEDBACK_URL: &str = "https://github.com/anomalyco/hex/issues/new";
+/// Where feedback on Hex goes.
+pub const FEEDBACK_EMAIL: &str = "zelenpro@gmail.com";
+
+/// A `mailto:` link that opens a new message to [`FEEDBACK_EMAIL`] whose
+/// subject names the running version.
+pub fn feedback_mailto(version: &str) -> String {
+    format!(
+        "mailto:{FEEDBACK_EMAIL}?subject={}",
+        mailto_encode(&format!("Hex feedback (version {version})"))
+    )
+}
+
+/// Percent-encodes a `mailto:` query value: everything but unreserved
+/// characters, so spaces become `%20` (not `+`, which mail apps show as is).
+fn mailto_encode(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(byte as char)
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
 
 /// Who a Labs feature is for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1261,6 +1285,14 @@ pub fn run_retired_experiments() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn feedback_mailto_names_the_version_in_the_subject() {
+        assert_eq!(
+            feedback_mailto("0.0.0-dev-12"),
+            "mailto:zelenpro@gmail.com?subject=Hex%20feedback%20%28version%200.0.0-dev-12%29"
+        );
+    }
 
     #[test]
     fn graduated_features_answer_by_name() {

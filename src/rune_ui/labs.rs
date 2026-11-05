@@ -739,7 +739,9 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
         .on_press(|ui: &mut Ui| {
             if ui.live()
                 && let Err(error) =
-                    crate::desktop::opencode_catalog::open_url(crate::labs::FEEDBACK_URL)
+                    crate::desktop::opencode_catalog::open_url(&crate::labs::feedback_mailto(
+                        crate::VERSION,
+                    ))
             {
                 ui.error = Some(format!("{error:#}"));
             }
