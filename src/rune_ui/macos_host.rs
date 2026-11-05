@@ -87,8 +87,11 @@ impl Backend {
     /// lives.
     pub(super) fn send(&mut self, request: Request) -> Result<()> {
         match request {
-            Request::CaptureShortcutFor(_) => {
-                self.chords = Some(ChordWatch::start(self.wake.clone())?);
+            Request::CaptureShortcutFor(target) => {
+                // The stop key is Hex's only while a recording runs, so a
+                // key alone, such as Return, never keeps it from other apps.
+                let lone_keys = target == ShortcutTarget::Stop;
+                self.chords = Some(ChordWatch::start(self.wake.clone(), lone_keys)?);
                 Ok(())
             }
             Request::CancelShortcut => {
@@ -165,13 +168,14 @@ struct ChordWatch {
 }
 
 impl ChordWatch {
-    fn start(wake: Arc<dyn Fn() + Send + Sync>) -> Result<Self> {
+    fn start(wake: Arc<dyn Fn() + Send + Sync>, lone_keys: bool) -> Result<Self> {
         crate::app_settings::set_hotkey_capture_active(true);
         let (sender, results) = mpsc::channel();
         // Labs › Sided modifier chords is read once, as recording starts.
-        let capture = RefCell::new(ChordCapture::with_sides(
-            crate::labs::sided_modifier_chords(),
-        ));
+        let capture = RefCell::new(ChordCapture {
+            lone_keys,
+            ..ChordCapture::with_sides(crate::labs::sided_modifier_chords())
+        });
         let block = RcBlock::new(move |event: NonNull<NSEvent>| -> *mut NSEvent {
             // SAFETY: AppKit passes a live event for the handler's duration.
             let event_ref = unsafe { event.as_ref() };
@@ -253,6 +257,8 @@ struct ChordCapture {
     /// A modifier-only chord keeps every modifier's side, such as
     /// Right ⌘ + Right ⌥, instead of widening each to either side.
     sided: bool,
+    /// Any key may stand alone, not only F1–F20: the stop shortcut's.
+    lone_keys: bool,
 }
 
 impl ChordCapture {
@@ -298,7 +304,7 @@ impl ChordCapture {
             Ok(key) => key,
             Err(message) => return Some(Chord::Captured(Err(message))),
         };
-        if modifiers.is_empty() && !is_function_key(&key.label) {
+        if modifiers.is_empty() && !is_function_key(&key.label) && !self.lone_keys {
             return Some(Chord::Captured(Err(tr("Add a modifier"))));
         }
         Some(Chord::Captured(Ok(HotkeyBinding {
@@ -462,7 +468,10 @@ pub(super) fn validate_hotkey(
     target: ShortcutTarget,
     binding: &HotkeyBinding,
 ) -> Result<(), &'static str> {
-    if matches!(target, ShortcutTarget::PasteLast | ShortcutTarget::Cancel) && binding.key.is_none()
+    if matches!(
+        target,
+        ShortcutTarget::PasteLast | ShortcutTarget::Cancel | ShortcutTarget::Stop
+    ) && binding.key.is_none()
     {
         return Err(tr("Add a key"));
     }

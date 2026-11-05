@@ -361,8 +361,8 @@ impl InputMonitor {
         self.takes_escape.store(enabled, Ordering::Release);
     }
 
-    /// Whether the tap keeps Toggle's cancel shortcut from the app in front:
-    /// only while a toggled recording runs.
+    /// Whether the tap keeps Toggle's cancel shortcut and Labs › Stop
+    /// shortcut from the app in front: only while a shortcut's recording runs.
     pub fn set_takes_cancel(&self, enabled: bool) {
         self.takes_cancel.store(enabled, Ordering::Release);
     }
@@ -460,9 +460,11 @@ unsafe extern "C" fn physical_event_callback(
 }
 
 /// Whether a HID key press can reveal a chord Hex would otherwise miss.
-/// Escape ends no dictation, and Hex's own shortcuts act through their session events.
+/// Escape ends no dictation, and Hex's own shortcuts act through their session
+/// events, the stop key's (Labs) among them, whatever modifiers are held.
 fn is_chord_evidence(code: u16, flags: u64, hotkeys: RuntimeHotkeys) -> bool {
     code != ESCAPE_KEY_CODE
+        && hotkeys.stop.is_none_or(|stop| stop.key_code != Some(code))
         && !is_own_globe_key(code, hotkeys.dictation)
         && !hotkeys
             .second_dictation
@@ -658,6 +660,7 @@ unsafe extern "C" fn event_callback(
     let mut hotkeys = crate::app_settings::runtime_hotkeys();
     if !context.takes_cancel.load(Ordering::Acquire) {
         hotkeys.cancel = None;
+        hotkeys.stop = None;
     }
     let suppress = suppression.process_all(
         input,
@@ -942,8 +945,8 @@ impl ShortcutSuppression {
     }
 
     /// Whether the tap keeps `input` from the app in front: Hex's shortcuts,
-    /// Escape while Hex takes it, and `hotkeys.cancel`, which the caller
-    /// leaves set only while a toggled recording runs.
+    /// Escape while Hex takes it, and `hotkeys.cancel` and `hotkeys.stop`,
+    /// which the caller leaves set only while a shortcut's recording runs.
     fn process_all(
         &mut self,
         input: InputEvent,
@@ -964,7 +967,8 @@ impl ShortcutSuppression {
                             .iter()
                             .flatten()
                             .chain(hotkeys.cancel.iter())
-                            .any(|hotkey| hotkey.matches_key_press(code, flags)))
+                            .any(|hotkey| hotkey.matches_key_press(code, flags))
+                        || hotkeys.stop_pressed(code, flags))
             }),
             InputEvent::Key {
                 code, down: false, ..
@@ -995,6 +999,7 @@ impl ShortcutSuppression {
                 raw_dictation: None,
                 second_dictation: None,
                 cancel: None,
+                stop: None,
             },
             delivered,
             false,

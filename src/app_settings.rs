@@ -663,6 +663,10 @@ pub struct AppSettings {
     /// exactly as `dictation_hotkey` does (macOS). Unbound by default and
     /// ignored while its Labs toggle is off.
     pub second_dictation_hotkey: Option<HotkeyBinding>,
+    /// Labs › Stop shortcut: finishes and pastes a shortcut's recording, in
+    /// any mode (macOS). Return by default; Hex takes it only while one of
+    /// its shortcuts' recordings runs, and ignores it while the toggle is off.
+    pub stop_hotkey: HotkeyBinding,
     pub show_dock_icon: bool,
     pub transcription: TranscriptionSelection,
     /// Where the speech model runs (Linux and Windows).
@@ -794,6 +798,7 @@ impl Default for AppSettings {
             cancel_hotkey: HotkeyBinding::cancel_default(),
             raw_dictation_hotkey: None,
             second_dictation_hotkey: None,
+            stop_hotkey: HotkeyBinding::stop_default(),
             show_dock_icon: true,
             transcription: default_transcription(),
             transcription_device: TranscriptionDevice::Auto,
@@ -1365,7 +1370,17 @@ impl AppSettings {
                 .active_second_dictation_hotkey()
                 .map(HotkeyBinding::runtime),
             cancel: self.active_cancel_hotkey().map(HotkeyBinding::runtime),
+            stop: self.active_stop_hotkey().map(HotkeyBinding::runtime),
         }
+    }
+
+    /// Labs › Stop shortcut's binding while it takes effect: macOS, its
+    /// toggle on, and sharing no key with another shortcut.
+    pub fn active_stop_hotkey(&self) -> Option<&HotkeyBinding> {
+        if !cfg!(target_os = "macos") || !self.labs.stop_shortcut {
+            return None;
+        }
+        Some(&self.stop_hotkey).filter(|binding| !self.hotkey_in_use(HotkeySlot::Stop, binding))
     }
 
     /// The cancel shortcut while it takes effect: in Toggle mode only.
@@ -1413,6 +1428,10 @@ impl AppSettings {
             tracing::warn!("replaced a left-click cancel shortcut with the default");
             self.cancel_hotkey = HotkeyBinding::cancel_default();
         }
+        if self.stop_hotkey.is_bare_primary_click() {
+            tracing::warn!("replaced a left-click stop shortcut with the default");
+            self.stop_hotkey = HotkeyBinding::stop_default();
+        }
         if self
             .raw_dictation_hotkey
             .as_ref()
@@ -1458,6 +1477,8 @@ pub enum HotkeySlot {
     SecondDictation,
     /// Toggle mode's cancel shortcut.
     Cancel,
+    /// Labs › Stop shortcut (macOS).
+    Stop,
 }
 
 impl AppSettings {
@@ -1489,6 +1510,9 @@ impl AppSettings {
             && let Some(second) = &self.second_dictation_hotkey
         {
             others.push(second.clone());
+        }
+        if slot != HotkeySlot::Stop && cfg!(target_os = "macos") && self.labs.stop_shortcut {
+            others.push(self.stop_hotkey.clone());
         }
         if cfg!(target_os = "macos") && self.meetings.available() {
             others.push(HotkeyBinding::paste_meeting_default());
@@ -2026,6 +2050,47 @@ mod tests {
         assert!(settings.hotkey_in_use(HotkeySlot::SecondDictation, &dictation));
         settings.second_dictation_hotkey = Some(dictation);
         assert_eq!(settings.runtime_hotkeys().second_dictation, None);
+    }
+
+    #[test]
+    fn the_stop_shortcut_needs_its_lab_and_its_own_keys() {
+        let mut settings = AppSettings::default();
+        assert_eq!(settings.stop_hotkey, HotkeyBinding::stop_default());
+        assert!(!settings.labs.stop_shortcut);
+        assert_eq!(settings.runtime_hotkeys().stop, None);
+        let stop = settings.stop_hotkey.clone();
+        assert!(!settings.hotkey_in_use(HotkeySlot::PasteLast, &stop));
+
+        settings.labs.stop_shortcut = true;
+        let active = settings.runtime_hotkeys().stop;
+        if cfg!(target_os = "macos") {
+            assert_eq!(active, Some(stop.runtime()));
+            // Return stays out of every shortcut that acts while idle.
+            assert!(
+                !settings
+                    .runtime_hotkeys()
+                    .all()
+                    .contains(&Some(stop.runtime()))
+            );
+            assert!(settings.hotkey_in_use(HotkeySlot::PasteLast, &stop));
+        } else {
+            assert_eq!(active, None);
+        }
+
+        // The dictation shortcut's own keys are refused, and a saved overlap
+        // is matched by nothing.
+        let dictation = settings.dictation_hotkey.clone();
+        assert!(settings.hotkey_in_use(HotkeySlot::Stop, &dictation));
+        settings.stop_hotkey = dictation;
+        assert_eq!(settings.runtime_hotkeys().stop, None);
+
+        // It saves and reads back, a missing one as Return.
+        let decoded: AppSettings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(decoded.stop_hotkey, settings.stop_hotkey);
+        assert!(decoded.labs.stop_shortcut);
+        let empty: AppSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(empty.stop_hotkey, HotkeyBinding::stop_default());
     }
 
     #[test]

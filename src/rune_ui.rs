@@ -460,6 +460,12 @@ pub(crate) fn shortcut_rule(
         // meets the dictation shortcut's rules.
         #[cfg(not(target_os = "macos"))]
         HotkeySlot::SecondDictation => ShortcutTarget::Dictation,
+        #[cfg(target_os = "macos")]
+        HotkeySlot::Stop => ShortcutTarget::Stop,
+        // Labs › Stop shortcut is macOS's; elsewhere a saved one meets the
+        // cancel shortcut's rules, a key that may stand alone.
+        #[cfg(not(target_os = "macos"))]
+        HotkeySlot::Stop => ShortcutTarget::Cancel,
     };
     host::validate_hotkey(target, binding)
 }

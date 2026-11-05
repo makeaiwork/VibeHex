@@ -128,6 +128,8 @@ pub struct DictationHotkey {
     binding: RuntimeHotkey,
     /// Toggle's cancel shortcut; `None` in Hold mode.
     cancel: Option<RuntimeHotkey>,
+    /// Labs › Stop shortcut: finishes the recording in any mode.
+    stop: Option<RuntimeHotkey>,
     ignore_before: Option<CaptureInstant>,
     stale_keys_neutral_since: Option<CaptureInstant>,
     recovery_ignore_through: Option<CaptureInstant>,
@@ -180,6 +182,7 @@ impl DictationHotkey {
             tap_or_hold: TAP_OR_HOLD,
             binding,
             cancel: None,
+            stop: None,
             ignore_before: None,
             stale_keys_neutral_since: None,
             recovery_ignore_through: None,
@@ -239,6 +242,11 @@ impl DictationHotkey {
     /// Toggle's cancel shortcut, or `None` for no cancel.
     pub fn set_cancel(&mut self, cancel: Option<RuntimeHotkey>) {
         self.cancel = cancel;
+    }
+
+    /// Labs › Stop shortcut, or `None` while it is off.
+    pub fn set_stop(&mut self, stop: Option<RuntimeHotkey>) {
+        self.stop = stop;
     }
 
     pub fn set_binding(&mut self, binding: RuntimeHotkey) {
@@ -637,6 +645,28 @@ impl DictationHotkey {
         {
             self.state = State::Dirty;
             return Some(HotkeyAction::CancelShortcut);
+        }
+        // Labs › Stop shortcut finishes the recording in any mode, also
+        // pressed while the shortcut's own modifiers are still held; the tap
+        // kept the key from the app in front.
+        if fresh_key_down
+            && self.is_recording()
+            && let InputEvent::Key {
+                code,
+                down: true,
+                flags,
+            } = event
+            && self
+                .stop
+                .is_some_and(|stop| stop.matches_key_press_beside(code, flags, self.binding))
+        {
+            tracing::info!(
+                shortcut = "dictation",
+                key_code = code,
+                "stop shortcut finished"
+            );
+            self.state = State::Dirty;
+            return Some(HotkeyAction::Finish);
         }
 
         let ignored_because = binding_press

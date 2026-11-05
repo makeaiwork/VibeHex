@@ -101,10 +101,11 @@ pub enum Feature {
     MeetingSummaryModel,
     AiCleanupServer,
     VocabularyPasteList,
+    StopShortcut,
 }
 
 impl Feature {
-    pub const ALL: [Self; 42] = [
+    pub const ALL: [Self; 43] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -147,6 +148,7 @@ impl Feature {
         Self::MeetingSummaryModel,
         Self::AiCleanupServer,
         Self::VocabularyPasteList,
+        Self::StopShortcut,
     ];
 
     /// The features this OS and build have.
@@ -211,7 +213,8 @@ impl Feature {
             | Self::MovableMeetingCapsules
             | Self::MeetingSummaryModel
             | Self::AiCleanupServer
-            | Self::VocabularyPasteList => Audience::Everyone,
+            | Self::VocabularyPasteList
+            | Self::StopShortcut => Audience::Everyone,
         }
     }
 
@@ -256,6 +259,7 @@ impl Feature {
             | Self::KeepOnClipboard
             | Self::CopyOnly
             | Self::SecondDictationShortcut
+            | Self::StopShortcut
             | Self::SmartSpacing
             | Self::SidedChords
             | Self::TapOrHold
@@ -329,6 +333,7 @@ impl Feature {
             Self::MeetingSummaryModel => "meeting-summary-model",
             Self::AiCleanupServer => "ai-cleanup-server",
             Self::VocabularyPasteList => "vocabulary-paste-list",
+            Self::StopShortcut => "stop-shortcut",
         }
     }
 
@@ -377,6 +382,7 @@ impl Feature {
             Self::MeetingSummaryModel => "labs.meeting_summary_model",
             Self::AiCleanupServer => "labs.ai_cleanup_server",
             Self::VocabularyPasteList => "labs.vocabulary_paste_list",
+            Self::StopShortcut => "labs.stop_shortcut",
         }
     }
 
@@ -491,6 +497,9 @@ impl Feature {
             Self::VocabularyPasteList => {
                 "The Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like"
             }
+            Self::StopShortcut => {
+                "Another key, such as Return, finishes a dictation and pastes it, while your shortcut starts it (stop_hotkey)"
+            }
         }
     }
 
@@ -543,6 +552,7 @@ impl Feature {
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list,
+            Self::StopShortcut => settings.labs.stop_shortcut,
         }
     }
 
@@ -593,6 +603,7 @@ impl Feature {
             &mut labs.meeting_summary_model,
             &mut labs.ai_cleanup_server,
             &mut labs.vocabulary_paste_list,
+            &mut labs.stop_shortcut,
         ]
     }
 
@@ -643,6 +654,7 @@ impl Feature {
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model = on,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server = on,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
+            Self::StopShortcut => settings.labs.stop_shortcut = on,
             // Off, no shortcut keeps a key only the feature allows.
             Self::StandaloneSpecialKeys => {
                 settings.labs.standalone_special_keys = on;

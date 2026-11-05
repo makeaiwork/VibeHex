@@ -418,6 +418,10 @@ observe input-source changes or show these controls.
   a key on an external keyboard. It acts only while
   `labs.second_dictation_shortcut` is on (`hex labs on
   second-dictation-shortcut`) and shares no key with another shortcut.
+- `stop_hotkey` (macOS, `return` by default) finishes and pastes a recording
+  a shortcut started, in any mode; a key alone is fine, since Hex takes it
+  only while such a recording runs. It acts only while `labs.stop_shortcut`
+  is on (`hex labs on stop-shortcut`) and shares no key with another shortcut.
 - `json` settings (modes, meeting providers, excluded calendars) take the JSON
   value the file stores.
 - `ui_language` takes `en`, `pl`, `zh` (Simplified Chinese), `zh-Hant`

@@ -221,6 +221,12 @@ const KEYS: &[Key] = &[
          turns it off",
     ),
     key(
+        "stop_hotkey",
+        Kind::Shortcut(HotkeySlot::Stop),
+        "Labs: finishes and pastes a recording a shortcut started, in any mode, Return by \
+         default (macOS, with labs.stop_shortcut). Hex takes the key only while one runs",
+    ),
+    key(
         "show_dock_icon",
         Kind::Bool,
         "Keep Hex in the Dock when Settings is closed (macOS)",
@@ -442,6 +448,11 @@ const KEYS: &[Key] = &[
         "labs.vocabulary_paste_list",
         Kind::Bool,
         "Labs: the Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like",
+    ),
+    key(
+        "labs.stop_shortcut",
+        Kind::Bool,
+        "Labs: stop_hotkey finishes and pastes a recording a shortcut started (macOS)",
     ),
     key(
         "labs.meeting_summary_model",
@@ -999,6 +1010,7 @@ pub fn apply(
         | "raw_dictation_hotkey"
         | "second_dictation_hotkey"
         | "cancel_hotkey"
+        | "stop_hotkey"
         | "capture.hotkey" => {
             let Kind::Shortcut(slot) = key.kind else {
                 unreachable!("shortcut keys have the shortcut kind");
@@ -1009,6 +1021,7 @@ pub fn apply(
                 HotkeySlot::RawDictation => candidate.raw_dictation_hotkey.as_ref(),
                 HotkeySlot::SecondDictation => candidate.second_dictation_hotkey.as_ref(),
                 HotkeySlot::Cancel => Some(&candidate.cancel_hotkey),
+                HotkeySlot::Stop => Some(&candidate.stop_hotkey),
                 #[cfg(hex_capture)]
                 HotkeySlot::Capture => Some(&candidate.capture.hotkey),
             };

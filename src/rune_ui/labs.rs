@@ -309,6 +309,13 @@ fn rows(ui: &Ui) -> Vec<Row> {
                 tr("Second dictation shortcut"),
                 tr("Another shortcut that dictates like the main one, such as a key on an external keyboard"),
             ));
+            // macOS's session tap takes the key while a recording runs.
+            rows.push(row(
+                Feature::StopShortcut,
+                &KEYBOARD,
+                tr("Stop shortcut"),
+                tr("Another key, such as Return, finishes a dictation and pastes it, while your shortcut starts it"),
+            ));
             // Reads the text before the cursor through macOS Accessibility.
             rows.push(row(
                 Feature::SmartSpacing,
@@ -507,6 +514,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::VocabularyPasteList => "lab-vocabulary-paste-list",
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
+        Feature::StopShortcut => "lab-stop-shortcut",
         Feature::SmartSpacing => "lab-smart-spacing",
         Feature::SpokenSymbols => "lab-spoken-symbols",
         Feature::PickerSortFilter => "lab-picker-sort-filter",
