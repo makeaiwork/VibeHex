@@ -1955,8 +1955,11 @@ fn the_sidebar_moves_with_arrows_and_command_numbers() {
         Key::Command(char::from(b'0' + main.len() as u8)),
         command,
     );
+    assert_eq!(rt.state.pane, last);
     key(&mut rt, Key::Down, Mods::default());
-    assert_eq!(rt.state.pane, last, "Down stops at the last pane");
+    assert_eq!(rt.state.pane, Pane::About, "About follows Labs");
+    key(&mut rt, Key::Down, Mods::default());
+    assert_eq!(rt.state.pane, Pane::About, "Down stops at the last pane");
 }
 
 #[test]
@@ -2439,6 +2442,7 @@ fn goldens() {
     for dark in [true, false] {
         check_golden("portal", dark, GOLDEN_SIZE);
         for scene in [
+            "about",
             "history",
             "mac-labs-link",
             "output",
