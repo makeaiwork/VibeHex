@@ -243,7 +243,7 @@ pub(super) fn strip(
                     .px(5.0)
                     .center()
                     .radius(8.0)
-                    .fill(c.layer_03)
+                    .fill(if on { c.border_base } else { c.layer_03 })
                     .child(
                         text(entries.len().to_string())
                             .font(TextStyle {

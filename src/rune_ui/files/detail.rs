@@ -298,7 +298,7 @@ fn version_line(
             words = format!("{words}, {}", tr("edited"));
         }
     }
-    let mut line = row().key("version-line").gap(6.0).center_y();
+    let mut line = row().key("version-line").gap(6.0).pr(1.0).center_y();
     if let Some(name) = tabs::tag(version) {
         line = line.child(
             row()
