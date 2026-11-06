@@ -25,7 +25,7 @@ const MODEL_MENU: &str = "meeting-ask-model";
 const EFFORT_MENU: &str = "meeting-ask-effort";
 const SESSIONS_MENU: &str = "meeting-sessions";
 /// The chip that cleans the transcript, turn by turn, in a new session.
-const TIDY: &str = "Clean up transcript";
+pub(super) const TIDY: &str = "Clean up transcript";
 /// Room under the text for the field, and its height before it is measured.
 const FIELD_CLEARANCE: f32 = 12.0;
 const FIELD_GUESS: f32 = 110.0;
@@ -40,13 +40,13 @@ pub(in super::super) struct RequestsPane {
     sessions: Vec<Session>,
     /// The open session; `None` while a new one is written.
     open: Option<u32>,
-    ask: TextEdit,
+    pub(super) ask: TextEdit,
     /// The model and reasoning a new session starts on; `None` follows
     /// Files › Settings.
     engine: Option<String>,
     effort: Option<String>,
     /// The worker's jobs on meetings.
-    tasks: Vec<Task>,
+    pub(super) tasks: Vec<Task>,
     composer_h: f32,
     text_under: bool,
     woken: bool,
@@ -129,6 +129,7 @@ pub(in super::super) fn poll(ui: &mut Ui) -> bool {
         if shown != pane.meeting {
             pane.meeting = shown;
             pane.open = newest(&pane.sessions);
+            ui.files.recent = crate::files::store::recent();
         }
         changed = true;
     }
@@ -384,7 +385,7 @@ pub(in super::super) fn stage(
     let ask = col()
         .key("meeting-ask-area")
         .gap(8.0)
-        .child(chips(ui, p))
+        .child(super::chips::chips(ui, p, layer))
         .child(field(ui, p, session, layer))
         .pin(Some(0.0), None, Some(0.0), Some(FIELD_BOTTOM))
         .on_layout(|ui: &mut Ui, rect: [f32; 4]| {
@@ -400,23 +401,6 @@ pub(in super::super) fn stage(
         .child(text)
         .child(veil)
         .child(ask)
-}
-
-/// Over the field: Clean up transcript, which cleans every turn in a new
-/// session, each keeping who spoke and when.
-fn chips(ui: &Ui, p: Paint) -> El {
-    let live = ui.meetings.requests.tasks.is_empty();
-    let chip = super::super::files::actions::chip_button(
-        p,
-        "tidy",
-        tr(TIDY),
-        None,
-        live,
-        |ui: &mut Ui| {
-            ask(ui, None, tr(TIDY).to_owned());
-        },
-    );
-    row().key("chips").gap(6.0).center_y().child(chip)
 }
 
 /// Where a new session starts: its pills' choice, else Meetings ›
@@ -558,13 +542,14 @@ fn send(ui: &mut Ui, session: Option<u32>) {
     if question.is_empty() || session.is_some_and(|id| running(ui, id).is_some()) {
         return;
     }
-    if ask(ui, session, question) {
+    if ask(ui, session, question.clone()) {
         ui.meetings.requests.ask = TextEdit::default();
+        super::chips::remember(ui, &question);
     }
 }
 
 /// Asks `question` in session `session`, or in a new session named by it.
-fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
+pub(super) fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     let Some(meeting) = ui
         .meetings
         .selected
@@ -581,6 +566,7 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     let (engine, effort) = next(ui);
     // The chip's label, also asked again or typed, cleans the turns.
     let tidy = (question.trim() == tr(TIDY)).then(|| lines(meeting));
+    let prompt = super::chips::prompt(ui, &question).filter(|_| tidy.is_none());
     let pane = &mut ui.meetings.requests;
     if pane.fixture {
         return false;
@@ -588,7 +574,7 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     let session = match session {
         Some(session) => session,
         None => {
-            let name = if tidy.is_some() {
+            let name = if tidy.is_some() || prompt.is_some() {
                 question.trim().to_owned()
             } else {
                 worker::request_name(&question)
@@ -605,6 +591,7 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     let job = Job::Meeting {
         session,
         question,
+        prompt,
         transcript,
         tidy,
     };

@@ -562,6 +562,19 @@ pub(super) const SCENES: &[Scene] = &[
         super::meeting_tabs::requests::fixture(ui, "preview-notes");
         ui.pane = Pane::Meetings;
     }),
+    ("meetings-recent", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Transcript);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.files.recent = vec![
+            "Who owns the next step?".into(),
+            "What did we agree on about the launch date?".into(),
+        ];
+        ui.open = Some(super::Menu::Pick("meeting-recent"));
+        ui.pane = Pane::Meetings;
+    }),
     ("meetings-requests-sessions", |ui| {
         *ui = mac_fixture();
         meetings_on_codex(ui);

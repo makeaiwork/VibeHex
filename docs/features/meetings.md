@@ -1022,7 +1022,14 @@ Requests tab (finished meeting, transcript, Labs › AI cleanup server on)
 │   turn the model leaves out keeps its words. "<model> is cleaning up"
 │   under the turns as they come; a stop keeps the turns done. Asking the
 │   label again (Ask again, or typed) cleans again. There is no Cleanup tab
-├── Transcript and Summary have the same chip and field (while Requests
+├── Action items, the next chip: Files' Action items request (its label and
+│   prompt as Files › Settings has them, in Files' request language) in a
+│   new session of that name; the bubble shows the label, the model gets the
+│   prompt, and no title is asked. No Summary chip: the notes hold it
+├── Recent, while there are any: the requests last typed in Files or here
+│   (one shared recent.json, newest first, 10); one fills the field, Clear
+│   recent empties the list. A typed meeting question joins it on send
+├── Transcript and Summary have the same chips and field (while Requests
 │   exists): they always start a new session and move to Requests, as
 │   Files' field does on a version
 └── Field floating at the bottom, as in Files: "Ask about this meeting",

@@ -207,6 +207,7 @@ const PATHS: &[(&str, &str)] = &[
         "meetings-notes-writer",
         "Window/Meetings/Settings, Written by open",
     ),
+    ("meetings-recent", "Window/Meetings/Transcript, Recent open"),
     (
         "meetings-questions-menu",
         "Window/Meetings/Settings, Questions run on open",

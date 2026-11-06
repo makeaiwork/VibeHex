@@ -245,7 +245,7 @@ const MEETING_GUIDE: &str = "The text is a meeting's transcript: each turn names
 pub(super) fn meeting(
     task: &Task,
     session: u32,
-    question: &str,
+    asked: (&str, Option<&str>),
     (transcript, tidy): (&str, Option<&[tidy::Line]>),
     config: &Config,
     cancel: &AtomicBool,
@@ -253,8 +253,8 @@ pub(super) fn meeting(
     let id = crate::meeting::requests::meeting_of(&task.record)
         .ok_or_else(|| eyre!("That isn't a meeting."))?;
     let answered = match tidy {
-        Some(lines) => meeting_tidy(task, id, session, question, lines, config, cancel),
-        None => meeting_answer(task, id, session, question, transcript, config, cancel),
+        Some(lines) => meeting_tidy(task, id, session, asked.0, lines, config, cancel),
+        None => meeting_answer(task, id, session, asked, transcript, config, cancel),
     };
     if answered.is_err()
         && let Err(error) = crate::meeting::requests::drop_if_empty(id, session)
@@ -264,11 +264,13 @@ pub(super) fn meeting(
     answered
 }
 
+/// Answers `question` in session `session`; a chip's question asks the
+/// model its `prompt` and keeps the chip's name, not a title.
 fn meeting_answer(
     task: &Task,
     id: &str,
     session: u32,
-    question: &str,
+    (question, chip): (&str, Option<&str>),
     transcript: &str,
     config: &Config,
     cancel: &AtomicBool,
@@ -290,13 +292,16 @@ fn meeting_answer(
         .map(|turn| (turn.question.as_str(), turn.answer.as_str()))
         .collect();
     // A new session's first question names it in the same reply.
-    let titled = earlier.is_empty();
+    let titled = earlier.is_empty() && chip.is_none();
+    let asks = chip.unwrap_or(question);
     let prompt = if titled {
-        format!("{MEETING_GUIDE}\n\n{}\n\n{TITLE_ASK}", question.trim())
+        format!("{MEETING_GUIDE}\n\n{}\n\n{TITLE_ASK}", asks.trim())
+    } else if earlier.is_empty() {
+        format!("{MEETING_GUIDE}\n\n{}", asks.trim())
     } else {
         format!(
             "{MEETING_GUIDE}\n\n{}",
-            rewrite::follow_up_prompt(&earlier, question)
+            rewrite::follow_up_prompt(&earlier, asks)
         )
     };
     let started = Instant::now();

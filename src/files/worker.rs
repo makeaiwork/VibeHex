@@ -132,6 +132,8 @@ pub enum Job {
     Meeting {
         session: u32,
         question: String,
+        /// What the model is asked when `question` is a chip's name.
+        prompt: Option<String>,
         transcript: String,
         tidy: Option<Vec<super::tidy::Line>>,
     },
@@ -465,12 +467,13 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
         Job::Meeting {
             session,
             question,
+            prompt,
             transcript,
             tidy,
         } => super::requests::meeting(
             task,
             *session,
-            question,
+            (question, prompt.as_deref()),
             (transcript, tidy.as_deref()),
             config,
             cancel,

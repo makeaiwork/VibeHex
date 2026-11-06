@@ -3,6 +3,7 @@
 //! strip under the meeting's line. A meeting that is still recording, or
 //! has no notes yet, opens on its transcript.
 
+mod chips;
 pub(super) mod requests;
 
 use rune::{El, Shadow, TextStyle, col, el, row, text};
