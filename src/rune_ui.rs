@@ -9,7 +9,9 @@
 //! shows. Everything is drawn with `rune-kit`'s components in OpenCode's
 //! design language (`rune-theme-opencode`); see `docs/design-system.md`.
 
+mod about;
 mod activity;
+mod brand;
 #[cfg(hex_capture)]
 pub(crate) mod capture_capsule;
 #[cfg(target_os = "macos")]
@@ -1395,6 +1397,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
         Pane::HudLab => hud_lab::pane(ui, p),
         Pane::Activity => activity::pane(ui, p),
+        Pane::About => (Vec::new(), about::pane(ui, p)),
     };
     let panel = col()
         .key("panel")

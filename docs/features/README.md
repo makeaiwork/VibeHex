@@ -47,6 +47,8 @@ reworks their text with cleanup and your own requests.
 The [vocabulary](vocabulary.md) biases transcription toward names you list.
 [Your own speech models](own-models.md) covers adding a GGUF file and using
 models another app already downloaded.
+[About](about.md) names the fork (VibeHex) in the sidebar and links its
+source and developer.
 [Annotate](capture.md) (macOS, Linux,
 and Windows) records the screen while you draw and talk and sends it to an agent.
 The other capabilities stay here until they need their own verification recipe.

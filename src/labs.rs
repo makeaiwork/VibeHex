@@ -35,7 +35,7 @@ pub const FEEDBACK_EMAIL: &str = "zelenpro@gmail.com";
 pub fn feedback_mailto(version: &str) -> String {
     format!(
         "mailto:{FEEDBACK_EMAIL}?subject={}",
-        mailto_encode(&format!("Hex feedback (version {version})"))
+        mailto_encode(&format!("VibeHex feedback (version {version})"))
     )
 }
 
@@ -1291,7 +1291,7 @@ mod tests {
     fn feedback_mailto_names_the_version_in_the_subject() {
         assert_eq!(
             feedback_mailto("0.0.0-dev-12"),
-            "mailto:zelenpro@gmail.com?subject=Hex%20feedback%20%28version%200.0.0-dev-12%29"
+            "mailto:zelenpro@gmail.com?subject=VibeHex%20feedback%20%28version%200.0.0-dev-12%29"
         );
     }
 

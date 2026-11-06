@@ -85,6 +85,8 @@ pub(super) enum Pane {
     HudLab,
     /// Legacy event-log inspector scene (Playground only).
     Activity,
+    /// VibeHex, its source, and its developer: after Labs.
+    About,
 }
 
 impl Pane {
@@ -101,6 +103,7 @@ impl Pane {
         Pane::VoiceFilter,
         Pane::HudLab,
         Pane::Activity,
+        Pane::About,
     ];
 
     pub(super) fn shown(self, ui: &Ui) -> bool {
@@ -130,6 +133,7 @@ impl Pane {
             Pane::VoiceFilter => tr("Voice Filter"),
             Pane::HudLab => "HUD Lab",
             Pane::Activity => tr("Activity"),
+            Pane::About => tr("About"),
         }
     }
 
@@ -146,6 +150,7 @@ impl Pane {
             Pane::VoiceFilter => "nav-voice-filter",
             Pane::HudLab => "nav-hud-lab",
             Pane::Activity => "nav-activity",
+            Pane::About => "nav-about",
         }
     }
 
@@ -162,6 +167,7 @@ impl Pane {
             Pane::VoiceFilter => &VOICE_FILTER_ICON,
             Pane::HudLab => &HUD_LAB_ICON,
             Pane::Activity => &ACTIVITY_ICON,
+            Pane::About => &super::icons::INFO,
         }
     }
 }
@@ -202,6 +208,13 @@ pub(super) fn sidebar(ui: &Ui, p: Paint) -> El {
     }
     nav = nav.children(labs::playground_nav(ui, p));
     nav = nav.child(labs::nav(ui, p));
+    nav = nav.child(nav_slot(
+        p,
+        Pane::About,
+        ui.pane == Pane::About && !ui.labs_open,
+        NAV_ROW_GAP / 2.0,
+        NAV_ROW_GAP / 2.0,
+    ));
     title_bar(col())
         .key("sidebar")
         .role("navigation")
@@ -211,6 +224,7 @@ pub(super) fn sidebar(ui: &Ui, p: Paint) -> El {
         .pb(12.0)
         .pl(10.0)
         .pr(6.0)
+        .child(super::brand::header(p).mb(10.0))
         .child(nav)
         .child(el().key("spacer").grow(1.0))
         .children(sidebar_update::control(ui, p))
@@ -371,7 +385,7 @@ pub(super) const FOOTER_LINE: f32 = 20.0;
 
 /// Test and local builds also name their commit: main moves past a release without
 /// changing the version.
-fn version_label() -> String {
+pub(super) fn version_label() -> String {
     // Goldens render a fixed version: a local build's names its commit.
     let version = if cfg!(test) { "0.0.0" } else { crate::VERSION };
     match option_env!("HEX_COMMIT") {
