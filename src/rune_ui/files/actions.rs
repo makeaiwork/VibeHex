@@ -111,8 +111,8 @@ pub(super) fn quiet_button(
     button
 }
 
-/// A quick request above the field: a pill in the body's weight, with a
-/// chevron when it opens a menu.
+/// A quick request above the field: a lightly filled pill in the body's
+/// weight, with a chevron when it opens a menu.
 fn chip_button(
     p: Paint,
     key: &str,
@@ -132,9 +132,10 @@ fn chip_button(
         .gap(4.0)
         .center_y()
         .radius(12.0)
+        .fill(c.layer_02)
         .box_shadow(rune::Shadow {
             spread: 0.5,
-            color: c.border_base,
+            color: c.border_strong,
             ..Default::default()
         })
         .child(
