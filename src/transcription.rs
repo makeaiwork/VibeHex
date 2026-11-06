@@ -125,15 +125,27 @@ impl Transcriber {
                                 text: segment.text,
                             })
                             .collect(),
-                        words: result
-                            .words
-                            .into_iter()
-                            .map(|word| TranscriptSegment {
-                                start_ms: word.t0_ms,
-                                end_ms: word.t1_ms,
-                                text: word.text,
-                            })
-                            .collect(),
+                        // GigaAM times its tokens only.
+                        words: if result.words.is_empty()
+                            && result.timestamp_kind == transcribe_cpp::TimestampKind::Token
+                        {
+                            transcript::words_from_tokens(
+                                result
+                                    .tokens
+                                    .iter()
+                                    .map(|token| (token.t0_ms, token.t1_ms, token.text.as_str())),
+                            )
+                        } else {
+                            result
+                                .words
+                                .into_iter()
+                                .map(|word| TranscriptSegment {
+                                    start_ms: word.t0_ms,
+                                    end_ms: word.t1_ms,
+                                    text: word.text,
+                                })
+                                .collect()
+                        },
                     })
             }
             Self::AppleSpeech(model) => model.transcribe(&samples),
