@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Request field states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.wrap{width:980px;height:2060px;background:#0a0a0a;color:#ededed;font-family:Inter,system-ui,sans-serif;font-size:13px;box-sizing:border-box;padding:40px 48px;display:flex;flex-direction:column;gap:22px;-webkit-font-smoothing:antialiased}
+.ttl{font-size:20px;font-weight:600}
+.sub{font-size:12.5px;color:#8c8c8c;margin-top:-14px;line-height:18px}
+.st{display:flex;gap:28px;align-items:flex-start}
+.lab{width:230px;flex:none;padding-top:8px}
+.lab b{display:block;font-size:13.5px;font-weight:600;color:#f0f0f0}
+.lab span{display:block;font-size:12px;color:#9a9a9a;line-height:17px;margin-top:3px}
+.col{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+.sec{font-size:12px;color:#8c8c8c;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding-top:10px;border-top:1px solid #222}
+.cmp{display:flex;gap:16px}
+.cmp > div{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.cap{font-size:11.5px;color:#8c8c8c}
+/* current: one row */
+.ask{display:flex;align-items:center;gap:8px;background:#1c1c1c;border:1px solid #333;border-radius:10px;padding:8px 8px 8px 12px}
+.ask .in{flex:1;min-width:0;font-size:13px;color:#8c8c8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mchip{height:28px;padding:0 10px;border-radius:6px;border:1px solid #3a3a3a;background:#222;color:#e6e6e6;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;font-family:inherit;white-space:nowrap}
+.sq{width:30px;height:30px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;flex:none;padding:0;background:#2b2b2b;border:1px solid #3a3a3a;color:#6b6b6b}
+/* proposed: field on top, toolbar under it */
+.box{background:#1c1c1c;border:1px solid #333;border-radius:12px;padding:10px 8px 8px 14px;display:flex;flex-direction:column;gap:6px}
+.box.hover{border-color:#565453}
+.box.focus{border-color:#7698fd;box-shadow:0 0 0 3px rgba(118,152,253,.18)}
+.box .in{font-size:13px;line-height:20px;color:#8c8c8c;min-height:20px;padding-right:6px;position:relative}
+.box .in.typed{color:#f0f0f0}
+.box .in.tall{max-height:120px;overflow:hidden;padding-right:14px}
+.caret{display:inline-block;width:1.5px;height:16px;background:#ededed;margin:0 1px;vertical-align:-3px}
+.cur{font-size:11px;color:#8c8c8c;border:1px solid #333;border-radius:4px;padding:0 5px;margin-left:8px}
+.sbar{position:absolute;right:3px;top:4px;width:4px;height:52px;border-radius:2px;background:#565453;display:block}
+.bar{display:flex;align-items:center;gap:2px;margin-left:-6px}
+.pill{height:24px;padding:0 6px 0 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:#bdbdbd;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:4px;font-family:inherit;white-space:nowrap}
+.pill svg{color:#8c8c8c}
+.pill.hov{background:#262626;color:#f0f0f0}
+.pill.open{background:#262626;border-color:#3a3a3a;color:#f0f0f0}
+.sp{flex:1}
+.send{width:28px;height:28px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;flex:none;padding:0;font-family:inherit}
+.send.off{background:#2b2b2b;border:1px solid #3a3a3a;color:#6b6b6b}
+.send.on{background:#3b5cf6;border:1px solid #3b5cf6;color:#fff}
+.send.stop{background:#ede8e4;border:1px solid #ede8e4;color:#1d1917}
+.feed{display:flex;flex-direction:column;gap:8px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:12px 14px}
+.me{align-self:flex-end;max-width:80%;background:#0d172b;border:1px solid #022fa6;border-radius:10px 10px 3px 10px;padding:6px 12px;font-size:13px;line-height:19px}
+.think{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#9a9a9a}
+.dots{display:inline-flex;gap:3px}
+.dots i{width:5px;height:5px;border-radius:3px;background:#a2bcff;display:block}
+.dots i:nth-child(2){opacity:.6}.dots i:nth-child(3){opacity:.3}
+/* menus open upward from the pill */
+.menu{width:340px;background:#1c1c1c;border:1px solid #333;border-radius:10px;box-shadow:0 18px 48px rgba(0,0,0,.6);padding:6px;display:flex;flex-direction:column}
+.menu.narrow{width:280px;margin-left:96px}
+.mh{font-size:11.5px;color:#8c8c8c;padding:6px 8px 4px}
+.mi{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px}
+.mi.on{background:#0d172b}
+.mi .ck{width:14px;flex:none;color:#a2bcff}
+.mi .tx{flex:1;min-width:0}
+.mi .t{font-size:13px;font-weight:500;color:#f0f0f0;display:flex;align-items:center;gap:6px}
+.mi .d{font-size:11.5px;color:#9a9a9a;line-height:16px;margin-top:1px}
+.mi .k{font-size:11.5px;color:#8c8c8c;white-space:nowrap}
+.tag{font-size:10.5px;font-weight:500;color:#a2bcff;background:#0d172b;border:1px solid #022fa6;border-radius:4px;padding:0 5px;white-space:nowrap}
+.tag.o{color:#ffd9b0;background:#3a2410;border-color:#6b4219}
+.mf{border-top:1px solid #2a2a2a;margin-top:4px;padding:8px 8px 4px;font-size:11.5px;color:#8c8c8c;line-height:16px}
+.mf a{color:#a2bcff;text-decoration:none}
+.send.hov{background:#3b5cf6;border:1px solid #7698fd;color:#fff;box-shadow:0 0 0 3px rgba(59,92,246,.28)}
+.send.down{background:#022fa6;border:1px solid #022fa6;color:#c3d4fd}
+.pair{display:flex;gap:18px;align-items:center;font-size:12px;color:#9a9a9a}
+.pair div{display:flex;align-items:center;gap:8px}
+.ans{font-size:13px;line-height:20px;color:#e6e6e6}
+.acts{display:flex;align-items:center;gap:2px;height:24px;margin-left:-4px}
+.ib{width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:#9a9a9a;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none}
+.ib:hover,.ib.hov{background:#262626;color:#f0f0f0}
+.mod{font-size:11.5px;color:#8c8c8c;margin-left:6px;white-space:nowrap}
+.stopped{font-size:11.5px;color:#f0a840;margin-left:8px;white-space:nowrap}
+.ib{width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:#9a9a9a;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none}
+.ib:hover,.ib.hov{background:#262626;color:#f0f0f0}
+.mod{font-size:11.5px;color:#8c8c8c;margin-left:6px;white-space:nowrap}
+.mini{height:26px;width:28px;justify-content:center;padding:0;border-radius:5px;background:transparent;border:1px solid #333;color:#d6d6d6;display:inline-flex;align-items:center}
+.mtag{font-size:11px;font-weight:500;color:#a2bcff;background:#0d172b;border:1px solid #022fa6;border-radius:4px;padding:1px 6px;white-space:nowrap}
+.again{height:24px;padding:0 8px;border-radius:5px;background:transparent;border:1px solid #333;color:#d6d6d6;font-size:11.5px;font-weight:500;display:inline-flex;align-items:center;font-family:inherit}
+.when{margin-left:auto;font-size:11.5px;color:#8c8c8c;white-space:nowrap}
+</style>
+</helmet>
+<div class="wrap">
+  <div class="ttl">Request field states</div>
+  <div class="sub">The same field in Files and Meetings. The text gets the full width; a compact row under it holds the model, the reasoning, and Send, as in Codex and Claude Code</div>
+
+
+  <div class="st">
+    <div class="lab"><b>1. Idle, empty</b><span>Model and reasoning are plain text pills with no border. Send is a small round button, muted</span></div>
+    <div class="col">
+      <div class="box"><div class="in">Ask a follow-up</div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send off" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>2. Pointer over</b><span>Over the field: border a step lighter, text cursor. Over a pill: a quiet grey background</span></div>
+    <div class="col">
+      <div class="box hover"><div class="in">Ask a follow-up<span class="cur">I-beam</span></div><div class="bar"><button class="pill hov" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send off" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>3. Focused, empty</b><span>Accent border with a soft ring, caret blinks. Send still muted</span></div>
+    <div class="col">
+      <div class="box focus"><div class="in"><span class="caret"></span>Ask a follow-up</div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send off" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>4. Typing</b><span>Accent border, Send wakes up. Enter sends, Shift+Enter adds a line</span></div>
+    <div class="col">
+      <div class="box focus"><div class="in typed">Which numbers did they disagree on?<span class="caret"></span></div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send on" type="button" aria-label="Send"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+      <div class="pair"><div><button class="send hov" type="button" aria-label="Send, pointer over it"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button>Pointer over Send</div><div><button class="send down" type="button" aria-label="Send, pressed"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button>Pressed</div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>5. Three lines</b><span>Only the text area grows, upward over the chat. The row under it never moves</span></div>
+    <div class="col">
+      <div class="box focus"><div class="in typed">Compare what Anna said about the price per seat with what the client answered, and list every number they mentioned.<br>Keep the timestamps.<span class="caret"></span></div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send on" type="button" aria-label="Send"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>6. Six lines and more</b><span>The text stops at six lines, 120 px, and scrolls inside. The row stays visible under it</span></div>
+    <div class="col">
+      <div class="box focus"><div class="in typed tall">Go through the whole interview and pull out every place where Anna and the client talk about money: prices, discounts, the budget for January, and the cost of doing the reports by hand. For each one give the timestamp, who said it, and the exact number. Then mark the ones where they disagree, and say which of them is still open at the end of the call. Leave out small talk and anything about the onboarding texts, we covered that already in the other session. If a number is only implied, say so instead of guessing, and keep the list in the order they came up so I can follow along in the recording.<span class="caret"></span><i class="sbar"></i></div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send on" type="button" aria-label="Send"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>7. Answering</b><span>Send turns into Stop in the same place. The field clears and shrinks back to one line</span></div>
+    <div class="col">
+      <div class="feed">
+        <div class="me">Which numbers did they disagree on?</div>
+        <div class="think"><span class="dots"><i></i><i></i><i></i></span>GPT-6.1-Sol is answering</div>
+      </div>
+      <div class="box focus"><div class="in"><span class="caret"></span>Ask a follow-up</div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send stop" type="button" aria-label="Stop"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor"></rect></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>8. Stopped</b><span>What already came stays, marked Stopped. Copy and Ask again are the same two icons every answer has. Send is back</span></div>
+    <div class="col">
+      <div class="feed">
+        <div class="me">Which numbers did they disagree on?</div>
+        <div class="ans">The price per seat: Anna said 12 euros, the client</div>
+        <div class="acts"><button class="ib" type="button" aria-label="Copy" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.2"></rect><path d="M3 10.5V3.2c0-.4.3-.7.7-.7H11"></path></svg></button><button class="ib" type="button" aria-label="Ask again" title="Ask again"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7"></path><path d="M13 2.8v2.9h-2.9"></path></svg></button><span class="mod">GPT-6.1-Sol</span><span class="stopped">Stopped</span><span class="when">Today, 11:36</span></div>
+      </div>
+      <div class="box"><div class="in">Ask a follow-up</div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send off" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="sec">Clicking a pill</div>
+
+  <div class="st">
+    <div class="lab"><b>9. Model</b><span>A menu opens upward with the Codex models. The choice applies from the next message and stays for this session; new sessions start from Files › Settings</span></div>
+    <div class="col">
+      <div class="menu">
+        <div class="mh">Model for this session</div>
+        <div class="mi"><span class="ck"></span><div class="tx"><div class="t">GPT-6-Luna<span class="tag o">Fast</span></div><div class="d">Quick answers, easier questions</div></div><span class="k">272K</span></div>
+        <div class="mi on"><span class="ck"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 6.2 5 8.5l4.5-5"></path></svg></span><div class="tx"><div class="t">GPT-6.1-Sol</div><div class="d">Everyday work, reads a long file whole</div></div><span class="k">500K</span></div>
+        <div class="mi"><span class="ck"></span><div class="tx"><div class="t">GPT-6.1 Terra</div><div class="d">Balanced, with the large window</div></div><span class="k">500K</span></div>
+        <div class="mi"><span class="ck"></span><div class="tx"><div class="t">GPT-6-Astra<span class="tag o">Slow</span></div><div class="d">The hardest questions</div></div><span class="k">272K</span></div>
+        <div class="mf">Default for new sessions in <a href="#">Files › Settings</a></div>
+      </div>
+      <div class="box focus"><div class="in"><span class="caret"></span>Ask a follow-up</div><div class="bar"><button class="pill open" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 6 5 3.5 7.5 6"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send off" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+
+  <div class="st">
+    <div class="lab"><b>10. Reasoning</b><span>Three levels, the same as in Files › Settings. More reasoning answers better and takes longer</span></div>
+    <div class="col">
+      <div class="menu narrow">
+        <div class="mh">Reasoning</div>
+        <div class="mi"><span class="ck"></span><div class="tx"><div class="t">Low</div><div class="d">Fastest, for simple lookups</div></div></div>
+        <div class="mi on"><span class="ck"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 6.2 5 8.5l4.5-5"></path></svg></span><div class="tx"><div class="t">Medium</div><div class="d">Suits a summary</div></div></div>
+        <div class="mi"><span class="ck"></span><div class="tx"><div class="t">High</div><div class="d">A hard question, takes longer</div></div></div>
+      </div>
+      <div class="box focus"><div class="in"><span class="caret"></span>Ask a follow-up</div><div class="bar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill open" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 6 5 3.5 7.5 6"></path></svg></button><span class="sp"></span><button class="send off" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":980,"height":2060}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

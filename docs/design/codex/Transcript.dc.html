@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Readable transcript</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.board{width:2040px;height:2020px;background:#0a0a0a;color:#ededed;font-family:Inter,system-ui,sans-serif;font-size:13px;display:grid;grid-template-columns:980px 980px;column-gap:80px;row-gap:80px;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+.card{width:980px;height:970px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box}
+.cap{display:flex;align-items:center;gap:12px;height:44px;padding:0 4px}
+.letter{width:30px;height:30px;border-radius:8px;background:#262626;border:1px solid #363636;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;flex:none}
+.cap b{font-size:17px;font-weight:600}
+.cap .why{font-size:12.5px;color:#9a9a9a}
+.rec{margin-left:auto;font-size:12px;font-weight:600;color:#a2bcff;background:#0d172b;border:1px solid #022fa6;border-radius:6px;padding:4px 10px;white-space:nowrap}
+.detail{flex:1;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:20px 26px 18px;display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
+.tt{font-size:16px;font-weight:600}
+.mm{font-size:12.5px;color:#8c8c8c;display:flex;gap:16px}
+.tabs{display:flex;gap:2px;background:#1e1e1e;border:1px solid #262626;border-radius:7px;padding:2px;align-self:flex-start}
+.tabs span{padding:4px 10px;border-radius:5px;color:#9a9a9a;font-size:12.5px;border:1px solid transparent;white-space:nowrap}
+.tabs span.on{background:#2b2b2b;color:#fff;border-color:#3a3a3a}
+.tx{flex:1;min-height:0;overflow:hidden;padding-top:6px;font-size:15px;line-height:23px;color:#e6e6e6}
+.tx p{margin:0}
+
+/* A: one header per run of turns by the same speaker */
+.a{display:flex;flex-direction:column;gap:20px}
+.a .blk{display:flex;flex-direction:column;gap:6px}
+.a .bh{display:flex;align-items:baseline;gap:10px;font-size:13px}
+.a .bh b{font-weight:600;color:#f0f0f0}
+.a .bh span{color:#7d7d7d;font-size:12.5px;font-variant-numeric:tabular-nums}
+.a .ln{display:flex;align-items:baseline;gap:12px;border-radius:6px;margin:0 -8px;padding:1px 8px}
+.a .ln p{flex:1}
+.a .ln .t{font-size:12px;color:transparent;font-variant-numeric:tabular-nums}
+.a .ln.hov{background:#222}
+.a .ln.hov .t{color:#9a9a9a}
+
+/* B: times in a faint gutter, the speaker only when it changes */
+.b{display:flex;flex-direction:column}
+.b .who{display:grid;grid-template-columns:56px 1fr;column-gap:14px;margin-top:18px;margin-bottom:4px}
+.b .who:first-child{margin-top:0}
+.b .who b{grid-column:2;font-size:12.5px;font-weight:600;color:#9a9a9a}
+.b .who.them b{color:#d9b27a}
+.b .ln{display:grid;grid-template-columns:56px 1fr;column-gap:14px;border-radius:6px;margin:0 -8px;padding:2px 8px}
+.b .ln .t{font-size:12px;color:#5f5f5f;font-variant-numeric:tabular-nums;padding-top:1px;display:flex;align-items:center;gap:4px}
+.b .ln.hov{background:#222}
+.b .ln.hov .t{color:#a2bcff}
+
+/* C: a thin speaker bar, times on hover only */
+.c{display:flex;flex-direction:column;gap:14px}
+.c .run{display:flex;flex-direction:column;gap:4px;border-left:2px solid #4f6fd8;padding-left:14px;position:relative}
+.c .run.them{border-left-color:#b9893f}
+.c .run b{font-size:12.5px;font-weight:600;color:#9a9a9a}
+.c .run.them b{color:#d9b27a}
+.c .ln{position:relative;border-radius:6px;margin:0 -8px;padding:1px 8px}
+.c .ln .t{position:absolute;left:-74px;top:2px;width:50px;text-align:right;font-size:12px;color:transparent;font-variant-numeric:tabular-nums}
+.c .ln.hov{background:#222}
+.c .ln.hov .t{color:#9a9a9a}
+.c-wrap{padding-left:66px}
+
+/* D: turns close together merge into paragraphs, a time chip at each */
+.d{display:flex;flex-direction:column;gap:18px}
+.d .par{display:grid;grid-template-columns:62px 1fr;column-gap:14px}
+.d .par .who{font-size:12.5px;font-weight:600;color:#9a9a9a;padding-top:2px}
+.d .par.them .who{color:#d9b27a}
+.d .chip{display:inline-block;font-size:11.5px;line-height:18px;color:#9a9a9a;background:#232323;border:1px solid #2f2f2f;border-radius:5px;padding:0 6px;margin-right:8px;font-variant-numeric:tabular-nums;vertical-align:1px}
+.d .chip.hov{color:#a2bcff;border-color:#022fa6;background:#0d172b}
+.d .soft{color:#e6e6e6}
+
+.hint{font-size:12px;color:#8c8c8c;line-height:18px;border-top:1px solid #262626;padding-top:10px}
+</style>
+</helmet>
+<div class="board">
+
+  <!-- A -->
+  <section class="card" aria-label="Variant A">
+    <div class="cap"><span class="letter">A</span><b>Реплики подряд одним блоком</b><span class="why">имя и время один раз на блок, время реплики при наведении</span></div>
+    <div class="detail">
+      <div class="tt">Планёрка</div>
+      <div class="mm"><span>Tuesday, November 3, 17:49</span><span>01:58</span><span>Telemost</span></div>
+      <div class="tabs"><span>Summary</span><span class="on">Transcript</span><span>Requests</span></div>
+      <div class="tx a">
+        <div class="blk"><div class="bh"><b>You</b><span>00:11</span></div>
+          <div class="ln"><p>Раз, два, три. Проверка записи.</p><span class="t">00:11</span></div>
+          <div class="ln hov"><p>Есть контакт?</p><span class="t">00:24</span></div>
+        </div>
+        <div class="blk"><div class="bh"><b>Them</b><span>00:31</span></div>
+          <div class="ln"><p>Да, слышу тебя хорошо.</p><span class="t">00:31</span></div>
+        </div>
+        <div class="blk"><div class="bh"><b>You</b><span>00:33</span></div>
+          <div class="ln"><p>Отлично, запись идёт.</p><span class="t">00:33</span></div>
+          <div class="ln"><p>Давай начнём с релиза.</p><span class="t">00:41</span></div>
+        </div>
+        <div class="blk"><div class="bh"><b>Them</b><span>00:47</span></div>
+          <div class="ln"><p>Сборка готова, остались два бага в онбординге.</p><span class="t">00:47</span></div>
+          <div class="ln"><p>Один из них блокирует, второй можно отложить.</p><span class="t">00:58</span></div>
+        </div>
+        <div class="blk"><div class="bh"><b>You</b><span>01:10</span></div>
+          <div class="ln"><p>Кто берёт блокирующий?</p><span class="t">01:10</span></div>
+        </div>
+        <div class="blk"><div class="bh"><b>Them</b><span>01:14</span></div>
+          <div class="ln"><p>Я, до среды сделаю.</p><span class="t">01:14</span></div>
+        </div>
+        <div class="blk"><div class="bh"><b>You</b><span>01:21</span></div>
+          <div class="ln"><p>Хорошо. Тогда в четверг выкатываем.</p><span class="t">01:21</span></div>
+          <div class="ln"><p>И я напишу дизайну про финальные экраны.</p><span class="t">01:29</span></div>
+        </div>
+      </div>
+      <div class="hint">Плюс: шума вдвое меньше, разговор читается кусками. Минус: время второй и следующих реплик видно только при наведении (на «Есть контакт?» показано наведение).</div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="card" aria-label="Variant B">
+    <div class="cap"><span class="letter">B</span><b>Время в тихой колонке слева</b><span class="why">имя только при смене говорящего</span><span class="rec">Рекомендую</span></div>
+    <div class="detail">
+      <div class="tt">Планёрка</div>
+      <div class="mm"><span>Tuesday, November 3, 17:49</span><span>01:58</span><span>Telemost</span></div>
+      <div class="tabs"><span>Summary</span><span class="on">Transcript</span><span>Requests</span></div>
+      <div class="tx b">
+        <div class="who"><b>You</b></div>
+        <div class="ln"><span class="t">00:11</span><p>Раз, два, три. Проверка записи.</p></div>
+        <div class="ln"><span class="t">00:24</span><p>Есть контакт?</p></div>
+        <div class="who them"><b>Them</b></div>
+        <div class="ln"><span class="t">00:31</span><p>Да, слышу тебя хорошо.</p></div>
+        <div class="who"><b>You</b></div>
+        <div class="ln"><span class="t">00:33</span><p>Отлично, запись идёт.</p></div>
+        <div class="ln hov"><span class="t"><svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M2 1.2v7.6L8.6 5z"></path></svg>00:41</span><p>Давай начнём с релиза.</p></div>
+        <div class="who them"><b>Them</b></div>
+        <div class="ln"><span class="t">00:47</span><p>Сборка готова, остались два бага в онбординге.</p></div>
+        <div class="ln"><span class="t">00:58</span><p>Один из них блокирует, второй можно отложить.</p></div>
+        <div class="who"><b>You</b></div>
+        <div class="ln"><span class="t">01:10</span><p>Кто берёт блокирующий?</p></div>
+        <div class="who them"><b>Them</b></div>
+        <div class="ln"><span class="t">01:14</span><p>Я, до среды сделаю.</p></div>
+        <div class="who"><b>You</b></div>
+        <div class="ln"><span class="t">01:21</span><p>Хорошо. Тогда в четверг выкатываем.</p></div>
+        <div class="ln"><span class="t">01:29</span><p>И я напишу дизайну про финальные экраны.</p></div>
+        <div class="who them"><b>Them</b></div>
+        <div class="ln"><span class="t">01:40</span><p>Только не забудь про тёмную тему.</p></div>
+      </div>
+      <div class="hint">Плюс: текст начинается с одной вертикали, время каждой реплики всегда на месте, но тихое. Колонка времени — готовое место для Play: при наведении ▶ и щелчок «играть отсюда», во время игры звучащая строка подсвечена (на «Давай начнём с релиза» показано наведение).</div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="card" aria-label="Variant C">
+    <div class="cap"><span class="letter">C</span><b>Цветная полоска говорящего</b><span class="why">время скрыто, видно только при наведении</span></div>
+    <div class="detail">
+      <div class="tt">Планёрка</div>
+      <div class="mm"><span>Tuesday, November 3, 17:49</span><span>01:58</span><span>Telemost</span></div>
+      <div class="tabs"><span>Summary</span><span class="on">Transcript</span><span>Requests</span></div>
+      <div class="tx c c-wrap">
+        <div class="run"><b>You</b>
+          <div class="ln"><span class="t">00:11</span><p>Раз, два, три. Проверка записи.</p></div>
+          <div class="ln"><span class="t">00:24</span><p>Есть контакт?</p></div>
+        </div>
+        <div class="run them"><b>Them</b>
+          <div class="ln"><span class="t">00:31</span><p>Да, слышу тебя хорошо.</p></div>
+        </div>
+        <div class="run"><b>You</b>
+          <div class="ln"><span class="t">00:33</span><p>Отлично, запись идёт.</p></div>
+          <div class="ln"><span class="t">00:41</span><p>Давай начнём с релиза.</p></div>
+        </div>
+        <div class="run them"><b>Them</b>
+          <div class="ln hov"><span class="t">00:47</span><p>Сборка готова, остались два бага в онбординге.</p></div>
+          <div class="ln"><span class="t">00:58</span><p>Один из них блокирует, второй можно отложить.</p></div>
+        </div>
+        <div class="run"><b>You</b>
+          <div class="ln"><span class="t">01:10</span><p>Кто берёт блокирующий?</p></div>
+        </div>
+        <div class="run them"><b>Them</b>
+          <div class="ln"><span class="t">01:14</span><p>Я, до среды сделаю.</p></div>
+        </div>
+        <div class="run"><b>You</b>
+          <div class="ln"><span class="t">01:21</span><p>Хорошо. Тогда в четверг выкатываем.</p></div>
+          <div class="ln"><span class="t">01:29</span><p>И я напишу дизайну про финальные экраны.</p></div>
+        </div>
+      </div>
+      <div class="hint">Плюс: самый чистый текст, смена говорящего видна краем глаза. Минус: время не видно, пока не наведёшь, а для сверки со звуком оно нужно постоянно; полоска — новый для VibeHex элемент.</div>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="card" aria-label="Variant D">
+    <div class="cap"><span class="letter">D</span><b>Абзацы вместо реплик</b><span class="why">реплики ближе 30 с сливаются, время чипом в начале абзаца</span></div>
+    <div class="detail">
+      <div class="tt">Планёрка</div>
+      <div class="mm"><span>Tuesday, November 3, 17:49</span><span>01:58</span><span>Telemost</span></div>
+      <div class="tabs"><span>Summary</span><span class="on">Transcript</span><span>Requests</span></div>
+      <div class="tx d">
+        <div class="par"><span class="who">You</span><p><span class="chip">00:11</span>Раз, два, три. Проверка записи. Есть контакт?</p></div>
+        <div class="par them"><span class="who">Them</span><p><span class="chip">00:31</span>Да, слышу тебя хорошо.</p></div>
+        <div class="par"><span class="who">You</span><p><span class="chip">00:33</span>Отлично, запись идёт. Давай начнём с релиза.</p></div>
+        <div class="par them"><span class="who">Them</span><p><span class="chip hov">00:47</span>Сборка готова, остались два бага в онбординге. Один из них блокирует, второй можно отложить.</p></div>
+        <div class="par"><span class="who">You</span><p><span class="chip">01:10</span>Кто берёт блокирующий?</p></div>
+        <div class="par them"><span class="who">Them</span><p><span class="chip">01:14</span>Я, до среды сделаю.</p></div>
+        <div class="par"><span class="who">You</span><p><span class="chip">01:21</span>Хорошо. Тогда в четверг выкатываем. И я напишу дизайну про финальные экраны.</p></div>
+        <div class="par them"><span class="who">Them</span><p><span class="chip">01:40</span>Только не забудь про тёмную тему.</p></div>
+        <div class="par"><span class="who">You</span><p><span class="chip">01:52</span>Записал.</p></div>
+      </div>
+      <div class="hint">Плюс: читается как текст, а не как лог, лучше всего для длинных монологов и лекций. Минус: время только у абзаца, внутри него точку найдёт щелчок по слову (Play, вариант D на доске «Сверить транскрипт с записью»).</div>
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2040,"height":2020}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

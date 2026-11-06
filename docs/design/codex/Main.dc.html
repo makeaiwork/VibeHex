@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Output, AI cleanup on Codex</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.win{width:980px;height:940px;background:#0a0a0a;display:flex;color:#ededed;font-family:Inter,system-ui,sans-serif;font-size:13px;position:relative;overflow:hidden;-webkit-font-smoothing:antialiased}
+.side{width:220px;padding:42px 10px 14px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;flex:none}
+.nav{display:flex;align-items:center;gap:12px;height:28px;padding:0 8px;border-radius:6px;color:#d6d6d6;font-size:14px}
+.nav svg{color:#9a9a9a}
+.nav.on{background:#262626;color:#fff}
+.nav.on svg{color:#fff}
+.foot{margin-top:auto;font-size:11px;color:#8c8c8c;padding:0 6px;line-height:20px}
+.foot b{color:#d6d6d6;font-weight:500}
+.panel{flex:1;margin:8px 8px 8px 0;background:#161616;border:1px solid #232323;border-radius:12px;padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;min-width:0}
+.head{display:flex;align-items:center;gap:16px;height:30px}
+.h1{font-size:15px;font-weight:600;padding-left:16px}
+.seg{display:flex;background:#1e1e1e;border-radius:7px;padding:2px;border:1px solid #262626;gap:2px}
+.seg span{padding:4px 10px;border-radius:5px;color:#9a9a9a;font-size:12.5px;border:1px solid transparent;white-space:nowrap}
+.seg span.on{background:#2b2b2b;color:#fff;border-color:#3a3a3a}
+.sl{font-size:13px;color:#a3a3a3;font-weight:500;padding:8px 16px 0;display:flex;align-items:center;justify-content:space-between}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:0 16px;display:flex;flex-direction:column}
+.r{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #262626}
+.r:last-child{border-bottom:0}
+.r svg.ic{color:#bdbdbd;flex:none}
+.r .tx{flex:1;min-width:0}
+.r .t{font-size:13.5px;font-weight:500;color:#f0f0f0}
+.r .d{font-size:12px;color:#9a9a9a;margin-top:2px;line-height:17px}
+.sel{display:flex;align-items:center;gap:8px;font-size:13px;color:#f0f0f0;font-weight:500;white-space:nowrap;height:28px;padding:0 10px;border:1px solid #333;border-radius:6px;background:#1e1e1e}
+.sel small{color:#9a9a9a;font-weight:400;font-size:12px}
+.tog{width:34px;height:20px;border-radius:10px;background:#3a3a3a;position:relative;flex:none}
+.tog i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#cfcfcf}
+.tog.on{background:#3b5cf6}
+.tog.on i{left:16px;background:#fff}
+.btn{height:26px;padding:0 10px;border-radius:6px;background:#262626;border:1px solid #363636;color:#f0f0f0;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;font-family:inherit;white-space:nowrap}
+.tag{font-size:11px;font-weight:500;color:#a2bcff;background:#0d172b;border:1px solid #022fa6;border-radius:4px;padding:1px 6px;white-space:nowrap}
+.tag.g{color:#b9f0c8;background:#13301d;border-color:#225c35}
+.stat{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#d6d6d6;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:4px;background:#3ecf6e;flex:none}
+.ok{font-size:12px;color:#8fd6a5;white-space:nowrap}
+.meter{display:flex;flex-direction:column;gap:6px;width:250px;flex:none}
+.mrow{display:flex;align-items:center;gap:10px;font-size:12px;color:#bdbdbd}
+.mrow span:first-child{width:70px}
+.bar{flex:1;height:6px;border-radius:3px;background:#2b2b2b;overflow:hidden}
+.bar i{display:block;height:6px;background:#a2bcff;border-radius:3px}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:#bdbdbd}
+.note{font-size:12px;color:#8c8c8c;padding:2px 16px;line-height:17px}
+.uses{display:flex;flex-direction:column}
+.u{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #262626;font-size:13px}
+.u:last-child{border-bottom:0}
+.u .n{flex:1;color:#e6e6e6}
+.u .m{color:#a3a3a3;font-size:12.5px;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:8px;height:28px;padding:0 0 0 6px;margin-bottom:10px}
+.brand img{width:22px;height:22px;border-radius:5px}
+.brand b{font-size:14px;font-weight:500;color:#ededed;flex:1}
+.cbtn{width:28px;height:28px;border-radius:6px;background:transparent;border:0;color:#9a9a9a;display:inline-flex;align-items:center;justify-content:center;padding:0}
+</style>
+</helmet>
+<div class="win">
+  <nav class="side" aria-label="Sections">
+    <div class="brand"><img src="/_blob/a59ce7fd973d76cb3a7e5d90303892fd" alt=""><b>VibeHex</b><button class="cbtn" type="button" aria-label="Close sidebar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"></rect><path d="M6 2.5v11"></path></svg></button></div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"></path></svg>General</div>
+    <div class="nav on"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 4h9M5 8h9M5 12h9M2 4h.5M2 8h.5M2 12h.5"></path></svg>Output</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.5H5M8 5v3l2 1.5"></path></svg>History</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="6" cy="5.5" r="2.3"></circle><path d="M2 13c.5-2.3 2-3.5 4-3.5s3.5 1.2 4 3.5"></path></svg>Meetings</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 1.8h5l3.5 3.5v8.9H4z"></path><path d="M9 1.8v3.5h3.5"></path></svg>Files</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 2h4M6.5 2v4.5L3 13.2c-.3.5.1.8.6.8h8.8c.5 0 .9-.3.6-.8L9.5 6.5V2"></path></svg>Labs</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 7.2V11M8 5v.2"></path></svg>About</div>
+    <div class="foot">Version 3.3.0<br><b>Check for updates</b></div>
+  </nav>
+  <main class="panel">
+    <div class="head"><div class="h1">Output</div></div>
+
+    <div class="sl">AI cleanup</div>
+    <div class="card">
+      <div class="r">
+        <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 1.8l1.4 3.4 3.4 1.4-3.4 1.4L8 11.4 6.6 8 3.2 6.6l3.4-1.4z"></path></svg>
+        <div class="tx"><div class="t">Clean up with AI</div><div class="d">Every dictation is rewritten with your instructions and vocabulary</div></div>
+        <span class="tog on"><i></i></span>
+      </div>
+      <div class="r">
+        <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="2" y="3" width="12" height="8.5" rx="1.5"></rect><path d="M5.5 14h5M8 11.5V14"></path></svg>
+        <div class="tx"><div class="t">Runs on</div><div class="d">Your ChatGPT plan, through the Codex CLI on this computer</div></div>
+        <div class="seg"><span>OpenCode</span><span>OpenRouter</span><span class="on">Codex</span><span>Your own</span><span>Built in</span></div>
+      </div>
+      <div class="r">
+        <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M5 5.5 2.5 8 5 10.5M11 5.5 13.5 8 11 10.5M9.2 3.5l-2.4 9"></path></svg>
+        <div class="tx"><div class="t">Codex</div><div class="d"><span class="mono">codex-cli 0.164.0</span>  in /opt/homebrew/bin</div></div>
+        <div class="stat"><span class="dot"></span>Signed in with ChatGPT <span class="tag g">Pro</span></div>
+        <span class="ok">Answered in 1.6 s</span>
+        <button class="btn" type="button">Test</button>
+      </div>
+      <div class="r">
+        <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2"></rect><path d="M6 1.5v1.5M10 1.5v1.5M6 13v1.5M10 13v1.5M1.5 6h1.5M1.5 10h1.5M13 6h1.5M13 10h1.5"></path></svg>
+        <div class="tx"><div class="t">Model</div><div class="d">Fast and affordable model for easier tasks</div></div>
+        <button class="sel" type="button">GPT-6-Luna <span class="tag">Fast</span><svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="#9a9a9a" stroke-width="1.2" aria-hidden="true"><path d="m2.5 4 2.5 2.5L7.5 4"></path></svg></button>
+      </div>
+      <div class="r">
+        <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 2.5a4 4 0 0 0-2.5 7.1V11h5V9.6A4 4 0 0 0 8 2.5zM6 13.5h4"></path></svg>
+        <div class="tx"><div class="t">Reasoning</div><div class="d">Low answers a dictation in a second or two. Higher levels think longer first</div></div>
+        <div class="seg"><span class="on">Low</span><span>Medium</span><span>High</span></div>
+      </div>
+      <div class="r">
+        <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5"></path></svg>
+        <div class="tx"><div class="t">Plan usage</div><div class="d">Shared with Codex itself. A dictation spends very little of it</div></div>
+        <div class="meter">
+          <div class="mrow"><span>5 hours</span><div class="bar"><i style="width:23%"></i></div><span>23%</span></div>
+          <div class="mrow"><span>This week</span><div class="bar"><i style="width:41%"></i></div><span>41%</span></div>
+        </div>
+      </div>
+      <div class="r">
+        <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3z"></path><path d="M5.5 6.5h5M5.5 9h5M5.5 11.5h3"></path></svg>
+        <div class="tx"><div class="t">Custom instructions</div><div class="d">Fix punctuation and casing, keep my words. Terms from Vocabulary are spelled as listed</div></div>
+        <button class="btn" type="button">Edit</button>
+      </div>
+    </div>
+    <div class="note">Codex gets only the dictation and your instructions: no tools, no files, no commands. Nothing lands in its history.</div>
+
+    <div class="sl">Also on Codex</div>
+    <div class="card uses">
+      <div class="u"><span class="n">Files cleanup</span><span class="m">Same as dictation</span></div>
+      <div class="u"><span class="n">Files requests</span><span class="m">GPT-6.1-Sol, Medium</span></div>
+      <div class="u"><span class="n">Meeting notes and questions</span><span class="m">GPT-6-Luna, Low</span></div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":980,"height":940}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

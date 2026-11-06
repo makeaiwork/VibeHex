@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How Hex talks to Codex</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 700px; background: #0a0a0a; color: #ededed; font-family: Inter, system-ui, sans-serif; font-size: 13px; line-height: 20px">
+<svg width="95" height="8" viewBox="0 0 95 8" preserveAspectRatio="none" style="position: absolute; left: 304px; top: 216px; width: 95px; height: 8px; overflow: visible; fill: none; stroke: #8c8c8c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8c8c8c" stroke="none" style="stroke: none; fill: #8c8c8c; fill: context-stroke"/></marker></defs><path d="M 0 4 L 91 4" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+<svg width="95" height="8" viewBox="0 0 95 8" preserveAspectRatio="none" style="position: absolute; left: 640px; top: 216px; width: 95px; height: 8px; overflow: visible; fill: none; stroke: #8c8c8c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8c8c8c" stroke="none" style="stroke: none; fill: #8c8c8c; fill: context-stroke"/></marker></defs><path d="M 0 4 L 91 4" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+<svg width="95" height="8" viewBox="0 0 95 8" preserveAspectRatio="none" style="position: absolute; left: 976px; top: 216px; width: 95px; height: 8px; overflow: visible; fill: none; stroke: #8c8c8c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8c8c8c" stroke="none" style="stroke: none; fill: #8c8c8c; fill: context-stroke"/></marker></defs><path d="M 0 4 L 91 4" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" style="position: absolute; left: 264px; top: 452px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: #8c8c8c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-4" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8c8c8c" stroke="none" style="stroke: none; fill: #8c8c8c; fill: context-stroke"/></marker></defs><path d="M 0 4 L 59 4" marker-end="url(#dc-arrow-head-filled-4)"></path></svg>
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" style="position: absolute; left: 528px; top: 452px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: #8c8c8c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-5" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8c8c8c" stroke="none" style="stroke: none; fill: #8c8c8c; fill: context-stroke"/></marker></defs><path d="M 0 4 L 59 4" marker-end="url(#dc-arrow-head-filled-5)"></path></svg>
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" style="position: absolute; left: 792px; top: 452px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: #8c8c8c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-6" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8c8c8c" stroke="none" style="stroke: none; fill: #8c8c8c; fill: context-stroke"/></marker></defs><path d="M 0 4 L 59 4" marker-end="url(#dc-arrow-head-filled-6)"></path></svg>
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" style="position: absolute; left: 1056px; top: 452px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: #8c8c8c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-7" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8c8c8c" stroke="none" style="stroke: none; fill: #8c8c8c; fill: context-stroke"/></marker></defs><path d="M 0 4 L 59 4" marker-end="url(#dc-arrow-head-filled-7)"></path></svg>
+<div style="position: absolute; left: 64px; top: 64px; font-size: 24px; line-height: 32px; font-weight: 600">How Hex talks to Codex</div>
+<div style="position: absolute; left: 64px; top: 124px; font-size: 12px; color: #8c8c8c; font-weight: 500; letter-spacing: .06em; text-transform: uppercase">Who talks to whom</div>
+<div style="position: absolute; left: 64px; top: 160px; width: 240px; height: 120px; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; justify-content: center; text-align: center; background: #1a1a1a; border: 1px solid #2f2f2f; border-radius: 10px"><span><b style="font-size: 14px">Hex</b><br><span style="color: #a3a3a3">dictation, Files, Meetings</span></span></div>
+<div style="position: absolute; left: 400px; top: 160px; width: 240px; height: 120px; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; justify-content: center; text-align: center; background: #0d172b; border: 1px solid #022fa6; border-radius: 10px"><span><b style="font-size: 14px">codex app-server</b><br><span style="color: #a2bcff">one child process, started on first use</span></span></div>
+<div style="position: absolute; left: 736px; top: 160px; width: 240px; height: 120px; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; justify-content: center; text-align: center; background: #1a1a1a; border: 1px solid #2f2f2f; border-radius: 10px"><span><b style="font-size: 14px">Your ChatGPT login</b><br><span style="color: #a3a3a3">Codex's own. Hex stores no key</span></span></div>
+<div style="position: absolute; left: 1072px; top: 160px; width: 240px; height: 120px; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; justify-content: center; text-align: center; background: #1a1a1a; border: 1px solid #2f2f2f; border-radius: 10px"><span><b style="font-size: 14px">OpenAI</b><br><span style="color: #a3a3a3">answers within your plan's limits</span></span></div>
+<div style="position: absolute; left: 324px; top: 188px; width: 56px; text-align: center; font-size: 12px; line-height: 16px; color: #8c8c8c">stdio</div>
+<div style="position: absolute; left: 660px; top: 188px; width: 56px; text-align: center; font-size: 12px; line-height: 16px; color: #8c8c8c">login</div>
+<div style="position: absolute; left: 996px; top: 188px; width: 56px; text-align: center; font-size: 12px; line-height: 16px; color: #8c8c8c">HTTPS</div>
+<div style="position: absolute; left: 64px; top: 360px; font-size: 12px; color: #8c8c8c; font-weight: 500; letter-spacing: .06em; text-transform: uppercase">One dictation</div>
+<div style="position: absolute; left: 64px; top: 400px; width: 200px; height: 112px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; justify-content: center; text-align: center; background: #1a1a1a; border: 1px solid #2f2f2f; border-radius: 10px"><span><b>1  model/list</b><br><span style="color: #a3a3a3">fills the model picker</span></span></div>
+<div style="position: absolute; left: 328px; top: 400px; width: 200px; height: 112px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; justify-content: center; text-align: center; background: #1a1a1a; border: 1px solid #2f2f2f; border-radius: 10px"><span><b>2  thread/start</b><br><span style="color: #a3a3a3">ephemeral, read-only, no tools, Hex's instructions</span></span></div>
+<div style="position: absolute; left: 592px; top: 400px; width: 200px; height: 112px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; justify-content: center; text-align: center; background: #1a1a1a; border: 1px solid #2f2f2f; border-radius: 10px"><span><b>3  turn/start</b><br><span style="color: #a3a3a3">model, reasoning, the dictation text</span></span></div>
+<div style="position: absolute; left: 856px; top: 400px; width: 200px; height: 112px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; justify-content: center; text-align: center; background: #1a1a1a; border: 1px solid #2f2f2f; border-radius: 10px"><span><b>4  Streamed answer</b><br><span style="color: #a3a3a3">6 s for dictation, longer for Files and Meetings</span></span></div>
+<div style="position: absolute; left: 1120px; top: 400px; width: 200px; height: 112px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; justify-content: center; text-align: center; background: #13301d; border: 1px solid #225c35; border-radius: 10px"><span><b>5  Paste</b><br><span style="color: #b9f0c8">or paste as heard when Codex can't answer</span></span></div>
+<div style="position: absolute; left: 64px; top: 568px; width: 1256px; font-size: 13px; line-height: 21px; color: #a3a3a3">Kept warm while in use and closed after 10 minutes idle. Nothing starts while no feature is set to Codex.<br>Meeting notes ask for JSON through outputSchema. Files sends a long file whole thanks to the 500K window. Plan usage comes from account/rateLimits/read.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

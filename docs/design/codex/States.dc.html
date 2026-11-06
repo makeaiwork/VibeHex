@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Codex states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.wrap{width:980px;height:940px;background:#0a0a0a;color:#ededed;font-family:Inter,system-ui,sans-serif;font-size:13px;box-sizing:border-box;padding:28px 32px;display:flex;flex-direction:column;gap:14px;-webkit-font-smoothing:antialiased}
+.cap{font-size:12px;color:#8c8c8c;font-weight:500;padding:6px 4px 0;text-transform:uppercase;letter-spacing:.06em}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:0 16px;display:flex;flex-direction:column}
+.r{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid #262626}
+.r:last-child{border-bottom:0}
+.r svg.ic{color:#bdbdbd;flex:none}
+.r .tx{flex:1;min-width:0}
+.r .t{font-size:13.5px;font-weight:500;color:#f0f0f0}
+.r .d{font-size:12px;color:#9a9a9a;margin-top:2px;line-height:17px}
+.stat{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#d6d6d6;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:4px;flex:none}
+.dot.gray{background:#6b6b6b}.dot.amber{background:#f0a840}.dot.red{background:#ef5b5b}
+.btn{height:26px;padding:0 10px;border-radius:6px;background:#262626;border:1px solid #363636;color:#f0f0f0;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;font-family:inherit;white-space:nowrap}
+.code{display:flex;align-items:center;gap:10px;height:28px;padding:0 6px 0 10px;border-radius:6px;background:#111;border:1px solid #2a2a2a;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:#d6d6d6}
+.link{font-size:12px;color:#a2bcff;white-space:nowrap}
+.tog{width:34px;height:20px;border-radius:10px;background:#3a3a3a;position:relative;flex:none}
+.tog i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#cfcfcf}
+.tog.on{background:#3b5cf6}
+.tog.on i{left:16px;background:#fff}
+.hud{display:flex;align-items:center;gap:10px;align-self:flex-start;background:#1c1c1c;border:1px solid #333;border-radius:999px;padding:7px 14px 7px 10px;font-size:12.5px;color:#e6e6e6}
+</style>
+</helmet>
+<div class="wrap">
+  <div class="cap">Codex is not installed</div>
+  <div class="card">
+    <div class="r">
+      <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M5 5.5 2.5 8 5 10.5M11 5.5 13.5 8 11 10.5M9.2 3.5l-2.4 9"></path></svg>
+      <div class="tx"><div class="t">Codex</div><div class="d">Hex uses the Codex CLI already on this computer. Install it, then sign in once</div></div>
+      <div class="stat"><span class="dot gray"></span>Not found</div>
+      <div class="code">brew install codex <button class="btn" type="button">Copy</button></div>
+      <button class="btn" type="button">Check again</button>
+    </div>
+  </div>
+
+  <div class="cap">Installed, not signed in</div>
+  <div class="card">
+    <div class="r">
+      <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M5 5.5 2.5 8 5 10.5M11 5.5 13.5 8 11 10.5M9.2 3.5l-2.4 9"></path></svg>
+      <div class="tx"><div class="t">Codex</div><div class="d">Sign in opens your browser. Hex never sees your password and keeps no key of its own</div></div>
+      <div class="stat"><span class="dot amber"></span>Not signed in</div>
+      <button class="btn" type="button">Sign in with ChatGPT</button>
+    </div>
+  </div>
+
+  <div class="cap">Plan limit reached</div>
+  <div class="card">
+    <div class="r">
+      <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5"></path></svg>
+      <div class="tx"><div class="t">Plan usage</div><div class="d">The 5-hour limit resets at 14:20. Until then dictations paste as heard</div></div>
+      <div class="stat"><span class="dot red"></span>Limit reached</div>
+    </div>
+    <div class="r">
+      <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M2 8h9M8 5l3 3-3 3M13.5 3v10"></path></svg>
+      <div class="tx"><div class="t">When Codex can't answer</div><div class="d">Limit reached, offline, or no answer within 6 seconds</div></div>
+      <div class="stat">Use Built in, Qwen3 4B</div>
+      <span class="tog on"><i></i></span>
+    </div>
+  </div>
+
+  <div class="cap">A dictation that took too long</div>
+  <div class="hud"><span class="dot amber"></span>Codex took over 6 s. Pasted as heard</div>
+  <div class="card">
+    <div class="r">
+      <svg class="ic" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 4.5V8l2.3 1.5"></path></svg>
+      <div class="tx"><div class="t">Wait for cleanup</div><div class="d">How long a dictation waits for Codex before it pastes as heard. Files and Meetings wait longer on their own</div></div>
+      <div class="stat">6 seconds</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":980,"height":940}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

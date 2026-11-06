@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Files settings with Codex</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.win{width:980px;height:940px;background:#0a0a0a;display:flex;color:#ededed;font-family:Inter,system-ui,sans-serif;font-size:13px;position:relative;overflow:hidden;-webkit-font-smoothing:antialiased}
+.side{width:220px;padding:42px 10px 14px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;flex:none}
+.nav{display:flex;align-items:center;gap:12px;height:28px;padding:0 8px;border-radius:6px;color:#d6d6d6;font-size:14px}
+.nav.on{background:#262626;color:#fff}
+.foot{margin-top:auto;font-size:11px;color:#8c8c8c;padding:0 6px;line-height:20px}
+.foot b{color:#d6d6d6;font-weight:500}
+.panel{flex:1;margin:8px 8px 8px 0;background:#161616;border:1px solid #232323;border-radius:12px;padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;min-width:0;position:relative}
+.head{display:flex;align-items:center;gap:16px;height:30px}
+.h1{font-size:15px;font-weight:600;padding-left:16px}
+.seg{display:flex;background:#1e1e1e;border-radius:7px;padding:2px;border:1px solid #262626;gap:2px}
+.seg span{padding:4px 12px;border-radius:5px;color:#9a9a9a;font-size:13px;border:1px solid transparent}
+.seg span.on{background:#2b2b2b;color:#fff;border-color:#3a3a3a}
+.sl{font-size:13px;color:#a3a3a3;font-weight:500;padding:8px 16px 0}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:0 16px;display:flex;flex-direction:column}
+.r{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #262626}
+.r:last-child{border-bottom:0}
+.r .tx{flex:1;min-width:0}
+.r .t{font-size:13.5px;font-weight:500;color:#f0f0f0}
+.r .d{font-size:12px;color:#9a9a9a;margin-top:2px;line-height:17px}
+.sel{display:flex;align-items:center;gap:8px;font-size:13px;color:#f0f0f0;font-weight:500;white-space:nowrap;height:28px;padding:0 10px;border:1px solid #333;border-radius:6px;background:#1e1e1e;font-family:inherit}
+.sel.open{border-color:#7698fd}
+.sel small{color:#9a9a9a;font-weight:400;font-size:12px}
+.tog{width:34px;height:20px;border-radius:10px;background:#3a3a3a;position:relative;flex:none}
+.tog i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#cfcfcf}
+.tog.on{background:#3b5cf6}
+.tog.on i{left:16px;background:#fff}
+.dseg{display:flex;background:#1e1e1e;border-radius:7px;padding:2px;border:1px solid #262626;gap:2px}
+.dseg span{padding:4px 10px;border-radius:5px;color:#9a9a9a;font-size:12.5px;border:1px solid transparent}
+.dseg span.on{background:#2b2b2b;color:#fff;border-color:#3a3a3a}
+.tag{font-size:11px;font-weight:500;color:#a2bcff;background:#0d172b;border:1px solid #022fa6;border-radius:4px;padding:1px 6px;white-space:nowrap}
+.pop{position:absolute;right:16px;top:440px;width:380px;background:#1c1c1c;border:1px solid #333;border-radius:10px;box-shadow:0 18px 48px rgba(0,0,0,.6);padding:6px;display:flex;flex-direction:column}
+.grp{font-size:11.5px;color:#8c8c8c;font-weight:500;padding:8px 10px 4px}
+.opt{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;font-size:13px;color:#f0f0f0}
+.opt.on{background:#0d172b}
+.opt .ck{width:14px;flex:none;color:#a2bcff}
+.opt .nm{flex:1}
+.opt small{color:#8c8c8c;font-size:11.5px}
+.pf{font-size:12px;color:#a2bcff;padding:8px 10px 4px;border-top:1px solid #2a2a2a;margin-top:4px}
+.brand{display:flex;align-items:center;gap:8px;height:28px;padding:0 0 0 6px;margin-bottom:10px}
+.brand img{width:22px;height:22px;border-radius:5px}
+.brand b{font-size:14px;font-weight:500;color:#ededed;flex:1}
+.cbtn{width:28px;height:28px;border-radius:6px;background:transparent;border:0;color:#9a9a9a;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.qtag{font-size:11.5px;color:#9a9a9a;white-space:nowrap}
+.qbtn{height:28px;padding:0 10px;border-radius:6px;border:1px solid #333;background:#1e1e1e;color:#f0f0f0;font-size:13px;font-weight:500;font-family:inherit;white-space:nowrap}
+</style>
+</helmet>
+<div class="win">
+  <nav class="side" aria-label="Sections">
+    <div class="brand"><img src="/_blob/a59ce7fd973d76cb3a7e5d90303892fd" alt=""><b>VibeHex</b><button class="cbtn" type="button" aria-label="Close sidebar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"></rect><path d="M6 2.5v11"></path></svg></button></div>
+    <div class="nav">General</div>
+    <div class="nav">Output</div>
+    <div class="nav">History</div>
+    <div class="nav">Meetings</div>
+    <div class="nav on">Files</div>
+    <div class="nav">Labs</div>
+    <div class="nav">About</div>
+    <div class="foot">Version 3.3.0<br><b>Check for updates</b></div>
+  </nav>
+  <main class="panel">
+    <div class="head">
+      <div class="h1">Files</div>
+      <div class="seg"><span>Files</span><span class="on">Settings</span></div>
+    </div>
+
+    <div class="sl">Cleanup</div>
+    <div class="card">
+      <div class="r">
+        <div class="tx"><div class="t">Clean up after transcription</div><div class="d">Adds a Cleanup tab as soon as a file is transcribed</div></div>
+        <span class="tog on"><i></i></span>
+      </div>
+      <div class="r">
+        <div class="tx"><div class="t">Runs on</div><div class="d">Codex reads a long file whole, without the 3-step pass</div></div>
+        <button class="sel" type="button">Same as dictation <small>Codex, GPT-6-Luna</small><svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="#9a9a9a" stroke-width="1.2" aria-hidden="true"><path d="m2.5 4 2.5 2.5L7.5 4"></path></svg></button>
+      </div>
+      <div class="r">
+        <div class="tx"><div class="t">Use the Global mode's instructions</div><div class="d">Off: Files' own instructions</div></div>
+        <span class="tog on"><i></i></span>
+      </div>
+    </div>
+
+    <div class="sl">Requests</div>
+    <div class="card">
+      <div class="r">
+        <div class="tx"><div class="t">Requests run on</div><div class="d">Structure, Summary, your own questions. A stronger model pays off here</div></div>
+        <button class="sel open" type="button">Codex <small>GPT-6.1-Sol</small><svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="#9a9a9a" stroke-width="1.2" aria-hidden="true"><path d="m2.5 6 2.5-2.5L7.5 6"></path></svg></button>
+      </div>
+      <div class="r">
+        <div class="tx"><div class="t">Reasoning</div><div class="d">For Codex models. Medium suits a summary, High a hard question</div></div>
+        <div class="dseg"><span>Low</span><span class="on">Medium</span><span>High</span></div>
+      </div>
+      <div class="r">
+        <div class="tx"><div class="t">Quick requests</div><div class="d">Structure, Summary, Action items. Prompts for Русский, the language of your speech model</div></div><span class="qtag">Default</span><button class="qbtn" type="button">Edit…</button>
+      </div>
+    </div>
+
+    <div class="pop" role="listbox" aria-label="Where requests run">
+      <div class="opt" role="option" aria-selected="false"><span class="ck"></span><span class="nm">Same as cleanup</span><small>Codex, GPT-6-Luna</small></div>
+      <div class="grp">Codex</div>
+      <div class="opt" role="option" aria-selected="false"><span class="ck"></span><span class="nm">GPT-6-Luna <span class="tag">Fast</span></span><small>272K</small></div>
+      <div class="opt on" role="option" aria-selected="true"><span class="ck"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5"></path></svg></span><span class="nm">GPT-6.1-Sol</span><small>500K</small></div>
+      <div class="opt" role="option" aria-selected="false"><span class="ck"></span><span class="nm">GPT-6.1 Terra</span><small>500K</small></div>
+      <div class="opt" role="option" aria-selected="false"><span class="ck"></span><span class="nm">GPT-6-Astra</span><small>272K</small></div>
+      <div class="grp">Set up in Output › AI cleanup</div>
+      <div class="opt" role="option" aria-selected="false"><span class="ck"></span><span class="nm">OpenRouter</span><small>gemini-2.5-flash-lite</small></div>
+      <div class="opt" role="option" aria-selected="false"><span class="ck"></span><span class="nm">Built in</span><small>Qwen3 4B</small></div>
+      <div class="opt" role="option" aria-selected="false"><span class="ck"></span><span class="nm">OpenCode</span><small>running</small></div>
+      <div class="pf">More models in Output › AI cleanup</div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":980,"height":940}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

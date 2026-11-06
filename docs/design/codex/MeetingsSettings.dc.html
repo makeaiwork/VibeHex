@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Meetings settings with Codex</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.win{width:980px;height:940px;background:#0a0a0a;display:flex;color:#ededed;font-family:Inter,system-ui,sans-serif;font-size:13px;position:relative;overflow:hidden;-webkit-font-smoothing:antialiased}
+.side{width:220px;padding:42px 10px 14px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;flex:none}
+.nav{display:flex;align-items:center;gap:12px;height:28px;padding:0 8px;border-radius:6px;color:#d6d6d6;font-size:14px}
+.nav.on{background:#262626;color:#fff}
+.foot{margin-top:auto;font-size:11px;color:#8c8c8c;padding:0 6px;line-height:20px}
+.foot b{color:#d6d6d6;font-weight:500}
+.panel{flex:1;margin:8px 8px 8px 0;background:#161616;border:1px solid #232323;border-radius:12px;padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;min-width:0}
+.head{display:flex;align-items:center;gap:16px;height:30px}
+.h1{font-size:15px;font-weight:600;padding-left:16px}
+.seg{display:flex;background:#1e1e1e;border-radius:7px;padding:2px;border:1px solid #262626;gap:2px}
+.seg span{padding:4px 12px;border-radius:5px;color:#9a9a9a;font-size:13px;border:1px solid transparent;white-space:nowrap}
+.seg span.on{background:#2b2b2b;color:#fff;border-color:#3a3a3a}
+.sl{font-size:13px;color:#a3a3a3;font-weight:500;padding:8px 16px 0}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:0 16px;display:flex;flex-direction:column}
+.r{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #262626}
+.r:last-child{border-bottom:0}
+.r .tx{flex:1;min-width:0}
+.r .t{font-size:13.5px;font-weight:500;color:#f0f0f0}
+.r .d{font-size:12px;color:#9a9a9a;margin-top:2px;line-height:17px}
+.sel{display:flex;align-items:center;gap:8px;font-size:13px;color:#f0f0f0;font-weight:500;white-space:nowrap;height:28px;padding:0 10px;border:1px solid #333;border-radius:6px;background:#1e1e1e;font-family:inherit}
+.sel small{color:#9a9a9a;font-weight:400;font-size:12px}
+.tog{width:34px;height:20px;border-radius:10px;background:#3a3a3a;position:relative;flex:none}
+.tog i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#cfcfcf}
+.tog.on{background:#3b5cf6}
+.tog.on i{left:16px;background:#fff}
+.note{font-size:12px;color:#8c8c8c;padding:2px 16px;line-height:17px}
+.brand{display:flex;align-items:center;gap:8px;height:28px;padding:0 0 0 6px;margin-bottom:10px}
+.brand img{width:22px;height:22px;border-radius:5px}
+.brand b{font-size:14px;font-weight:500;color:#ededed;flex:1}
+.cbtn{width:28px;height:28px;border-radius:6px;background:transparent;border:0;color:#9a9a9a;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.stag{font-size:11.5px;color:#9a9a9a;white-space:nowrap}
+</style>
+</helmet>
+<div class="win">
+  <nav class="side" aria-label="Sections">
+    <div class="brand"><img src="/_blob/a59ce7fd973d76cb3a7e5d90303892fd" alt=""><b>VibeHex</b><button class="cbtn" type="button" aria-label="Close sidebar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"></rect><path d="M6 2.5v11"></path></svg></button></div>
+    <div class="nav">General</div>
+    <div class="nav">Output</div>
+    <div class="nav">History</div>
+    <div class="nav on">Meetings</div>
+    <div class="nav">Files</div>
+    <div class="nav">Labs</div>
+    <div class="nav">About</div>
+    <div class="foot">Version 3.3.0<br><b>Check for updates</b></div>
+  </nav>
+  <main class="panel">
+    <div class="head">
+      <div class="h1">Meetings</div>
+      <div class="seg"><span>Recordings</span><span class="on">Settings</span></div>
+    </div>
+
+    <div class="sl">Notes</div>
+    <div class="card">
+      <div class="r">
+        <div class="tx"><div class="t">Written by</div><div class="d">Title, summary, and live chapters. Codex receives the transcript; Apple Intelligence keeps it on this Mac</div></div>
+        <div class="seg"><span>Apple Intelligence</span><span class="on">Codex</span><span>OpenCode</span></div>
+      </div>
+      <div class="r">
+        <div class="tx"><div class="t">Model</div><div class="d">Title and summary come back as JSON Hex checks</div></div>
+        <button class="sel" type="button">GPT-6-Luna <small>Low</small><svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="#9a9a9a" stroke-width="1.2" aria-hidden="true"><path d="m2.5 4 2.5 2.5L7.5 4"></path></svg></button>
+      </div>
+      <div class="r">
+        <div class="tx"><div class="t">Summary prompt</div><div class="d">What the notes cover and in what order. Default for Русский, the language of your speech model GigaAM v3</div></div>
+        <span class="stag">Default</span><button class="sel" type="button">Edit…</button>
+      </div>
+    </div>
+
+    <div class="sl">Questions</div>
+    <div class="card">
+      <div class="r">
+        <div class="tx"><div class="t">Ask about a meeting</div><div class="d">Adds a chat under each finished recording</div></div>
+        <span class="tog on"><i></i></span>
+      </div>
+      <div class="r">
+        <div class="tx"><div class="t">Questions run on</div><div class="d">Change it for one question from the chat field</div></div>
+        <button class="sel" type="button">Codex <small>GPT-6.1-Sol, Medium</small><svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="#9a9a9a" stroke-width="1.2" aria-hidden="true"><path d="m2.5 4 2.5 2.5L7.5 4"></path></svg></button>
+      </div>
+    </div>
+    <div class="note">Codex is set up in Output › AI cleanup. Without it, this list offers Apple Intelligence and OpenCode only.</div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":980,"height":940}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

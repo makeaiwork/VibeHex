@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quick request prompts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.win{width:980px;height:940px;background:#0a0a0a;display:flex;color:#ededed;font-family:Inter,system-ui,sans-serif;font-size:13px;position:relative;overflow:hidden;-webkit-font-smoothing:antialiased}
+.side{width:220px;padding:42px 10px 14px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;flex:none}
+.nav{display:flex;align-items:center;gap:12px;height:28px;padding:0 8px;border-radius:6px;color:#d6d6d6;font-size:14px}
+.nav.on{background:#262626;color:#fff}
+.foot{margin-top:auto;font-size:11px;color:#8c8c8c;padding:0 6px;line-height:20px}
+.foot b{color:#d6d6d6;font-weight:500}
+.panel{flex:1;margin:8px 8px 8px 0;background:#161616;border:1px solid #232323;border-radius:12px;padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;min-width:0}
+.head{display:flex;align-items:center;gap:16px;height:30px}
+.h1{font-size:15px;font-weight:600;padding-left:16px}
+.seg{display:flex;background:#1e1e1e;border-radius:7px;padding:2px;border:1px solid #262626;gap:2px}
+.seg span{padding:4px 12px;border-radius:5px;color:#9a9a9a;font-size:13px;border:1px solid transparent;white-space:nowrap}
+.seg span.on{background:#2b2b2b;color:#fff;border-color:#3a3a3a}
+.sl{font-size:13px;color:#a3a3a3;font-weight:500;padding:8px 16px 0}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:0 16px;display:flex;flex-direction:column}
+.r{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #262626}
+.r:last-child{border-bottom:0}
+.r .tx{flex:1;min-width:0}
+.r .t{font-size:13.5px;font-weight:500;color:#f0f0f0}
+.r .d{font-size:12px;color:#9a9a9a;margin-top:2px;line-height:17px}
+.sel{display:flex;align-items:center;gap:8px;font-size:13px;color:#f0f0f0;font-weight:500;white-space:nowrap;height:28px;padding:0 10px;border:1px solid #333;border-radius:6px;background:#1e1e1e;font-family:inherit}
+.sel small{color:#9a9a9a;font-weight:400;font-size:12px}
+.tog{width:34px;height:20px;border-radius:10px;background:#3a3a3a;position:relative;flex:none}
+.tog i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#cfcfcf}
+.tog.on{background:#3b5cf6}
+.tog.on i{left:16px;background:#fff}
+.note{font-size:12px;color:#8c8c8c;padding:2px 16px;line-height:17px}
+.brand{display:flex;align-items:center;gap:8px;height:28px;padding:0 0 0 6px;margin-bottom:10px}
+.brand img{width:22px;height:22px;border-radius:5px}
+.brand b{font-size:14px;font-weight:500;color:#ededed;flex:1}
+.cbtn{width:28px;height:28px;border-radius:6px;background:transparent;border:0;color:#9a9a9a;display:inline-flex;align-items:center;justify-content:center;padding:0}
+
+.back{font-size:12.5px;color:#a2bcff;padding:4px 16px 0}
+.eh{display:flex;align-items:baseline;gap:12px;padding:0 16px}
+.eh b{font-size:15px;font-weight:600;white-space:nowrap}
+.eh span{font-size:12px;color:#9a9a9a}
+.ed{flex:1;display:flex;gap:12px;min-height:0;padding:0 16px}
+.lang{display:flex;align-items:center;gap:10px;padding:0 16px;font-size:12px;color:#9a9a9a;line-height:17px}
+.lang .lt{flex:none;font-size:12px;font-weight:500;color:#e6e6e6;background:#222;border:1px solid #333;border-radius:5px;padding:2px 8px}
+.langs{width:190px;flex:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:1px}
+.lg{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;color:#d6d6d6}
+.lg.on{background:#262626;color:#fff}
+.lg em{margin-left:auto;font-style:normal;font-size:11px;color:#f0a840}
+.lg i{width:6px;height:6px;border-radius:3px;background:#f0a840;display:block}
+.pane{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.ta{flex:1;background:#141414;border:1px solid #7698fd;box-shadow:0 0 0 3px rgba(118,152,253,.18);border-radius:10px;padding:14px 16px;font-size:12.5px;line-height:19px;color:#e6e6e6;white-space:pre-wrap;overflow:hidden}
+.hint{font-size:12px;color:#8c8c8c;line-height:17px}
+.acts2{display:flex;align-items:center;gap:8px}
+.st2{font-size:12px;color:#9a9a9a}
+.sp{flex:1}
+.btn{height:28px;padding:0 12px;border-radius:6px;background:#262626;border:1px solid #363636;color:#f0f0f0;font-size:12.5px;font-weight:500;font-family:inherit}
+.btn.dis{color:#6b6b6b;background:#1e1e1e;border-color:#2a2a2a}
+.btn.pri{background:#ede8e4;border-color:#ede8e4;color:#1d1917}
+.btn.pri.dis{background:#2b2b2b;border-color:#3a3a3a;color:#6b6b6b}
+.reqs{width:190px;flex:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:1px;align-self:flex-start}
+.rq{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;color:#d6d6d6}
+.rq.on{background:#262626;color:#fff}
+.rq em{margin-left:auto;font-style:normal;font-size:11px;color:#f0a840}
+.rq.add{color:#a2bcff;border-top:1px solid #262626;border-radius:0 0 6px 6px;margin-top:4px;height:34px}
+.nm{display:flex;align-items:center;gap:10px;font-size:12px;color:#9a9a9a}
+.nm .f{height:30px;flex:0 0 240px;box-sizing:border-box;background:#141414;border:1px solid #333;border-radius:7px;padding:0 10px;display:flex;align-items:center;font-size:13px;color:#f0f0f0}
+.btn.del{margin-right:auto}
+</style>
+</helmet>
+<div class="win">
+  <nav class="side" aria-label="Sections">
+    <div class="brand"><img src="/_blob/a59ce7fd973d76cb3a7e5d90303892fd" alt=""><b>VibeHex</b><button class="cbtn" type="button" aria-label="Close sidebar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"></rect><path d="M6 2.5v11"></path></svg></button></div>
+    <div class="nav">General</div>
+    <div class="nav">Output</div>
+    <div class="nav">History</div>
+    <div class="nav">Meetings</div>
+    <div class="nav on">Files</div>
+    <div class="nav">Labs</div>
+    <div class="nav">About</div>
+    <div class="foot">Version 3.3.0<br><b>Check for updates</b></div>
+  </nav>
+  <main class="panel">
+    <div class="head">
+      <div class="h1">Files</div>
+      <div class="seg"><span>Files</span><span class="on">Settings</span></div>
+    </div>
+    <div class="back">‹ Settings</div>
+    <div class="eh"><b>Quick requests</b></div>
+    <div class="lang"><span class="lt">Русский</span><span>The language of your speech model, GigaAM v3. Pick another model or language and the prompts switch to that language's defaults</span></div>
+    <div class="ed">
+      <div class="reqs"><div class="rq on">Structure</div><div class="rq">Summary</div><div class="rq">Action items<em>Edited</em></div><div class="rq add">+ Add request</div></div>
+      <div class="pane">
+        <div class="nm"><span>Name</span><div class="f">Structure</div></div>
+        <div class="ta">Преврати эту расшифровку в аккуратно оформленный документ, ничего не потеряв.
+Запись может быть любой: встреча вживую или онлайн, лекция, интервью, подкаст, звонок, голосовая заметка. Определи, что это, и оформи так, как такую запись удобнее читать: встречу по темам, лекцию по разделам лектора, интервью по вопросам, голосовую заметку по мыслям.
+
+- Раздели текст на разделы с короткими понятными заголовками, в том порядке, в каком всё говорилось.
+- Перечисления оформи списками, шаги — нумерованными списками.
+- Сохрани все факты, цифры, имена, примеры и формулировки говорящего. Убирай только слова-паразиты, повторы и оборванные фразы.
+- Если в тексте есть время, поставь время начала рядом с каждым заголовком.
+- Явную ошибку распознавания исправляй, только если по смыслу правильное слово очевидно; иначе оставь как есть.
+- Не добавляй выводы, советы и то, чего не говорили.
+
+Пиши на языке записи, в Markdown.</div>
+        <div class="acts2"><span class="st2">Default prompt</span><span class="sp"></span><button class="btn dis" type="button" disabled>Reset to default</button><button class="btn pri dis" type="button" disabled>Save</button></div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":980,"height":940}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

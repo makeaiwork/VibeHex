@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Listen to the recording</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.board{width:2040px;height:2020px;display:flex;flex-direction:column;gap:120px;font-family:Inter,system-ui,sans-serif;font-size:13px;-webkit-font-smoothing:antialiased}
+.top{display:flex;gap:80px}.bottom{display:flex;gap:81px}
+.vname{font-size:12px;font-weight:600;letter-spacing:.02em;color:#8c8c8c}
+.mini{display:inline-flex;align-items:center;gap:6px;flex:1;min-width:0}
+.mini .play{width:24px;height:24px;border-radius:12px}
+.mini .scrub{min-width:40px}
+.win{width:980px;height:940px;display:flex;position:relative;overflow:hidden;border-radius:12px}
+.side{width:220px;padding:42px 10px 14px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;flex:none}
+.brand{display:flex;align-items:center;gap:8px;height:28px;padding:0 0 0 6px;margin-bottom:10px}
+.brand img{width:22px;height:22px;border-radius:5px}
+.brand b{font-size:14px;font-weight:500;flex:1}
+.nav{display:flex;align-items:center;gap:12px;height:28px;padding:0 8px;border-radius:6px;font-size:14px}
+.foot{margin-top:auto;font-size:11px;padding:0 6px;line-height:20px}
+.panel{flex:1;margin:8px 8px 8px 0;border-radius:12px;padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;min-width:0}
+.head{display:flex;align-items:center;gap:16px;height:30px}
+.h1{font-size:15px;font-weight:600;padding-left:16px}
+.seg{display:flex;border-radius:7px;padding:2px;gap:2px}
+.seg span{padding:4px 12px;border-radius:5px;font-size:13px;border:1px solid transparent;white-space:nowrap}
+.cols{display:flex;gap:12px;flex:1;min-height:0}
+.list{width:296px;display:flex;flex-direction:column;gap:4px;flex:none}
+.search{height:30px;border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 10px;font-size:13px}
+.group{font-size:11.5px;padding:8px 16px 2px;font-weight:500}
+.row{padding:7px 16px;border-radius:7px;display:flex;flex-direction:column;gap:2px}
+.rt{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;font-weight:600}
+.rt span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt span:last-child{font-weight:400;font-size:12px;white-space:nowrap}
+.meta{font-size:12px}
+.detail{flex:1;border-radius:10px;padding:16px 18px 14px;display:flex;flex-direction:column;gap:10px;min-width:0;position:relative}
+.fname{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fmeta{font-size:12px;display:flex;gap:14px}
+.tabrow{display:flex;align-items:center;gap:8px}
+.tabs{display:flex;gap:2px;border-radius:7px;padding:2px}
+.tabs span{padding:4px 9px;border-radius:5px;font-size:12.5px;border:1px solid transparent;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.tabs em{font-style:normal;font-size:11px;padding:0 5px;border-radius:8px;line-height:16px}
+.sp{flex:1}
+.play{width:28px;height:28px;border-radius:14px;border:0;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none}
+.back{width:26px;height:26px;border-radius:6px;border:0;background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none}
+.clock{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.clock b{font-weight:500}
+.vline{display:flex;align-items:center;gap:6px}
+.vtag{height:24px;padding:0 6px 0 8px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+.sw{display:flex;height:24px;border-radius:6px;padding:2px;gap:2px;box-sizing:border-box}
+.sw span{width:26px;height:20px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center}
+.qb{height:26px;padding:0 9px;border-radius:6px;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;font-family:inherit;white-space:nowrap}
+.qi{width:40px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:2px;padding:0}
+.txt{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:12px;font-size:13.5px;line-height:22px}
+.par{display:flex;flex-direction:column;gap:2px;padding:4px 8px;margin:0 -8px;border-radius:8px}
+.par .t{font-size:11.5px;font-variant-numeric:tabular-nums}
+.par p{margin:0}
+.w{border-radius:3px;padding:1px 1px;margin:0 -1px}
+.turn{display:flex;flex-direction:column;gap:2px;padding:4px 8px;margin:0 -8px;border-radius:8px}
+.who{display:flex;gap:8px;align-items:baseline;font-size:12px}
+.who b{font-weight:600;font-size:12.5px}
+.turn p{margin:0;font-size:13.5px;line-height:22px}
+.tip{position:absolute;font-size:11.5px;font-weight:500;padding:4px 8px;border-radius:6px;white-space:nowrap;z-index:3}
+.chips{display:flex;gap:6px;align-items:center}
+.chip{height:24px;padding:0 11px;border-radius:13px;font-size:12px;display:inline-flex;align-items:center;font-family:inherit}
+.box{flex:none;border-radius:12px;padding:10px 8px 8px 14px;display:flex;flex-direction:column;gap:6px}
+.box .in{font-size:13px;line-height:20px;min-height:20px}
+.tbar{display:flex;align-items:center;gap:2px;margin-left:-6px}
+.pill{height:24px;padding:0 6px 0 8px;border-radius:6px;border:0;background:transparent;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:4px;font-family:inherit;white-space:nowrap}
+.send{width:28px;height:28px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;flex:none;padding:0}
+.crop{width:626px;height:420px;border-radius:12px;overflow:hidden;position:relative;box-sizing:border-box;padding:22px 26px;display:flex;flex-direction:column;gap:14px}
+.bar{height:36px;border-radius:9px;display:flex;align-items:center;gap:6px;padding:0 6px;box-sizing:border-box}
+.scrub{flex:1;height:4px;border-radius:2px;position:relative}
+.scrub i{position:absolute;left:0;top:0;height:4px;border-radius:2px}
+.scrub u{position:absolute;top:-4px;width:12px;height:12px;border-radius:6px;margin-left:-6px}
+.hair{height:2px;border-radius:1px;position:relative}
+.hair i{position:absolute;left:0;top:0;height:2px;border-radius:1px}
+.legend{display:flex;gap:28px;align-items:center;font-size:13.5px}
+.legend div{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.legend small{font-size:11.5px}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 5px;border-radius:5px;font-size:11px;font-weight:600;box-sizing:border-box}
+
+.pp{height:24px;padding:0 8px 0 7px;border-radius:6px;border:0;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;font-family:inherit;white-space:nowrap;flex:none}
+.ib{width:24px;height:24px;border-radius:6px;border:0;background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none}
+.dk .pp{background:#222;color:#ededed}.dk .pp.on{background:#0d172b;color:#a2bcff}.dk .ib{color:#9a9a9a}
+.lt .pp{background:#ececec;color:#171717}.lt .pp.on{background:#e9eeff;color:#2f4fd9}.lt .ib{color:#5e5e5e}
+.drow{display:flex;gap:80px}
+.crop4{width:450px;height:420px;border-radius:12px;overflow:hidden;box-sizing:border-box;padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.lt.crop4{background:#fff;border:1px solid #e3e3e3}
+.dk.crop4{background:#1a1a1a;border:1px solid #2a2a2a}
+.dbar{display:flex;align-items:center;gap:6px;height:24px}
+.dbar .scrub{min-width:40px}
+.lt .ib{color:#5e5e5e}
+.lt .chip{border:1px solid #d6d6d6;background:#f4f4f4;color:#262626}
+.lt .box{background:#fff;border:1px solid #d9d9d9}.lt .box .in{color:#8a8a8a}
+.lt .send{background:#efefef;border:1px solid #dddddd;color:#a3a3a3}
+.lt.vname,.lt .vname{color:#6b6b6b}
+/* dark: OpenCode dark tokens, as the other screens */
+.dk{background:#0a0a0a;color:#ededed}
+.dk .nav{color:#d6d6d6}.dk .nav.on{background:#262626;color:#fff}
+.dk .foot{color:#8c8c8c}.dk .foot b{color:#d6d6d6;font-weight:500}
+.dk .panel{background:#161616;border:1px solid #232323}
+.dk .seg,.dk .tabs,.dk .sw{background:#1e1e1e;border:1px solid #262626}
+.dk .seg span,.dk .tabs span{color:#9a9a9a}
+.dk .seg span.on,.dk .tabs span.on{background:#2b2b2b;color:#fff;border-color:#3a3a3a}
+.dk .tabs em{background:#2f2f2f;color:#cfcfcf}
+.dk .search{border:1px solid #2c2c2c;background:#1b1b1b;color:#7d7d7d}
+.dk .group{color:#8a8a8a}.dk .row.sel{background:#262626}.dk .rt span:last-child,.dk .meta{color:#9a9a9a}
+.dk .detail{background:#1a1a1a;border:1px solid #2a2a2a}
+.dk .fmeta{color:#8c8c8c}
+.dk .play{background:#ededed;color:#111}
+.dk .back{color:#9a9a9a}
+.dk .clock{color:#8c8c8c}.dk .clock b{color:#ededed}
+.dk .vtag{background:#222;border:1px solid #2e2e2e;color:#ededed}.dk .vtag svg{color:#8c8c8c}
+.dk .sw span{color:#8c8c8c}.dk .sw span.on{background:#2b2b2b;color:#fff}
+.dk .qb,.dk .qi{background:#1e1e1e;border:1px solid #333;color:#ededed}
+.dk .txt{color:#d0d0d0}
+.dk .par .t{color:#8c8c8c}
+.dk .par.cur{background:#1d2130}.dk .par.cur .t{color:#a2bcff}
+.dk .w.now{background:#3b5cf6;color:#fff}
+.dk .w.hov{background:#2c2c2c;box-shadow:inset 0 -1px 0 #8c8c8c}
+.dk .w.at{box-shadow:0 0 0 1.5px #7698fd;background:#0d172b;color:#fff}
+.dk .tip{background:#2b2b2b;border:1px solid #3a3a3a;color:#ededed;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.dk .chip{border:1px solid #3a3a3a;background:#1f1f1f;color:#e6e6e6}
+.dk .box{background:#1c1c1c;border:1px solid #333}.dk .box .in{color:#7a7a7a}
+.dk .pill{color:#bdbdbd}
+.dk .send{background:#2b2b2b;border:1px solid #3a3a3a;color:#6b6b6b}
+.dk .bar{background:#1c1c1c;border:1px solid #2a2a2a;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.dk .scrub{background:#333}.dk .scrub i{background:#a2bcff}.dk .scrub u{background:#ededed}
+.dk .hair{background:#2a2a2a}.dk .hair i{background:#a2bcff}
+.dk .legend small{color:#8c8c8c}
+.dk .kbd{background:#262626;border:1px solid #3a3a3a;color:#ededed}
+.dk.crop{background:#1a1a1a;border:1px solid #2a2a2a}
+
+/* light */
+.lt{background:#ececec;color:#171717}
+.lt .nav{color:#2b2b2b}.lt .nav.on{background:#dedede;color:#000}
+.lt .foot{color:#6b6b6b}.lt .foot b{color:#2b2b2b;font-weight:500}
+.lt .panel{background:#f7f7f7;border:1px solid #e0e0e0}
+.lt .seg,.lt .tabs,.lt .sw{background:#ededed;border:1px solid #e0e0e0}
+.lt .seg span,.lt .tabs span{color:#5e5e5e}
+.lt .seg span.on,.lt .tabs span.on{background:#fff;color:#111;border-color:#d4d4d4}
+.lt .tabs em{background:#e2e2e2;color:#3b3b3b}
+.lt .search{border:1px solid #dcdcdc;background:#fff;color:#6b6b6b}
+.lt .group{color:#6b6b6b}.lt .row.sel{background:#e6e6e6}.lt .rt span:last-child,.lt .meta{color:#5e5e5e}
+.lt .detail{background:#fff;border:1px solid #e3e3e3}
+.lt .fmeta{color:#5e5e5e}
+.lt .play{background:#171717;color:#fff}
+.lt .back{color:#5e5e5e}
+.lt .clock{color:#5e5e5e}.lt .clock b{color:#171717}
+.lt .txt{color:#262626}
+.lt .who{color:#5e5e5e}.lt .who b{color:#171717}
+.lt .turn.cur{background:#f2f5ff}.lt .turn.cur .who span{color:#2f4fd9}
+.lt .w.now{background:#cdd8ff;color:#0b1a4d}
+.lt .w.hov{background:#ececec;box-shadow:inset 0 -1px 0 #8a8a8a}
+.lt .w.at{box-shadow:0 0 0 1.5px #3b5cf6;background:#e9eeff;color:#0b1a4d}
+.lt .tip{background:#1f1f1f;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.lt .bar{background:#fff;border:1px solid #dcdcdc;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.lt .scrub{background:#e2e2e2}.lt .scrub i{background:#3b5cf6}.lt .scrub u{background:#171717}
+.lt .pill{color:#3b3b3b}
+</style>
+</helmet>
+<div class="board">
+<div class="top">
+
+  <!-- Main variant, dark: Files › Original, playing. Play and time sit on the tab row -->
+  <div class="win dk">
+    <nav class="side" aria-label="Sections">
+      <div class="brand"><img src="/_blob/a59ce7fd973d76cb3a7e5d90303892fd" alt=""><b>VibeHex</b></div>
+      <div class="nav">General</div><div class="nav">Output</div><div class="nav">History</div><div class="nav">Meetings</div>
+      <div class="nav on">Files</div><div class="nav">Labs</div><div class="nav">About</div>
+      <div class="foot">Version 3.3.0<br><b>Check for updates</b></div>
+    </nav>
+    <main class="panel">
+      <div class="head"><div class="h1">Files</div><div class="seg"><span class="on">Files</span><span>Settings</span></div></div>
+      <div class="cols">
+        <div class="list">
+          <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg>Search files</div>
+          <div class="group">Today</div>
+          <div class="row sel"><div class="rt"><span>Interview with Anna.m4a</span><span>11:05</span></div><div class="meta">1 h 42 min, 3 versions</div></div>
+          <div class="row"><div class="rt"><span>Podcast #41.mp3</span><span>09:12</span></div><div class="meta">54 min, 2 versions</div></div>
+          <div class="group">Yesterday</div>
+          <div class="row"><div class="rt"><span>Планёрка 4 ноября.mov</span><span>18:05</span></div><div class="meta">27 min, 2 versions</div></div>
+        </div>
+        <section class="detail">
+          <div class="fname">Interview with Anna.m4a</div>
+          <div class="fmeta"><span>Today, 11:05</span><span>1:42:18</span><span>Parakeet v3</span></div>
+          <div class="tabrow">
+            <div class="tabs"><span class="on">Original <em>2</em></span><span>Cleanup</span><span>Requests <em>3</em></span></div>
+            <span class="sp"></span>
+            <button class="pp on" type="button" aria-label="Pause" title="01:34 of 1:42:18"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect><rect x="7.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect></svg>01:34</button>
+          </div>
+          <div class="hair"><i style="width:2%"></i></div>
+          <div class="vline">
+            <span class="vtag">v2<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 7.2V11M8 5v.2"></path></svg></span>
+            <span class="sw"><span class="on"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 4.8V8l2.2 1.4"></path></svg></span><span><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h7"></path></svg></span></span>
+            <span class="sp"></span>
+            <button class="qb" type="button"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M8 2.5 9.3 6.7 13.5 8 9.3 9.3 8 13.5 6.7 9.3 2.5 8 6.7 6.7z"></path></svg>Clean up</button>
+            <button class="qi" type="button" aria-label="Transcribe again"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7"></path><path d="M13 2.8v2.9h-2.9"></path></svg><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button>
+          </div>
+          <div class="txt">
+            <div class="par"><span class="t">00:00</span><p>So, thanks for finding the time. Let's start with how the weekly report works today, who builds it and how long it takes.</p></div>
+            <div class="par"><span class="t">00:42</span><p>Every Friday someone exports the deals from the CRM, cleans them up in Excel, and sends the file to the head of sales. It takes most of a day.</p></div>
+            <div class="par cur"><span class="t">01:21</span><p>Mistakes show up only on the Monday call, and then the whole report has to be rebuilt. Twice this quarter the numbers went to the <span class="w now">bored</span> wrong, and nobody caught it before the meeting.</p></div>
+            <div class="par"><span class="t">02:05</span><p>We agreed to connect the CRM export directly and build the report automatically every Friday. Anna is ready to try it with one department if we show a prototype before the end of the month.</p></div>
+            <div class="par"><span class="t">03:12</span><p>She also asked who on her team would see salary figures, and whether that can be limited to the two team leads.</p></div>
+          </div>
+          <div class="chips"><button class="chip" type="button">Structure</button><button class="chip" type="button">Summary</button><button class="chip" type="button">Action items</button></div>
+          <div class="box"><div class="in">Ask about this text</div><div class="tbar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Main variant, light: Meetings › Transcript, paused on a picked word, another word under the pointer -->
+  <div class="win lt">
+    <nav class="side" aria-label="Sections">
+      <div class="brand"><img src="/_blob/a59ce7fd973d76cb3a7e5d90303892fd" alt=""><b>VibeHex</b></div>
+      <div class="nav">General</div><div class="nav">Output</div><div class="nav">History</div>
+      <div class="nav on">Meetings</div><div class="nav">Files</div><div class="nav">Labs</div><div class="nav">About</div>
+      <div class="foot">Version 3.3.0<br><b>Check for updates</b></div>
+    </nav>
+    <main class="panel">
+      <div class="head"><div class="h1">Meetings</div><div class="seg"><span class="on">Recordings</span><span>Settings</span></div></div>
+      <div class="cols">
+        <div class="list">
+          <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg>Search meetings</div>
+          <div class="group">Today</div>
+          <div class="row sel"><div class="rt"><span>Launch sync with design</span><span>10:00</span></div><div class="meta">48 min, Telemost</div></div>
+          <div class="row"><div class="rt"><span>Standup</span><span>09:30</span></div><div class="meta">14 min, Google Meet</div></div>
+          <div class="group">Yesterday</div>
+          <div class="row"><div class="rt"><span>Pricing review</span><span>16:10</span></div><div class="meta">52 min, Zoom</div></div>
+        </div>
+        <section class="detail">
+          <div class="fname">Launch sync with design</div>
+          <div class="fmeta"><span>Today, 10:00</span><span>48 min</span><span>Telemost</span></div>
+          <div class="tabrow">
+            <div class="tabs"><span class="on">Transcript</span><span>Summary</span><span>Requests <em>3</em></span></div>
+            <span class="sp"></span>
+            <button class="pp" type="button" aria-label="Play from 12:41" title="12:41 of 48:02"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.2 1.6v8.8l7.2-4.4z" fill="currentColor"></path></svg>12:41</button>
+          </div>
+          <div class="txt">
+            <div class="turn"><div class="who"><b>Them</b><span>12:20</span></div><p>The onboarding screens are almost there. The last open thing is the empty state for teams without any projects.</p></div>
+            <div class="turn cur"><div class="who"><b>You</b><span>12:38</span></div><p>Then let's keep the date. If the final screens land by <span class="w at">Tuesday</span>, development starts on Wednesday and we still make the second of December.</p></div>
+            <div class="turn"><div class="who"><b>Them</b><span>12:58</span></div><p>Tuesday works. I'd like one review call before that, maybe <span class="w hov">Monday</span> afternoon, so nobody is surprised by the flows.</p></div>
+            <div class="turn"><div class="who"><b>You</b><span>13:16</span></div><p>Monday at three. I'll send the invite and the link to the prototype after this call.</p></div>
+            <div class="turn"><div class="who"><b>Them</b><span>13:30</span></div><p>Great. And the price list for sales, is that still on you?</p></div>
+          </div>
+          <span class="tip" style="left:12px;top:384px">Play from 13:04</span>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="bottom">
+  <!-- B: the player inside the field's bottom row, between the pills and Send -->
+  <div class="crop dk">
+    <span class="vname">B</span>
+    <div class="txt" style="flex:none"><div class="par cur"><span class="t">01:21</span><p>Mistakes show up only on the Monday call, and then the whole report has to be rebuilt. Twice this quarter the numbers went to the <span class="w now">bored</span> wrong, and nobody caught it before the meeting.</p></div></div>
+    <span class="sp"></span>
+    <div class="chips"><button class="chip" type="button">Structure</button><button class="chip" type="button">Summary</button><button class="chip" type="button">Action items</button></div>
+    <div class="box"><div class="in">Ask about this file</div><div class="tbar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="mini"><button class="pp on" type="button" aria-label="Pause" title="01:34 of 1:42:18"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect><rect x="7.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect></svg>01:34</button><span class="scrub"><i style="width:8%"></i><u style="left:8%"></u></span></span><button class="send" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+  </div>
+
+  <!-- C: a slim bar appears above the field after Play -->
+  <div class="crop dk">
+    <span class="vname">C</span>
+    <div class="txt" style="flex:none"><div class="par cur"><span class="t">01:21</span><p>Mistakes show up only on the Monday call, and then the whole report has to be rebuilt. Twice this quarter the numbers went to the <span class="w now">bored</span> wrong, and nobody caught it before the meeting.</p></div></div>
+    <span class="sp"></span>
+    <div class="bar">
+      <button class="pp on" type="button" aria-label="Pause"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect><rect x="7.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect></svg>01:34</button>
+      <button class="ib" type="button" aria-label="Back 5 seconds" title="Back 5 seconds"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.2 3.1A5.6 5.6 0 1 1 2.6 7.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path><path d="M5.6 0.9 4.9 3.3l2.4.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><text x="8.3" y="11" font-size="6.6" font-weight="700" text-anchor="middle" fill="currentColor" font-family="Inter,system-ui,sans-serif">5</text></svg></button>
+      <span class="scrub"><i style="width:8%"></i><u style="left:8%"></u></span>
+      <span class="clock">1:42:18</span>
+      <button class="pill" type="button">1×<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button>
+      <button class="ib" type="button" aria-label="Close player" title="Close player"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 3 6 6M9 3 3 9"></path></svg></button>
+    </div>
+    <div class="box"><div class="in">Ask about this file</div><div class="tbar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+  </div>
+
+  <!-- A+: the tab row's Play, the hairline under the tabs is the scrubber; word states and keys -->
+  <div class="crop dk">
+    <span class="vname">A+</span>
+    <div class="tabrow">
+      <div class="tabs"><span class="on">Original <em>2</em></span><span>Cleanup</span><span>Requests <em>3</em></span></div>
+      <span class="sp"></span>
+            <button class="pp on" type="button" aria-label="Pause" title="01:34 of 1:42:18"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect><rect x="7.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect></svg>01:34</button>
+    </div>
+    <div class="scrub" style="flex:none;height:3px"><i style="width:8%;height:3px"></i><u style="left:8%;top:-4px;width:11px;height:11px"></u></div>
+    <div class="legend" style="gap:22px">
+      <div><span><span class="w hov">board</span></span><small>Under the pointer</small></div>
+      <div><span><span class="w now">board</span></span><small>Playing now</small></div>
+      <div><span><span class="w at">board</span></span><small>Paused here</small></div>
+    </div>
+    <div class="txt" style="flex:none"><div class="par cur"><span class="t">01:21</span><p>Twice this quarter the numbers went to the <span class="w now">bored</span> wrong, and nobody caught it before the meeting.</p></div></div>
+    <span class="sp"></span>
+    <div class="legend" style="gap:14px;flex-wrap:wrap">
+      <div style="flex-direction:row;align-items:center;gap:8px"><span class="kbd">Space</span><small>Play or pause</small></div>
+      <div style="flex-direction:row;align-items:center;gap:8px"><span class="kbd">←</span><span class="kbd">→</span><small>5 s back or ahead</small></div>
+      <div style="flex-direction:row;align-items:center;gap:8px"><span class="kbd">⌥</span><small>+ click: fix the word</small></div>
+    </div>
+  </div>
+</div>
+<div class="drow">
+  <!-- D: collapsed, Play at the start of the chips -->
+  <div class="crop4 dk">
+    <span class="vname">D: collapsed</span>
+    <div class="txt" style="flex:none"><div class="par"><span class="t">01:21</span><p>Mistakes show up only on the Monday call, and then the whole report has to be rebuilt. Twice this quarter the numbers went to the board wrong.</p></div></div>
+    <span class="sp"></span>
+    <div class="chips"><button class="pp" type="button" aria-label="Listen" title="Listen from the start"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.2 1.6v8.8l7.2-4.4z" fill="currentColor"></path></svg></button><button class="chip" type="button">Structure</button><button class="chip" type="button">Summary</button><button class="chip" type="button">Action items</button></div>
+    <div class="box"><div class="in">Ask about this file</div><div class="tbar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+  </div>
+  <!-- D: playing, the bar unfolded from Play, chips gone -->
+  <div class="crop4 dk">
+    <span class="vname">D: playing</span>
+    <div class="txt" style="flex:none"><div class="par cur"><span class="t">01:21</span><p>Mistakes show up only on the Monday call, and then the whole report has to be rebuilt. Twice this quarter the numbers went to the <span class="w now">bored</span> wrong.</p></div></div>
+    <span class="sp"></span>
+    <div class="dbar"><button class="ib" type="button" aria-label="Close player" title="Close player"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 3 6 6M9 3 3 9"></path></svg></button><button class="pp on" type="button" aria-label="Pause"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect><rect x="7.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect></svg>01:34</button><button class="ib" type="button" aria-label="Back 5 seconds" title="Back 5 seconds"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.2 3.1A5.6 5.6 0 1 1 2.6 7.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path><path d="M5.6 0.9 4.9 3.3l2.4.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><text x="8.3" y="11" font-size="6.6" font-weight="700" text-anchor="middle" fill="currentColor" font-family="Inter,system-ui,sans-serif">5</text></svg></button><span class="scrub"><i style="width:8%"></i><u style="left:8%"></u></span><span class="clock">1:42:18</span><button class="pill" type="button">1×<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button></div>
+    <div class="box"><div class="in">Ask about this file</div><div class="tbar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+  </div>
+  <!-- D: Meetings › Transcript, playing -->
+  <div class="crop4 lt">
+    <span class="vname">D: playing</span>
+    <div class="txt" style="flex:none"><div class="turn cur"><div class="who"><b>You</b><span>12:38</span></div><p>Then let's keep the date. If the final screens land by <span class="w now">Tuesday</span>, development starts on Wednesday.</p></div></div>
+    <span class="sp"></span>
+    <div class="dbar"><button class="ib" type="button" aria-label="Close player" title="Close player"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m3 3 6 6M9 3 3 9"></path></svg></button><button class="pp on" type="button" aria-label="Pause"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect><rect x="7.2" y="1.8" width="2.6" height="8.4" rx=".8" fill="currentColor"></rect></svg>12:44</button><button class="ib" type="button" aria-label="Back 5 seconds" title="Back 5 seconds"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.2 3.1A5.6 5.6 0 1 1 2.6 7.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path><path d="M5.6 0.9 4.9 3.3l2.4.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path><text x="8.3" y="11" font-size="6.6" font-weight="700" text-anchor="middle" fill="currentColor" font-family="Inter,system-ui,sans-serif">5</text></svg></button><span class="scrub"><i style="width:26%"></i><u style="left:26%"></u></span><span class="clock">48:02</span><button class="pill" type="button">1×<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button></div>
+    <div class="box"><div class="in">Ask about this meeting</div><div class="tbar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+  </div>
+  <!-- D: collapsed while paused, the button keeps the place -->
+  <div class="crop4 lt">
+    <span class="vname">D: paused, collapsed</span>
+    <div class="txt" style="flex:none"><div class="turn cur"><div class="who"><b>You</b><span>12:38</span></div><p>Then let's keep the date. If the final screens land by <span class="w at">Tuesday</span>, development starts on Wednesday.</p></div></div>
+    <span class="sp"></span>
+    <div class="chips"><button class="pp" type="button" aria-label="Play from 12:41" title="12:41 of 48:02"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="1.3"></circle><path d="M8 1.4A6.6 6.6 0 0 1 14.3 6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path><path d="M6.5 5.2v5.6L11 8z" fill="currentColor"></path></svg>12:41</button><button class="chip" type="button">Clean up transcript</button></div>
+    <div class="box"><div class="in">Ask about this meeting</div><div class="tbar"><button class="pill" type="button">GPT-6.1-Sol<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><button class="pill" type="button">Medium<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"></path></svg></button><span class="sp"></span><button class="send" type="button" aria-label="Send" disabled><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg></button></div></div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2040,"height":2020}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
