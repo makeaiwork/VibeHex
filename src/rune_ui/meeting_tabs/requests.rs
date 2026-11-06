@@ -109,7 +109,15 @@ pub(in super::super) fn poll(ui: &mut Ui) -> bool {
         worker::set_waker(move || waker());
         ui.meetings.requests.woken = true;
     }
-    let mut changed = composer::poll_models(ui, MODEL_MENU);
+    // Codex's models load when a menu that lists them opens: the field's,
+    // or Meetings › Settings' Written by and Questions run on.
+    let mut changed = [
+        MODEL_MENU,
+        "meeting-notes-writer",
+        "meeting-questions-engine",
+    ]
+    .into_iter()
+    .any(|menu| composer::poll_models(ui, menu));
     let tasks: Vec<Task> = worker::tasks()
         .into_iter()
         .filter(|task| store::meeting_of(&task.record).is_some())

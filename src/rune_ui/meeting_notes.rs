@@ -64,7 +64,9 @@ fn engines(ui: &Ui) -> Vec<Writer> {
             writers.push(writer(value, "Codex", model.name.clone()));
         }
         for engine in super::files::settings::engine_choices(ui) {
-            if engine.value == "opencode" {
+            // AI cleanup's Codex model is listed among Codex's once read.
+            let listed = engine.value == "codex" && !ui.files.codex_models.is_empty();
+            if engine.value == "opencode" || listed {
                 continue;
             }
             if engine.local {
@@ -83,14 +85,36 @@ fn engines(ui: &Ui) -> Vec<Writer> {
     writers
 }
 
+/// Where `saved` sits in `writers`; "codex", AI cleanup's Codex model, is
+/// that model's row once Codex's models are listed.
+fn position(ui: &Ui, writers: &[Writer], saved: Option<&str>) -> usize {
+    let model = ui.settings.dictation_processing.server.codex_model.trim();
+    let saved = match saved {
+        Some("codex") if !ui.files.codex_models.is_empty() => {
+            let id = if model.is_empty() {
+                ui.files
+                    .codex_models
+                    .iter()
+                    .find(|known| known.default)
+                    .map_or("", |known| known.id.as_str())
+            } else {
+                model
+            };
+            Some(format!("codex:{id}"))
+        }
+        other => other.map(str::to_owned),
+    };
+    writers
+        .iter()
+        .position(|writer| writer.value == saved)
+        .unwrap_or_default()
+}
+
 /// The Notes section: Written by, Reasoning on Codex, and the prompt.
 pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let notes = &ui.settings.meetings.notes;
     let writers = writers(ui);
-    let current = writers
-        .iter()
-        .position(|writer| writer.value == notes.writer)
-        .unwrap_or_default();
+    let current = position(ui, &writers, notes.writer.as_deref());
     let shown = writers.get(current).map(|writer| writer.label.clone());
     let list = choice_list(
         "meeting-notes-writer",
@@ -251,10 +275,7 @@ fn questions_menu(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let questions = &ui.settings.meetings.questions;
     let mut choices = vec![writer(None, tr("Default"), tr("Same as Files").to_owned())];
     choices.extend(engines(ui));
-    let current = choices
-        .iter()
-        .position(|choice| choice.value == questions.engine)
-        .unwrap_or_default();
+    let current = position(ui, &choices, questions.engine.as_deref());
     let mut shown = choices
         .get(current)
         .map(|choice| choice.label.clone())

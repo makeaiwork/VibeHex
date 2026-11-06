@@ -36,7 +36,9 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   ├── Notes -> Written by (meetings.notes.writer: Apple Intelligence or OpenCode
 │   │   as before (none), Codex's models, the engines Output › AI cleanup set up,
 │   │   OpenCode; a 260 pt menu in groups Default, Codex, Built in, Other, so a
-│   │   model's name shows whole), Reasoning Low / Medium / High on Codex (meetings.notes.effort,
+│   │   model's name shows whole; Codex's models load as the menu opens, as
+│   │   Questions run on's do, and AI cleanup's own Codex row then folds into
+│   │   them), Reasoning Low / Medium / High on Codex (meetings.notes.effort,
 │   │   Low when unset), Summary prompt: Default or Edited, Edit… -> its page
 │   │   (‹ Settings, the language as a tag with why, the prompt, Default prompt /
 │   │   Edited, Reset to default, Save; meetings.notes.prompts per language;
