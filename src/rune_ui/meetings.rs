@@ -106,7 +106,7 @@ pub(super) struct Meeting {
 }
 
 impl Meeting {
-    fn turns(&self) -> &[Turn] {
+    pub(super) fn turns(&self) -> &[Turn] {
         match &self.transcript {
             Transcript::Loaded(turns) => turns,
             Transcript::Unavailable(_) => &[],
@@ -175,6 +175,8 @@ pub(super) struct MeetingsPane {
     pub(super) prompt: Option<TextEdit>,
     /// The meeting tab chosen last; `None` opens each meeting's own.
     pub(super) tab: Option<super::meeting_tabs::MeetingTab>,
+    /// The Requests tab's sessions and field.
+    pub(super) requests: super::meeting_tabs::requests::RequestsPane,
     /// Where Linux and Windows perform meeting requests.
     #[cfg(not(target_os = "macos"))]
     pub(super) local: super::meetings_host::LocalMeetings,
@@ -203,7 +205,7 @@ fn clock_offset(milliseconds: u64) -> String {
 }
 
 /// Speaker turns as Markdown, as `meeting::transcript_markdown`.
-fn transcript_markdown(turns: &[Turn]) -> String {
+pub(super) fn transcript_markdown(turns: &[Turn]) -> String {
     turns
         .iter()
         .map(|turn| {
@@ -939,7 +941,7 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
         body = body.child(error_panel(p, key, title, error));
     }
     let tab = super::meeting_tabs::open(ui, meeting);
-    if let Some(strip) = super::meeting_tabs::strip(ui, p, meeting) {
+    if let Some(strip) = super::meeting_tabs::strip(ui, p, meeting, layer) {
         body = body.child(strip);
     }
     match tab {
@@ -964,14 +966,23 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
                     .child(transcript(p, meeting, pane.stop_pending)),
             );
         }
+        super::meeting_tabs::MeetingTab::Requests => {
+            body = body.child(super::meeting_tabs::requests::chat(ui, p));
+        }
     }
+    let stage = match tab {
+        super::meeting_tabs::MeetingTab::Requests => {
+            super::meeting_tabs::requests::stage(ui, p, body, layer)
+        }
+        _ => ld::card_scroll("meeting-transcript", body),
+    };
     col()
         .key("meeting-detail")
         .grow(1.0)
         .shrink()
         .child(ld::card_header(title, meta, actions))
         .children(confirm)
-        .child(ld::card_scroll("meeting-transcript", body))
+        .child(stage)
 }
 
 /// The meeting's chapters, each with its start, name, line, and Copy

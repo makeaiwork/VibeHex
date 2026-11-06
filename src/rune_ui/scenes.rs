@@ -524,6 +524,23 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.select("preview-notes".into());
         ui.pane = Pane::Meetings;
     }),
+    ("meetings-requests", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-requests-sessions", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.open = Some(super::Menu::Pick("meeting-sessions"));
+        ui.pane = Pane::Meetings;
+    }),
     ("meetings-prompt", |ui| {
         *ui = mac_fixture();
         meetings_on_codex(ui);

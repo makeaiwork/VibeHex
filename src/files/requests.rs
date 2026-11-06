@@ -164,6 +164,109 @@ pub(super) fn follow_up(
     Ok(())
 }
 
+/// How a question about a meeting reads its transcript.
+const MEETING_GUIDE: &str = "The text is a meeting's transcript: each turn names who spoke (You or \
+     Them) and when. Answer from it; where it helps, give the time something was said, as \
+     (12:40). Say so when the transcript doesn't tell.";
+
+/// Asks `question` in session `session` about the meeting that `task`'s
+/// record names, reading `transcript`, and adds the answer to the session.
+/// A first question that fails leaves no empty session behind.
+pub(super) fn meeting(
+    task: &Task,
+    session: u32,
+    question: &str,
+    transcript: &str,
+    config: &Config,
+    cancel: &AtomicBool,
+) -> Result<()> {
+    let id = crate::meeting::requests::meeting_of(&task.record)
+        .ok_or_else(|| eyre!("That isn't a meeting."))?;
+    let answered = meeting_answer(task, id, session, question, transcript, config, cancel);
+    if answered.is_err()
+        && let Err(error) = crate::meeting::requests::drop_if_empty(id, session)
+    {
+        tracing::warn!("couldn't tidy the meeting's requests: {error:#}");
+    }
+    answered
+}
+
+fn meeting_answer(
+    task: &Task,
+    id: &str,
+    session: u32,
+    question: &str,
+    transcript: &str,
+    config: &Config,
+    cancel: &AtomicBool,
+) -> Result<()> {
+    let sessions = crate::meeting::requests::load(id);
+    let asked = sessions
+        .iter()
+        .find(|asked| asked.id == session)
+        .ok_or_else(|| eyre!("That session is gone."))?;
+    let engine = config.request_engine(asked.engine.as_deref(), asked.effort.as_deref());
+    let model = engine.model_name();
+    update_task(task.id, |task| {
+        task.stage = Stage::Working;
+        task.model = Some(model.clone());
+    });
+    let earlier: Vec<(&str, &str)> = asked
+        .turns
+        .iter()
+        .map(|turn| (turn.question.as_str(), turn.answer.as_str()))
+        .collect();
+    let prompt = if earlier.is_empty() {
+        format!("{MEETING_GUIDE}\n\n{}", question.trim())
+    } else {
+        format!(
+            "{MEETING_GUIDE}\n\n{}",
+            rewrite::follow_up_prompt(&earlier, question)
+        )
+    };
+    let started = Instant::now();
+    let (kept, drafts) = keeping(task.id);
+    let made = rewrite::request(
+        &engine,
+        &prompt,
+        transcript,
+        config.vocabulary_for_requests(),
+        cancel,
+        &mut |fraction, parts, window_k| {
+            update_task(task.id, |task| {
+                task.fraction = fraction;
+                task.parts = parts;
+                task.window_k = window_k;
+            });
+        },
+        &drafts,
+    );
+    let (answer, stopped) = match made {
+        Ok(made) => (made.text, false),
+        Err(error) => match stopped_with(cancel, &kept) {
+            Some(text) => (text, true),
+            None => return Err(error),
+        },
+    };
+    let effort = engine.effort().map(str::to_owned);
+    crate::meeting::requests::update(id, |sessions| {
+        if let Some(asked) = sessions.iter_mut().find(|asked| asked.id == session) {
+            asked.turns.push(FollowUp {
+                question: question.trim().into(),
+                answer,
+                model,
+                seconds: started.elapsed().as_secs(),
+                created_ms: store::now_ms(),
+                stopped,
+            });
+            if asked.effort.is_none() {
+                asked.effort = effort;
+            }
+        }
+    })?;
+    Ok(())
+}
+
 /// The task's drafts, also keeping the whole answer as it streams, so a
 /// stop can save what came.
 fn keeping(task: u64) -> (Arc<Mutex<String>>, Drafts) {

@@ -21,14 +21,14 @@ static AGAIN_ICON: rune::Icon = rune::Icon {
 };
 
 /// What one answer row says.
-struct Answered<'a> {
-    key: String,
+pub(in super::super) struct Answered<'a> {
+    pub(in super::super) key: String,
     /// What Ask again asks.
-    question: &'a str,
-    answer: &'a str,
-    model: &'a str,
-    created_ms: u64,
-    stopped: bool,
+    pub(in super::super) question: &'a str,
+    pub(in super::super) answer: &'a str,
+    pub(in super::super) model: &'a str,
+    pub(in super::super) created_ms: u64,
+    pub(in super::super) stopped: bool,
 }
 
 /// The session's chat: `first` is the request as a chip named it (no
@@ -39,9 +39,9 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
     if typed {
         chat = chat.child(bubble(p, "asked0", first));
     }
+    let session = version.id;
     chat = chat.child(answer(
         p,
-        version.id,
         Answered {
             key: "answer0".into(),
             question: first,
@@ -50,12 +50,12 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
             created_ms: version.created_ms,
             stopped: version.stopped,
         },
+        move |ui: &mut Ui, question| ask_again(ui, session, question),
     ));
     for (index, asked) in version.follow_ups.iter().enumerate() {
         chat = chat.child(bubble(p, &format!("asked{}", index + 1), &asked.question));
         chat = chat.child(answer(
             p,
-            version.id,
             Answered {
                 key: format!("answer{}", index + 1),
                 question: &asked.question,
@@ -64,6 +64,7 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
                 created_ms: asked.created_ms,
                 stopped: asked.stopped,
             },
+            move |ui: &mut Ui, question| ask_again(ui, session, question),
         ));
     }
     if let Some(task) = ui
@@ -77,7 +78,7 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
 }
 
 /// A question, right-aligned in a quiet bubble.
-fn bubble(p: Paint, key: &str, question: &str) -> El {
+pub(in super::super) fn bubble(p: Paint, key: &str, question: &str) -> El {
     let c = &p.k.c;
     row()
         .key(key.to_owned())
@@ -110,8 +111,12 @@ fn markdown(p: Paint, source: String, muted: bool, streaming: bool) -> El {
         .key("markdown")
 }
 
-/// An answer and its row.
-fn answer(p: Paint, session: u32, answered: Answered<'_>) -> El {
+/// An answer and its row; Ask again calls `again` with the question.
+pub(in super::super) fn answer(
+    p: Paint,
+    answered: Answered<'_>,
+    again: impl Fn(&mut Ui, String) + 'static,
+) -> El {
     let body = if answered.answer.trim().is_empty() {
         text(tr("This version is empty."))
             .key("empty")
@@ -124,13 +129,13 @@ fn answer(p: Paint, session: u32, answered: Answered<'_>) -> El {
         .key(answered.key.clone())
         .gap(6.0)
         .child(body)
-        .child(answer_row(p, session, &answered))
+        .child(answer_row(p, &answered, again))
 }
 
 /// Copy and Ask again, the model, Stopped, and the time.
-fn answer_row(p: Paint, session: u32, answered: &Answered<'_>) -> El {
+fn answer_row(p: Paint, answered: &Answered<'_>, again: impl Fn(&mut Ui, String) + 'static) -> El {
     let copied = answered.answer.to_owned();
-    let again = answered.question.to_owned();
+    let question = answered.question.to_owned();
     let small = rune::TextStyle {
         size: 12.0,
         ..p.k.ty.ui
@@ -151,7 +156,7 @@ fn answer_row(p: Paint, session: u32, answered: &Answered<'_>) -> El {
             "again",
             &AGAIN_ICON,
             tr("Ask again"),
-            move |ui: &mut Ui, _| ask_again(ui, session, again.clone()),
+            move |ui: &mut Ui, _| again(ui, question.clone()),
         ))
         .child(
             text(answered.model.to_owned())
@@ -178,7 +183,7 @@ fn answer_row(p: Paint, session: u32, answered: &Answered<'_>) -> El {
 }
 
 /// "Today, 11:21", as the list names days.
-fn when(ms: u64) -> String {
+pub(in super::super) fn when(ms: u64) -> String {
     let now = crate::files::store::now_ms();
     let day = crate::meeting::day_label(ms, now);
     format!("{}, {}", super::day_label(&day), crate::meeting::clock(ms))
@@ -197,7 +202,7 @@ fn ask_again(ui: &mut Ui, session: u32, question: String) {
 }
 
 /// The question being answered and what came so far.
-fn answering(p: Paint, task: &Task) -> Vec<El> {
+pub(in super::super) fn answering(p: Paint, task: &Task) -> Vec<El> {
     let mut shown = Vec::new();
     if let Some(question) = &task.question {
         shown.push(bubble(p, "asking", question));

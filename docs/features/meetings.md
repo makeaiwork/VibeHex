@@ -950,9 +950,13 @@ Detail (a raised card beside the list)
 │       Delete… (finished meetings only for the last three)
 ├── Errors at the top of the scroll area
 ├── Tabs as in Files: Summary (the notes as Markdown, who wrote them, the
-│   chapters; shown once there are notes, chapters, or notes on the way) and
-│   Transcript; a finished meeting with notes opens on Summary, a recording
-│   one on Transcript; the tab chosen last stays (meetings.tab, not saved)
+│   chapters; shown once there are notes, chapters, or notes on the way),
+│   Transcript, and Requests (a finished meeting with a transcript, while
+│   Labs › AI cleanup server is on); a finished meeting with notes opens on
+│   Summary, a recording one on Transcript; the tab chosen last stays
+│   (meetings.tab, not saved)
+├── Requests: questions about the meeting, in sessions (see Questions About
+│   A Meeting below)
 ├── Summary: full notes in Markdown, or one paragraph of at most two sentences
 ├── Chapters (when present): start, name, line, and a Copy section icon
 └── Transcript: stacked turns, no bubbles; "You" in text colour, "Them"
@@ -988,6 +992,39 @@ Scenes: `meetings`, `meetings-recording`, `meetings-actions`,
 
 Checks: `markdown_lists_metadata_and_labeled_turns` and
 `export_never_overwrites_and_uses_safe_names`.
+
+#### Questions About A Meeting
+
+```text
+Requests tab (finished meeting, transcript, Labs › AI cleanup server on)
+├── Requests N ▾: the chevron lists "Sessions about this meeting", newest
+│   first: name, "N questions, Today, 10:55", ✓ on the open one; "+ New
+│   session" empties the field for a new one
+├── The open session as a chat, as Files has it: each question in a bubble,
+│   each answer as Markdown with Copy, Ask again, its model, Stopped when
+│   stopped, and its time; "<model> is answering" and the draft while it
+│   comes; "The question wasn't answered: <why>" when it failed
+├── No session yet: "Ask about decisions, tasks, or who said what. Answers
+│   come from the transcript"
+└── Field floating at the bottom, as in Files: "Ask about this meeting",
+    the model pill (Codex's models, then the AI cleanup engines), the
+    reasoning pill on Codex, Send, or Stop while an answer comes
+Send -> a new session named by the question's first words, or the next
+  question in the open one -> Files' worker (also while Labs › Files is off)
+  reads "Meeting: <title>", when, and the transcript with You/Them and
+  clocks, and answers from it, giving times where they help
+  -> Application Support/meetings/<id>/requests.json (trashed with the
+     meeting); a first question that fails leaves no empty session
+```
+
+The model starts from Files › Settings' request engine and reasoning; a
+session keeps the one its pills chose. Sources:
+[meeting_tabs/requests.rs](../../src/rune_ui/meeting_tabs/requests.rs),
+[meeting/requests.rs](../../src/meeting/requests.rs), and `meeting` in
+[files/requests.rs](../../src/files/requests.rs). Checks:
+`a_record_names_its_meeting_and_ids_stay_in_the_meeting_folder` and
+`sessions_read_back_as_written`. Scenes: `meetings-requests`,
+`meetings-requests-sessions`.
 
 ### Retention
 

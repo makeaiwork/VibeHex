@@ -202,6 +202,14 @@ const PATHS: &[(&str, &str)] = &[
         "meetings-codex-notes",
         "Window/Meetings/Notes by a fallback writer",
     ),
+    (
+        "meetings-requests",
+        "Window/Meetings/Requests about a meeting",
+    ),
+    (
+        "meetings-requests-sessions",
+        "Window/Meetings/Sessions about a meeting",
+    ),
     ("meetings-allow", "Window/Meetings/Allow system audio"),
     ("meetings-calendar", "Window/Meetings/Calendar"),
     (

@@ -121,6 +121,15 @@ pub enum Job {
     /// Asks `question` in request `session`'s conversation, on the
     /// session's engine.
     FollowUp { session: u32, question: String },
+    /// Asks `question` in session `session` about a meeting, whose
+    /// transcript (with its title and times) is `transcript`; the record is
+    /// `meeting::requests::record`. Runs while Labs › AI cleanup server is
+    /// on, also with Files off.
+    Meeting {
+        session: u32,
+        question: String,
+        transcript: String,
+    },
 }
 
 /// Where a job is.
@@ -274,8 +283,13 @@ pub fn dismiss_error(record: &str) {
 /// Queues `job` on `record` and returns its task id, 0 when Labs › Files
 /// is off. `next` puts it right after the running job.
 pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
-    // Labs › Files off: no job runs.
-    if !crate::labs::files() {
+    // Labs › Files off: no job runs; a meeting's question needs the AI
+    // cleanup engines instead.
+    let allowed = match &job {
+        Job::Meeting { .. } => crate::labs::ai_cleanup_server(),
+        _ => crate::labs::files(),
+    };
+    if !allowed {
         tracing::info!("Files is off in Labs; the job wasn't queued");
         return 0;
     }
@@ -283,12 +297,15 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
     let id = state.next;
     state.next += 1;
     let (session, question) = match &job {
-        Job::FollowUp { session, question } => (Some(*session), Some(question.clone())),
+        Job::FollowUp { session, question }
+        | Job::Meeting {
+            session, question, ..
+        } => (Some(*session), Some(question.clone())),
         _ => (None, None),
     };
     let (name, kind, from) = match &job {
         Job::Request { name, from, .. } => (Some(name.clone()), VersionKind::Request, Some(*from)),
-        Job::FollowUp { .. } => (None, VersionKind::Request, None),
+        Job::FollowUp { .. } | Job::Meeting { .. } => (None, VersionKind::Request, None),
         Job::Cleanup { from, .. } => (Some("Cleanup".into()), VersionKind::Cleanup, Some(*from)),
         Job::Transcribe { .. } => (None, VersionKind::Original, None),
     };
@@ -438,6 +455,11 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
         Job::FollowUp { session, question } => {
             super::requests::follow_up(task, *session, question, config, cancel)
         }
+        Job::Meeting {
+            session,
+            question,
+            transcript,
+        } => super::requests::meeting(task, *session, question, transcript, config, cancel),
     }
 }
 

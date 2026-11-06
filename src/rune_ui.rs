@@ -1270,7 +1270,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
             && ui.window.as_ref().is_some_and(rune::AppHandle::is_visible),
     );
     changed |= ui.history.poll(ui.pane == Pane::History);
-    changed |= files::poll(ui);
+    changed |= files::poll(ui) | meeting_tabs::requests::poll(ui);
     if ui.pane == Pane::Output && !ui.labs_open {
         changed |= output::poll(ui, clock, tx);
     }

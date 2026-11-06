@@ -1,8 +1,11 @@
 //! A meeting's tabs, as Files has them: Summary (the notes and the
-//! chapters) and Transcript, in a strip under the meeting's line. A meeting
-//! that is still recording, or has no notes yet, opens on its transcript.
+//! chapters), Transcript, and Requests (questions about the meeting), in a
+//! strip under the meeting's line. A meeting that is still recording, or
+//! has no notes yet, opens on its transcript.
 
-use rune::{El, Shadow, TextStyle, col, row, text};
+pub(super) mod requests;
+
+use rune::{El, Shadow, TextStyle, col, el, row, text};
 
 use super::Ui;
 use super::controls::{DESCRIPTION, Paint};
@@ -14,6 +17,7 @@ use crate::desktop::i18n::tr;
 pub(super) enum MeetingTab {
     Summary,
     Transcript,
+    Requests,
 }
 
 impl MeetingTab {
@@ -21,26 +25,31 @@ impl MeetingTab {
         match self {
             Self::Summary => tr("Summary"),
             Self::Transcript => tr("Transcript"),
+            Self::Requests => tr("Requests"),
         }
     }
 }
 
 /// The tabs `meeting` has: Summary once there are notes, chapters, or
-/// notes on the way.
-fn tabs(meeting: &Meeting) -> Vec<MeetingTab> {
+/// notes on the way; Requests once it is finished, with the AI cleanup
+/// engines on.
+fn tabs(ui: &Ui, meeting: &Meeting) -> Vec<MeetingTab> {
     let notes = meeting.summary.is_some() || meeting.notes_running || !meeting.chapters.is_empty();
     let mut tabs = Vec::new();
     if notes {
         tabs.push(MeetingTab::Summary);
     }
     tabs.push(MeetingTab::Transcript);
+    if requests::available(ui, meeting) {
+        tabs.push(MeetingTab::Requests);
+    }
     tabs
 }
 
 /// The open tab: the one chosen while it exists, else Summary for a
 /// finished meeting with notes, else Transcript.
 pub(super) fn open(ui: &Ui, meeting: &Meeting) -> MeetingTab {
-    let tabs = tabs(meeting);
+    let tabs = tabs(ui, meeting);
     if let Some(chosen) = ui.meetings.tab.filter(|tab| tabs.contains(tab)) {
         return chosen;
     }
@@ -53,8 +62,8 @@ pub(super) fn open(ui: &Ui, meeting: &Meeting) -> MeetingTab {
 }
 
 /// The strip, or none while the meeting has one tab.
-pub(super) fn strip(ui: &Ui, p: Paint, meeting: &Meeting) -> Option<El> {
-    let tabs = tabs(meeting);
+pub(super) fn strip(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> Option<El> {
+    let tabs = tabs(ui, meeting);
     if tabs.len() < 2 {
         return None;
     }
@@ -80,11 +89,21 @@ pub(super) fn strip(ui: &Ui, p: Paint, meeting: &Meeting) -> Option<El> {
             line_height: 13.0,
             ..p.k.ty.ui
         };
-        let working = tab == MeetingTab::Summary && meeting.notes_running;
-        let name = row()
+        let working = match tab {
+            MeetingTab::Summary => meeting.notes_running,
+            MeetingTab::Requests => requests::working(ui, meeting),
+            MeetingTab::Transcript => false,
+        };
+        let count = match tab {
+            MeetingTab::Requests => requests::count(ui, meeting),
+            _ => 0,
+        };
+        let menu = on && count > 0;
+        let mut name = row()
             .key("name")
             .h(24.0)
-            .px(12.0)
+            .pl(12.0)
+            .pr(if menu { 7.0 } else { 12.0 })
             .gap(6.0)
             .center_y()
             .children(working.then(|| rune_kit::Loader::new().size(11.0).build(p.k).key("working")))
@@ -92,7 +111,27 @@ pub(super) fn strip(ui: &Ui, p: Paint, meeting: &Meeting) -> Option<El> {
                 c.text_base
             } else {
                 c.text_muted
-            }))
+            }));
+        if count > 0 {
+            name = name.child(
+                row()
+                    .key("count")
+                    .h(15.0)
+                    .px(5.0)
+                    .center()
+                    .radius(8.0)
+                    .fill(if on { c.border_base } else { c.layer_03 })
+                    .child(
+                        text(count.to_string())
+                            .font(TextStyle {
+                                line_height: 11.0,
+                                ..p.k.ty.small_medium
+                            })
+                            .color(if on { c.text_base } else { c.text_muted }),
+                    ),
+            );
+        }
+        let name = name
             .role("tab")
             .label(tab.label())
             .hover(c.hover)
@@ -105,6 +144,12 @@ pub(super) fn strip(ui: &Ui, p: Paint, meeting: &Meeting) -> Option<El> {
                 color: c.border_strong,
                 ..Default::default()
             });
+            if menu {
+                cell = cell
+                    .center_y()
+                    .child(el().key("divider").w(p.hair).h(14.0).fill(c.border_weak))
+                    .child(requests::sessions_menu(ui, p, layer));
+            }
         }
         strip = strip.child(cell);
     }

@@ -23,10 +23,10 @@ use crate::files::{decode, text as file_text};
 use crate::transcription::models::TranscriptionModelId;
 
 mod actions;
-mod composer;
+pub(super) mod composer;
 mod detail;
 mod quick;
-mod session;
+pub(super) mod session;
 pub(super) mod settings;
 mod tabs;
 

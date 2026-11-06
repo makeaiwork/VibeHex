@@ -24,13 +24,13 @@ use crate::files::rewrite::Engine;
 use crate::files::store::{self, Version, VersionKind};
 use crate::files::worker::{self, Config, Job};
 
-static SEND_ICON: rune::Icon = rune::Icon {
+pub(in super::super) static SEND_ICON: rune::Icon = rune::Icon {
     name: "hex-files-composer-send",
     view: 16.0,
     body: r#"<path d="M8 12.5V3.8M4.2 7.4 8 3.6l3.8 3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>"#,
 };
 
-static STOP_ICON: rune::Icon = rune::Icon {
+pub(in super::super) static STOP_ICON: rune::Icon = rune::Icon {
     name: "hex-files-composer-stop",
     view: 16.0,
     body: r#"<rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentColor"/>"#,
@@ -39,9 +39,10 @@ static STOP_ICON: rune::Icon = rune::Icon {
 const MODEL_MENU: &str = "files-composer-model";
 const EFFORT_MENU: &str = "files-composer-effort";
 /// The reasoning levels the pill offers.
-const EFFORTS: [(&str, &str); 3] = [("low", "Low"), ("medium", "Medium"), ("high", "High")];
+pub(in super::super) const EFFORTS: [(&str, &str); 3] =
+    [("low", "Low"), ("medium", "Medium"), ("high", "High")];
 /// The text's height at most: six lines, then it scrolls.
-const MAX_LINES: usize = 6;
+pub(in super::super) const MAX_LINES: usize = 6;
 
 /// Where the field sends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -128,10 +129,40 @@ pub(super) fn field(
         }
     };
     let focused = edit.focused && waiting.is_none();
+    let shell = shell(
+        p,
+        "files-composer",
+        placeholder,
+        text_area,
+        pills,
+        action,
+        (focused, ui.files.text_under),
+    );
+    if waiting.is_some() {
+        shell.dim(0.55)
+    } else {
+        shell
+    }
+}
+
+/// The field's frame: the text over the pills and Send, a focus ring while
+/// typing, and the floating shadows once text runs under it (`state` is
+/// focused, lifted).
+pub(in super::super) fn shell(
+    p: Paint,
+    key: &str,
+    label: String,
+    text_area: El,
+    pills: El,
+    action: El,
+    state: (bool, bool),
+) -> El {
+    let c = &p.k.c;
+    let (focused, lifted) = state;
     let mut shell = col()
-        .key("files-composer")
+        .key(key.to_owned())
         .role("group")
-        .label(placeholder)
+        .label(label)
         .gap(6.0)
         .pt(10.0)
         .pb(6.0)
@@ -162,16 +193,12 @@ pub(super) fn field(
             ..Default::default()
         })
     };
-    if ui.files.text_under {
+    if lifted {
         for shadow in &p.k.elevation.floating {
             shell = shell.box_shadow(*shadow);
         }
     }
-    if waiting.is_some() {
-        shell.dim(0.55)
-    } else {
-        shell
-    }
+    shell
 }
 
 /// Whether `target` has an answer coming.
@@ -192,7 +219,7 @@ pub(super) fn running(ui: &Ui, target: Target) -> Option<u64> {
 }
 
 /// A small round Send or Stop: muted until it has something to do.
-fn round_button(
+pub(in super::super) fn round_button(
     p: Paint,
     key: &str,
     label: &str,
@@ -227,7 +254,13 @@ fn round_button(
 }
 
 /// A borderless pill: plain text with a chevron, a quiet background on hover.
-fn pill(p: Paint, key: &str, label: &str, open: bool, press: impl Fn(&mut Ui) + 'static) -> El {
+pub(in super::super) fn pill(
+    p: Paint,
+    key: &str,
+    label: &str,
+    open: bool,
+    press: impl Fn(&mut Ui) + 'static,
+) -> El {
     let c = &p.k.c;
     let chevron = if open {
         p.k.glyph.chevron_up
@@ -264,7 +297,34 @@ fn pill(p: Paint, key: &str, label: &str, open: bool, press: impl Fn(&mut Ui) + 
 /// The model pill: Codex's models when Codex is set up, then the other
 /// engines Files can run on. The choice applies from the next question.
 fn model_pill(ui: &Ui, p: Paint, target: Target, engine: &Engine, layer: &mut Vec<El>) -> El {
-    let open = menu_open(ui, MODEL_MENU);
+    let group = match target {
+        Target::Session(_) => tr("Model for this session"),
+        Target::New => tr("Model for the next session"),
+    };
+    model_menu(
+        ui,
+        p,
+        MODEL_MENU,
+        group,
+        engine,
+        layer,
+        move |ui: &mut Ui, value: String| choose(ui, target, Some(value), None),
+    )
+}
+
+/// The model pill and its menu, saved under `menu`: Codex's models when
+/// Codex is set up, then the other engines requests can run on; `pick`
+/// hears the chosen engine in `files.request_engine`'s form.
+pub(in super::super) fn model_menu(
+    ui: &Ui,
+    p: Paint,
+    menu: &'static str,
+    group: &str,
+    engine: &Engine,
+    layer: &mut Vec<El>,
+    pick: impl Fn(&mut Ui, String) + Clone + 'static,
+) -> El {
+    let open = menu_open(ui, menu);
     // Codex's own names, once its models are read here.
     let codex = engine.codex_model();
     let listed = codex.and_then(|id| {
@@ -277,16 +337,14 @@ fn model_pill(ui: &Ui, p: Paint, target: Target, engine: &Engine, layer: &mut Ve
         })
     });
     let label = listed.map_or_else(|| engine.model_name(), |model| model.name.clone());
-    let mut menu = KitMenu::new("files-composer-model-menu")
+    let key = menu;
+    let mut menu = KitMenu::new(format!("{key}-menu"))
         .placement(Placement::TopStart)
         .gutter(4.0)
         .min_width(260.0)
         .open(open)
-        .on_close(|ui: &mut Ui| ui.open = None);
-    menu = menu.group_label(match target {
-        Target::Session(_) => tr("Model for this session"),
-        Target::New => tr("Model for the next session"),
-    });
+        .on_close(|ui: &mut Ui| ui.open = None)
+        .group_label(group);
     let server = &ui.settings.dictation_processing.server;
     let codex_set_up = server.runs_on == crate::app_settings::CleanupRunsOn::Codex
         || !server.codex_model.trim().is_empty();
@@ -294,11 +352,12 @@ fn model_pill(ui: &Ui, p: Paint, target: Target, engine: &Engine, layer: &mut Ve
         for model in &ui.files.codex_models {
             let value = format!("codex:{}", model.id);
             let checked = listed.is_some_and(|listed| listed.id == model.id);
+            let pick = pick.clone();
             menu = menu.item(
                 MenuItem::new(model.name.clone())
                     .shortcut(model.description.clone())
                     .checked(checked)
-                    .on_select(move |ui: &mut Ui| choose(ui, target, Some(value.clone()), None)),
+                    .on_select(move |ui: &mut Ui| pick(ui, value.clone())),
             );
         }
         if ui.files.codex_models.is_empty() {
@@ -311,15 +370,16 @@ fn model_pill(ui: &Ui, p: Paint, target: Target, engine: &Engine, layer: &mut Ve
             continue;
         }
         let value = choice.value.clone();
+        let pick = pick.clone();
         menu = menu.item(
             MenuItem::new(choice.label.clone())
                 .checked(engine.effort().is_none() && choice.label.contains(&label))
-                .on_select(move |ui: &mut Ui| choose(ui, target, Some(value.clone()), None)),
+                .on_select(move |ui: &mut Ui| pick(ui, value.clone())),
         );
     }
-    let trigger = pill(p, "model", &label, open, |ui: &mut Ui| {
-        toggle(ui, MODEL_MENU);
-        if menu_open(ui, MODEL_MENU) {
+    let trigger = pill(p, "model", &label, open, move |ui: &mut Ui| {
+        toggle(ui, key);
+        if menu_open(ui, key) {
             ui.files.engines = settings::engine_choices(ui);
             load_codex_models(ui);
         }
@@ -328,12 +388,32 @@ fn model_pill(ui: &Ui, p: Paint, target: Target, engine: &Engine, layer: &mut Ve
 }
 
 fn effort_pill(ui: &Ui, p: Paint, target: Target, effort: &str, layer: &mut Vec<El>) -> El {
-    let open = menu_open(ui, EFFORT_MENU);
+    effort_menu(
+        ui,
+        p,
+        EFFORT_MENU,
+        effort,
+        layer,
+        move |ui: &mut Ui, value: String| choose(ui, target, None, Some(value)),
+    )
+}
+
+/// The reasoning pill and its menu, saved under `menu`.
+pub(in super::super) fn effort_menu(
+    ui: &Ui,
+    p: Paint,
+    menu: &'static str,
+    effort: &str,
+    layer: &mut Vec<El>,
+    pick: impl Fn(&mut Ui, String) + Clone + 'static,
+) -> El {
+    let open = menu_open(ui, menu);
     let shown = EFFORTS
         .iter()
         .find(|(value, _)| *value == effort)
         .map_or("Medium", |(_, name)| *name);
-    let mut menu = KitMenu::new("files-composer-effort-menu")
+    let key = menu;
+    let mut menu = KitMenu::new(format!("{key}-menu"))
         .placement(Placement::TopStart)
         .gutter(4.0)
         .min_width(160.0)
@@ -341,14 +421,15 @@ fn effort_pill(ui: &Ui, p: Paint, target: Target, effort: &str, layer: &mut Vec<
         .on_close(|ui: &mut Ui| ui.open = None)
         .group_label(tr("Reasoning"));
     for (value, name) in EFFORTS {
+        let pick = pick.clone();
         menu = menu.item(
             MenuItem::new(tr(name))
                 .checked(value == effort)
-                .on_select(move |ui: &mut Ui| choose(ui, target, None, Some(value.into()))),
+                .on_select(move |ui: &mut Ui| pick(ui, value.into())),
         );
     }
-    let trigger = pill(p, "effort", tr(shown), open, |ui: &mut Ui| {
-        toggle(ui, EFFORT_MENU);
+    let trigger = pill(p, "effort", tr(shown), open, move |ui: &mut Ui| {
+        toggle(ui, key);
     });
     menu.trigger(trigger).build(p.k, layer)
 }
@@ -384,7 +465,7 @@ fn choose(ui: &mut Ui, target: Target, engine: Option<String>, effort: Option<St
 }
 
 /// Reads Codex's models on their own thread when none are known yet.
-fn load_codex_models(ui: &mut Ui) {
+pub(in super::super) fn load_codex_models(ui: &mut Ui) {
     if !ui.files.codex_models.is_empty() || ui.files.fixture {
         return;
     }
@@ -408,7 +489,12 @@ fn load_codex_models(ui: &mut Ui) {
 
 /// Picks up Codex's models once a status read has listed them.
 pub(super) fn poll(ui: &mut Ui) -> bool {
-    if ui.files.codex_models.is_empty() && menu_open(ui, MODEL_MENU) {
+    poll_models(ui, MODEL_MENU)
+}
+
+/// Picks up Codex's models while the model menu saved under `menu` is open.
+pub(in super::super) fn poll_models(ui: &mut Ui, menu: &'static str) -> bool {
+    if ui.files.codex_models.is_empty() && menu_open(ui, menu) {
         let known = codex::models();
         if !known.is_empty() {
             ui.files.codex_models = known;

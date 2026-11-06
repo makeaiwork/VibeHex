@@ -48,6 +48,7 @@ mod hour_cycle;
 pub(crate) mod mcp;
 mod notes;
 pub mod query;
+pub(crate) mod requests;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 pub(crate) mod runtime;
 pub(crate) mod transcript;

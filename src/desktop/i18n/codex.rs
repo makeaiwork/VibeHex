@@ -51,4 +51,11 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Written by", ["Pisze", "撰写者", "書き手", "Geschrieben von", "Escrito por", "Пише"]),
     ("Written by {model}, because the chosen writer failed: {why}", ["Napisał {model}, bo wybrany autor zawiódł: {why}", "由 {model} 撰写，因为所选撰写者失败：{why}", "{model} が作成しました。選んだ書き手が失敗したためです：{why}", "Geschrieben von {model}, weil der gewählte Schreiber scheiterte: {why}", "Escrito por {model}, porque el redactor elegido falló: {why}", "Написала модель {model}, бо обраний автор не впорався: {why}"]),
     ("Written by {}", ["Napisał {}", "由 {} 撰写", "{} が作成", "Geschrieben von {}", "Escrito por {}", "Написала модель {}"]),
+    ("Sessions about this meeting", ["Sesje o tym spotkaniu", "关于此会议的会话", "この会議についてのセッション", "Sitzungen zu diesem Meeting", "Sesiones sobre esta reunión", "Сеанси про цю зустріч"]),
+    ("New session", ["Nowa sesja", "新会话", "新しいセッション", "Neue Sitzung", "Nueva sesión", "Новий сеанс"]),
+    ("1 question, {}", ["1 pytanie, {}", "1 个问题，{}", "質問 1 件、{}", "1 Frage, {}", "1 pregunta, {}", "1 запитання, {}"]),
+    ("{count} questions, {when}", ["Pytania: {count}, {when}", "{count} 个问题，{when}", "質問 {count} 件、{when}", "{count} Fragen, {when}", "{count} preguntas, {when}", "Запитань: {count}, {when}"]),
+    ("The question wasn't answered: {}", ["Brak odpowiedzi na pytanie: {}", "问题未获回答：{}", "質問に回答できませんでした：{}", "Die Frage wurde nicht beantwortet: {}", "La pregunta no se respondió: {}", "Відповіді на запитання немає: {}"]),
+    ("Ask about decisions, tasks, or who said what. Answers come from the transcript", ["Pytaj o decyzje, zadania albo kto co powiedział. Odpowiedzi pochodzą z transkrypcji", "可以询问决定、任务或谁说了什么。回答来自转写稿", "決定事項、タスク、誰が何を言ったかを質問できます。回答は文字起こしに基づきます", "Frag nach Entscheidungen, Aufgaben oder wer was gesagt hat. Die Antworten stammen aus dem Transkript", "Pregunta por decisiones, tareas o quién dijo qué. Las respuestas salen de la transcripción", "Питайте про рішення, завдання чи хто що сказав. Відповіді беруться з розшифровки"]),
+    ("Ask about this meeting", ["Zapytaj o to spotkanie", "就此会议提问", "この会議について質問", "Frag etwas zu diesem Meeting", "Pregunta sobre esta reunión", "Запитайте про цю зустріч"]),
 ];
