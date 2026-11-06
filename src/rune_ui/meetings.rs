@@ -1209,7 +1209,7 @@ pub(super) fn turn_line(p: Paint, index: usize, turn: &Turn) -> Vec<El> {
                 text(turn.text.clone())
                     .key("text")
                     .font(p.k.ty.body)
-                    .color(p.text())
+                    .color(p.reading())
                     .wrap(),
             ),
     );

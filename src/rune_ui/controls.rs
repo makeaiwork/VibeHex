@@ -92,6 +92,18 @@ impl Paint {
     pub(super) fn text(self) -> Color {
         self.k.c.text_base
     }
+    /// Long text read closely (Files' text and answers, a meeting's notes,
+    /// transcript, and answers): in dark mode the base ink at 82% over the
+    /// background, about 12:1 as chat apps keep it, so a long read doesn't
+    /// glare; titles and controls keep the base ink.
+    pub(super) fn reading(self) -> Color {
+        let c = &self.k.c;
+        if c.text_base.luminance() > c.bg_base.luminance() {
+            rune::theme::for_blend(c.text_base.alpha(0.82), c.bg_base)
+        } else {
+            c.text_base
+        }
+    }
     pub(super) fn muted(self) -> Color {
         self.k.c.text_muted
     }

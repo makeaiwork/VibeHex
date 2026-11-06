@@ -98,10 +98,9 @@ fn bubble(p: Paint, key: &str, question: &str) -> El {
 }
 
 fn markdown(p: Paint, source: String, muted: bool, streaming: bool) -> El {
-    let mut style = rune_kit::MarkdownStyle::from_kit(p.k).body_font(p.k.ty.ui);
-    if muted {
-        style = style.text(p.muted());
-    }
+    let style = rune_kit::MarkdownStyle::from_kit(p.k)
+        .body_font(p.k.ty.ui)
+        .text(if muted { p.muted() } else { p.reading() });
     rune_kit::Markdown::new(source)
         .style(style)
         .selectable(!streaming)

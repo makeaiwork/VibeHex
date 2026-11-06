@@ -494,7 +494,7 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
             let words = text(paragraph.text)
                 .key("text")
                 .font(p.k.ty.ui)
-                .color(p.text())
+                .color(p.reading())
                 .grow(1.0)
                 .shrink()
                 .wrap();
@@ -524,7 +524,11 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
             .color(p.faint());
     }
     rune_kit::Markdown::new(version.text.clone())
-        .style(rune_kit::MarkdownStyle::from_kit(p.k).body_font(p.k.ty.ui))
+        .style(
+            rune_kit::MarkdownStyle::from_kit(p.k)
+                .body_font(p.k.ty.ui)
+                .text(p.reading()),
+        )
         .selectable(true)
         .tasks_read_only()
         .build(p.k)
