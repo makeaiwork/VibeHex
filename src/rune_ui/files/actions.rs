@@ -130,7 +130,11 @@ fn chip_button(
             c.text_base.mix(c.text_weak, 0.45),
         )
     } else {
-        (c.layer_02, c.border_strong, c.text_base)
+        (
+            c.layer_02,
+            c.border_strong,
+            c.text_base.mix(c.text_weak, 0.35),
+        )
     };
     let chip = row()
         .key(key)
