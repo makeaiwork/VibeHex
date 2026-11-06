@@ -418,12 +418,15 @@ fn version_line(
                 .any(|other| other.kind == VersionKind::Cleanup && other.from == Some(version.id));
             if !cleaned {
                 let (id, from) = (record.id.clone(), version.id);
-                line = line.child(button(
+                // Compact, as Transcribe again beside it.
+                line = line.child(actions::quiet_button(
                     p,
                     "file-clean-up",
+                    Some(&super::super::icons::SPARKLES),
                     tr("Clean up"),
-                    ButtonKind::Secondary,
-                    move |ui: &mut Ui, _| {
+                    None,
+                    false,
+                    move |ui: &mut Ui| {
                         if let Some(task) = submit(ui, &id, Job::Cleanup { from, engine: None }) {
                             ui.files.tab = Some(Tab::Task(task));
                         }

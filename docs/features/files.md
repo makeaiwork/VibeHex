@@ -41,7 +41,8 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   models, "Same model" on the one that made the first Original; "Adds a
 │   │   version to Original"; More models in General); a model that takes a
 │   │   language asks for it first in a row under the line, starting at the
-│   │   saved one, with Transcribe and Cancel; Clean up while no Cleanup was
+│   │   saved one, with Transcribe and Cancel; Clean up (a small button
+│   │   with sparkles, as compact as Transcribe again) while no Cleanup was
 │   │   made from it
 │   ├── Cleanup: "<model> in an 8K window", Clean up again ▾ (Built in,
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›

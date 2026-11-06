@@ -173,6 +173,7 @@ const PATHS: &[(&str, &str)] = &[
     ),
     ("files", "Window/Files/Files"),
     ("files-working", "Window/Files/Working in 3 steps"),
+    ("files-clean-up", "Window/Files/Original not cleaned up yet"),
     ("files-original", "Window/Files/Original"),
     ("files-session", "Window/Files/Session on Codex"),
     ("files-summary", "Window/Files/Summary"),

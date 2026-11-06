@@ -573,6 +573,10 @@ pub(super) const SCENES: &[Scene] = &[
     ("files-working", |ui| {
         files_scene(ui, files::FilesPane::working_fixture())
     }),
+    ("files-clean-up", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(4));
+    }),
     ("files-original", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.files.tab = Some(files::Tab::Version(1));
