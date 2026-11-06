@@ -1010,7 +1010,9 @@ Requests tab (finished meeting, transcript, Labs › AI cleanup server on)
 └── Field floating at the bottom, as in Files: "Ask about this meeting",
     the model pill (Codex's models, then the AI cleanup engines), the
     reasoning pill on Codex, Send, or Stop while an answer comes
-Send -> a new session named by the question's first words, or the next
+Send -> a new session, named by the model that answers its first question
+  (the reply opens with "Title: <two to four words>", which the chat never
+  shows; the question's first words when it doesn't), or the next
   question in the open one -> Files' worker (also while Labs › Files is off)
   reads "Meeting: <title>", when, and the transcript with You/Them and
   clocks, and answers from it, giving times where they help

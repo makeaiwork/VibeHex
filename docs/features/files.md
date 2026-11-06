@@ -52,7 +52,10 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   ├── Cleanup: "<model> in an 8K window" in the ⓘ, Clean up again ▾ (Built in,
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›
 │   │   AI cleanup)
-│   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
+│   ├── Requests: the request's name as a tag (a chip's label; a typed
+│   │   request is named by the model that answers it: its reply opens with
+│   │   "Title: <two to four words>", hidden from the draft and the answer,
+│   │   or the request's first words when it doesn't), "Made from <tab> by <model>,
 │   │   32K window" in the ⓘ; each request tab is a session, a chat: a typed request
 │   │   as a bubble (a chip's request shows no bubble), its answer, then each
 │   │   follow-up as a bubble with its answer. Every answer ends in one row:

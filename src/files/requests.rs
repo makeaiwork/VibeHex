@@ -1,7 +1,9 @@
 //! Files' request sessions: a request on a version starts a session, a tab
 //! in Requests, and every question asked in it later is a follow-up that
 //! reads the same text with the conversation so far. A stopped answer keeps
-//! what came, marked Stopped.
+//! what came, marked Stopped. A typed request names its session in the
+//! same reply: the model starts with a "Title:" line, which becomes the
+//! tab's name and never shows; without one, its first words stay.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -13,11 +15,67 @@ use super::rewrite::{self, DraftKind, Drafts};
 use super::store::{self, FollowUp, Version, VersionKind};
 use super::worker::{Config, Stage, Task, drafts, source, update_task};
 
+/// What a typed request adds, so the model names it in the same reply.
+const TITLE_ASK: &str = "Begin your reply with one line: \"Title: \" and a name for this \
+     request of two to four words, in the request's language, without quotes. Then a blank \
+     line, then the answer.";
+
+/// The longest name a title gives a session.
+const TITLE_CHARS: usize = 48;
+
+/// A reply's "Title: …" line, as a session name.
+fn title_line(line: &str) -> Option<String> {
+    let line = line.trim().trim_start_matches(['#', '*', ' ']).trim();
+    let rest = line
+        .get(..6)
+        .filter(|head| head.eq_ignore_ascii_case("title:"))
+        .map(|_| &line[6..])?;
+    let title = rest.trim_matches(|c: char| c.is_whitespace() || "*\"'«»“”`.:".contains(c));
+    let title: String = title.chars().take(TITLE_CHARS).collect();
+    (!title.trim().is_empty()).then(|| title.trim().to_owned())
+}
+
+/// Splits a titled reply into its title, when it starts with one, and the
+/// answer after it.
+pub(super) fn split_title(text: &str) -> (Option<String>, &str) {
+    let start = text.trim_start();
+    let (first, rest) = start.split_once('\n').unwrap_or((start, ""));
+    match title_line(first) {
+        Some(title) if !rest.trim().is_empty() => (Some(title), rest.trim_start()),
+        _ => (None, text),
+    }
+}
+
+/// What a titled reply's draft shows: the answer, and nothing while its
+/// first line, which may be the title, is still coming.
+fn untitled_draft(text: &str) -> &str {
+    let start = text.trim_start();
+    if !start.contains('\n') {
+        let head: String = start
+            .trim_start_matches(['#', '*', ' '])
+            .chars()
+            .take(6)
+            .collect::<String>()
+            .to_lowercase();
+        return if "title:".starts_with(&head) || head.starts_with("title:") {
+            ""
+        } else {
+            text
+        };
+    }
+    match split_title(text) {
+        (Some(_), answer) => answer,
+        (None, _) => text,
+    }
+}
+
 /// A session's first request.
 pub struct Asked<'a> {
     pub from: u32,
     pub prompt: &'a str,
     pub name: &'a str,
+    /// Typed, so the reply names the session.
+    pub titled: bool,
     /// Overrides Settings' engine and effort for this session.
     pub engine: Option<&'a str>,
     pub effort: Option<&'a str>,
@@ -39,10 +97,15 @@ pub(super) fn request(
         task.model = Some(model.clone());
     });
     let started = Instant::now();
-    let (kept, drafts) = keeping(task.id);
+    let (kept, drafts) = keeping(task.id, asked.titled);
+    let prompt = if asked.titled {
+        format!("{}\n\n{TITLE_ASK}", asked.prompt)
+    } else {
+        asked.prompt.to_owned()
+    };
     let made = rewrite::request(
         &engine,
-        asked.prompt,
+        &prompt,
         &input,
         config.vocabulary_for_requests(),
         cancel,
@@ -70,13 +133,19 @@ pub(super) fn request(
             None => return Err(error),
         },
     };
+    let (title, text) = if asked.titled {
+        let (title, answer) = split_title(&made.text);
+        (title, answer.to_owned())
+    } else {
+        (None, made.text)
+    };
     let effort = engine.effort().map(str::to_owned);
     store::update(&task.record, |record| {
-        let name = record.unique_name(asked.name);
+        let name = record.unique_name(title.as_deref().unwrap_or(asked.name));
         record.push(Version {
             kind: VersionKind::Request,
             name,
-            text: made.text,
+            text,
             model,
             from: Some(asked.from),
             prompt: Some(asked.prompt.into()),
@@ -126,7 +195,7 @@ pub(super) fn follow_up(
     );
     let prompt = rewrite::follow_up_prompt(&earlier, question);
     let started = Instant::now();
-    let (kept, drafts) = keeping(task.id);
+    let (kept, drafts) = keeping(task.id, false);
     let made = rewrite::request(
         &engine,
         &prompt,
@@ -216,8 +285,10 @@ fn meeting_answer(
         .iter()
         .map(|turn| (turn.question.as_str(), turn.answer.as_str()))
         .collect();
-    let prompt = if earlier.is_empty() {
-        format!("{MEETING_GUIDE}\n\n{}", question.trim())
+    // A new session's first question names it in the same reply.
+    let titled = earlier.is_empty();
+    let prompt = if titled {
+        format!("{MEETING_GUIDE}\n\n{}\n\n{TITLE_ASK}", question.trim())
     } else {
         format!(
             "{MEETING_GUIDE}\n\n{}",
@@ -225,7 +296,7 @@ fn meeting_answer(
         )
     };
     let started = Instant::now();
-    let (kept, drafts) = keeping(task.id);
+    let (kept, drafts) = keeping(task.id, titled);
     let made = rewrite::request(
         &engine,
         &prompt,
@@ -248,9 +319,18 @@ fn meeting_answer(
             None => return Err(error),
         },
     };
+    let (title, answer) = if titled {
+        let (title, rest) = split_title(&answer);
+        (title, rest.to_owned())
+    } else {
+        (None, answer)
+    };
     let effort = engine.effort().map(str::to_owned);
     crate::meeting::requests::update(id, |sessions| {
         if let Some(asked) = sessions.iter_mut().find(|asked| asked.id == session) {
+            if let Some(title) = title.filter(|_| asked.turns.is_empty()) {
+                asked.name = title;
+            }
             asked.turns.push(FollowUp {
                 question: question.trim().into(),
                 answer,
@@ -268,8 +348,8 @@ fn meeting_answer(
 }
 
 /// The task's drafts, also keeping the whole answer as it streams, so a
-/// stop can save what came.
-fn keeping(task: u64) -> (Arc<Mutex<String>>, Drafts) {
+/// stop can save what came; a titled reply's draft hides its title line.
+fn keeping(task: u64, titled: bool) -> (Arc<Mutex<String>>, Drafts) {
     let kept = Arc::new(Mutex::new(String::new()));
     let shown = drafts(task);
     let keep = kept.clone();
@@ -279,7 +359,12 @@ fn keeping(task: u64) -> (Arc<Mutex<String>>, Drafts) {
         {
             text.clone_into(&mut kept);
         }
-        shown(kind, text);
+        // The title line never shows, also while it comes.
+        if titled && kind == DraftKind::Result {
+            shown(kind, untitled_draft(text));
+        } else {
+            shown(kind, text);
+        }
     });
     (kept, drafts)
 }
@@ -309,6 +394,30 @@ mod tests {
             stopped_with(&AtomicBool::new(true), &Mutex::new(" ".into())),
             None
         );
+    }
+
+    #[test]
+    fn a_titled_reply_names_its_session_and_the_title_never_shows() {
+        let reply = "Title: Пост для Telegram\n\nВот пост: …";
+        assert_eq!(
+            split_title(reply),
+            (Some("Пост для Telegram".into()), "Вот пост: …")
+        );
+        assert_eq!(
+            split_title("**Title:** \"Who waits\".\n\nDesign waits.").0,
+            Some("Who waits".into())
+        );
+        // No title line, or nothing after it: the reply stays whole.
+        assert_eq!(
+            split_title("Design waits.\nOn Tuesday."),
+            (None, "Design waits.\nOn Tuesday.")
+        );
+        assert_eq!(split_title("Title: Alone").0, None);
+        // While the first line comes, nothing shows; then only the answer.
+        assert_eq!(untitled_draft("Tit"), "");
+        assert_eq!(untitled_draft("Title: Пост"), "");
+        assert_eq!(untitled_draft("Title: Пост\n\nВот"), "Вот");
+        assert_eq!(untitled_draft("Design waits"), "Design waits");
     }
 
     #[test]

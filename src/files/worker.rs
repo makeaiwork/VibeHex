@@ -115,6 +115,8 @@ pub enum Job {
         from: u32,
         prompt: String,
         name: String,
+        /// Typed, so the reply names the session.
+        titled: bool,
         engine: Option<String>,
         effort: Option<String>,
     },
@@ -438,6 +440,7 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
             from,
             prompt,
             name,
+            titled,
             engine,
             effort,
         } => super::requests::request(
@@ -446,6 +449,7 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
                 from: *from,
                 prompt,
                 name,
+                titled: *titled,
                 engine: engine.as_deref(),
                 effort: effort.as_deref(),
             },

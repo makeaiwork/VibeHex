@@ -559,6 +559,7 @@ pub(super) fn start(
         from,
         prompt,
         name,
+        titled: typed,
         engine: ui.files.ask_engine.clone(),
         effort: ui.files.ask_effort.clone(),
     };
