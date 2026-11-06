@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicU8, Ordering};
 
+mod codex;
 mod files;
 mod french;
 mod portuguese;
@@ -317,7 +318,10 @@ pub(crate) fn event_age(timestamp_ms: u64) -> String {
 
 /// Every string with its six columns: the main table, then Files' (Labs).
 fn translations() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
-    TRANSLATIONS.iter().chain(files::TRANSLATIONS)
+    TRANSLATIONS
+        .iter()
+        .chain(files::TRANSLATIONS)
+        .chain(codex::TRANSLATIONS)
 }
 
 fn tables() -> &'static [HashMap<&'static str, &'static str>; 6] {
@@ -1615,6 +1619,7 @@ mod tests {
         include_str!("../rune_ui/onboarding_kit/versus.rs"),
         include_str!("../rune_ui/output.rs"),
         include_str!("../rune_ui/output/ai_cleanup.rs"),
+        include_str!("../rune_ui/output/codex_cleanup.rs"),
         include_str!("../rune_ui/picker.rs"),
         include_str!("../rune_ui/picker/compare.rs"),
         include_str!("../rune_ui/picker/facts.rs"),

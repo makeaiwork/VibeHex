@@ -21,8 +21,8 @@ pub struct FilesSettings {
     pub show_timestamps: bool,
     /// A file is cleaned up as soon as it is transcribed.
     pub cleanup_after: bool,
-    /// Where cleanup runs: `local:<model id>`, `openrouter`, `custom`, or
-    /// `opencode`; `None` follows dictation's AI cleanup.
+    /// Where cleanup runs: `local:<model id>`, `openrouter`, `custom`,
+    /// `codex`, or `opencode`; `None` follows dictation's AI cleanup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup_engine: Option<String>,
     /// Where requests run, in `cleanup_engine`'s form; `None` follows

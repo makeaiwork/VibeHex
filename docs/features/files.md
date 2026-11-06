@@ -78,7 +78,8 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
              only for a model that takes a hint: Same as dictation or one of
              its languages; a new model choice clears it), Use vocabulary, Show
              timestamps; Cleanup: Clean up after transcription, Runs on (Same
-             as dictation / built in / OpenRouter / Your server / OpenCode),
+             as dictation / built in / OpenRouter / Your server / Codex once
+             Output › AI cleanup chose it / OpenCode),
              Use the Default mode's prompt (its start in italics while on;
              off, Files' own prompt); Requests › Runs on (files.request_engine:
              Same as cleanup or any of those); Quick requests as a list (name,

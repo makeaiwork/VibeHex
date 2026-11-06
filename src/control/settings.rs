@@ -274,8 +274,8 @@ const KEYS: &[Key] = &[
     ),
     key(
         "dictation_processing.server.runs_on",
-        Kind::Choice(&["opencode", "openrouter", "custom", "local"]),
-        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, your own OpenAI-compatible server, or a model Hex downloads (local, macOS)",
+        Kind::Choice(&["opencode", "openrouter", "custom", "local", "codex"]),
+        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, your own OpenAI-compatible server, a model Hex downloads (local, macOS), or the Codex CLI on your ChatGPT plan (codex)",
     ),
     key(
         "dictation_processing.server.url",
@@ -296,6 +296,16 @@ const KEYS: &[Key] = &[
         "dictation_processing.server.local_model",
         Kind::Text,
         "The downloaded model local cleanup runs, such as qwen3-4b-instruct-2507; empty for the recommended one",
+    ),
+    key(
+        "dictation_processing.server.codex_model",
+        Kind::Text,
+        "The Codex model cleanup uses, such as gpt-6-luna; empty for Codex's default",
+    ),
+    key(
+        "dictation_processing.server.codex_effort",
+        Kind::Text,
+        "How hard the Codex model thinks first: low, medium, or high; empty for the model's default",
     ),
     key(
         "history_retention",
@@ -871,6 +881,7 @@ pub fn set_api_key(name: &str, raw: &str) -> Option<Result<super::ControlReply, 
         crate::dictation::cleanup_server::Provider::OpenRouter => "OpenRouter",
         crate::dictation::cleanup_server::Provider::Custom => "your server's",
         crate::dictation::cleanup_server::Provider::Local => "the built-in model's",
+        crate::dictation::cleanup_server::Provider::Codex => "Codex's",
     };
     Some(
         crate::dictation::cleanup_server::keys::set(provider, if clear { "" } else { raw })

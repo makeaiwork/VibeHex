@@ -13,7 +13,7 @@ use super::super::controls::{
 };
 use super::super::list_detail as ld;
 use super::super::{Menu, Ui, icons};
-use crate::app_settings::{DEFAULT_FILES_PROMPT, QuickPrompt};
+use crate::app_settings::{CleanupRunsOn, DEFAULT_FILES_PROMPT, QuickPrompt};
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::local_models;
 
@@ -57,6 +57,18 @@ pub(in super::super) fn engine_choices(ui: &Ui) -> Vec<EngineChoice> {
         choices.push(EngineChoice {
             value: "custom".into(),
             label: tr_fill("Your server: {}", &name),
+            local: false,
+        });
+    }
+    // Codex, once Output › AI cleanup has been set to it.
+    if server.runs_on == CleanupRunsOn::Codex || !server.codex_model.trim().is_empty() {
+        let label = match server.codex_model.trim() {
+            "" => "Codex".to_owned(),
+            model => tr_fill("Codex: {}", model),
+        };
+        choices.push(EngineChoice {
+            value: "codex".into(),
+            label,
             local: false,
         });
     }

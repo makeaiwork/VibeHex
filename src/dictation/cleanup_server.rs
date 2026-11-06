@@ -8,8 +8,10 @@
 //! its own thread so cancellation and the deadline end the wait at once; a
 //! late answer is dropped. API keys come from the OS credential store
 //! ([`keys`]), never from settings.json. Built in runs a model Hex downloads
-//! ([`local_models`]) on the bundled llama.cpp server ([`engine`]).
+//! ([`local_models`]) on the bundled llama.cpp server ([`engine`]). Codex
+//! answers through the Codex CLI's app-server ([`codex`]).
 
+pub mod codex;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub mod engine;
 pub(crate) mod keys;
@@ -75,6 +77,8 @@ pub enum Provider {
     /// A downloaded model on the bundled engine; it needs no key of the
     /// person's.
     Local,
+    /// The Codex CLI, signed in on its own; Hex keeps no key for it.
+    Codex,
 }
 
 impl Provider {
@@ -83,6 +87,7 @@ impl Provider {
             Self::OpenRouter => "openrouter",
             Self::Custom => "custom",
             Self::Local => "local",
+            Self::Codex => "codex",
         }
     }
 }
@@ -93,6 +98,9 @@ pub struct Server {
     pub provider: Provider,
     pub url: String,
     pub model: String,
+    /// Codex's reasoning effort; empty for the model's default and for
+    /// every other provider.
+    pub effort: String,
 }
 
 impl Server {
@@ -104,17 +112,26 @@ impl Server {
                 provider: Provider::OpenRouter,
                 url: OPENROUTER_URL.into(),
                 model: settings.openrouter_model.trim().into(),
+                effort: String::new(),
             }),
             CleanupRunsOn::Custom => Some(Self {
                 provider: Provider::Custom,
                 url: settings.url.trim().into(),
                 model: settings.custom_model.trim().into(),
+                effort: String::new(),
             }),
             // The engine's address is known once it runs ([`engine::endpoint`]).
             CleanupRunsOn::Local => Some(Self {
                 provider: Provider::Local,
                 url: String::new(),
                 model: local_models::chosen(&settings.local_model).id.into(),
+                effort: String::new(),
+            }),
+            CleanupRunsOn::Codex => Some(Self {
+                provider: Provider::Codex,
+                url: String::new(),
+                model: settings.codex_model.trim().into(),
+                effort: settings.codex_effort.trim().into(),
             }),
         }
     }
@@ -126,6 +143,7 @@ impl Server {
             Provider::OpenRouter => "OpenRouter".into(),
             Provider::Local => local_models::chosen(&self.model).name.into(),
             Provider::Custom => server_name(&self.url),
+            Provider::Codex => "Codex".into(),
         }
     }
 }
@@ -161,6 +179,17 @@ pub fn generate(
     cancelled: &AtomicBool,
     streamed: Option<Streamed>,
 ) -> Result<String> {
+    if server.provider == Provider::Codex {
+        return codex::generate(
+            &server.model,
+            &server.effort,
+            instructions,
+            transcript,
+            deadline,
+            cancelled,
+            streamed,
+        );
+    }
     if server.provider == Provider::Local {
         return generate_locally(
             server,
@@ -290,6 +319,18 @@ pub fn test(server: &Server, key: Option<&str>) -> Result<Duration> {
         generate_locally(
             server,
             engine::CONTEXT_TOKENS,
+            "Reply with the single word OK.",
+            "ping",
+            ENGINE_TEST_DEADLINE,
+            &AtomicBool::new(false),
+            None,
+        )?;
+        return Ok(started.elapsed());
+    }
+    if server.provider == Provider::Codex {
+        // The first request may start Codex, which takes a moment.
+        generate(
+            server,
             "Reply with the single word OK.",
             "ping",
             ENGINE_TEST_DEADLINE,

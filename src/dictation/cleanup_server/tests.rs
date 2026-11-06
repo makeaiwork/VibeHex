@@ -48,6 +48,7 @@ fn custom(url: &str) -> Server {
         provider: Provider::Custom,
         url: url.into(),
         model: "gemma-4-e4b-it-mlx".into(),
+        effort: String::new(),
     }
 }
 

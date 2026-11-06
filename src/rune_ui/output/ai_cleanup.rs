@@ -3,7 +3,8 @@
 //! OpenAI-compatible server such as LM Studio), with which model, key, and
 //! instructions, and a Test that sends one short request. The model field
 //! takes any id, and its list offers the models the server reports. Built in
-//! (macOS) lists the models Hex downloads instead ([`super::local_cleanup`]).
+//! (macOS) lists the models Hex downloads instead ([`super::local_cleanup`]);
+//! Codex shows its account, models, and plan usage ([`super::codex_cleanup`]).
 
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::time::Duration;
@@ -46,6 +47,8 @@ pub(in crate::rune_ui) struct Cleanup {
     picker_was_open: bool,
     /// The built-in models and downloads.
     pub(super) local: super::local_cleanup::LocalModels,
+    /// What Codex reports about itself.
+    pub(super) codex: super::codex_cleanup::CodexCleanup,
 }
 
 /// Which server a model list came from: a change loads it again.
@@ -130,7 +133,10 @@ pub(super) fn section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
         .into(),
         runs_on_row(p, saved.runs_on).into(),
     ];
-    if let Some(server) = Server::from_settings(saved)
+    let codex = saved.runs_on == CleanupRunsOn::Codex;
+    if codex {
+        rows.extend(super::codex_cleanup::rows(ui, p, layer));
+    } else if let Some(server) = Server::from_settings(saved)
         && server.provider == Provider::Local
     {
         rows.push(status_row(ui, p, &server).into());
@@ -144,31 +150,42 @@ pub(super) fn section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
         rows.push(key_row(ui, p, server.provider).into());
     }
     rows.push(instructions(ui, p).into());
-    Some(super::labeled(
+    let section = super::labeled(
         p,
         "ai-cleanup",
         tr("AI cleanup"),
         &cleanup_server::Server::from_settings(saved)
             .map_or_else(|| "OpenCode".into(), |server| server.name()),
         rows,
-    ))
+    );
+    Some(if codex {
+        col()
+            .key("ai-cleanup-group")
+            .gap(METRICS.label_gap)
+            .child(section)
+            .child(super::codex_cleanup::note(p))
+    } else {
+        section
+    })
 }
 
 fn runs_on_row(p: Paint, runs_on: CleanupRunsOn) -> El {
     let selected = match runs_on {
         CleanupRunsOn::Opencode => 0,
         CleanupRunsOn::Openrouter => 1,
-        CleanupRunsOn::Custom => 2,
-        CleanupRunsOn::Local => 3,
+        CleanupRunsOn::Codex => 2,
+        CleanupRunsOn::Custom => 3,
+        CleanupRunsOn::Local => 4,
     };
     let description = match runs_on {
         CleanupRunsOn::Opencode => tr("The OpenCode service running on this computer"),
         CleanupRunsOn::Openrouter => tr("Hundreds of models with one API key"),
         CleanupRunsOn::Custom => tr("Ollama, LM Studio, or any OpenAI-compatible URL"),
         CleanupRunsOn::Local => tr("A model Hex downloads and runs itself, offline"),
+        CleanupRunsOn::Codex => tr("Your ChatGPT plan, through the Codex CLI on this computer"),
     };
     // The built-in engine ships in the macOS app only.
-    let mut labels = vec!["OpenCode", "OpenRouter", tr("Your own")];
+    let mut labels = vec!["OpenCode", "OpenRouter", "Codex", tr("Your own")];
     if cfg!(target_os = "macos") {
         labels.push(tr("Built in"));
     }
@@ -185,8 +202,9 @@ fn runs_on_row(p: Paint, runs_on: CleanupRunsOn) -> El {
             |ui: &mut Ui, index| {
                 let runs_on = match index {
                     1 => CleanupRunsOn::Openrouter,
-                    2 => CleanupRunsOn::Custom,
-                    3 => CleanupRunsOn::Local,
+                    2 => CleanupRunsOn::Codex,
+                    3 => CleanupRunsOn::Custom,
+                    4 => CleanupRunsOn::Local,
                     _ => CleanupRunsOn::Opencode,
                 };
                 if ui.settings.dictation_processing.server.runs_on != runs_on {
@@ -197,6 +215,33 @@ fn runs_on_row(p: Paint, runs_on: CleanupRunsOn) -> El {
                 }
             },
         ),
+    )
+}
+
+/// How the last Test of the chosen server went, while it is the one tested.
+pub(super) fn test_result(ui: &Ui) -> Option<Result<Duration, String>> {
+    let server = Server::from_settings(&ui.settings.dictation_processing.server)?;
+    match &ui.output.cleanup.test {
+        Test::Passed(tested, took) if *tested == server => Some(Ok(*took)),
+        Test::Failed(tested, why) if *tested == server => Some(Err(why.clone())),
+        _ => None,
+    }
+}
+
+/// Whether the chosen server's Test is running.
+pub(super) fn testing(ui: &Ui) -> bool {
+    Server::from_settings(&ui.settings.dictation_processing.server).is_some_and(
+        |server| matches!(&ui.output.cleanup.test, Test::Testing(tested, _) if *tested == server),
+    )
+}
+
+pub(super) fn test_button(p: Paint) -> El {
+    button(
+        p,
+        "ai-cleanup-test",
+        tr("Test"),
+        ButtonKind::Secondary,
+        |ui, _| test(ui),
     )
 }
 
@@ -417,7 +462,7 @@ fn key_row(ui: &Ui, p: Paint, provider: Provider) -> El {
         (true, _) => tr("Saved outside settings.json"),
         (false, Provider::OpenRouter) => tr("Required"),
         (false, Provider::Custom) => tr("Not needed for LM Studio or Ollama"),
-        (false, Provider::Local) => "",
+        (false, Provider::Local | Provider::Codex) => "",
     };
     let typed = !ui.output.cleanup.key.text.trim().is_empty();
     let input = TextInput::new(&ui.output.cleanup.key)
@@ -697,7 +742,7 @@ fn test(ui: &mut Ui) {
     let started = std::thread::Builder::new()
         .name("hex-cleanup-test".into())
         .spawn(move || {
-            let key = (tested.provider != Provider::Local)
+            let key = (!matches!(tested.provider, Provider::Local | Provider::Codex))
                 .then(|| cleanup_server::keys::get(tested.provider))
                 .flatten();
             let _ = sender.send(
@@ -715,13 +760,18 @@ fn test(ui: &mut Ui) {
 /// Takes a finished Test's answer and model list, and loads the chosen
 /// server's list while the window shows; true when it changed what shows.
 pub(super) fn poll(ui: &mut Ui) -> bool {
-    poll_models(ui) | poll_test(ui) | super::local_cleanup::poll(ui)
+    poll_models(ui)
+        | poll_test(ui)
+        | super::local_cleanup::poll(ui)
+        | super::codex_cleanup::poll(ui)
 }
 
 /// Whether something in the section moves on its own: a download, the
 /// model loading, or a Test.
 pub(super) fn busy(ui: &Ui) -> bool {
-    ui.output.cleanup.local.busy() || matches!(ui.output.cleanup.test, Test::Testing(..))
+    ui.output.cleanup.local.busy()
+        || ui.output.cleanup.codex.busy()
+        || matches!(ui.output.cleanup.test, Test::Testing(..))
 }
 
 fn poll_models(ui: &mut Ui) -> bool {
@@ -745,7 +795,7 @@ fn poll_models(ui: &mut Ui) -> bool {
         return false;
     }
     let Some(server) = Server::from_settings(&ui.settings.dictation_processing.server)
-        .filter(|server| server.provider != Provider::Local)
+        .filter(|server| !matches!(server.provider, Provider::Local | Provider::Codex))
     else {
         return false;
     };

@@ -148,6 +148,10 @@ const PATHS: &[(&str, &str)] = &[
     ("output-trust", "Window/Output/Trust prompt"),
     ("output-ai-cleanup", "Window/Output/AI cleanup"),
     (
+        "output-ai-cleanup-codex",
+        "Window/Output/AI cleanup on Codex",
+    ),
+    (
         "output-ai-cleanup-local",
         "Window/Output/AI cleanup on this Mac",
     ),

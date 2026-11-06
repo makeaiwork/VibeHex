@@ -32,6 +32,11 @@ pub struct CleanupServerSettings {
     /// The downloaded built-in model runs (`local_models::MODELS`); empty
     /// means the recommended one.
     pub local_model: String,
+    /// The Codex model id, such as `gpt-6-luna`; empty means Codex's default.
+    pub codex_model: String,
+    /// How hard the Codex model thinks first: `low`, `medium`, or `high`;
+    /// empty means the model's default.
+    pub codex_effort: String,
 }
 
 /// The service that rewrites dictations.
@@ -46,6 +51,8 @@ pub enum CleanupRunsOn {
     Custom,
     /// A model Hex downloads, on the bundled llama.cpp engine.
     Local,
+    /// The Codex CLI on this computer, on the person's ChatGPT plan.
+    Codex,
 }
 
 impl Default for DictationProcessingSettings {

@@ -1384,6 +1384,7 @@ mod tests {
             provider: crate::dictation::cleanup_server::Provider::Custom,
             url,
             model,
+            effort: String::new(),
         };
         let vocabulary = [
             VocabularyEntry {
@@ -1436,6 +1437,7 @@ mod tests {
             provider: crate::dictation::cleanup_server::Provider::Custom,
             url: var("HEX_E2E_CLEANUP_URL"),
             model: var("HEX_E2E_CLEANUP_MODEL"),
+            effort: String::new(),
         };
         let text = std::fs::read_to_string(var("HEX_E2E_LONG_TEXT")).unwrap();
         let profile = Profile::new(
@@ -1504,6 +1506,7 @@ mod tests {
             provider: crate::dictation::cleanup_server::Provider::Custom,
             url,
             model,
+            effort: String::new(),
         };
         let replacements: Vec<crate::dictation::text_replacements::TextReplacement> =
             serde_json::from_str(include_str!("../../docs/vocabulary/replacements-ru.json"))

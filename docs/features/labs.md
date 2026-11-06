@@ -915,8 +915,22 @@ OpenCode needn't run.
 ```ts
 Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 ├── Clean up with AI -> switch for Global's rewrite (default_mode.post_processing.enabled)
-├── Runs on -> OpenCode · OpenRouter · Your own · Built in (macOS)   (dictation_processing.server.runs_on)
+├── Runs on -> OpenCode · OpenRouter · Codex · Your own · Built in (macOS)   (dictation_processing.server.runs_on)
 │   ├── OpenCode -> no further rows; rewriting is exactly as without the toggle
+│   ├── Codex -> no URL, Model field, or key rows; instead (codex_cleanup, loaded on its own
+│   │   thread while Output shows Codex; Check again asks again):
+│   │   ├── Codex -> "Looking for Codex…" | "Not found. … install it with brew install codex
+│   │   │   (npm install -g @openai/codex off macOS), then sign in once" + Copy command, Check again
+│   │   │   | "Not signed in. …" + Sign in with ChatGPT (opens the page Codex's account/login/start
+│   │   │   gives; the status is asked again every 3 s for 5 minutes) | "Codex 0.164.0. Signed in
+│   │   │   with ChatGPT Pro as …" + Test | "Answered in 6.2 s" | the error
+│   │   ├── Model -> select of Codex's model/list (hidden ones left out), the chosen one's
+│   │   │   description under it; empty is Codex's default (dictation_processing.server.codex_model)
+│   │   ├── Reasoning -> Low · Medium · High (codex_effort; empty reads as Low)
+│   │   ├── Plan usage (ChatGPT sign-in only) -> each account/rateLimits/read window: "5 hours 23%",
+│   │   │   "This week 41%"; reached -> "The limit is reached. Until it resets, dictations paste as heard"
+│   │   └── under the card: "Codex gets only the dictation and your instructions: no tools, no
+│   │       files, no commands. Nothing lands in its history."
 │   └── Built in -> no URL, Model, or key rows; instead:
 │       ├── Built in -> "Download a model below" | "Loads when you dictate" | "Loading the model…" | "Loaded"; Test once one is downloaded
 │       │   while loading, Test hides and only the model's own row shows "Loading 45%",
@@ -1031,6 +1045,33 @@ A managed `opencode_processing` lock turns this rewrite off too. Keys:
 `.openrouter_model`, `.custom_model`; `.openrouter_api_key` and
 `.custom_api_key` save a key (`none` removes it) and read back only `set` or
 `unset`. Not built: per-mode servers.
+
+Codex (`runs_on` `codex`, every OS) answers through the Codex CLI already
+installed and signed in on the computer, on the person's ChatGPT plan
+([cleanup_server/codex.rs](../../src/dictation/cleanup_server/codex.rs)). Hex
+finds `codex` on `PATH`, then in Homebrew's, npm's, Bun's, Volta's, and nvm's
+folders, and starts `codex app-server` on first use with the executable's own
+folder first on the child's `PATH` (npm's `codex` is a Node script). It speaks
+the app-server's JSON-RPC over stdin and stdout and keeps the process warm
+for 10 minutes after its last request. Each rewrite is one ephemeral thread
+(`approvalPolicy` never, `sandbox` read-only, an empty `codex` folder in Hex's
+data folder as its `cwd`) whose base instructions are the system message,
+then one turn with the transcript block and the chosen effort; the answer
+streams from `item/agentMessage/delta` and ends at `turn/completed`, and the
+thread is unsubscribed after. Hex's process overrides the person's
+`~/.codex/config.toml` with `-c`: no `notify` command, MCP servers, project
+instructions, or web search, and hooks, memories, apps, plugins, multi-agent,
+shell, computer and browser use, image generation, goals, and the code-mode
+host off. Codex asks no approvals in that setup; any server request it sends
+is refused. Cancellation and the mode's deadline send `turn/interrupt` and
+paste the corrected transcript, as for any server. A usage limit reads "your
+ChatGPT plan's Codex limit is reached". Measured in the owner's Codex 0.164 on
+a Pro plan: a warm thread starts in 0.07 s, a short dictation answers in 5 to
+19 s on GPT-6-Luna or GPT-6.1-Sol at Low (Fast tier no quicker), so a mode's
+30-second deadline suits it and a 6-second one would mostly paste as heard.
+`answers_on_the_installed_codex` (ignored; needs Codex signed in) checks the
+status, a streamed answer, and an immediate cancel. Keys:
+`dictation_processing.server.codex_model`, `.codex_effort`.
 
 Built in (macOS app only; `runs_on` `local`) runs a model Hex downloads
 itself, with no LM Studio or Ollama. The offered models are pinned in

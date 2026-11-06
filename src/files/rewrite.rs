@@ -106,6 +106,7 @@ impl Engine {
             None | Some("opencode") => None,
             Some("openrouter") => Server::from_settings(&runs_on(CleanupRunsOn::Openrouter)),
             Some("custom") => Server::from_settings(&runs_on(CleanupRunsOn::Custom)),
+            Some("codex") => Server::from_settings(&runs_on(CleanupRunsOn::Codex)),
             Some(other) => {
                 let id = other.strip_prefix("local:").unwrap_or(other);
                 Server::from_settings(&CleanupServerSettings {
@@ -128,6 +129,11 @@ impl Engine {
                 cleanup_server::local_models::chosen(&server.model)
                     .name
                     .into()
+            }
+            Self::Server(server)
+                if server.provider == Provider::Codex && server.model.is_empty() =>
+            {
+                "Codex".into()
             }
             Self::Server(server) => short_model(&server.model),
             Self::OpenCode(mode) => mode

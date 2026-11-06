@@ -107,6 +107,12 @@ pub(super) const SCENES: &[Scene] = &[
         output::ai_cleanup_fixture(ui);
         ui.pane = Pane::Output;
     }),
+    ("output-ai-cleanup-codex", |ui| {
+        *ui = portal_fixture();
+        output::fixture(ui);
+        output::ai_cleanup_codex_fixture(ui);
+        ui.pane = Pane::Output;
+    }),
     ("output-ai-cleanup-local", |ui| {
         *ui = portal_fixture();
         output::fixture(ui);
