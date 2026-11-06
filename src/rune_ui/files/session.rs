@@ -1,23 +1,29 @@
 //! A request session in Requests, as a chat: the first request's answer,
 //! then each later question as a bubble with its answer under it. Every
-//! answer ends in the same compact row: Copy and Ask again as icons, the
-//! model in grey, Stopped in amber when it was stopped, and the time.
+//! answer ends in the same compact row: Copy and Ask again as quiet icons
+//! in the same grey as the model and the time, as the mockups draw them,
+//! Stopped in amber when it was stopped.
 
-use rune::{El, col, row, text};
+use rune::{El, col, icon, row, text};
 
 use super::super::Ui;
 use super::super::controls::Paint;
-use super::super::list_detail as ld;
 use super::composer::Target;
 use super::submit;
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::files::store::{FileRecord, Version};
 use crate::files::worker::{Job, Task};
 
+static COPY_ICON: rune::Icon = rune::Icon {
+    name: "hex-files-answer-copy",
+    view: 16.0,
+    body: r#"<rect x="5" y="5" width="8.5" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 10.5V3.2c0-.4.3-.7.7-.7H11" fill="none" stroke="currentColor" stroke-width="1.4"/>"#,
+};
+
 static AGAIN_ICON: rune::Icon = rune::Icon {
     name: "hex-files-ask-again",
     view: 16.0,
-    body: r#"<path d="M12.8 6.2A5 5 0 1 0 13 9.5M13 3v3.4H9.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>"#,
+    body: r#"<path d="M13 8a5 5 0 1 1-1.6-3.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 2.8v2.9h-2.9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>"#,
 };
 
 /// What one answer row says.
@@ -143,15 +149,16 @@ fn answer_row(p: Paint, answered: &Answered<'_>, again: impl Fn(&mut Ui, String)
     row()
         .key("row")
         .gap(2.0)
+        .ml(-4.0)
         .center_y()
-        .child(ld::ghost_icon(
+        .child(quiet_icon(
             p,
             "copy",
-            ld::COPY_ICON,
+            &COPY_ICON,
             tr("Copy"),
             move |_, tx| tx.copy(copied.clone()),
         ))
-        .child(ld::ghost_icon(
+        .child(quiet_icon(
             p,
             "again",
             &AGAIN_ICON,
@@ -180,6 +187,31 @@ fn answer_row(p: Paint, answered: &Answered<'_>, again: impl Fn(&mut Ui, String)
                 .font(small)
                 .color(p.faint()),
         )
+}
+
+/// A 14 pt icon in the row's grey on a 24 pt target that shows a quiet
+/// background on hover.
+fn quiet_icon(
+    p: Paint,
+    key: &str,
+    glyph: &'static rune::Icon,
+    label: &str,
+    press: impl Fn(&mut Ui, &mut rune::Tx) + 'static,
+) -> El {
+    let c = &p.k.c;
+    row()
+        .key(key.to_owned())
+        .role("button")
+        .label(label)
+        .focusable(true)
+        .focus_ring(2.0, 0.0, c.border_focus)
+        .size(24.0, 24.0)
+        .center()
+        .radius(6.0)
+        .hover(c.hover)
+        .press(c.pressed)
+        .child(icon(glyph, 14.0).key("glyph").color(p.faint()))
+        .on_press_tx(press)
 }
 
 /// "Today, 11:21", as the list names days.

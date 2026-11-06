@@ -949,9 +949,10 @@ Detail (a raised card beside the list)
 │       Regenerate summary ("Summarizing…" disabled while running), separator,
 │       Delete… (finished meetings only for the last three)
 ├── Errors at the top of the scroll area
-├── Tabs as in Files: Summary (the notes as Markdown, who wrote them, the
+├── Tabs as in Files, the transcript first as Files puts the Original first:
+│   Transcript, Summary (the notes as Markdown, who wrote them, the
 │   chapters; shown once there are notes, chapters, or notes on the way),
-│   Transcript, and Requests (a finished meeting with a transcript, while
+│   and Requests (a finished meeting with a transcript, while
 │   Labs › AI cleanup server is on); a finished meeting with notes opens on
 │   Summary, a recording one on Transcript; the tab chosen last stays
 │   (meetings.tab, not saved)

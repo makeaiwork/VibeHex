@@ -50,8 +50,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   32K window"; each request tab is a session, a chat: a typed request
 │   │   as a bubble (a chip's request shows no bubble), its answer, then each
 │   │   follow-up as a bubble with its answer. Every answer ends in one row:
-│   │   Copy and Ask again as icons, the model in grey, Stopped in amber when
-│   │   stopped (what came is kept), and the day and time. A follow-up reads
+│   │   Copy and Ask again as quiet icons in the grey of the model and the
+│   │   time, the model, Stopped in amber when stopped (what came is kept),
+│   │   and the day and time. A follow-up reads
 │   │   the same source tab with the conversation so far (earlier answers cut
 │   │   at 6,000 characters); while it runs, "<model> is answering" under the
 │   │   streaming draft. Saved in the version: engine, effort, follow_ups

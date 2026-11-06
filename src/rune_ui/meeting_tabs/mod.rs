@@ -1,5 +1,5 @@
-//! A meeting's tabs, as Files has them: Summary (the notes and the
-//! chapters), Transcript, and Requests (questions about the meeting), in a
+//! A meeting's tabs, as Files has them: Transcript, Summary (the notes and
+//! the chapters), and Requests (questions about the meeting), in a
 //! strip under the meeting's line. A meeting that is still recording, or
 //! has no notes yet, opens on its transcript.
 
@@ -35,11 +35,11 @@ impl MeetingTab {
 /// engines on.
 fn tabs(ui: &Ui, meeting: &Meeting) -> Vec<MeetingTab> {
     let notes = meeting.summary.is_some() || meeting.notes_running || !meeting.chapters.is_empty();
-    let mut tabs = Vec::new();
+    // The transcript first, as Files puts the Original first.
+    let mut tabs = vec![MeetingTab::Transcript];
     if notes {
         tabs.push(MeetingTab::Summary);
     }
-    tabs.push(MeetingTab::Transcript);
     if requests::available(ui, meeting) {
         tabs.push(MeetingTab::Requests);
     }
