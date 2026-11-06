@@ -122,6 +122,16 @@ fn chip_button(
     press: impl Fn(&mut Ui) + 'static,
 ) -> El {
     let c = &p.k.c;
+    // Dark needs less: the same steps read brighter on a dark card.
+    let (fill, outline, ink) = if p.k.dark {
+        (
+            c.layer_01.mix(c.layer_02, 0.5),
+            c.border_base.mix(c.border_strong, 0.5),
+            c.text_base.mix(c.text_weak, 0.45),
+        )
+    } else {
+        (c.layer_02, c.border_strong, c.text_base)
+    };
     let chip = row()
         .key(key)
         .role("button")
@@ -132,10 +142,10 @@ fn chip_button(
         .gap(4.0)
         .center_y()
         .radius(12.0)
-        .fill(c.layer_02)
+        .fill(fill)
         .box_shadow(rune::Shadow {
             spread: 0.5,
-            color: c.border_strong,
+            color: outline,
             ..Default::default()
         })
         .child(
@@ -145,7 +155,7 @@ fn chip_button(
                     size: 12.0,
                     ..p.k.ty.ui
                 })
-                .color(c.text_base),
+                .color(ink),
         )
         .children(chevron.map(|glyph| icon(glyph, 12.0).key("chevron").color(c.icon_muted)));
     if !live {
