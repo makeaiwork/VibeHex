@@ -165,10 +165,17 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 │   click to seek), the length, and the speed (0.75× to 2×); × folds it
 │   back and the chips return. "Couldn't play it: <why>" in the rail's
 │   place when the audio can't be read
-├── The transcript follows: the line playing (a segment of a file, a turn
-│   of a meeting) is lit, its paragraph or turn tinted and its time in the
-│   accent; there are no word timings, so it is lit line by line, never by
-│   word
+├── The transcript follows word by word: the word playing has the accent's
+│   fill and its paragraph's or turn's time the accent; nothing else is
+│   tinted. Times are kept per line (a file's segment, a meeting's turn),
+│   so a word's time is its share of its line by length, an estimate
+│   (playback/timing.rs)
+├── A Cleanup of plain paragraphs follows too: its words take the times of
+│   the Original's words they match in order (a word found a step or two
+│   on, or further when the next word follows it there too; a word not
+│   found keeps the time before it), each sentence a link from its first
+│   word's time; a Cleanup with Markdown (headings, lists, bold) or edited
+│   stays Markdown, without links
 ├── A click on a line plays from its start while playing; while paused it
 │   marks the line (underlined), and Play starts there
 └── Space plays or pauses, ← and → skip 5 s, while the player is open and
@@ -178,11 +185,17 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 A file plays from its own path (decoded to 16 kHz mono through AVFoundation
 into `<support>/files/playing/`, then played with rodio); the Original tab
 is the one whose lines are links. The player stops when the file leaves the
-screen or the Lab turns off. Sources: [files/playback.rs](../../src/files/playback.rs),
+screen or the Lab turns off. The chips' row scrolls sideways in a narrow
+window, its hidden end fading (`actions::strip`, the meeting's chips too).
+Sources: [files/playback.rs](../../src/files/playback.rs),
 [rune_ui/playback/](../../src/rune_ui/playback/). Checks:
 `each_segment_keeps_its_range_in_its_paragraph`,
-`the_line_playing_is_the_last_one_started`, `speeds_read_short`; scenes
-`files-playback`, `files-playback-folded`.
+`the_line_playing_is_the_last_one_started`, `speeds_read_short`,
+`a_lines_words_share_its_time_by_length`,
+`cleanup_words_take_the_times_of_the_words_they_match`,
+`a_common_word_far_ahead_needs_its_neighbour_to_match`,
+`a_cleanups_sentences_are_links_from_their_first_word`; scenes
+`files-playback`, `files-playback-folded`, `files-playback-cleanup`.
 
 Records: `<support>/files/<id>.json`, owner-only, one per file (name, path,
 length, versions with segments, model, window, parts, edited, note closed).

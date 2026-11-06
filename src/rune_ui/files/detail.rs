@@ -535,6 +535,34 @@ fn steps_note(p: Paint, record: &FileRecord, version: u32, parts: usize) -> El {
         ))
 }
 
+/// A Cleanup of plain paragraphs while it can be listened to: it follows
+/// the sound with the times of the Original it was made from.
+fn cleanup_followed(ui: &Ui, p: Paint, version: &Version) -> Option<El> {
+    if version.kind != VersionKind::Cleanup || version.edited {
+        return None;
+    }
+    let of = Of::File(ui.files.selected.clone()?);
+    let heard = playback::heard(ui, &of)?;
+    let record = ui
+        .files
+        .selected
+        .as_deref()
+        .and_then(|id| ui.files.record(id))?;
+    let originals = || {
+        record
+            .versions
+            .iter()
+            .filter(|other| other.kind == VersionKind::Original && !other.segments.is_empty())
+    };
+    let source = originals()
+        .find(|other| Some(other.id) == version.from)
+        .or_else(|| originals().next())?;
+    playback::followed(&version.text, &source.segments).then(|| {
+        let shown = (version.text.as_str(), source.segments.as_slice());
+        playback::file_cleanup(p, &of, shown, heard, timestamps(ui))
+    })
+}
+
 /// The version's text: an Original as timed or plain paragraphs, anything
 /// else as Markdown.
 fn content(ui: &Ui, p: Paint, version: &Version) -> El {
@@ -579,6 +607,9 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
             });
         }
         return lines;
+    }
+    if let Some(followed) = cleanup_followed(ui, p, version) {
+        return followed;
     }
     if version.text.trim().is_empty() {
         return text(tr("This version is empty."))

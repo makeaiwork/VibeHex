@@ -744,10 +744,22 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec
             listened
                 .as_ref()
                 .and_then(|of| super::super::playback::unfolded(ui, p, of, layer))
-                .unwrap_or(chips),
+                .unwrap_or_else(|| strip(chips)),
         )
         .child(field);
     if live { area } else { area.dim(0.55) }
+}
+
+/// The chips in a narrow window: a strip that scrolls sideways, its hidden
+/// end fading, with room for their outlines and focus rings.
+pub(in super::super) fn strip(chips: El) -> El {
+    row()
+        .key("chips-strip")
+        .scroll_x()
+        .scroll_edge_fade(24.0)
+        .py(3.0)
+        .my(-3.0)
+        .child(chips)
 }
 
 /// The field alone, for a session.

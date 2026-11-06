@@ -181,7 +181,15 @@ const PATHS: &[(&str, &str)] = &[
         "files-playback-folded",
         "Window/Files/Listening, paused and folded",
     ),
+    (
+        "files-playback-cleanup",
+        "Window/Files/Listening to the Cleanup",
+    ),
     ("meetings-playback", "Window/Meetings/Listening, playing"),
+    (
+        "meetings-player",
+        "Window/Meetings/Listening without the field",
+    ),
     (
         "meetings-playback-folded",
         "Window/Meetings/Listening, paused and folded",

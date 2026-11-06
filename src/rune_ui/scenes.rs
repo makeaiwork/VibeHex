@@ -615,7 +615,15 @@ pub(super) const SCENES: &[Scene] = &[
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
     ("files-playback", |ui| files_playback(ui, true)),
     ("files-playback-folded", |ui| files_playback(ui, false)),
+    ("files-playback-cleanup", |ui| {
+        files_playback(ui, true);
+        ui.files.tab = Some(files::Tab::Version(2));
+    }),
     ("meetings-playback", |ui| meetings_playback(ui, true)),
+    ("meetings-player", |ui| {
+        meetings_playback(ui, false);
+        ui.settings.labs.ai_cleanup_server = false;
+    }),
     ("meetings-playback-folded", |ui| {
         meetings_playback(ui, false)
     }),

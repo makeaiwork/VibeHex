@@ -202,6 +202,7 @@ fn turns(entries: &[crate::meeting::TranscriptEntry]) -> Vec<Turn> {
             Turn {
                 mine: turn.source == crate::meeting::MeetingSource::Microphone,
                 start_ms: turn.start_ms,
+                end_ms: turn.end_ms,
                 text: turn.text,
                 pause_before_ms,
             }

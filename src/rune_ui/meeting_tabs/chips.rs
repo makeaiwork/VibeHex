@@ -8,7 +8,7 @@ use rune::{El, TextEdit, row};
 use rune_kit::{Menu as KitMenu, MenuItem, Placement};
 
 use super::super::controls::Paint;
-use super::super::files::actions::chip_button;
+use super::super::files::actions::{chip_button, strip};
 use super::super::playback::{self, Of};
 use super::super::{Menu, Ui};
 use super::requests::{TIDY, ask};
@@ -66,7 +66,7 @@ pub(super) fn chips(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     // Play unfolds into the player in the chips' place.
     listened
         .and_then(|of| playback::unfolded(ui, p, &of, layer))
-        .unwrap_or(chips)
+        .unwrap_or_else(|| strip(chips))
 }
 
 /// Recent, while there are recent requests: one fills the field.

@@ -1064,8 +1064,10 @@ cleanup in [files/tidy.rs](../../src/files/tidy.rs). Checks:
 #### Listen To The Recording (Labs)
 
 Labs › Listen to the recording puts Play before the chips over the field of
-a finished meeting (so it needs the field: Labs › AI cleanup server and
-Questions on), the same player as Files':
+a finished meeting, the same player as Files'. Without the field (Labs › AI
+cleanup server or Questions off) the player stands open under the meeting
+instead, with no ×, on every tab (`playback::standing`; scene
+`meetings-player`):
 
 ```text
 Listen to the recording (Labs, off by default; playback::Player, rune_ui::playback)
@@ -1078,10 +1080,11 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 │   click to seek), the length, and the speed (0.75× to 2×); × folds it
 │   back and the chips return. "Couldn't play it: <why>" in the rail's
 │   place when the audio can't be read
-├── The transcript follows: the line playing (a segment of a file, a turn
-│   of a meeting) is lit, its paragraph or turn tinted and its time in the
-│   accent; there are no word timings, so it is lit line by line, never by
-│   word
+├── The transcript follows word by word: the word playing has the accent's
+│   fill and its paragraph's or turn's time the accent; nothing else is
+│   tinted. Times are kept per line (a file's segment, a meeting's turn),
+│   so a word's time is its share of its line by length, an estimate
+│   (playback/timing.rs)
 ├── A click on a line plays from its start while playing; while paused it
 │   marks the line (underlined), and Play starts there
 └── Space plays or pauses, ← and → skip 5 s, while the player is open and
@@ -1091,7 +1094,8 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 The sound is the meeting's two tracks, `system.wav` and `microphone.wav`,
 mixed where each started (`first_arrival_us` in `manifest.json`), the
 origin the transcript's clocks count from, so a turn plays from its own
-time. Turns carry a start only; a turn lasts until the next one starts.
+time. A turn's words spread over its start and end (the coalesced entries'
+last end).
 Sources: [files/playback.rs](../../src/files/playback.rs) (`Audio::Meeting`),
 [rune_ui/playback/](../../src/rune_ui/playback/). Checks:
 `tracks_mix_where_each_started`; scenes `meetings-playback`,

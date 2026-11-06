@@ -7,14 +7,17 @@
 //! there, or, while paused, marks where Play starts. Space plays or pauses
 //! and ← → move 5 s while the player shows.
 //!
-//! Transcripts keep times per line (a file's segment, a meeting's turn), not
-//! per word, so a line is what lights up and what a click picks.
+//! Transcripts keep times per line (a file's segment, a meeting's turn), so
+//! the word that lights up is estimated within its line (`timing`); a click
+//! picks a line. A Cleanup takes its times from the Original's words. A
+//! meeting without the field has the player standing under it instead.
 
 mod bar;
 mod lines;
+mod timing;
 
-pub(super) use bar::{PLAY_ICON, lead, unfolded};
-pub(super) use lines::{file_original, heard, meeting_turn, playing_fill, playing_line};
+pub(super) use bar::{PLAY_ICON, lead, standing, unfolded};
+pub(super) use lines::{file_cleanup, file_original, followed, heard, meeting_turn, playing_line};
 
 use super::Ui;
 use crate::files::playback::{Audio, Player, Status};

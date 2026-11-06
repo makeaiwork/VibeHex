@@ -5,7 +5,7 @@ use rune_kit::{Menu as KitMenu, MenuItem, Placement};
 
 use super::super::controls::Paint;
 use super::super::{Menu, Ui};
-use super::{Of, close, enabled, play, seek, set_speed, skip, toggle};
+use super::{Of, close, enabled, play, seek, set_speed, skip, take, toggle};
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::files::playback::{SPEEDS, Status};
 use crate::files::text::clock;
@@ -137,9 +137,20 @@ pub(in super::super) fn unfolded(ui: &Ui, p: Paint, of: &Of, layer: &mut Vec<El>
     if !enabled(ui) || !pane.belongs(of) || !pane.open {
         return None;
     }
+    Some(player(ui, p, of, layer, true))
+}
+
+/// The player always shown, with no ×: a meeting without the field.
+pub(in super::super) fn standing(ui: &Ui, p: Paint, of: &Of, layer: &mut Vec<El>) -> Option<El> {
+    enabled(ui).then(|| player(ui, p, of, layer, false))
+}
+
+fn player(ui: &Ui, p: Paint, of: &Of, layer: &mut Vec<El>, closable: bool) -> El {
+    let pane = &ui.playback;
+    let ours = pane.belongs(of);
     let c = &p.k.c;
-    let playing = pane.playing();
-    let at = pane.at_ms();
+    let playing = ours && pane.playing();
+    let at = if ours { pane.at_ms() } else { 0 };
     let shown = of.clone();
     let toggle_button = row()
         .key("play-pause")
@@ -162,7 +173,7 @@ pub(in super::super) fn unfolded(ui: &Ui, p: Paint, of: &Of, layer: &mut Vec<El>
         )
         .child(time(p, "at", at, c.text_accent))
         .on_press(move |ui: &mut Ui| toggle(ui, &shown));
-    let middle = match pane.status() {
+    let middle = match pane.status().filter(|_| ours) {
         Some(Status::Failed(error)) => text(tr_fill("Couldn't play it: {}", &error))
             .key("failed")
             .font(rune::TextStyle {
@@ -173,9 +184,10 @@ pub(in super::super) fn unfolded(ui: &Ui, p: Paint, of: &Of, layer: &mut Vec<El>
             .max_lines(1)
             .grow(1.0)
             .shrink(),
-        _ => scrub(p, at, pane.duration_ms()),
+        _ => scrub(p, at, pane.duration_ms().filter(|_| ours)),
     };
-    let length = pane.duration_ms();
+    let length = pane.duration_ms().filter(|_| ours);
+    let back = of.clone();
     let player = row()
         .key("player")
         .role("group")
@@ -188,14 +200,18 @@ pub(in super::super) fn unfolded(ui: &Ui, p: Paint, of: &Of, layer: &mut Vec<El>
         .gap(4.0)
         .center_y()
         .radius(16.0)
-        .child(
+        .children(closable.then(|| {
             round(p, "close-player", tr("Close player"), p.k.glyph.close, 12.0)
-                .on_press(|ui: &mut Ui| close(ui)),
-        )
-        .child(toggle_button)
+                .on_press(|ui: &mut Ui| close(ui))
+        }))
+        .child(toggle_button.ml(if closable { 0.0 } else { 4.0 }))
         .child(
-            round(p, "back", tr("Back 5 seconds"), &BACK_ICON, 16.0)
-                .on_press(|ui: &mut Ui| skip(ui, false)),
+            round(p, "back", tr("Back 5 seconds"), &BACK_ICON, 16.0).on_press(
+                move |ui: &mut Ui| {
+                    take(ui, &back);
+                    skip(ui, false);
+                },
+            ),
         )
         .child(middle.mx(4.0))
         .child(
@@ -209,7 +225,7 @@ pub(in super::super) fn unfolded(ui: &Ui, p: Paint, of: &Of, layer: &mut Vec<El>
                 .max_lines(1),
         )
         .child(speed(ui, p, layer));
-    Some(row().key("chips").child(outlined(p, player)).w_full())
+    row().key("chips").child(outlined(p, player)).w_full()
 }
 
 /// The whole recording as a line, filled to where it is; a press or drag

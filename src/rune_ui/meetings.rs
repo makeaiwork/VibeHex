@@ -52,6 +52,7 @@ impl Status {
 pub(super) struct Turn {
     pub(super) mine: bool,
     pub(super) start_ms: u64,
+    pub(super) end_ms: u64,
     pub(super) text: String,
     /// A silence of 30 s or more before this turn.
     pub(super) pause_before_ms: Option<u64>,
@@ -283,6 +284,7 @@ impl MeetingsPane {
         let turn = |mine, seconds: u64, text: &str| Turn {
             mine,
             start_ms: seconds * 1_000,
+            end_ms: seconds * 1_000 + 3_000,
             text: text.into(),
             pause_before_ms: None,
         };
@@ -974,7 +976,23 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
         _ if super::meeting_tabs::requests::available(ui, meeting) => {
             super::meeting_tabs::requests::stage(ui, p, body, tab, layer)
         }
-        _ => ld::card_scroll("meeting-transcript", body),
+        _ => {
+            // Without the field, the player stands under the meeting.
+            let of = super::playback::Of::Meeting(meeting.id.clone());
+            let player = (meeting.status == Status::Complete && !meeting.turns().is_empty())
+                .then(|| super::playback::standing(ui, p, &of, layer))
+                .flatten();
+            let scroll = ld::card_scroll("meeting-transcript", body);
+            match player {
+                Some(player) => col()
+                    .key("meeting-listen")
+                    .grow(1.0)
+                    .shrink()
+                    .child(scroll)
+                    .child(player.pt(8.0).pb(16.0)),
+                None => scroll,
+            }
+        }
     };
     col()
         .key("meeting-detail")
@@ -1180,7 +1198,8 @@ fn transcript(ui: &Ui, p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
         .and_then(|at| super::playback::playing_line(turns.iter().map(|turn| turn.start_ms), at));
     for (index, turn) in turns.iter().enumerate() {
         let listened = heard.map(|heard| {
-            let lit = (Some(turn.start_ms) == playing).then_some(heard.marked);
+            let at = heard.at_ms.unwrap_or(turn.start_ms);
+            let lit = (Some(turn.start_ms) == playing).then_some((at, heard.marked));
             (&of, lit)
         });
         lines = lines.children(turn_line(p, index, turn, listened));
@@ -1203,7 +1222,7 @@ pub(super) fn turn_line(
     p: Paint,
     index: usize,
     turn: &Turn,
-    listened: Option<(&super::playback::Of, Option<bool>)>,
+    listened: Option<(&super::playback::Of, Option<(u64, bool)>)>,
 ) -> Vec<El> {
     let mut els = Vec::new();
     if let Some(pause) = turn.pause_before_ms {
@@ -1241,7 +1260,8 @@ pub(super) fn turn_line(
             .child(
                 match listened {
                     Some((of, lit)) => {
-                        super::playback::meeting_turn(p, of, turn.text.clone(), turn.start_ms, lit)
+                        let times = (turn.start_ms, turn.end_ms);
+                        super::playback::meeting_turn(p, of, turn.text.clone(), times, lit)
                     }
                     None => text(turn.text.clone()),
                 }
@@ -1251,18 +1271,6 @@ pub(super) fn turn_line(
                 .wrap(),
             ),
     );
-    if let Some((_, Some(_))) = listened
-        && let Some(turn) = els.pop()
-    {
-        els.push(
-            turn.fill(super::playback::playing_fill(p))
-                .radius(8.0)
-                .px(8.0)
-                .mx(-8.0)
-                .py(4.0)
-                .my(-4.0),
-        );
-    }
     els
 }
 
