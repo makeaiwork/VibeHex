@@ -162,7 +162,8 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 ├── Play -> the button unfolds into the player, an oval pill in the chips'
 │   place inside the card, and the chips step aside: × (Close player),
 │   Pause/Play with the time, Back 5 seconds, the position rail (drag or
-│   click to seek), the length, and the speed (0.75× to 2×); × folds it
+│   click to seek), the length, and the speed (0.75× to 2×, at the voice's
+│   own pitch: files/stretch.rs, WSOLA in 40 ms frames); × folds it
 │   back and the chips return. "Couldn't play it: <why>" in the rail's
 │   place when the audio can't be read
 ├── The transcript follows word by word: the word playing has the accent's

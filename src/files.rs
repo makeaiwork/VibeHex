@@ -8,6 +8,7 @@ pub mod playback;
 pub mod requests;
 pub mod rewrite;
 pub mod store;
+mod stretch;
 pub mod text;
 pub mod tidy;
 pub mod worker;

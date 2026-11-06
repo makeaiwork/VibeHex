@@ -2,6 +2,7 @@
 //! its transcript can be checked against it. One thread per player decodes
 //! the audio to 16 kHz mono (what transcription heard), then plays it on
 //! the default output through rodio while the window reads the position.
+//! Another speed plays at the voice's own pitch (`stretch`).
 //!
 //! A file plays its source, decoded again through AVFoundation; a meeting
 //! plays both its tracks mixed, each placed where it started.
@@ -58,7 +59,6 @@ struct Shared {
 enum Command {
     Play,
     Pause,
-    Speed(f32),
 }
 
 /// A recording, playing or paused. Dropping it stops it.
@@ -147,12 +147,12 @@ impl Player {
         self.shared.at.store(at, Ordering::Release);
     }
 
+    /// The track reads it as it plays.
     pub fn set_speed(&self, speed: f32) {
         let speed = speed.clamp(0.5, 3.0);
         self.shared
             .speed
             .store((speed * 100.0).round() as u32, Ordering::Release);
-        let _ = self.commands.send(Command::Speed(speed));
     }
 }
 
@@ -224,18 +224,12 @@ fn run(audio: &Audio, shared: &Arc<Shared>, commands: &Receiver<Command>, wake: 
                     }
                 }
                 if let Some((_, player)) = &output {
-                    player.set_speed(shared.speed.load(Ordering::Acquire) as f32 / 100.0);
                     player.play();
                 }
             }
             Some(Command::Pause) => {
                 if let Some((_, player)) = &output {
                     player.pause();
-                }
-            }
-            Some(Command::Speed(speed)) => {
-                if let Some((_, player)) = &output {
-                    player.set_speed(speed);
                 }
             }
             None => {}
@@ -259,16 +253,28 @@ fn open_output(
     sink.log_on_drop(false);
     let player = rodio::Player::connect_new(sink.mixer());
     player.pause();
-    player.append(Track { samples, shared });
+    player.append(Track {
+        samples,
+        shared,
+        stretch: super::stretch::Stretch::new(),
+        pending: std::collections::VecDeque::new(),
+        expected: None,
+    });
     Ok((sink, player))
 }
 
 /// The recording as a rodio source that reads and moves `Shared::at`, so a
-/// seek is a store and the position is exact at any speed. Past the end it
-/// plays silence and marks the end for the thread to pause.
+/// seek is a store and the position is exact at any speed. At 1× it plays
+/// sample by sample; at another speed a hop at a time, stretched. Past the
+/// end it plays silence and marks the end for the thread to pause.
 struct Track {
     samples: Arc<[i16]>,
     shared: Arc<Shared>,
+    stretch: super::stretch::Stretch,
+    /// The rest of the last stretched hop.
+    pending: std::collections::VecDeque<f32>,
+    /// Where the track left `at`; anything else is a seek.
+    expected: Option<usize>,
 }
 
 impl Iterator for Track {
@@ -276,16 +282,35 @@ impl Iterator for Track {
 
     fn next(&mut self) -> Option<Self::Item> {
         let at = self.shared.at.load(Ordering::Acquire);
-        match self.samples.get(at) {
-            Some(sample) => {
-                self.shared.at.store(at + 1, Ordering::Release);
-                Some(f32::from(*sample) / f32::from(i16::MAX))
-            }
-            None => {
-                self.shared.ended.store(true, Ordering::Release);
-                Some(0.0)
-            }
+        if self.expected != Some(at) {
+            self.pending.clear();
+            self.stretch.reset();
         }
+        if let Some(sample) = self.pending.pop_front() {
+            return Some(sample);
+        }
+        if at >= self.samples.len() {
+            self.shared.ended.store(true, Ordering::Release);
+            return Some(0.0);
+        }
+        let speed = self.shared.speed.load(Ordering::Acquire) as f32 / 100.0;
+        let (next, sample) = if (speed - 1.0).abs() < 0.01 {
+            self.stretch.reset();
+            (at + 1, f32::from(self.samples[at]) / f32::from(i16::MAX))
+        } else {
+            let mut hop = Vec::with_capacity(super::stretch::HOP);
+            let moved = self.stretch.hop(&self.samples, at, speed, &mut hop);
+            self.pending.extend(hop);
+            let first = self.pending.pop_front().unwrap_or_default();
+            ((at + moved).min(self.samples.len()), first)
+        };
+        // A seek since `at` was read wins.
+        let _ = self
+            .shared
+            .at
+            .compare_exchange(at, next, Ordering::AcqRel, Ordering::Acquire);
+        self.expected = Some(next);
+        Some(sample)
     }
 }
 
