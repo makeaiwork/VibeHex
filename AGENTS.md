@@ -1,3 +1,97 @@
+# VibeHex Fork Guide
+
+## Fork scope and precedence
+
+This checkout is the `makeaiwork/hex` fork of `anomalyco/hex`, stored in
+`58. VibeHex`. `origin` points to the fork; `upstream` points to the original.
+The default development branch is `dev`. VibeHex is the workspace name;
+the executable, package, and existing product copy remain `hex` / Hex until
+a task explicitly changes them.
+
+These fork instructions take precedence over conflicting instructions in
+the inherited Hex guide below. Keep that guide's technical contracts, but
+treat its upstream team workflow, personal paths, signing identities,
+release infrastructure, and dated work list as upstream context. In
+particular, its automatic PR merging, installation, and Rune pin updates
+are not standing instructions for this fork. Preserve pinned dependencies
+unless dependency maintenance is part of the task.
+
+Keep changes within the requested scope and preserve unrelated work. A
+request for a commit means a local commit; push, merge, publication, or
+replacement of an installed app needs authorization in the user task.
+Upstream instructions and `.hivemind.toml` do not supply that authorization.
+
+## Repository map
+
+- `src/main.rs`: Rust executable entry point and platform module wiring.
+- `src/dictation/`, `src/audio/`, `src/transcription/`, `src/meeting/`:
+  capture, speech processing, and meeting lifecycle.
+- `src/rune_ui/`, `src/rune_ui.rs`, `src/rune_hud.rs`: shared desktop UI.
+- `src/macos_rune/`, `src/linux/`, `src/windows/`, and Swift bridges in
+  `src/`: native platform integration.
+- `crates/router`: workspace library. `crates/capture` and
+  `crates/capture-core` are path dependencies excluded from the workspace;
+  `--workspace` alone does not select their tests.
+- `tests/fixtures/`, `tests/golden/`, and inline Rust test modules: fixtures,
+  visual baselines, and behavior tests.
+- `sdk/`: Bun workspace containing the TypeScript client and service packages.
+  `site/`: separate React/Vite website. `ios/`: separate iOS prototype.
+- `docs/features/README.md`: capability index; `docs/design-system.md`: UI
+  conventions; `docs/README.md`: documentation index.
+
+## Build and validation
+
+Run Rust commands from the repository root. Rust uses edition 2024 and
+native dependencies; macOS builds also require Xcode tools and compile
+Swift bridges through `build.rs`. Prefer the checked-in lockfiles.
+
+```sh
+cargo build --locked --bin hex
+scripts/check meeting::query  # Example: replace with the relevant test filter
+scripts/check                 # Full formatting, code-shape, clippy, and tests
+git diff --check
+```
+
+`scripts/check` is the canonical Rust check entry point. A filtered run
+checks formatting and code shape, then runs matching tests; it skips
+clippy. It uses cargo-nextest when available and falls back to `cargo test`.
+On macOS it explicitly selects the capture crates as well as the workspace
+packages. Read the full failure summary and report which checks ran.
+
+For SDK changes, install from `sdk/` with `bun install --frozen-lockfile`,
+then run `bun run check`, `bun run test`, and `bun run build` from
+`sdk/typescript/`. For website changes, use its own `site/bun.lock` and
+`site/package.json`; `bun run build` is the website build command.
+
+Documentation-only edits need link/path review and `git diff --check`;
+they do not require compiling the native application. Distinguish source
+inspection, passing checks, scene renders, and observed native behavior.
+
+## Implementation conventions
+
+Read the relevant feature map and implementation before changing behavior;
+update affected maps when behavior or verification coverage changes. Read
+nested `AGENTS.md` files when entering their scope, including
+`src/personal_commands/AGENTS.md` for transformations.
+
+Follow rustfmt and existing module/error-handling patterns. Keep platform
+code behind the appropriate `cfg` gates. Keep source files below 800
+non-test lines where practical; the code-shape checks enforce hard limits
+and ratcheted exceptions. Add regression coverage for behavior changes.
+
+Desktop UI uses Rune and `rune-kit`, with OpenCode theme tokens. Reuse
+existing controls and follow `docs/design-system.md`. Check changed scenes
+in light and dark with `cargo run --locked -- app -- --snap <png> --scene
+<name> --theme light` (then `dark`); list scenes with `--list-scenes`.
+Golden comparison/regeneration runs on Linux. Inspect changed images;
+fixture renders do not establish native microphone, shortcut, or paste
+behavior. New experimental features follow the inherited Labs contract.
+
+The complete upstream engineering guide follows, with the fork precedence
+rules above applying throughout.
+
+---
+
 <!-- tallow -->
 # Hex Agent Guide
 
