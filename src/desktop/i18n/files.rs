@@ -108,7 +108,6 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Stopped", ["Zatrzymano", "已停止", "停止しました", "Angehalten", "Detenido", "Зупинено"]),
     ("The transcription stopped before it finished.", ["Przepisywanie zatrzymało się przed końcem.", "转写在完成前停止了。", "文字起こしは終わる前に止まりました。", "Die Transkription hat vor dem Ende angehalten.", "La transcripción se detuvo antes de terminar.", "Розпізнавання зупинилося, не завершившись."]),
     ("Requests", ["Polecenia", "请求", "依頼", "Anfragen", "Peticiones", "Запити"]),
-    ("{n} of {total}", ["{n} z {total}", "{n}/{total}", "{n}/{total}", "{n} von {total}", "{n} de {total}", "{n} з {total}"]),
     ("Versions", ["Wersje", "版本", "バージョン", "Versionen", "Versiones", "Версії"]),
     ("Same as cleanup", ["Jak porządkowanie", "与整理相同", "整形と同じ", "Wie die Bereinigung", "Igual que la limpieza", "Як для очищення"]),
     ("File not found", ["Nie znaleziono pliku", "找不到文件", "ファイルが見つかりません", "Datei nicht gefunden", "No se encuentra el archivo", "Файл не знайдено"]),

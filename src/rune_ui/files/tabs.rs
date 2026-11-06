@@ -8,7 +8,7 @@ use rune_kit::{Placement, Popover};
 use super::super::controls::{DESCRIPTION, Paint};
 use super::super::{Menu, Ui};
 use super::{Tab, stage_label};
-use crate::desktop::i18n::{tr, tr_named};
+use crate::desktop::i18n::tr;
 use crate::files::store::{FileRecord, Version, VersionKind};
 use crate::files::worker::{Stage, Task};
 
@@ -92,22 +92,17 @@ pub(super) fn group_of(ui: &Ui, record: &FileRecord, tab: Tab) -> Option<Group> 
     }
 }
 
-/// "1 of 3" for a group's version, by when it was made; `None` alone.
-pub(super) fn position(ui: &Ui, record: &FileRecord, version: &Version) -> Option<String> {
+/// A version's number in its group, from 1 by when it was made; `None`
+/// while it is the group's only one.
+pub(super) fn number(ui: &Ui, record: &FileRecord, version: &Version) -> Option<usize> {
     let group = entries(ui, record, Group::of(version.kind));
     if group.len() < 2 {
         return None;
     }
-    let at = group
+    group
         .iter()
-        .position(|entry| entry.tab() == Tab::Version(version.id))?;
-    Some(tr_named(
-        "{n} of {total}",
-        &[
-            ("n", &(at + 1).to_string()),
-            ("total", &group.len().to_string()),
-        ],
-    ))
+        .position(|entry| entry.tab() == Tab::Version(version.id))
+        .map(|at| at + 1)
 }
 
 /// A typed request: what was asked, as no quick request asks it.
@@ -135,9 +130,13 @@ pub(super) fn title(ui: &Ui, version: &Version) -> String {
     }
 }
 
-/// The name a request's tag shows on its line.
-pub(super) fn tag(version: &Version) -> Option<String> {
-    (version.kind == VersionKind::Request).then(|| version.name.clone())
+/// The name a version's tag shows on its line: a request's session name,
+/// else "v2" when its group has more than one.
+pub(super) fn tag(ui: &Ui, record: &FileRecord, version: &Version) -> Option<String> {
+    if version.kind == VersionKind::Request {
+        return Some(version.name.clone());
+    }
+    number(ui, record, version).map(|n| format!("v{n}"))
 }
 
 /// What a version was made from, as its tab's name.

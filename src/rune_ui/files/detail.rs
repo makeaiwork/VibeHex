@@ -17,6 +17,12 @@ use crate::files::store::{self, FileRecord, Version, VersionKind};
 use crate::files::text as file_text;
 use crate::files::worker::{self, Draft, Job, Stage, Task};
 
+static LINES_ICON: rune::Icon = rune::Icon {
+    name: "hex-files-plain-text",
+    view: 16.0,
+    body: r#"<path d="M3 4.5h10M3 8h10M3 11.5h6.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>"#,
+};
+
 static CLOCK_ICON: rune::Icon = rune::Icon {
     name: "hex-files-clock",
     view: 16.0,
@@ -359,15 +365,17 @@ fn version_line(
             }
         }
     };
-    if version.edited {
-        if words.is_empty() {
-            words = tr("Edited").into();
-        } else {
-            words = format!("{words}, {}", tr("edited"));
-        }
+    if version.kind == VersionKind::Original {
+        words = version.model.clone();
     }
+    let made = super::session::when(version.created_ms);
+    let details = if words.is_empty() {
+        made
+    } else {
+        format!("{words}\n{made}")
+    };
     let mut line = row().key("version-line").gap(6.0).pr(1.0).center_y();
-    if let Some(name) = tabs::tag(version) {
+    if let Some(name) = tabs::tag(ui, record, version) {
         line = line.child(
             row()
                 .key("tag")
@@ -389,27 +397,18 @@ fn version_line(
     }
     if version.kind == VersionKind::Original && !version.edited {
         let selected = usize::from(!timestamps(ui));
-        line = line.child(timestamp_switch(p, selected == 0));
+        line = line.child(timestamp_switch(ui, p, selected == 0, layer));
     }
-    if !words.is_empty() {
+    if version.edited {
         line = line.child(
-            text(words)
-                .key("version-words")
+            text(tr("Edited"))
+                .key("edited")
                 .font(DESCRIPTION)
-                .color(p.muted())
-                .shrink()
-                .truncate(),
+                .color(p.muted()),
         );
     }
-    line = line.child(rune::el().key("spacer").grow(1.0));
-    if let Some(position) = tabs::position(ui, record, version) {
-        line = line.child(
-            text(position)
-                .key("position")
-                .font(DESCRIPTION)
-                .color(p.faint()),
-        );
-    }
+    line = line.child(details_tip(ui, p, details, layer));
+    let mut buttons = row().key("actions").gap(6.0).center_y();
     match version.kind {
         VersionKind::Original => {
             let cleaned = record
@@ -419,7 +418,7 @@ fn version_line(
             if !cleaned {
                 let (id, from) = (record.id.clone(), version.id);
                 // Compact, as Transcribe again beside it.
-                line = line.child(actions::quiet_button(
+                buttons = buttons.child(actions::quiet_button(
                     p,
                     "file-clean-up",
                     Some(&super::super::icons::SPARKLES),
@@ -433,14 +432,35 @@ fn version_line(
                     },
                 ));
             }
-            line = line.child(actions::again_menu(ui, p, record, layer));
+            buttons = buttons.child(actions::again_menu(ui, p, record, layer));
         }
         VersionKind::Cleanup => {
-            line = line.child(actions::redo_menu(ui, p, record, version, layer))
+            buttons = buttons.child(actions::redo_menu(ui, p, record, version, layer))
         }
         VersionKind::Request => {}
     }
-    line
+    line.child(rune::el().key("spacer").grow(1.0))
+        .child(buttons)
+}
+
+/// The line's ⓘ: what made the version, from what, and when, shown on
+/// hover so the line stays one compact row.
+fn details_tip(ui: &Ui, p: Paint, details: String, layer: &mut Vec<El>) -> El {
+    let c = &p.k.c;
+    let trigger = row()
+        .key("version-info")
+        .role("img")
+        .label(details.replace('\n', ", "))
+        .size(20.0, 20.0)
+        .center()
+        .radius(5.0)
+        .hover(c.hover)
+        .child(
+            icon(&super::super::icons::INFO, 14.0)
+                .key("glyph")
+                .color(p.faint()),
+        );
+    actions::hover_tip(ui, p, "info", trigger, details, layer)
 }
 
 /// Why a version went in three steps, until closed.
@@ -899,18 +919,19 @@ fn delete(ui: &mut Ui, armed: Armed) {
 
 /// Timestamps | Plain text, smaller than the tabs above it, the first with
 /// a clock.
-fn timestamp_switch(p: Paint, timed: bool) -> El {
+fn timestamp_switch(ui: &Ui, p: Paint, timed: bool, layer: &mut Vec<El>) -> El {
     let c = &p.k.c;
-    let segment = |key: &str, label: &str, glyph: Option<&'static rune::Icon>, on: bool| {
+    // Icons only, so the Original's line keeps to one row; each says what
+    // it is on hover.
+    let mut segment = |key: &'static str, label: &str, glyph: &'static rune::Icon, on: bool| {
         let mut cell = row()
             .key(key)
             .role("button")
             .label(label)
             .focusable(true)
             .h(20.0)
-            .px(7.0)
-            .gap(4.0)
-            .center_y()
+            .w(26.0)
+            .center()
             .radius(p.k.radius.sm);
         cell = if on {
             cell.fill(c.layer_02).box_shadow(rune::Shadow {
@@ -922,21 +943,17 @@ fn timestamp_switch(p: Paint, timed: bool) -> El {
             cell.hover(c.hover)
         };
         let ink = if on { p.text() } else { p.muted() };
-        if let Some(glyph) = glyph {
-            cell = cell.child(icon(glyph, 11.0).key("icon").color(ink));
-        }
         let timed_now = key == "timed";
-        cell.child(
-            text(label.to_string())
-                .key("words")
-                .font(p.k.ty.small_medium)
-                .color(ink),
-        )
-        .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
-            tx.settle();
-            ui.files.timestamps = Some(timed_now);
-        })
+        let cell = cell
+            .child(icon(glyph, 13.0).key("icon").color(ink))
+            .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
+                tx.settle();
+                ui.files.timestamps = Some(timed_now);
+            });
+        actions::hover_tip(ui, p, key, cell, label.to_owned(), layer)
     };
+    let timed_cell = segment("timed", tr("Timestamps"), &CLOCK_ICON, timed);
+    let plain_cell = segment("plain", tr("Plain text"), &LINES_ICON, !timed);
     row()
         .key("file-timestamps")
         .role("segmented")
@@ -951,6 +968,6 @@ fn timestamp_switch(p: Paint, timed: bool) -> El {
             color: c.border_base,
             ..Default::default()
         })
-        .child(segment("timed", tr("Timestamps"), Some(&CLOCK_ICON), timed))
-        .child(segment("plain", tr("Plain text"), None, !timed))
+        .child(timed_cell)
+        .child(plain_cell)
 }

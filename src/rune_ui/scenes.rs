@@ -577,6 +577,11 @@ pub(super) const SCENES: &[Scene] = &[
         files_scene(ui, files::FilesPane::fixture());
         ui.files.tab = Some(files::Tab::Version(4));
     }),
+    ("files-version-info", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(5));
+        ui.files.hover = Some("info");
+    }),
     ("files-original", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.files.tab = Some(files::Tab::Version(1));

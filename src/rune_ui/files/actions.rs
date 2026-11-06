@@ -67,6 +67,20 @@ pub(super) fn quiet_button(
     disabled: bool,
     press: impl Fn(&mut Ui) + 'static,
 ) -> El {
+    quiet(p, key, glyph, (label, true), chevron, disabled, press)
+}
+
+/// The small button with or without its words (`label.1`); without them
+/// the label is only its accessible name, and a tooltip says it.
+fn quiet(
+    p: Paint,
+    key: &str,
+    glyph: Option<&'static rune::Icon>,
+    (label, words): (&str, bool),
+    chevron: Option<&'static rune::Icon>,
+    disabled: bool,
+    press: impl Fn(&mut Ui) + 'static,
+) -> El {
     let c = &p.k.c;
     let mut button = row()
         .key(key)
@@ -85,12 +99,12 @@ pub(super) fn quiet_button(
             ..Default::default()
         })
         .children(glyph.map(|glyph| icon(glyph, 12.0).key("icon").color(c.icon_base)))
-        .child(
+        .children(words.then(|| {
             text(label.to_string())
                 .key("words")
                 .font(p.k.ty.small_medium)
-                .color(c.text_base),
-        )
+                .color(c.text_base)
+        }))
         .children(chevron.map(|glyph| icon(glyph, 11.0).key("chevron").color(c.icon_muted)));
     if disabled {
         button = button.dim(0.45);
@@ -386,19 +400,52 @@ pub(super) fn again_menu(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec
     } else {
         tr("Transcribe again")
     };
-    let trigger = menu_button(
+    // Just the icon and chevron, so the Original's line keeps to one row;
+    // the tooltip says what it does.
+    let chevron = if open {
+        p.k.glyph.chevron_up
+    } else {
+        p.k.glyph.chevron_down
+    };
+    let trigger = quiet(
         p,
         "file-again",
         Some(&icons::REFRESH),
-        label,
-        open,
+        (label, false),
+        Some(chevron),
         gone,
         |ui: &mut Ui| {
             ui.files.models = super::super::history::installed_models(ui);
             toggle(ui, "files-again");
         },
     );
+    let trigger = hover_tip(ui, p, "again", trigger, label.to_owned(), layer);
     menu.trigger(trigger).build(p.k, layer)
+}
+
+/// `trigger` with a tooltip saying `words` while the pointer is on it and
+/// no menu is open; `key` names it in `files.hover`.
+pub(super) fn hover_tip(
+    ui: &Ui,
+    p: Paint,
+    key: &'static str,
+    trigger: El,
+    words: String,
+    layer: &mut Vec<El>,
+) -> El {
+    let trigger = trigger.on_hover_change(move |ui: &mut Ui, inside, _| {
+        if inside {
+            ui.files.hover = Some(key);
+        } else if ui.files.hover == Some(key) {
+            ui.files.hover = None;
+        }
+    });
+    rune_kit::Tooltip::new(format!("files-{key}-tip"))
+        .trigger(trigger)
+        .text(p.k, words)
+        .placement(Placement::BottomStart)
+        .open(ui.files.hover == Some(key) && ui.open.is_none())
+        .build(p.k, layer)
 }
 
 /// A model chosen from Transcribe again: one that takes a language asks

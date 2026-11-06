@@ -1179,7 +1179,6 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Quick requests", "Pedidos rápidos"),
     ("Recent", "Recentes"),
     ("Requests", "Pedidos"),
-    ("{n} of {total}", "{n} de {total}"),
     ("Versions", "Versões"),
     ("Same as cleanup", "Igual à limpeza"),
     ("File not found", "Arquivo não encontrado"),

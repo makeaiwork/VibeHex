@@ -103,6 +103,8 @@ pub(super) struct FilesPane {
     /// Whether text is scrolled under the floating field, which then lifts
     /// off it with a shadow.
     pub(super) text_under: bool,
+    /// The version line's control the pointer is on, whose tooltip shows.
+    pub(super) hover: Option<&'static str>,
     drop_over: bool,
     drop_rejected: bool,
     pub(super) armed: Option<Armed>,

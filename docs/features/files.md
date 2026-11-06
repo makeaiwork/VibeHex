@@ -35,20 +35,23 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   tab, time, ✓ on the open one; a job shows its stage and percent
 │   ├── Clicking a tab opens the version last opened there (until Hex quits),
 │   │   else its newest; a new version opens at once
-│   ├── The version line ends with "1 of 3" while its tab holds more
-│   ├── Original: Timestamps | Plain text (files.show_timestamps opens it),
-│   │   Transcribe again ▾ ("Transcribe the audio again with": downloaded
+│   ├── The version line keeps to one row: a tag ("v2" while its tab holds
+│   │   more than one version, a request's name), then an ⓘ whose tooltip
+│   │   says what made it, from what, and when; the actions sit at the end
+│   ├── Original: Timestamps | Plain text as a clock and a lines icon, each
+│   │   named in a tooltip (files.show_timestamps opens it), Transcribe
+│   │   again as ↻ ▾ with a tooltip ("Transcribe the audio again with": downloaded
 │   │   models, "Same model" on the one that made the first Original; "Adds a
 │   │   version to Original"; More models in General); a model that takes a
 │   │   language asks for it first in a row under the line, starting at the
 │   │   saved one, with Transcribe and Cancel; Clean up (a small button
 │   │   with sparkles, as compact as Transcribe again) while no Cleanup was
 │   │   made from it
-│   ├── Cleanup: "<model> in an 8K window", Clean up again ▾ (Built in,
+│   ├── Cleanup: "<model> in an 8K window" in the ⓘ, Clean up again ▾ (Built in,
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›
 │   │   AI cleanup)
 │   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
-│   │   32K window"; each request tab is a session, a chat: a typed request
+│   │   32K window" in the ⓘ; each request tab is a session, a chat: a typed request
 │   │   as a bubble (a chip's request shows no bubble), its answer, then each
 │   │   follow-up as a bubble with its answer. Every answer ends in one row:
 │   │   Copy and Ask again as quiet icons in the grey of the model and the
