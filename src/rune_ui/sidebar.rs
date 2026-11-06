@@ -233,7 +233,7 @@ pub(super) fn sidebar(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     title_bar(col())
         .key("sidebar")
         .role("navigation")
-        .w(220.0)
+        .w(196.0)
         .h_full()
         .pt(SIDEBAR_TOP - NAV_ROW_GAP / 2.0)
         .pb(12.0)
@@ -563,7 +563,7 @@ fn footer(ui: &Ui, p: Paint) -> El {
         .child(version_line(
             ui,
             p,
-            line("version", &version_label(), p.faint()),
+            line("version", &version_words(false), p.faint()),
         ))
         .children(status)
 }
@@ -581,7 +581,7 @@ fn version_line(ui: &Ui, p: Paint, version: El) -> El {
         .key("version-row")
         .gap(2.0)
         .center_y()
-        .child(version.key("version"))
+        .child(version.key("version").shrink().min_w(0.0))
         .child(
             row()
                 .key("build-badge")
@@ -630,10 +630,16 @@ pub(super) const FOOTER_LINE: f32 = 20.0;
 /// Test and local builds also name their commit: main moves past a release without
 /// changing the version.
 pub(super) fn version_label() -> String {
+    version_words(true)
+}
+
+/// The version; a local or test build's with its commit, and with its kind
+/// where no badge beside it says it (`kind`).
+fn version_words(kind: bool) -> String {
     // Goldens render a fixed version: a local build's names its commit.
     let version = if cfg!(test) { "0.0.0" } else { crate::VERSION };
     match option_env!("HEX_COMMIT") {
-        Some(commit) => {
+        Some(commit) if kind => {
             let kind = if crate::app_paths::is_local_build() {
                 "local"
             } else {
@@ -641,6 +647,7 @@ pub(super) fn version_label() -> String {
             };
             tr_fill("Version {}", &format!("{version} ({kind} {commit})"))
         }
+        Some(commit) => tr_fill("Version {}", &format!("{version} ({commit})")),
         None => tr_fill("Version {}", version),
     }
 }
