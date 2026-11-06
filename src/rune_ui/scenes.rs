@@ -711,6 +711,7 @@ pub(super) const SCENES: &[Scene] = &[
         server.openrouter_model = "google/gemma-3-4b-it".into();
         server.url = "http://127.0.0.1:1234/v1".into();
         server.custom_model = "gemma-4-e4b-it-mlx-4bit".into();
+        ui.files.codex_models = files::FilesPane::fixture_codex_models();
         ui.files.view = files::View::Settings;
         ui.open = Some(Menu::Pick("files-request-engine"));
     }),

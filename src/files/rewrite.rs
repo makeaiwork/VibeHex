@@ -382,16 +382,28 @@ fn request_instructions(vocabulary: &[VocabularyEntry]) -> String {
 
 /// How much of an earlier answer a follow-up repeats to the model.
 const EARLIER_ANSWER_CHARS: usize = 6_000;
+/// How much of the last answer it repeats: a follow-up often reworks it
+/// (translate it, shorten it), so it goes nearly whole.
+const LAST_ANSWER_CHARS: usize = 30_000;
 
 /// A follow-up's request: the session so far, then the new question, so any
-/// engine answers it with the whole conversation in view.
+/// engine answers it with the whole conversation in view. A question that
+/// changes the last answer (translate, shorten, reformat it) reworks that
+/// answer, keeping its Markdown, not the text the session started from.
 pub fn follow_up_prompt(earlier: &[(&str, &str)], question: &str) -> String {
     let mut prompt = String::from(
-        "This continues a conversation about the text. Answer the new question; the earlier \
-         questions and answers are context only.\n",
+        "This continues a conversation about the text. Answer the new question. When it asks \
+         to change the last answer (translate it, shorten it, rewrite or reformat it), rework \
+         that answer, not the text, and keep its Markdown: its headings, lists, and tables. \
+         Otherwise answer from the text; the earlier questions and answers are context.\n",
     );
-    for (asked, answered) in earlier {
-        let answered = match answered.char_indices().nth(EARLIER_ANSWER_CHARS) {
+    for (index, (asked, answered)) in earlier.iter().enumerate() {
+        let room = if index + 1 == earlier.len() {
+            LAST_ANSWER_CHARS
+        } else {
+            EARLIER_ANSWER_CHARS
+        };
+        let answered = match answered.char_indices().nth(room) {
             Some((cut, _)) => format!("{}…", &answered[..cut]),
             None => (*answered).to_string(),
         };

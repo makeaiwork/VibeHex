@@ -119,15 +119,24 @@ pub(super) fn typed_prompt<'a>(ui: &Ui, version: &'a Version) -> Option<&'a str>
 }
 
 /// How a version is named in lists: its group for an Original or Cleanup,
-/// a quick request's name, or a typed request's words in quotes.
+/// a quick request's name, a typed request's title the model wrote, or,
+/// with no title, its words in quotes.
 pub(super) fn title(ui: &Ui, version: &Version) -> String {
     match version.kind {
         VersionKind::Original | VersionKind::Cleanup => Group::of(version.kind).label().into(),
         VersionKind::Request => match typed_prompt(ui, version) {
-            Some(prompt) => format!("“{prompt}”"),
-            None => version.name.clone(),
+            Some(prompt) if !titled(version, prompt) => format!("“{prompt}”"),
+            _ => version.name.clone(),
         },
     }
+}
+
+/// Whether a typed request's name is the title its answer wrote, not the
+/// first words of what it asked (with " 2" when that name was taken).
+fn titled(version: &Version, prompt: &str) -> bool {
+    let unnamed = crate::files::worker::request_name(prompt);
+    let rest = version.name.strip_prefix(unnamed.as_str());
+    !rest.is_some_and(|rest| rest.is_empty() || rest.trim().parse::<u32>().is_ok())
 }
 
 /// The name a version's tag shows on its line: a request's session name,

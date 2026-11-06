@@ -117,7 +117,12 @@ fn inline_menu(
         .radius(p.k.radius.sm)
         .hover(c.hover)
         .press(c.pressed)
-        .on_press(toggle(key))
+        .on_press(move |ui: &mut Ui| {
+            toggle(key)(ui);
+            if open(ui, key) {
+                super::composer::load_codex_models(ui);
+            }
+        })
         .child(
             text(value.to_string())
                 .key("value")
@@ -488,9 +493,43 @@ fn engine_select(
     set: fn(&mut crate::app_settings::FilesSettings, Option<String>),
     layer: &mut Vec<El>,
 ) -> El {
-    let engines = engine_choices(ui);
     // In groups, names only, so each shows whole; the row shows what the
-    // default resolves to.
+    // default resolves to. Codex lists each of its models once they are
+    // read, in place of AI cleanup's one Codex row.
+    let codex = &ui.files.codex_models;
+    let engines = engine_choices(ui);
+    let mut rows: Vec<(&'static str, String, String)> = Vec::new();
+    if engines.iter().any(|engine| engine.value == "codex") {
+        for model in codex {
+            rows.push(("Codex", format!("codex:{}", model.id), model.name.clone()));
+        }
+    }
+    for engine in engines.iter().filter(|engine| engine.local) {
+        rows.push((tr("Built in"), engine.value.clone(), engine.label.clone()));
+    }
+    for engine in engines.iter().filter(|engine| !engine.local) {
+        if engine.value != "codex" || codex.is_empty() {
+            rows.push((tr("Other"), engine.value.clone(), engine.label.clone()));
+        }
+    }
+    // "codex" runs AI cleanup's Codex model: that model's row.
+    let current = match current {
+        Some("codex") if !codex.is_empty() => {
+            let model = ui.settings.dictation_processing.server.codex_model.trim();
+            codex
+                .iter()
+                .find(|known| {
+                    if model.is_empty() {
+                        known.default
+                    } else {
+                        known.id == model
+                    }
+                })
+                .map(|known| format!("codex:{}", known.id))
+        }
+        other => other.map(str::to_owned),
+    };
+    let current = current.as_deref();
     let mut items = vec![(
         Some(tr("Default")),
         choice(inherit, None, current.is_none(), move |ui: &mut Ui| {
@@ -498,47 +537,33 @@ fn engine_select(
         }),
     )];
     let mut last = None;
-    for engine in engines
-        .iter()
-        .filter(|engine| engine.local)
-        .chain(engines.iter().filter(|engine| !engine.local))
-    {
-        let value = engine.value.clone();
-        let group = if engine.local {
-            tr("Built in")
-        } else {
-            tr("Other")
-        };
-        let label = choice(
-            &engine.label,
+    for (group, value, label) in &rows {
+        let chosen = value.clone();
+        let item = choice(
+            label,
             None,
-            current == Some(engine.value.as_str()),
+            current == Some(value.as_str()),
             move |ui: &mut Ui| {
-                let value = value.clone();
+                let value = chosen.clone();
                 ui.update(|settings| set(&mut settings.files, Some(value)));
             },
         );
-        items.push(((last != Some(group)).then_some(group), label));
-        last = Some(group);
+        items.push(((last != Some(*group)).then_some(*group), item));
+        last = Some(*group);
     }
     let (value, resolved) = match current {
         None => (inherit.to_string(), Some(inherited)),
-        Some(value) => (
-            engines
-                .iter()
-                .find(|engine| engine.value == value)
-                .map_or_else(
-                    || value.to_string(),
-                    |engine| {
-                        if engine.local {
-                            tr_fill("Built in, {}", &engine.label)
-                        } else {
-                            engine.label.clone()
-                        }
-                    },
-                ),
-            None,
-        ),
+        Some(value) => {
+            let shown =
+                rows.iter()
+                    .find(|row| row.1 == value)
+                    .map(|(group, _, label)| match *group {
+                        "Codex" => tr_fill("Codex: {}", label),
+                        group if group == tr("Built in") => tr_fill("Built in, {}", label),
+                        _ => label.clone(),
+                    });
+            (shown.unwrap_or_else(|| value.to_string()), None)
+        }
     };
     inline_menu(ui, p, key, &value, resolved, items, layer)
 }

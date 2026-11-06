@@ -23,7 +23,8 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   ├── Clean up after transcription on -> Cleanup queued right after
 │   ├── Each row: "1 h 12 min, 2nd in line" with Queued; "Extracting audio" or
 │   │   "Transcribing, 54 min" with its percent; "42 min, Structure 45%" while
-│   │   a request runs; a thin bar under every running job; when done
+│   │   a request runs in steps, "42 min, Structure" with no percent or bar
+│   │   while one runs in one go; a thin bar under every measured job; when done
 │   │   "42 min, 3 versions"; a failure in red
 │   ├── Stop (Remove while queued) ends a job between chunks or pieces
 │   └── The queue empties -> the built-in engine goes back to its 8K window
@@ -63,7 +64,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   time, the model, Stopped in amber when stopped (what came is kept),
 │   │   and the day and time. A follow-up reads
 │   │   the same source tab with the conversation so far (earlier answers cut
-│   │   at 6,000 characters); while it runs, "<model> is answering" under the
+│   │   at 6,000 characters, the last at 30,000); one that changes the last
+│   │   answer (translate, shorten, reformat it) reworks that answer and keeps
+│   │   its Markdown, not the source tab's plain text; while it runs, "<model> is answering" under the
 │   │   streaming draft. Saved in the version: engine, effort, follow_ups
 │   ├── A three-step version: a note with × (closed for that version for good)
 │   └── A running job's tab turns a ring before its name and shows "Made from
@@ -114,8 +117,10 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
              Use the Default mode's prompt (its start in italics while on;
              off, Files' own prompt); Requests › Runs on (files.request_engine:
              Same as cleanup or any of those; both Runs on menus are 300 pt
-             wide in groups Default, Built in, Other with names only, so a
-             model's name shows whole, and a Codex engine reads "Codex: <model>"),
+             wide in groups Default, Codex (each of Codex's models, read as the
+             menu opens, in place of AI cleanup's one Codex row), Built in,
+             Other with names only, so a model's name shows whole; a Codex
+             engine reads "Codex: <model>"),
              Reasoning (files.request_effort,
              only while requests run on Codex; Medium when unset); Quick requests
              (the chips' names and the prompts' language, Default or Edited,

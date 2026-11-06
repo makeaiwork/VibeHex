@@ -843,6 +843,9 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
         (error, Some(p.danger()), listed.clock.clone())
     } else if let Some(task) = task {
         let percent = (task.fraction * 100.0).round() as u32;
+        // A request answered in one go can't tell how far it is: no
+        // percent and no bar, as its progress card shows none.
+        let measured = task.stage != Stage::Working || task.parts.is_some();
         let with_length = |what: String| {
             length
                 .clone()
@@ -866,12 +869,13 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
                 ),
                 format!("{percent}%"),
             ),
+            Stage::Working if !measured => (with_length(stage_label(task)), listed.clock.clone()),
             Stage::Working | Stage::CleaningUp => (
                 with_length(format!("{} {percent}%", stage_label(task))),
                 listed.clock.clone(),
             ),
         };
-        if task.stage != Stage::Queued {
+        if task.stage != Stage::Queued && measured {
             bar = Some(task.fraction);
         }
         (meta, None, time)

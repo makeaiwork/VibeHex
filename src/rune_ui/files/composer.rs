@@ -498,7 +498,10 @@ pub(in super::super) fn load_codex_models(ui: &mut Ui) {
 
 /// Picks up Codex's models once a status read has listed them.
 pub(super) fn poll(ui: &mut Ui) -> bool {
-    poll_models(ui, MODEL_MENU)
+    // The field's menu, or Settings' Runs on menus.
+    [MODEL_MENU, "files-engine", "files-request-engine"]
+        .into_iter()
+        .any(|menu| poll_models(ui, menu))
 }
 
 /// Picks up Codex's models while the model menu saved under `menu` is open.

@@ -496,5 +496,10 @@ mod tests {
         assert!(prompt.contains("<earlier_question>\nSummarize it.\n</earlier_question>"));
         assert!(prompt.contains("Anna wants the report automated."));
         assert!(prompt.ends_with("The new question: What did Anna promise?"));
+        // A translation reworks the last answer, Markdown and all.
+        assert!(prompt.contains("rework that answer, not the text, and keep its Markdown"));
+        let long = "word ".repeat(2_000);
+        let prompt = rewrite::follow_up_prompt(&[("Structure it.", &long)], "Translate it.");
+        assert!(prompt.contains(long.trim()), "the last answer goes whole");
     }
 }
