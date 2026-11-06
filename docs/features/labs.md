@@ -92,7 +92,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
 ├── Collapsible sidebar no labs.collapsible_sidebar + labs.sidebar_collapsed
-│                                        Close sidebar beside the logo folds the sidebar into a 56 pt column of icons (Open sidebar on top, each pane, Labs, About, the update check at the bottom), each named by a tooltip; the choice is kept
+│                                        Close sidebar beside the logo folds the sidebar into a 56 pt column of icons (VibeHex's logo on top, turning into Open sidebar under the pointer, each pane, Labs, About, and at the bottom the update button, always there: Check for updates, an update to take with a dot, or the footer's state as its tooltip), each named by a tooltip; the choice is kept
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
 Settings › Labs                          // labs.page

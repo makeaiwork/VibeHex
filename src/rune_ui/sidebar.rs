@@ -354,6 +354,43 @@ fn rail_item(p: Paint, key: &'static str, glyph: &'static Icon, label: &str, on:
     if on { item.fill(c.layer_02) } else { item }
 }
 
+/// The folded sidebar's top: VibeHex's logo, which turns into Open sidebar
+/// while the pointer is on it.
+fn open_button(p: Paint) -> El {
+    let c = &p.k.c;
+    row()
+        .key("sidebar-open")
+        .role("button")
+        .label(tr("Open sidebar"))
+        .size(36.0, 32.0)
+        .center()
+        .radius(7.0)
+        .hover_group()
+        .press(c.pressed)
+        .focusable(true)
+        .focus_ring(2.0, -2.0, c.border_focus)
+        .child(
+            el().key("hover")
+                .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .radius(7.0)
+                .fill(c.layer_02)
+                .group_opacity(0.0, 1.0),
+        )
+        .child(super::brand::logo("logo", 22.0).group_opacity(1.0, 0.0))
+        .child(
+            row()
+                .key("open")
+                .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .center()
+                .group_opacity(0.0, 1.0)
+                .child(
+                    icon(&OPEN_SIDEBAR_ICON, 16.0)
+                        .key("icon")
+                        .color(c.icon_base),
+                ),
+        )
+}
+
 /// The folded sidebar: Open sidebar, every pane, Labs, and About as icons,
 /// and the update check at the bottom.
 fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
@@ -367,14 +404,7 @@ fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         .pb(14.0)
         .gap(NAV_ROW_GAP)
         .items_center();
-    let open = rail_item(
-        p,
-        "sidebar-open",
-        &OPEN_SIDEBAR_ICON,
-        tr("Open sidebar"),
-        true,
-    )
-    .on_press(|ui: &mut Ui| fold(ui, false));
+    let open = open_button(p).on_press(|ui: &mut Ui| fold(ui, false));
     rail = rail.child(
         tip(
             ui,
@@ -409,21 +439,32 @@ fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
 /// The folded sidebar's update button: an update to take, in the accent,
 /// or Check for updates while there is none and a check can run.
 fn update_item(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
+    use DesktopUpdateStatus as S;
     let status = ui.view.as_ref().map(|view| &view.update_status);
-    let (words, action, ready) = match sidebar_update::action(ui) {
-        Some((words, action)) => (words, action, true),
-        None if matches!(
-            status,
-            Some(DesktopUpdateStatus::Current | DesktopUpdateStatus::Failed)
-        ) =>
-        {
-            let words = tr("Check for updates").to_owned();
-            (words, DesktopAction::CheckForUpdates, false)
+    let check = || Some(DesktopAction::CheckForUpdates);
+    // A state with no check to run names itself, as the footer does.
+    let (words, action, ready) = match (sidebar_update::action(ui), status) {
+        (Some((words, action)), _) => (words, Some(action), true),
+        (None, None | Some(S::Current | S::Failed)) => {
+            (tr("Check for updates").into(), check(), false)
         }
-        None => return None,
+        (None, Some(S::Checking)) => (tr("Checking for updates…").into(), None, false),
+        (None, Some(S::Downloading)) => (tr("Downloading update").into(), None, false),
+        (None, Some(S::Managed)) => (tr("Managed by your organization").into(), None, false),
+        (None, Some(S::SourceBuild))
+            if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local =>
+        {
+            (tr("Local build · updates off").into(), None, false)
+        }
+        (None, Some(S::SourceBuild)) => {
+            (tr("Updated from your source checkout").into(), None, false)
+        }
+        (None, Some(_)) => (tr("Updated by your package manager").into(), None, false),
     };
-    let mut item = rail_item(p, "sidebar-update", &super::icons::REFRESH, &words, false)
-        .on_press(move |ui: &mut Ui| ui.send(Request::Desktop(action.clone())));
+    let mut item = rail_item(p, "sidebar-update", &super::icons::REFRESH, &words, false);
+    if let Some(action) = action {
+        item = item.on_press(move |ui: &mut Ui| ui.send(Request::Desktop(action.clone())));
+    }
     if ready {
         item = item.child(controls::status_dot(p.accent()).key("dot").pin(
             None,
