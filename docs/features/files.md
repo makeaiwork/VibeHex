@@ -167,9 +167,11 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 │   place when the audio can't be read
 ├── The transcript follows word by word: the word playing has the accent's
 │   fill and its paragraph's or turn's time the accent; nothing else is
-│   tinted. Times are kept per line (a file's segment, a meeting's turn),
-│   so a word's time is its share of its line by length, an estimate
-│   (playback/timing.rs)
+│   tinted. A word plays at the model's own time for it, kept with each
+│   line since word times were kept (`words`, one start per word between
+│   spaces); older recordings, models without word times, and lines whose
+│   word count an edit changed fall back to the line's time shared by its
+│   words' length (playback/timing.rs)
 ├── A Cleanup of plain paragraphs follows too: its words take the times of
 │   the Original's words they match in order (a word found a step or two
 │   on, or further when the next word follows it there too; a word not

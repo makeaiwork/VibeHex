@@ -1082,9 +1082,11 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 │   place when the audio can't be read
 ├── The transcript follows word by word: the word playing has the accent's
 │   fill and its paragraph's or turn's time the accent; nothing else is
-│   tinted. Times are kept per line (a file's segment, a meeting's turn),
-│   so a word's time is its share of its line by length, an estimate
-│   (playback/timing.rs)
+│   tinted. A word plays at the model's own time for it, kept with each
+│   line since word times were kept (`words`, one start per word between
+│   spaces); older recordings, models without word times, and lines whose
+│   word count an edit changed fall back to the line's time shared by its
+│   words' length (playback/timing.rs)
 ├── A click on a line plays from its start while playing; while paused it
 │   marks the line (underlined), and Play starts there
 └── Space plays or pauses, ← and → skip 5 s, while the player is open and
@@ -1094,8 +1096,11 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 The sound is the meeting's two tracks, `system.wav` and `microphone.wav`,
 mixed where each started (`first_arrival_us` in `manifest.json`), the
 origin the transcript's clocks count from, so a turn plays from its own
-time. A turn's words spread over its start and end (the coalesced entries'
-last end).
+time. Each transcript entry keeps its words' starts (`words` in
+`TranscriptEntry`, from the sentence's timed words, `meeting::sentence_entry`);
+a turn joins them while every entry it joins has them, else its words
+spread over its start and end. Checks: `turns_keep_their_word_times_only_while_every_entry_has_them`,
+`timed_words_become_sentences_at_punctuation_and_pauses`.
 Sources: [files/playback.rs](../../src/files/playback.rs) (`Audio::Meeting`),
 [rune_ui/playback/](../../src/rune_ui/playback/). Checks:
 `tracks_mix_where_each_started`; scenes `meetings-playback`,

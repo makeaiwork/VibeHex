@@ -54,6 +54,8 @@ pub(super) struct Turn {
     pub(super) start_ms: u64,
     pub(super) end_ms: u64,
     pub(super) text: String,
+    /// When each word starts, when the model's word times were kept.
+    pub(super) words: Vec<u64>,
     /// A silence of 30 s or more before this turn.
     pub(super) pause_before_ms: Option<u64>,
 }
@@ -286,6 +288,7 @@ impl MeetingsPane {
             start_ms: seconds * 1_000,
             end_ms: seconds * 1_000 + 3_000,
             text: text.into(),
+            words: Vec::new(),
             pause_before_ms: None,
         };
         let mut conversation = vec![
@@ -1261,7 +1264,8 @@ pub(super) fn turn_line(
                 match listened {
                     Some((of, lit)) => {
                         let times = (turn.start_ms, turn.end_ms);
-                        super::playback::meeting_turn(p, of, turn.text.clone(), times, lit)
+                        let words = (turn.text.clone(), turn.words.as_slice());
+                        super::playback::meeting_turn(p, of, words, times, lit)
                     }
                     None => text(turn.text.clone()),
                 }

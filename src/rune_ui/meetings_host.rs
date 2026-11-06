@@ -203,6 +203,9 @@ fn turns(entries: &[crate::meeting::TranscriptEntry]) -> Vec<Turn> {
                 mine: turn.source == crate::meeting::MeetingSource::Microphone,
                 start_ms: turn.start_ms,
                 end_ms: turn.end_ms,
+                words: crate::meeting::word_starts(&turn.text, &turn.words)
+                    .map(<[u64]>::to_vec)
+                    .unwrap_or_default(),
                 text: turn.text,
                 pause_before_ms,
             }
@@ -286,6 +289,7 @@ mod tests {
         // One speaker's two lines join into one turn across the boundary
         // at 06:30; the second line belongs to the chapter after.
         let line = |start_ms: u64, end_ms: u64, text: &str| crate::meeting::TranscriptEntry {
+            words: Vec::new(),
             source: crate::meeting::MeetingSource::Microphone,
             start_ms,
             end_ms,

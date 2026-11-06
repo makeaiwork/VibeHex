@@ -42,12 +42,12 @@ pub(in super::super) fn heard(ui: &Ui, of: &Of) -> Option<Heard> {
 }
 
 /// A paragraph as shown: its start, its words, and each segment's byte
-/// range in them with the segment's start and end.
-type Paragraph = (u64, String, Vec<(Range<usize>, u64, u64)>);
+/// range in them with the segment.
+type Paragraph<'a> = (u64, String, Vec<(Range<usize>, &'a Segment)>);
 
 /// The paragraphs `segments` read as, as `files::text::paragraphs` joins
 /// them.
-pub(in super::super) fn file_paragraphs(segments: &[Segment]) -> Vec<Paragraph> {
+pub(in super::super) fn file_paragraphs(segments: &[Segment]) -> Vec<Paragraph<'_>> {
     let mut spoken = segments
         .iter()
         .filter(|segment| !segment.text.trim().is_empty())
@@ -61,7 +61,7 @@ pub(in super::super) fn file_paragraphs(segments: &[Segment]) -> Vec<Paragraph> 
                 break;
             };
             let len = segment.text.trim().len();
-            ranges.push((offset..offset + len, segment.start_ms, segment.end_ms));
+            ranges.push((offset..offset + len, segment));
             offset += len + 1;
         }
         shown.push((paragraph.start_ms, paragraph.text, ranges));
@@ -156,24 +156,27 @@ pub(in super::super) fn file_original(
         playing_line(
             shown
                 .iter()
-                .flat_map(|(_, _, ranges)| ranges.iter().map(|(_, start, _)| *start)),
+                .flat_map(|(_, _, ranges)| ranges.iter().map(|(_, segment)| segment.start_ms)),
             at,
         )
     });
     let mut lines = col().key("paragraphs").gap(12.0);
     for (index, (start, words, ranges)) in shown.into_iter().enumerate() {
-        let here = ranges.iter().find(|(_, start, _)| Some(*start) == playing);
+        let here = ranges
+            .iter()
+            .find(|(_, segment)| Some(segment.start_ms) == playing);
         let spans = here
             .zip(heard.at_ms)
-            .and_then(|((range, start, end), at)| {
-                let timed = timing::spread(&words, range.clone(), (*start, *end));
+            .and_then(|((range, segment), at)| {
+                let line_ms = (segment.start_ms, segment.end_ms);
+                let timed = timing::timed(&words, range.clone(), line_ms, &segment.words);
                 timing::heard_at(&timed, at).map(|word| lit(p, word, heard.marked))
             })
             .into_iter()
             .collect();
         let links: Vec<_> = ranges
             .iter()
-            .map(|(range, start, _)| (range.clone(), *start))
+            .map(|(range, segment)| (range.clone(), segment.start_ms))
             .collect();
         let words = linked(p, of, words, spans, links);
         let clock_at = timestamps.then_some((start, here.is_some()));
@@ -245,18 +248,19 @@ fn sentences(words: &str, timed: &[Word]) -> Vec<(Range<usize>, u64)> {
     shown
 }
 
-/// A meeting's turn: one link from its start, the word playing lit.
+/// A meeting's turn: one link from its start, the word playing lit at
+/// `starts`, its words' times when they were kept.
 pub(in super::super) fn meeting_turn(
     p: Paint,
     of: &Of,
-    words: String,
+    (words, starts): (String, &[u64]),
     (start_ms, end_ms): (u64, u64),
     lit_now: Option<(u64, bool)>,
 ) -> El {
     let all = 0..words.len();
     let spans = lit_now
         .and_then(|(at, marked)| {
-            let timed = timing::spread(&words, all.clone(), (start_ms, end_ms));
+            let timed = timing::timed(&words, all.clone(), (start_ms, end_ms), starts);
             timing::heard_at(&timed, at).map(|word| lit(p, word, marked))
         })
         .into_iter()
@@ -270,6 +274,7 @@ mod tests {
 
     fn segment(start_ms: u64, text: &str) -> Segment {
         Segment {
+            words: Vec::new(),
             start_ms,
             end_ms: start_ms + 1_000,
             text: text.into(),
@@ -288,7 +293,11 @@ mod tests {
         let (start, text, ranges) = &shown[0];
         assert_eq!(*start, 0);
         assert_eq!(text, "First one. Second.");
-        assert_eq!(ranges, &vec![(0..10, 0, 1_000), (11..18, 2_000, 3_000)]);
+        let kept: Vec<(Range<usize>, u64)> = ranges
+            .iter()
+            .map(|(range, segment)| (range.clone(), segment.start_ms))
+            .collect();
+        assert_eq!(kept, vec![(0..10, 0), (11..18, 2_000)]);
         assert_eq!(&text[ranges[1].0.clone()], "Second.");
     }
 

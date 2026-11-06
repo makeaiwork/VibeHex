@@ -27,6 +27,10 @@ pub struct Segment {
     pub start_ms: u64,
     pub end_ms: u64,
     pub text: String,
+    /// When each of `text`'s words starts, when the model timed them (see
+    /// `meeting::TranscriptEntry::words`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub words: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

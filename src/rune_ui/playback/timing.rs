@@ -1,7 +1,8 @@
-//! When each word is heard. Transcripts keep times per line (a file's
-//! segment, a meeting's turn), not per word, so a line's words share its
-//! time by their length; a Cleanup's words take the times of the
-//! Original's words they match, in order.
+//! When each word is heard: the model's own word times where the
+//! transcript kept them (recordings since they were kept), else the line's
+//! time (a file's segment, a meeting's turn) shared by its words' length; a
+//! Cleanup's words take the times of the Original's words they match, in
+//! order.
 
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
@@ -42,6 +43,23 @@ pub(super) fn spread(text: &str, range: Range<usize>, (start_ms, end_ms): (u64, 
             }
         })
         .collect()
+}
+
+/// The words of `text[range]` at `starts`, the model's times of each of
+/// them, or spread over the line when those don't match its words.
+pub(super) fn timed(
+    text: &str,
+    range: Range<usize>,
+    line_ms: (u64, u64),
+    starts: &[u64],
+) -> Vec<Word> {
+    let mut words = spread(text, range, line_ms);
+    if words.len() == starts.len() {
+        for (word, start) in words.iter_mut().zip(starts) {
+            word.at_ms = *start;
+        }
+    }
+    words
 }
 
 /// The word heard at `at_ms`: the last one started by then, else the first.
@@ -105,10 +123,11 @@ fn clean_times(text: &str, segments: &[Segment]) -> Cleaned {
     let heard: Vec<(String, u64)> = segments
         .iter()
         .flat_map(|segment| {
-            spread(
+            timed(
                 &segment.text,
                 0..segment.text.len(),
                 (segment.start_ms, segment.end_ms),
+                &segment.words,
             )
             .into_iter()
             .map(|word| (plain(&segment.text[word.range]), word.at_ms))
@@ -195,6 +214,11 @@ mod tests {
         assert_eq!(&text[words[1].range.clone()], "abcd");
         assert_eq!(heard_at(&words, 1_500).map(|word| word.at_ms), Some(1_300));
         assert_eq!(heard_at(&words, 0).map(|word| word.at_ms), Some(1_000));
+        let kept = timed(text, 0..text.len(), (1_000, 2_100), &[1_000, 1_200, 2_000]);
+        let starts: Vec<u64> = kept.iter().map(|word| word.at_ms).collect();
+        assert_eq!(starts, vec![1_000, 1_200, 2_000]);
+        let off = timed(text, 0..text.len(), (1_000, 2_100), &[1_000]);
+        assert_eq!(off[1].at_ms, 1_300);
     }
 
     #[test]
@@ -209,11 +233,13 @@ mod tests {
     fn cleanup_words_take_the_times_of_the_words_they_match() {
         let segments = vec![
             Segment {
+                words: Vec::new(),
                 start_ms: 0,
                 end_ms: 1_000,
                 text: "ну это самое".into(),
             },
             Segment {
+                words: Vec::new(),
                 start_ms: 1_000,
                 end_ms: 2_000,
                 text: "Алена из Билайна".into(),

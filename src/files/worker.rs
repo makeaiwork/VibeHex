@@ -527,6 +527,7 @@ fn transcribe(
             start_ms: entry.start_ms,
             end_ms: entry.end_ms,
             text: entry.text,
+            words: entry.words,
         })
         .collect();
     if segments.is_empty() {

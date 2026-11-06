@@ -228,6 +228,7 @@ impl FilesPane {
             error: None,
         };
         let segment = |start: u64, text: &str| Segment {
+            words: Vec::new(),
             start_ms: start * 1_000,
             end_ms: start * 1_000 + 9_000,
             text: text.into(),

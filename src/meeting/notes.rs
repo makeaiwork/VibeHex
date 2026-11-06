@@ -945,6 +945,7 @@ pub(super) fn entries_from_markdown(markdown: &str) -> Vec<TranscriptEntry> {
             });
         if let Some((source, start_ms)) = header {
             entries.push(TranscriptEntry {
+                words: Vec::new(),
                 source,
                 start_ms,
                 end_ms: start_ms,
@@ -1073,6 +1074,7 @@ mod tests {
 
     fn entry(source: MeetingSource, start_ms: u64, text: &str) -> TranscriptEntry {
         TranscriptEntry {
+            words: Vec::new(),
             source,
             start_ms,
             end_ms: start_ms + 1_000,
@@ -1503,12 +1505,14 @@ mod tests {
             entries,
             [
                 TranscriptEntry {
+                    words: Vec::new(),
                     source: MeetingSource::Microphone,
                     start_ms: 1_000,
                     end_ms: 4_000,
                     text: "Hi.".into()
                 },
                 TranscriptEntry {
+                    words: Vec::new(),
                     source: MeetingSource::System,
                     start_ms: 4_000,
                     end_ms: 4_400,
