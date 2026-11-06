@@ -44,6 +44,7 @@ pub(crate) use os::{
 mod delta;
 mod echo;
 pub(crate) mod generator;
+mod hour_cycle;
 pub(crate) mod mcp;
 mod notes;
 pub mod query;

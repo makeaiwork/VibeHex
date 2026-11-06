@@ -22,8 +22,9 @@ use crate::files::worker::{self, Config, Job, Stage, Task};
 use crate::files::{decode, text as file_text};
 use crate::transcription::models::TranscriptionModelId;
 
+mod actions;
 mod detail;
-mod settings;
+pub(super) mod settings;
 mod tabs;
 
 /// What the pane shows, picked in its header.
@@ -98,12 +99,14 @@ pub(super) struct FilesPane {
     pub(super) again: Option<Again>,
     /// Transcribe again's models, read when its menu opens.
     pub(super) models: Vec<(TranscriptionModelId, &'static str)>,
+    /// The app that opens the file, read when the … menu opens.
+    pub(super) opener: Option<String>,
     /// Clean up again's engines, read when its menu opens.
     pub(super) engines: Vec<settings::EngineChoice>,
     /// Settings' own prompt while it holds typing not yet saved.
     pub(super) prompt: Option<TextEdit>,
-    /// Settings' quick requests while they hold edits not yet saved.
-    pub(super) quick: Option<Vec<(TextEdit, TextEdit)>>,
+    /// The quick request being written in Settings.
+    pub(super) quick: Option<settings::QuickEdit>,
     /// The worker wakes this window.
     woken: bool,
     /// A scene: nothing reads or writes the store.
@@ -325,6 +328,10 @@ impl FilesPane {
             parts: None,
             name: None,
             kind: VersionKind::Original,
+            from: None,
+            model: None,
+            window_k: None,
+            draft: None,
         };
         Self {
             records: vec![
@@ -371,6 +378,16 @@ impl FilesPane {
                 parts: Some(6),
                 name: Some("Structure".into()),
                 kind: crate::files::store::VersionKind::Request,
+                from: Some(2),
+                model: Some("Qwen3 4B".into()),
+                window_k: Some(32),
+                draft: Some(crate::files::worker::Draft {
+                    kind: crate::files::rewrite::DraftKind::Outline,
+                    text: "1. Как клиент собирает отчёты сейчас\n2. Сколько это стоит команде\n\
+                           3. Автоматическая выгрузка из CRM"
+                        .into(),
+                    cut: false,
+                }),
             },
         );
         pane.tab = Some(Tab::Task(3));
@@ -451,7 +468,7 @@ pub(super) fn add(ui: &mut Ui, paths: &[PathBuf]) {
             }
             let config = Config::from_settings(&ui.drafted());
             let job = Job::Transcribe {
-                selection: ui.settings.files.transcription.clone(),
+                selection: ui.settings.files.selection(&ui.settings.transcription),
                 model_name: config.transcription_name.clone(),
                 again: false,
             };
@@ -649,6 +666,7 @@ fn drop_zone(ui: &Ui, p: Paint) -> El {
         } else {
             rune::Color::TRANSPARENT
         })
+        .child(rune::icon(&UPLOAD_ICON, 18.0).key("icon").color(p.muted()))
         .child(
             col()
                 .key("words")
@@ -670,14 +688,21 @@ fn drop_zone(ui: &Ui, p: Paint) -> El {
                         .truncate(),
                 ),
         )
-        .child(button(
-            p,
-            "files-choose",
-            tr("Choose file…"),
-            ButtonKind::Secondary,
-            choose,
-        ))
+        .child(
+            rune_kit::Button::new(tr("Choose file…"))
+                .variant(rune_kit::ButtonVariant::Neutral)
+                .control_size(rune_kit::ControlSize::Small)
+                .on_press_tx(choose)
+                .build(p.k)
+                .key("files-choose"),
+        )
 }
+
+static UPLOAD_ICON: rune::Icon = rune::Icon {
+    name: "hex-files-upload",
+    view: 16.0,
+    body: r#"<path d="M8 10.5V2.5M5 5.3 8 2.3l3 3M2.5 10v3h11v-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#,
+};
 
 fn search(ui: &Ui, p: Paint) -> El {
     TextInput::new(&ui.files.search)
@@ -689,11 +714,13 @@ fn search(ui: &Ui, p: Paint) -> El {
         .key("files-search")
 }
 
-/// A queued job's place: `Queued`, or its percent.
-fn task_label(task: &Task) -> String {
-    match task.stage {
-        Stage::Queued => tr("Queued").into(),
-        _ => format!("{}%", (task.fraction * 100.0).round() as u32),
+/// A queued job's place in the queue, the running one first: `2nd in line`.
+fn in_line(place: usize) -> String {
+    match place {
+        1 => tr("1st in line").into(),
+        2 => tr("2nd in line").into(),
+        3 => tr("3rd in line").into(),
+        place => tr_fill("{}th in line", &place.to_string()),
     }
 }
 
@@ -712,6 +739,7 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
     let record = &listed.record;
     let task = pane.tasks_of(&record.id).next();
     let length = (record.duration_ms > 0).then(|| file_text::length(record.duration_ms));
+    let mut bar = None;
     let (meta, ink, time) = if let Some(error) = record
         .error
         .clone()
@@ -720,21 +748,38 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
     {
         (error, Some(p.danger()), listed.clock.clone())
     } else if let Some(task) = task {
-        let what = match task.stage {
-            Stage::Queued => tr("waiting").to_string(),
-            Stage::Working | Stage::CleaningUp => format!(
-                "{} {}%",
-                stage_label(task),
-                (task.fraction * 100.0).round() as u32
+        let percent = (task.fraction * 100.0).round() as u32;
+        let with_length = |what: String| {
+            length
+                .clone()
+                .map_or(what.clone(), |length| format!("{length}, {what}"))
+        };
+        let (meta, time) = match task.stage {
+            Stage::Queued => {
+                let place = pane
+                    .tasks
+                    .iter()
+                    .position(|other| other.id == task.id)
+                    .unwrap_or(0)
+                    + 1;
+                (with_length(in_line(place)), tr("Queued").to_string())
+            }
+            Stage::Extracting => (stage_label(task), format!("{percent}%")),
+            Stage::Transcribing => (
+                length.clone().map_or_else(
+                    || stage_label(task),
+                    |length| format!("{}, {length}", stage_label(task)),
+                ),
+                format!("{percent}%"),
             ),
-            _ => stage_label(task),
+            Stage::Working | Stage::CleaningUp => (
+                with_length(format!("{} {percent}%", stage_label(task))),
+                listed.clock.clone(),
+            ),
         };
-        let meta = length.map_or(what.clone(), |length| format!("{length}, {what}"));
-        let time = if matches!(task.stage, Stage::Working | Stage::CleaningUp) {
-            listed.clock.clone()
-        } else {
-            task_label(task)
-        };
+        if task.stage != Stage::Queued {
+            bar = Some(task.fraction);
+        }
         (meta, None, time)
     } else if record.versions.is_empty() {
         (tr("Stopped").into(), None, listed.clock.clone())
@@ -760,6 +805,7 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
             hover: Vec::new(),
             selected: pane.selected.as_deref() == Some(record.id.as_str()),
             title_lines: 2,
+            bar,
         },
         move |ui: &mut Ui| ui.files.select(id.clone()),
     )
@@ -793,7 +839,7 @@ pub(super) fn failure(p: Paint, record: &FileRecord, error: &str) -> El {
                 }
                 let config = Config::from_settings(&ui.drafted());
                 let job = Job::Transcribe {
-                    selection: ui.settings.files.transcription.clone(),
+                    selection: ui.settings.files.selection(&ui.settings.transcription),
                     model_name: config.transcription_name.clone(),
                     again: false,
                 };
@@ -813,6 +859,24 @@ pub(super) fn open_file(path: &std::path::Path) {
     }
     #[cfg(not(target_os = "macos"))]
     let _ = path;
+}
+
+/// The app that opens `path` by default, such as `QuickTime Player`.
+pub(super) fn opener(path: &std::path::Path) -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::NSWorkspace;
+        use objc2_foundation::{NSString, NSURL};
+        let url = NSURL::fileURLWithPath(&NSString::from_str(path.to_str()?));
+        let app = NSWorkspace::sharedWorkspace().URLForApplicationToOpenURL(&url)?;
+        let name = app.lastPathComponent()?.to_string();
+        Some(name.trim_end_matches(".app").to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        None
+    }
 }
 
 /// Reveals `path` in Finder.

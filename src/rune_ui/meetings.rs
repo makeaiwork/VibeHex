@@ -749,6 +749,7 @@ fn recordings(ui: &Ui, p: Paint, layer: &mut Vec<El>, action: El) -> (Vec<El>, E
                         .collect(),
                     selected: pane.selected.as_deref() == Some(meeting.id.as_str()),
                     title_lines: 1,
+                    bar: None,
                 },
                 move |ui: &mut Ui| ui.meetings.select(id.clone()),
             ));

@@ -261,3 +261,17 @@ line_icon!(
         "m9 9 6 6"
     ]
 );
+line_icon!(
+    MONITOR,
+    "hex-row-monitor",
+    [
+        "M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+        "M8 21h8",
+        "M12 17v4",
+    ]
+);
+line_icon!(
+    MESSAGE,
+    "hex-row-message",
+    ["M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"]
+);

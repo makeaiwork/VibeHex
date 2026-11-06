@@ -486,6 +486,7 @@ Record path. Sources: [calendar.rs](../../src/calendar.rs),
 ```ts
 Record (offer, menu bar "Record Meeting", Meetings pane, or voice command)
   -> Title: named meeting OR "<App> call — 2:30 PM" OR "Meeting — 2:30 PM"
+     (times read "14:30" where the Mac uses a 24-hour clock; meeting::hour_cycle)
   -> system.wav + microphone.wav, owner-only, Application Support/meetings/<id>
   -> No idle sleep; no dictation mute or media pause // meetings.record
   -> Menu bar: record symbol + elapsed time

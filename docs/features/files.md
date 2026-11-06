@@ -21,7 +21,10 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   meeting chunker on dictation's engine, yielding to dictation; Settings'
 │   │   own model loads its own copy) -> the Original tab, with timestamps
 │   ├── Clean up after transcription on -> Cleanup queued right after
-│   ├── Each row: Queued / percent, then "42 min, 3 versions"; a failure in red
+│   ├── Each row: "1 h 12 min, 2nd in line" with Queued; "Extracting audio" or
+│   │   "Transcribing, 54 min" with its percent; "42 min, Structure 45%" while
+│   │   a request runs; a thin bar under every running job; when done
+│   │   "42 min, 3 versions"; a failure in red
 │   ├── Stop (Remove while queued) ends a job between chunks or pieces
 │   └── The queue empties -> the built-in engine goes back to its 8K window
 ├── Tabs     FILES-TABS (rune_ui::files::tabs): at most three, Original,
@@ -34,33 +37,53 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   else its newest; a new version opens at once
 │   ├── The version line ends with "1 of 3" while its tab holds more
 │   ├── Original: Timestamps | Plain text (files.show_timestamps opens it),
-│   │   Transcribe again ▾ (downloaded models; a model that takes a language
-│   │   asks for it first, starting at the saved one, with Transcribe and
-│   │   Cancel), Clean up while no Cleanup was made from it
-│   ├── Cleanup: "<model> in a 8K window", Clean up again ▾ (Built in,
+│   │   Transcribe again ▾ ("Transcribe the audio again with": downloaded
+│   │   models, "Same model" on the one that made the first Original; "Adds a
+│   │   version to Original"; More models in General); a model that takes a
+│   │   language asks for it first in a row under the line, starting at the
+│   │   saved one, with Transcribe and Cancel; Clean up while no Cleanup was
+│   │   made from it
+│   ├── Cleanup: "<model> in an 8K window", Clean up again ▾ (Built in,
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›
 │   │   AI cleanup)
 │   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
 │   │   32K window"
-│   └── A three-step version: a note with × (closed for that version for good)
+│   ├── A three-step version: a note with × (closed for that version for good)
+│   └── A running job's tab turns a ring before its name and shows "Made from
+│       Cleanup by Qwen3 4B, 32K window", then a card: title and percent,
+│       Stop, a thin bar, and for three steps each step with a green tick,
+│       a turning ring, or an empty ring; under it what the job writes so
+│       far, as Markdown with a cursor ("Summary of part 2 so far:", "Outline
+│       so far:", "Text so far:"; its last ~1,500 characters), streamed from
+│       the built-in engine, OpenRouter, or Your server as it arrives
+│       (OpenCode answers whole, so its draft grows a piece at a time); the
+│       chips and field stay, faded, saying "Wait for <name>, or stop it"
 ├── Header   The name in up to two lines (a long word breaks anywhere), then the
-│            day and time, ⏱ length, 🎙 model; list rows wrap names the same way
+│            day and time (24-hour where the Mac uses it), ⏱ length, 🎙 model;
+│            list rows wrap names the same way
 ├── Actions  Copy ▾ (as Markdown / as plain text), Edit (Save marks it edited),
-│            … (Save as… .md or .txt, Show in Finder, Open original (plays it
-│            in its default app), Delete this version… (not the first
-│            Original), Delete file from list…, then "In <folder>", or "File
-│            not found" with the first two off), each delete confirmed under
-│            the tabs; the file on disk is never touched
-├── Ask      FILES-ASK: quick chips (files.quick_prompts), Recent ▾ (last 10
-│            typed requests, <support>/files/recent.json), "What should I do
-│            with this text?" -> works on the open version and adds the result
-│            to Requests
-└── Settings Model (Same as dictation or a downloaded one), Use vocabulary,
-             Show timestamps, Clean up after transcription, Runs on (Same as
-             dictation / built-in / OpenRouter / Your server / OpenCode), Use
-             the Default mode's prompt or Files' own; Requests › Runs on
-             (files.request_engine: Same as cleanup or any of those); Quick
-             requests
+│            … (Show in Finder, Open original with the app that opens it
+│            named on the right; Save as… .md or .txt; Delete this version…
+│            (not the first Original), Delete file from list… (red icon);
+│            then where the file is, "…/<folder>/<name>" with a long name cut
+│            in its middle, or "File not found" with the first two off), each
+│            delete confirmed under the tabs; the file on disk is never touched
+├── Ask      FILES-ASK: under a rule, quick chips (files.quick_prompts) and
+│            Recent ▾ (last 10 typed requests, <support>/files/recent.json)
+│            as pills, then "What should I do with this text?" -> works on
+│            the open version and adds the result to Requests
+└── Settings Rows lead with icons; each choice is borderless and shows what it
+             resolves to in grey ("Same as dictation  Parakeet v3"). Model
+             (Same as dictation or a downloaded one), Language (files.language,
+             only for a model that takes a hint: Same as dictation or one of
+             its languages; a new model choice clears it), Use vocabulary, Show
+             timestamps; Cleanup: Clean up after transcription, Runs on (Same
+             as dictation / built in / OpenRouter / Your server / OpenCode),
+             Use the Default mode's prompt (its start in italics while on;
+             off, Files' own prompt); Requests › Runs on (files.request_engine:
+             Same as cleanup or any of those); Quick requests as a list (name,
+             what it asks, ✎ edits in place with Save and Cancel, 🗑 removes),
+             Add request, and a note that the chips follow the list
 ```
 
 ```ts
@@ -85,10 +108,15 @@ stays until Delete file from list….
 
 Checks: `files::store`, `files::text`, `files::rewrite`
 (`requests_take_the_usual_window_then_the_wide_one_then_three_steps`, the
-three-step fake generator), `files::worker` (tab names); scenes `files`,
+three-step fake generator and its drafts, a draft's tail),
+`dictation::cleanup_server` (a streamed answer's text so far),
+`files::worker` (tab names); scenes `files`,
 `files-working`, `files-original`, `files-summary`, `files-versions` (the
 open tab's list), `files-more` (the … menu), `files-again` (Transcribe
-again's language), `files-empty`, `files-settings` (no goldens yet).
+again's language), `files-empty`, `files-settings`, `files-settings-prompt`
+(Files' own prompt and a quick request being edited); no goldens yet.
+`app_settings::files_settings` checks how files.language and the model
+combine.
 
 Gaps: macOS only (decoding needs AVFoundation). The queue doesn't survive a
 quit: a file that was transcribing lists as Stopped, with Try again. Text

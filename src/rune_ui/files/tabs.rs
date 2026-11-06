@@ -199,9 +199,11 @@ pub(super) fn strip(
     let mut strip = row()
         .key("file-tabs")
         .role("tablist")
-        .h(28.0)
+        .h(30.0)
         .center_y()
-        .radius(6.0)
+        .radius(7.0)
+        .px(2.0)
+        .gap(2.0)
         .fill(c.layer_01)
         .box_shadow(Shadow {
             spread: 0.5,
@@ -212,21 +214,19 @@ pub(super) fn strip(
         let on = open == Some(group);
         let tabs: Vec<Tab> = entries.iter().map(Entry::tab).collect();
         let working = entries.iter().any(|entry| matches!(entry, Entry::Task(_)));
-        let label = if working {
-            format!("{}…", group.label())
-        } else {
-            group.label().into()
-        };
+        let label = group.label().to_string();
         let font = TextStyle {
             line_height: 13.0,
             ..p.k.ty.ui
         };
         let mut name = row()
             .key("name")
-            .h(28.0)
-            .px(12.0)
+            .h(24.0)
+            .pl(12.0)
+            .pr(if on && entries.len() > 1 { 7.0 } else { 12.0 })
             .gap(6.0)
             .center_y()
+            .children(working.then(|| rune_kit::Loader::new().size(11.0).build(p.k).key("working")))
             .child(text(label.clone()).key("label").font(font).color(if on {
                 c.text_base
             } else {
@@ -240,7 +240,7 @@ pub(super) fn strip(
                     .px(5.0)
                     .center()
                     .radius(8.0)
-                    .fill(if on { c.layer_03 } else { c.layer_02 })
+                    .fill(if on { c.border_base } else { c.layer_03 })
                     .child(
                         text(entries.len().to_string())
                             .font(TextStyle {
@@ -257,7 +257,7 @@ pub(super) fn strip(
             .role("tab")
             .label(label)
             .hover(c.hover)
-            .radius(6.0)
+            .radius(5.0)
             .on_press(move |ui: &mut Ui| {
                 if let Some(current) = current
                     && let Some(from) = open
@@ -268,9 +268,9 @@ pub(super) fn strip(
                     open_group(ui, &id, group, &tabs);
                 }
             });
-        let mut cell = row().key(format!("tab-{group:?}")).radius(6.0).child(name);
+        let mut cell = row().key(format!("tab-{group:?}")).radius(5.0).child(name);
         if on {
-            cell = cell.fill(c.bg_base).box_shadow(Shadow {
+            cell = cell.fill(c.layer_02).box_shadow(Shadow {
                 spread: 0.5,
                 color: c.border_strong,
                 ..Default::default()
@@ -303,10 +303,10 @@ fn versions_menu(
         .key("chevron")
         .role("button")
         .label(tr("Versions"))
-        .h(28.0)
+        .h(24.0)
         .w(22.0)
         .center()
-        .radius(6.0)
+        .radius(5.0)
         .hover(c.hover)
         .child(
             icon(
@@ -420,7 +420,7 @@ fn entry_row(
         .key(format!("version{index}"))
         .role("menuitem")
         .label(name.clone())
-        .w(300.0)
+        .w(264.0)
         .px(10.0)
         .py(6.0)
         .gap(8.0)

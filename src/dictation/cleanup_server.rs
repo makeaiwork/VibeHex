@@ -214,7 +214,8 @@ fn generate_locally(
 }
 
 /// Labs › Files: [`generate`] on the built-in engine in a window of at least
-/// `context` tokens (another server ignores it).
+/// `context` tokens (another server ignores it), its answer streamed to
+/// `streamed` as it arrives.
 pub fn generate_in_window(
     server: &Server,
     context: u32,
@@ -222,9 +223,17 @@ pub fn generate_in_window(
     transcript: &str,
     deadline: Duration,
     cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
 ) -> Result<String> {
     if server.provider != Provider::Local {
-        return generate(server, instructions, transcript, deadline, cancelled, None);
+        return generate(
+            server,
+            instructions,
+            transcript,
+            deadline,
+            cancelled,
+            streamed,
+        );
     }
     generate_locally(
         server,
@@ -233,7 +242,7 @@ pub fn generate_in_window(
         transcript,
         deadline,
         cancelled,
-        None,
+        streamed,
     )
 }
 
@@ -444,7 +453,7 @@ struct Exchange {
     /// The most of the answer's body read.
     limit: u64,
     name: String,
-    /// Reads a streamed answer as it arrives, reporting its length.
+    /// Reads a streamed answer as it arrives, reporting its length and text.
     streamed: Option<Streamed>,
 }
 
@@ -513,10 +522,10 @@ impl Exchange {
 
 /// A streamed chat answer (server-sent events) read to its end: each
 /// event's `choices[0].delta.content` appended, with `on` told how many
-/// characters have arrived.
+/// characters have arrived and what they say.
 fn read_events(
     reader: impl std::io::BufRead,
-    on: &(dyn Fn(usize) + Send + Sync),
+    on: &(dyn Fn(usize, &str) + Send + Sync),
 ) -> std::io::Result<String> {
     let mut text = String::new();
     let mut chars = 0;
@@ -539,7 +548,7 @@ fn read_events(
         {
             chars += piece.chars().count();
             text.push_str(&piece);
-            on(chars);
+            on(chars, &text);
         }
     }
     Ok(text)
