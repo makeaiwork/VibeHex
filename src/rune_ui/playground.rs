@@ -178,6 +178,7 @@ const PATHS: &[(&str, &str)] = &[
         "files-version-info",
         "Window/Files/Version details on hover",
     ),
+    ("files-edit", "Window/Files/Editing a version"),
     ("files-original", "Window/Files/Original"),
     ("files-session", "Window/Files/Session on Codex"),
     ("files-summary", "Window/Files/Summary"),

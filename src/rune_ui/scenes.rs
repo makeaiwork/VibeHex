@@ -582,6 +582,16 @@ pub(super) const SCENES: &[Scene] = &[
         ui.files.tab = Some(files::Tab::Version(5));
         ui.files.hover = Some("info");
     }),
+    ("files-edit", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(4));
+        let record = ui.files.selected().cloned();
+        let text = record.and_then(|record| Some(record.version(4)?.text.clone()));
+        // Long enough to scroll inside the field.
+        ui.files.edit = rune::TextEdit::new(vec![text.unwrap_or_default(); 3].join("\n\n"));
+        ui.files.edit.focused = true;
+        ui.files.editing = Some(4);
+    }),
     ("files-original", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.files.tab = Some(files::Tab::Version(1));

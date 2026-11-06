@@ -270,9 +270,31 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
             }
         }
     }
-    let detail = col().key("file-detail").grow(1.0).shrink().child(header);
+    let detail = col()
+        .key("file-detail")
+        .grow(1.0)
+        .shrink()
+        .min_h(0.0)
+        .child(header);
     match ask {
         Some(ask) => detail.child(floating(p, pane, body, ask)),
+        // The editor takes the whole pane and scrolls inside itself. The
+        // viewport around it never scrolls; it only keeps a long text from
+        // stretching the pane, as the text's own scroll does. Its sides
+        // leave room for the field's focus outline, which it would clip.
+        None if editing.is_some() => detail.child(
+            col()
+                .key("file-editing")
+                .grow(1.0)
+                .shrink()
+                .min_h(0.0)
+                .mx(-OUTLINE_ROOM)
+                .px(OUTLINE_ROOM)
+                .scroll(rune::ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(body.h_full().min_h(0.0).pt(EDITOR_TOP).pb(16.0)),
+        ),
         None => detail.child(ld::card_scroll("file-text", body)),
     }
 }
@@ -570,25 +592,45 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
         .key("markdown")
 }
 
-/// Editing a version by hand, with Save and Cancel.
+/// Above the editor, as the scrolling text sits under its fade.
+const EDITOR_TOP: f32 = 18.0;
+/// Each side of the editor, for the focus outline drawn just outside it.
+const OUTLINE_ROOM: f32 = 2.0;
+
+/// Editing a version by hand: the field fills the pane down to Cancel and
+/// Save, bottom right, and scrolls inside itself.
 fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
     let id = record.id.clone();
     col()
         .key("file-editor")
-        .gap(8.0)
+        .gap(12.0)
+        .grow(1.0)
+        .shrink()
+        .min_h(0.0)
         .child(
             TextArea::new(&ui.files.edit)
-                .rows(14)
-                .max_height(440.0)
+                .rows(6)
+                .max_height(10_000.0)
                 .width(None)
                 .on_edit(|ui: &mut Ui| &mut ui.files.edit)
                 .build(p.k)
-                .key("file-edit-text"),
+                .key("file-edit-text")
+                .grow(1.0)
+                .shrink()
+                .min_h(0.0),
         )
         .child(
             row()
                 .key("edit-actions")
                 .gap(8.0)
+                .child(rune::el().key("push").grow(1.0))
+                .child(button(
+                    p,
+                    "file-edit-cancel",
+                    tr("Cancel"),
+                    ButtonKind::Secondary,
+                    |ui: &mut Ui, _| ui.files.editing = None,
+                ))
                 .child(button(
                     p,
                     "file-edit-save",
@@ -604,13 +646,6 @@ fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
                         });
                         ui.files.editing = None;
                     },
-                ))
-                .child(button(
-                    p,
-                    "file-edit-cancel",
-                    tr("Cancel"),
-                    ButtonKind::Secondary,
-                    |ui: &mut Ui, _| ui.files.editing = None,
                 )),
         )
 }

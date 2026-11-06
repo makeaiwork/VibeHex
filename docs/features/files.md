@@ -78,7 +78,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 ├── Header   The name in up to two lines (a long word breaks anywhere), then the
 │            day and time (24-hour where the Mac uses it), ⏱ length, 🎙 model;
 │            list rows wrap names the same way
-├── Actions  Copy ▾ (as Markdown / as plain text), Edit (Save marks it edited),
+├── Actions  Copy ▾ (as Markdown / as plain text), Edit (the field fills the
+│            card down to Cancel and Save, bottom right, and scrolls inside
+│            itself; Save marks the version edited),
 │            … (Show in Finder, Open original with the app that opens it
 │            named on the right; Save as… .md or .txt; Delete this version…
 │            (not the first Original), Delete file from list… (red icon);
