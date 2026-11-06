@@ -570,12 +570,17 @@ pub(super) const SCENES: &[Scene] = &[
     ("files-settings-prompt", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.settings.files.use_default_prompt = false;
-        ui.files.quick = Some(files::settings::QuickEdit {
-            index: Some(1),
-            label: rune::TextEdit::new("Summary".to_string()),
-            prompt: rune::TextEdit::new("A short summary, as bullet points".to_string()),
-        });
         ui.files.view = files::View::Settings;
+    }),
+    ("files-quick", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.transcription = crate::transcription::models::TranscriptionSelection {
+            model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+            language: "ru".into(),
+        };
+        ui.settings.files.quick_prompts[2].prompt = "Only my own tasks, as a checklist.".into();
+        ui.files.view = files::View::Settings;
+        files::open_quick(ui, 0);
     }),
     ("meetings-off", |ui| {
         *ui = mac_fixture();

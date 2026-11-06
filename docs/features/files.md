@@ -98,9 +98,19 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
              Use the Default mode's prompt (its start in italics while on;
              off, Files' own prompt); Requests › Runs on (files.request_engine:
              Same as cleanup or any of those), Reasoning (files.request_effort,
-             only while requests run on Codex; Medium when unset); Quick requests as a list (name,
-             what it asks, ✎ edits in place with Save and Cancel, 🗑 removes),
-             Add request, and a note that the chips follow the list
+             only while requests run on Codex; Medium when unset); Quick requests
+             (the chips' names and the prompts' language, Default or Edited,
+             Edit…) -> its own page: ‹ Settings, the language as a tag with
+             why (the speech model's language: chosen, or the only one the
+             model speaks; else the app's), the list (Edited in amber, + Add
+             request) beside Name and the prompt, then Default prompt /
+             Edited / Your own request, Remove, Reset to default, Save.
+             Structure, Summary and Action items start from Hex's prompt in
+             that language (app_settings::prompt_defaults,
+             prompts/quick.json: en ru uk pl de es pt fr ja zh zh-Hant,
+             English for any other); saved with an empty prompt they follow
+             the language, and one saved with its old English default
+             follows it too
 ```
 
 ```ts
@@ -134,7 +144,7 @@ Codex with a follow-up streaming),
 `files-working`, `files-original`, `files-summary`, `files-versions` (the
 open tab's list), `files-more` (the … menu), `files-again` (Transcribe
 again's language), `files-empty`, `files-settings`, `files-settings-prompt`
-(Files' own prompt and a quick request being edited); no goldens yet.
+(Files' own prompt), `files-quick` (the Quick requests page on Russian); no goldens yet.
 `app_settings::files_settings` checks how files.language and the model
 combine.
 

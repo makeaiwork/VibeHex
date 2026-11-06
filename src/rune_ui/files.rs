@@ -25,6 +25,7 @@ use crate::transcription::models::TranscriptionModelId;
 mod actions;
 mod composer;
 mod detail;
+mod quick;
 mod session;
 pub(super) mod settings;
 mod tabs;
@@ -118,8 +119,8 @@ pub(super) struct FilesPane {
     pub(super) engines: Vec<settings::EngineChoice>,
     /// Settings' own prompt while it holds typing not yet saved.
     pub(super) prompt: Option<TextEdit>,
-    /// The quick request being written in Settings.
-    pub(super) quick: Option<settings::QuickEdit>,
+    /// The Quick requests page, while it is open in Settings.
+    pub(super) quick: Option<quick::QuickPage>,
     /// The worker wakes this window.
     woken: bool,
     /// A scene: nothing reads or writes the store.
@@ -977,4 +978,9 @@ pub(super) fn reveal(path: &std::path::Path) {
     }
     #[cfg(not(target_os = "macos"))]
     let _ = path;
+}
+
+/// Opens Settings' Quick requests page on request `index`, for scenes.
+pub(super) fn open_quick(ui: &mut Ui, index: usize) {
+    quick::open(ui, Some(index));
 }

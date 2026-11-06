@@ -437,17 +437,23 @@ fn send(ui: &mut Ui, target: Target, question: String) {
             let Some(Tab::Version(from)) = current(ui, &record) else {
                 return;
             };
-            start(ui, &record, from, question);
+            start(ui, &record, from, question, None);
         }
     }
     ui.files.ask = TextEdit::default();
 }
 
-/// Starts a session on version `from` with `prompt`, from a chip or typed.
-pub(super) fn start(ui: &mut Ui, record: &store::FileRecord, from: u32, prompt: String) {
-    let quick = &ui.settings.files.quick_prompts;
-    let name = record.unique_name(&worker::request_name(&prompt, quick));
-    let typed = !quick.iter().any(|chip| chip.prompt.trim() == prompt.trim());
+/// Starts a session on version `from` with `prompt`, from the chip named
+/// `chip` or typed.
+pub(super) fn start(
+    ui: &mut Ui,
+    record: &store::FileRecord,
+    from: u32,
+    prompt: String,
+    chip: Option<String>,
+) {
+    let typed = chip.is_none();
+    let name = record.unique_name(&chip.unwrap_or_else(|| worker::request_name(&prompt)));
     if typed && !ui.files.fixture {
         if let Err(error) = store::remember(&prompt) {
             tracing::warn!(%error, "couldn't remember the request");

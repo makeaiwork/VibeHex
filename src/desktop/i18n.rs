@@ -94,6 +94,22 @@ fn column_for_code(code: &str) -> u8 {
     }
 }
 
+/// The interface's language code (`en`, `pl`, `zh-Hant`…).
+pub(crate) fn interface_code() -> &'static str {
+    match current() {
+        0 => "pl",
+        1 => "zh",
+        2 => "ja",
+        3 => "de",
+        4 => "es",
+        5 => "uk",
+        PORTUGUESE_COLUMN => "pt",
+        FRENCH_COLUMN => "fr",
+        TRADITIONAL_CHINESE_COLUMN => "zh-Hant",
+        _ => "en",
+    }
+}
+
 /// Resolve and activate the persisted language choice; `None` follows the
 /// system locale. Safe to call again whenever the setting changes.
 pub(crate) fn apply(setting: Option<&str>) {
@@ -1596,6 +1612,7 @@ mod tests {
         include_str!("../rune_ui/files/tabs.rs"),
         include_str!("../rune_ui/files/composer.rs"),
         include_str!("../rune_ui/files/session.rs"),
+        include_str!("../rune_ui/files/quick.rs"),
         include_str!("../rune_ui/hud_lab.rs"),
         include_str!("../rune_ui/labs.rs"),
         include_str!("../rune_ui/linux_host.rs"),

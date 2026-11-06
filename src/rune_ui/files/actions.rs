@@ -595,8 +595,13 @@ pub(super) fn redo_menu(
 pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec<El>) -> El {
     let live = waiting.is_none();
     let mut chips = row().key("chips").gap(6.0).center_y();
+    let (language, _) = ui
+        .settings
+        .files
+        .prompt_language(&ui.settings.transcription);
     for (index, chip) in ui.settings.files.quick_prompts.iter().enumerate() {
-        let prompt = chip.prompt.clone();
+        let prompt = chip.resolved(language);
+        let label = chip.label.clone();
         chips = chips.child(chip_button(
             p,
             &format!("chip{index}"),
@@ -608,7 +613,7 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec
                     return;
                 };
                 if let Some(Tab::Version(from)) = current(ui, &record) {
-                    super::composer::start(ui, &record, from, prompt.clone());
+                    super::composer::start(ui, &record, from, prompt.clone(), Some(label.clone()));
                 }
             },
         ));

@@ -113,12 +113,13 @@ pub(super) fn position(ui: &Ui, record: &FileRecord, version: &Version) -> Optio
 /// A typed request: what was asked, as no quick request asks it.
 pub(super) fn typed_prompt<'a>(ui: &Ui, version: &'a Version) -> Option<&'a str> {
     let prompt = version.prompt.as_deref()?.trim();
-    let quick = ui
-        .settings
-        .files
-        .quick_prompts
-        .iter()
-        .any(|chip| chip.prompt.trim() == prompt);
+    let quick = crate::app_settings::prompt_defaults::is_quick_default(prompt)
+        || ui
+            .settings
+            .files
+            .quick_prompts
+            .iter()
+            .any(|chip| !chip.prompt.trim().is_empty() && chip.prompt.trim() == prompt);
     (!quick).then_some(prompt)
 }
 

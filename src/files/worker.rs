@@ -611,14 +611,8 @@ fn cleanup(
     Ok(())
 }
 
-/// The tab name for a request: its chip's label, else its first words.
-pub fn request_name(prompt: &str, quick: &[crate::app_settings::QuickPrompt]) -> String {
-    if let Some(chip) = quick
-        .iter()
-        .find(|chip| chip.prompt.trim() == prompt.trim())
-    {
-        return chip.label.clone();
-    }
+/// The tab name for a typed request: its first words.
+pub fn request_name(prompt: &str) -> String {
     let words: Vec<&str> = prompt.split_whitespace().take(3).collect();
     let mut name = words.join(" ");
     name = name
@@ -637,21 +631,15 @@ pub fn request_name(prompt: &str, quick: &[crate::app_settings::QuickPrompt]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_settings::QuickPrompt;
 
     #[test]
-    fn requests_are_named_by_their_chip_or_first_words() {
-        let quick = vec![QuickPrompt {
-            label: "Summary".into(),
-            prompt: "Write a summary".into(),
-        }];
-        assert_eq!(request_name("Write a summary", &quick), "Summary");
+    fn typed_requests_are_named_by_their_first_words() {
         assert_eq!(
-            request_name("сделай из этого пост для Telegram", &quick),
+            request_name("сделай из этого пост для Telegram"),
             "Сделай из этого…"
         );
-        assert_eq!(request_name("переведи", &quick), "Переведи");
-        assert_eq!(request_name("  ", &quick), "Request");
+        assert_eq!(request_name("переведи"), "Переведи");
+        assert_eq!(request_name("  "), "Request");
     }
 
     #[test]

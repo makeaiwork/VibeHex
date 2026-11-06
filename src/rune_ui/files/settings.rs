@@ -3,17 +3,13 @@
 //! prompt, and the quick requests above the request field.
 
 use rune::{El, TextEdit, col, icon, row, text};
-use rune_kit::{
-    IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement, TextArea, TextInput,
-};
+use rune_kit::{Menu as KitMenu, MenuItem, Placement, TextArea};
 
 use super::super::controls::{
-    ButtonKind, DESCRIPTION, METRICS, Paint, button, icon_row, icon_toggle_row, section,
-    section_with, segmented,
+    ButtonKind, DESCRIPTION, METRICS, Paint, button, icon_row, icon_toggle_row, section, segmented,
 };
-use super::super::list_detail as ld;
 use super::super::{Menu, Ui, icons};
-use crate::app_settings::{CleanupRunsOn, DEFAULT_FILES_PROMPT, QuickPrompt};
+use crate::app_settings::{CleanupRunsOn, DEFAULT_FILES_PROMPT};
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::local_models;
 
@@ -185,6 +181,9 @@ fn engine_label(engine: &crate::files::rewrite::Engine) -> String {
 }
 
 pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
+    if let Some(edit) = &ui.files.quick {
+        return vec![super::quick::page(ui, p, edit)];
+    }
     use crate::transcription::models::{definition, language_name};
     let files = &ui.settings.files;
     let dictation = &ui.settings.transcription;
@@ -424,8 +423,9 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
     if config.request_engine(None, None).effort().is_some() {
         request_rows.push(effort_row(ui, p));
     }
+    request_rows.push(super::quick::settings_row(ui, p));
     let requests = section(p, "files-requests", tr("Requests"), request_rows);
-    vec![transcription, cleanup, requests, quick_section(ui, p)]
+    vec![transcription, cleanup, requests]
 }
 
 /// Codex's reasoning for requests, while they run on Codex. A session's
@@ -581,194 +581,4 @@ fn prompt_row(ui: &Ui, p: Paint) -> El {
         )
         .child(area)
         .child(buttons)
-}
-
-/// A quick request being written: a new one, or the one at `index`.
-#[derive(Clone, Debug, Default)]
-pub(in super::super) struct QuickEdit {
-    pub(in super::super) index: Option<usize>,
-    pub(in super::super) label: TextEdit,
-    pub(in super::super) prompt: TextEdit,
-}
-
-fn quick_slot(ui: &mut Ui) -> &mut QuickEdit {
-    ui.files.quick.get_or_insert_with(QuickEdit::default)
-}
-
-/// The row a quick request is written in, with Save and Cancel.
-fn quick_editor(p: Paint, edit: &QuickEdit) -> El {
-    let ready = !edit.label.text.trim().is_empty() && !edit.prompt.text.trim().is_empty();
-    row()
-        .key("quick-editor")
-        .px(METRICS.row_px)
-        .py(8.0)
-        .gap(8.0)
-        .center_y()
-        .child(
-            TextInput::new(&edit.label)
-                .placeholder(tr("Name"))
-                .width(Some(120.0))
-                .on_edit(|ui: &mut Ui| &mut quick_slot(ui).label)
-                .build(p.k)
-                .key("label"),
-        )
-        .child(
-            TextInput::new(&edit.prompt)
-                .placeholder(tr("What it asks for"))
-                .width(None)
-                .on_edit(|ui: &mut Ui| &mut quick_slot(ui).prompt)
-                .on_submit(|ui: &mut Ui, _| save_quick(ui))
-                .build(p.k)
-                .key("prompt")
-                .grow(1.0)
-                .shrink(),
-        )
-        .child(super::actions::quiet_button(
-            p,
-            "quick-save",
-            None,
-            tr("Save"),
-            None,
-            !ready,
-            |ui: &mut Ui| save_quick(ui),
-        ))
-        .child(
-            rune_kit::Button::new(tr("Cancel"))
-                .variant(rune_kit::ButtonVariant::Ghost)
-                .control_size(rune_kit::ControlSize::Small)
-                .on_press(|ui: &mut Ui| ui.files.quick = None)
-                .build(p.k)
-                .key("quick-cancel"),
-        )
-}
-
-/// Saves the quick request being written, in its place or at the end.
-fn save_quick(ui: &mut Ui) {
-    let Some(edit) = ui.files.quick.take() else {
-        return;
-    };
-    let label = edit.label.text.trim().to_string();
-    let prompt = edit.prompt.text.trim().to_string();
-    if label.is_empty() || prompt.is_empty() {
-        ui.files.quick = Some(edit);
-        return;
-    }
-    ui.update(|settings| {
-        let chips = &mut settings.files.quick_prompts;
-        let chip = QuickPrompt { label, prompt };
-        match edit.index.filter(|index| *index < chips.len()) {
-            Some(index) => chips[index] = chip,
-            None => chips.push(chip),
-        }
-    });
-}
-
-/// The chips above the request field, as a list: each name and what it
-/// asks, with edit and delete; Add request writes a new one.
-fn quick_section(ui: &Ui, p: Paint) -> El {
-    let editing = ui.files.quick.as_ref();
-    let mut rows = Vec::new();
-    for (index, chip) in ui.settings.files.quick_prompts.iter().enumerate() {
-        if let Some(edit) = editing.filter(|edit| edit.index == Some(index)) {
-            rows.push(quick_editor(p, edit));
-            continue;
-        }
-        let (label, prompt) = (chip.label.clone(), chip.prompt.clone());
-        rows.push(
-            row()
-                .key(format!("quick{index}"))
-                .px(METRICS.row_px)
-                .py(8.0)
-                .gap(12.0)
-                .center_y()
-                .child(
-                    text(chip.label.clone())
-                        .key("label")
-                        .font(p.k.ty.ui_medium)
-                        .color(p.text())
-                        .w(110.0)
-                        .truncate(),
-                )
-                .child(
-                    text(chip.prompt.clone())
-                        .key("prompt")
-                        .font(DESCRIPTION)
-                        .color(p.muted())
-                        .grow(1.0)
-                        .shrink()
-                        .truncate(),
-                )
-                .child(
-                    IconButton::new(ld::EDIT_ICON)
-                        .variant(IconButtonVariant::Ghost)
-                        .control_size(rune_kit::ControlSize::Small)
-                        .label(tr("Edit"))
-                        .on_press(move |ui: &mut Ui| {
-                            ui.files.quick = Some(QuickEdit {
-                                index: Some(index),
-                                label: TextEdit::new(label.clone()),
-                                prompt: TextEdit::new(prompt.clone()),
-                            })
-                        })
-                        .build(p.k)
-                        .key("edit"),
-                )
-                .child(
-                    IconButton::new(ld::TRASH_ICON)
-                        .variant(IconButtonVariant::Ghost)
-                        .control_size(rune_kit::ControlSize::Small)
-                        .label(tr("Remove"))
-                        .on_press(move |ui: &mut Ui| {
-                            ui.files.quick = None;
-                            ui.update(|settings| {
-                                if index < settings.files.quick_prompts.len() {
-                                    settings.files.quick_prompts.remove(index);
-                                }
-                            });
-                        })
-                        .build(p.k)
-                        .key("remove"),
-                ),
-        );
-    }
-    if let Some(edit) = editing.filter(|edit| edit.index.is_none()) {
-        rows.push(quick_editor(p, edit));
-    }
-    if rows.is_empty() {
-        rows.push(
-            text(tr(
-                "No quick requests. Add one to see it above the request field.",
-            ))
-            .key("quick-empty")
-            .font(DESCRIPTION)
-            .color(p.faint())
-            .px(METRICS.row_px)
-            .py(12.0),
-        );
-    }
-    let section = section_with(
-        p,
-        "files-quick",
-        tr("Quick requests"),
-        super::actions::quiet_button(
-            p,
-            "quick-add",
-            None,
-            tr("Add request"),
-            None,
-            false,
-            |ui: &mut Ui| ui.files.quick = Some(QuickEdit::default()),
-        ),
-        rows,
-    );
-    col().key("files-quick-block").gap(10.0).child(section).child(
-        text(tr(
-            "The chips above the request field follow this list. Recent requests are kept on their own, last ten.",
-        ))
-        .key("quick-note")
-        .font(DESCRIPTION)
-        .color(p.muted())
-        .wrap()
-        .px(METRICS.row_px),
-    )
 }

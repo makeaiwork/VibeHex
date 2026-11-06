@@ -39,18 +39,10 @@ pub struct FilesSettings {
     /// Files' own cleanup instructions, while `use_default_prompt` is off.
     pub prompt: String,
     /// The chips above a file's request field.
-    pub quick_prompts: Vec<QuickPrompt>,
+    pub quick_prompts: Vec<super::QuickPrompt>,
     /// Where Choose file… opens: the folder of the file chosen last.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_folder: Option<String>,
-}
-
-/// A request one click away: its chip's label and what it asks.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(default)]
-pub struct QuickPrompt {
-    pub label: String,
-    pub prompt: String,
 }
 
 /// Cleanup's instructions while Files doesn't follow the Global mode's.
@@ -71,13 +63,25 @@ impl Default for FilesSettings {
             request_effort: String::new(),
             use_default_prompt: true,
             prompt: DEFAULT_FILES_PROMPT.into(),
-            quick_prompts: default_quick_prompts(),
+            quick_prompts: super::prompt_defaults::default_quick_prompts(),
             last_folder: None,
         }
     }
 }
 
 impl FilesSettings {
+    /// The language quick requests' default prompts are in: the language
+    /// of the model files are transcribed with.
+    pub fn prompt_language(
+        &self,
+        dictation: &TranscriptionSelection,
+    ) -> (&'static str, super::prompt_defaults::Basis) {
+        let selection = self
+            .selection(dictation)
+            .unwrap_or_else(|| dictation.clone());
+        super::prompt_defaults::prompt_language(&selection)
+    }
+
     /// The model and language a new file is transcribed with: `None` while
     /// both follow dictation, so it runs on dictation's loaded model.
     pub fn selection(&self, dictation: &TranscriptionSelection) -> Option<TranscriptionSelection> {
@@ -91,33 +95,6 @@ impl FilesSettings {
             }
         }
     }
-}
-
-/// Structure, Summary, and Action items.
-pub fn default_quick_prompts() -> Vec<QuickPrompt> {
-    [
-        (
-            "Structure",
-            "Structure this text: add headings, group related points, and make lists where \
-             it lists things. Keep every fact and the original language.",
-        ),
-        (
-            "Summary",
-            "Write a summary of this text in Markdown: the main points as short bullet points \
-             under a few headings, in the text's language.",
-        ),
-        (
-            "Action items",
-            "List the action items in this text as a Markdown checklist: who does what and by \
-             when, where it says. In the text's language.",
-        ),
-    ]
-    .into_iter()
-    .map(|(label, prompt)| QuickPrompt {
-        label: label.into(),
-        prompt: prompt.into(),
-    })
-    .collect()
 }
 
 #[cfg(test)]

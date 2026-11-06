@@ -22,14 +22,16 @@ mod labs_settings;
 mod meeting_folder;
 mod meeting_providers;
 mod persistence;
+pub mod prompt_defaults;
 mod shortcut_repair;
 
 pub use dictation_processing::*;
-pub use files_settings::{DEFAULT_FILES_PROMPT, FilesSettings, QuickPrompt};
+pub use files_settings::{DEFAULT_FILES_PROMPT, FilesSettings};
 pub use hotkeys::*;
 pub use labs_settings::{LabsSettings, UNLOAD_IDLE_MINUTES};
 pub use meeting_folder::default_meeting_output_folder;
 pub use meeting_providers::{KNOWN_MEETING_PROVIDERS, TELEMOST_APP, TELEMOST_SITE};
+pub use prompt_defaults::QuickPrompt;
 
 static RECORDING_DUCK_VOLUME: AtomicU32 = AtomicU32::new(0.2_f32.to_bits());
 static RECORDING_AUDIO_BEHAVIOR: AtomicU8 = AtomicU8::new(0);

@@ -181,6 +181,7 @@ const PATHS: &[(&str, &str)] = &[
     ("files-again", "Window/Files/Transcribe again"),
     ("files-empty", "Window/Files/Empty"),
     ("files-settings-prompt", "Window/Files/Settings, own prompt"),
+    ("files-quick", "Window/Files/Settings, quick requests"),
     ("files-settings", "Window/Files/Settings"),
     ("meetings", "Window/Meetings/Meetings"),
     ("meetings-recording", "Window/Meetings/Recording"),
