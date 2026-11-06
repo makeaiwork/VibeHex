@@ -24,7 +24,7 @@ ignoring case, and says "No Labs features match." when none do; a Labs link
 clears it so its row shows. Check: `labs_search_keeps_the_rows_holding_every_word`.
 A feature VibeHex added (`labs::Feature::vibehex`: Clean up on your own
 server, Cleanup progress, Russian vibe coding, Vocabulary text view, Add to
-vocabulary from a selection, Files, Stop shortcut; Hex itself has none of
+vocabulary from a selection, Files, Stop shortcut, Collapsible sidebar, Listen to the recording; Hex itself has none of
 them) carries a small yellow star (`warning.icon`) raised to its title's top
 right, whose tooltip and accessible label say "Added in VibeHex"; searching
 "vibehex" lists just these rows, and so does the VibeHex only switch beside
@@ -88,9 +88,12 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 │                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
+├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there (files.md, meetings.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
+├── Collapsible sidebar no labs.collapsible_sidebar + labs.sidebar_collapsed
+│                                        Close sidebar beside the logo folds the sidebar into a 56 pt column of icons (VibeHex's logo on top, turning into Open sidebar under the pointer, each pane, Labs, About, and at the bottom the update button, always there: Check for updates, an update to take with a dot, or the footer's state as its tooltip), each named by a tooltip; the choice is kept
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
 Settings › Labs                          // labs.page
@@ -915,8 +918,24 @@ OpenCode needn't run.
 ```ts
 Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 ├── Clean up with AI -> switch for Global's rewrite (default_mode.post_processing.enabled)
-├── Runs on -> OpenCode · OpenRouter · Your own · Built in (macOS)   (dictation_processing.server.runs_on)
+├── Runs on -> OpenCode · OpenRouter · Codex · Your own · Built in (macOS)   (dictation_processing.server.runs_on)
 │   ├── OpenCode -> no further rows; rewriting is exactly as without the toggle
+│   ├── Codex -> no URL, Model field, or key rows; instead (codex_cleanup, loaded on its own
+│   │   thread while Output shows Codex; Check again asks again):
+│   │   ├── Codex -> "Looking for Codex…" | "Not found. … install it with brew install codex
+│   │   │   (npm install -g @openai/codex off macOS), then sign in once" + Copy command, Check again
+│   │   │   | "Not signed in. …" + Sign in with ChatGPT (opens the page Codex's account/login/start
+│   │   │   gives; the status is asked again every 3 s for 5 minutes) | "Codex 0.164.0. Signed in
+│   │   │   with ChatGPT Pro as …" + Test | "Answered in 6.2 s" | the error
+│   │   ├── Model -> select of Codex's model/list (hidden ones left out), the chosen one's
+│   │   │   description under it; empty is Codex's default (dictation_processing.server.codex_model)
+│   │   ├── Reasoning -> Low · Medium · High (codex_effort; empty reads as Low)
+│   │   ├── Wait for Codex -> 30 s · 1 min · 2 min (codex_wait_seconds; 0 reads as 60): a dictation's
+│   │   │   cleanup on Codex waits this long instead of the mode's deadline, then pastes as heard
+│   │   ├── Plan usage (ChatGPT sign-in only) -> each account/rateLimits/read window: "5 hours 23%",
+│   │   │   "This week 41%"; reached -> "The limit is reached. Until it resets, dictations paste as heard"
+│   │   └── under the card: "Codex gets only the dictation and your instructions: no tools, no
+│   │       files, no commands. Nothing lands in its history."
 │   └── Built in -> no URL, Model, or key rows; instead:
 │       ├── Built in -> "Download a model below" | "Loads when you dictate" | "Loading the model…" | "Loaded"; Test once one is downloaded
 │       │   while loading, Test hides and only the model's own row shows "Loading 45%",
@@ -1031,6 +1050,35 @@ A managed `opencode_processing` lock turns this rewrite off too. Keys:
 `.openrouter_model`, `.custom_model`; `.openrouter_api_key` and
 `.custom_api_key` save a key (`none` removes it) and read back only `set` or
 `unset`. Not built: per-mode servers.
+
+Codex (`runs_on` `codex`, every OS) answers through the Codex CLI already
+installed and signed in on the computer, on the person's ChatGPT plan
+([cleanup_server/codex.rs](../../src/dictation/cleanup_server/codex.rs)). Hex
+finds `codex` on `PATH`, then in Homebrew's, npm's, Bun's, Volta's, and nvm's
+folders, and starts `codex app-server` on first use with the executable's own
+folder first on the child's `PATH` (npm's `codex` is a Node script). It speaks
+the app-server's JSON-RPC over stdin and stdout and keeps the process warm
+for 10 minutes after its last request. Each rewrite is one ephemeral thread
+(`approvalPolicy` never, `sandbox` read-only, an empty `codex` folder in Hex's
+data folder as its `cwd`) whose base instructions are the system message,
+then one turn with the transcript block and the chosen effort; the answer
+streams from `item/agentMessage/delta` and ends at `turn/completed`, and the
+thread is unsubscribed after. Hex's process overrides the person's
+`~/.codex/config.toml` with `-c`: no `notify` command, MCP servers, project
+instructions, or web search, and hooks, memories, apps, plugins, multi-agent,
+shell, computer and browser use, image generation, goals, and the code-mode
+host off. Codex asks no approvals in that setup; any server request it sends
+is refused. Cancellation and the mode's deadline send `turn/interrupt` and
+paste the corrected transcript, as for any server. A usage limit reads "your
+ChatGPT plan's Codex limit is reached". Measured in the owner's Codex 0.164 on
+a Pro plan: a warm thread starts in 0.07 s, a short dictation answers in 5 to
+19 s on GPT-6-Luna or GPT-6.1-Sol at Low (Fast tier no quicker), so a
+dictation on Codex waits `codex_wait_seconds` (60 by default) instead of the
+mode's deadline (`cleanup_server::codex_wait`).
+`answers_on_the_installed_codex` (ignored; needs Codex signed in) checks the
+status, a streamed answer, and an immediate cancel. Keys:
+`dictation_processing.server.codex_model`, `.codex_effort`,
+`.codex_wait_seconds`.
 
 Built in (macOS app only; `runs_on` `local`) runs a model Hex downloads
 itself, with no LM Studio or Ollama. The offered models are pinned in

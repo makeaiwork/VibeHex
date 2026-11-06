@@ -27,6 +27,10 @@ pub struct Segment {
     pub start_ms: u64,
     pub end_ms: u64,
     pub text: String,
+    /// When each of `text`'s words starts, when the model timed them (see
+    /// `meeting::TranscriptEntry::words`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub words: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -78,6 +82,36 @@ pub struct Version {
     /// Why some of it kept its input text.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failed: Option<String>,
+    /// A request stopped before it finished: `text` is what came.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub stopped: bool,
+    /// A request's session: the questions asked after the first, in order.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub follow_ups: Vec<FollowUp>,
+    /// Where the session's next question runs, in `files.request_engine`'s
+    /// form; `None` follows Settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engine: Option<String>,
+    /// How hard a Codex model thinks for the session's next question;
+    /// `None` follows Settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
+}
+
+/// One question asked later in a request's session, and its answer.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct FollowUp {
+    pub question: String,
+    pub answer: String,
+    /// The model that answered.
+    pub model: String,
+    /// How long the answer took.
+    pub seconds: u64,
+    pub created_ms: u64,
+    /// Stopped before it finished: `answer` is what came.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub stopped: bool,
 }
 
 /// One file added to Files.

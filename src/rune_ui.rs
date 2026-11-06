@@ -40,6 +40,8 @@ mod lists;
 mod live_notes;
 pub(crate) mod live_text;
 pub(crate) mod meeting_capsules;
+mod meeting_notes;
+mod meeting_tabs;
 mod meetings;
 mod meetings_host;
 mod model_details;
@@ -53,6 +55,7 @@ mod paste_access;
 mod picker;
 mod platform;
 mod platform_settings;
+mod playback;
 pub(crate) mod playground;
 mod practice;
 mod scenes;
@@ -682,13 +685,12 @@ pub(crate) struct Ui {
     mic_level: general::MicLevel,
     /// The panes whose Advanced fold is open.
     advanced: Vec<Pane>,
-    /// The Labs page shows in place of a pane.
-    labs_open: bool,
+    labs_open: bool, // The Labs page shows in place of a pane.
     /// The Labs row a link just opened, pulsing until it is cleared.
     lab_flash: Option<(crate::labs::Feature, Instant)>,
-    lab_search: TextEdit, // The Labs page's search field.
-    /// The Labs page lists only the starred features VibeHex added.
-    lab_vibehex_only: bool,
+    lab_search: TextEdit,              // The Labs page's search field.
+    lab_vibehex_only: bool, // The Labs page lists only the starred features VibeHex added.
+    sidebar_tip: Option<&'static str>, // The sidebar button whose tooltip shows.
     /// A scene previewing the badge of a build kind this binary is not.
     build_preview: Option<BuildKind>,
     capture: Capture,
@@ -716,14 +718,12 @@ pub(crate) struct Ui {
     host: platform::PlatformHost,
     meetings: meetings::MeetingsPane,
     files: files::FilesPane,
+    playback: playback::Playback,
     fun: fun::FunPane,
     activity: activity::ActivityPane,
-    /// HUD Lab's preset was copied since it last changed.
-    hud_copied: bool,
-    /// HUD Lab saved Dot scope's tuning, until the next change.
-    hud_saved: bool,
-    /// Settings saves and Quit Hex a fixture recorded.
-    saved: usize,
+    hud_copied: bool, // HUD Lab's preset was copied since it last changed.
+    hud_saved: bool,  // HUD Lab saved Dot scope's tuning, until the next change.
+    saved: usize,     // Settings saves and Quit Hex a fixture recorded.
     quit_requested: bool,
 }
 
@@ -802,6 +802,7 @@ impl Ui {
             lab_flash: None,
             lab_search: TextEdit::default(),
             lab_vibehex_only: false,
+            sidebar_tip: None,
             build_preview: None,
             capture: Capture::Idle,
             vocabulary,
@@ -823,6 +824,7 @@ impl Ui {
             host: platform::PlatformHost::Local(Default::default()),
             meetings: meetings::MeetingsPane::default(),
             files: files::FilesPane::default(),
+            playback: playback::Playback::default(),
             fun: fun::FunPane::default(),
             activity: activity::ActivityPane::default(),
             hud_copied: false,
@@ -1147,7 +1149,7 @@ impl Ui {
 /// sidebar's panes in order; otherwise Escape closes Shortcut mode,
 /// the sound sets sheet, the picker, or the open menu.
 fn on_key(ui: &mut Ui, event: &rune::KeyEvent, tx: &mut Tx) -> bool {
-    if settings::on_key(ui, event, tx) {
+    if settings::on_key(ui, event, tx) || playback::on_key(ui, event) {
         return true;
     }
     // Labs › Playground: ⇧⌘D (Ctrl+Shift+D off macOS) opens the playground.
@@ -1268,7 +1270,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
             && ui.window.as_ref().is_some_and(rune::AppHandle::is_visible),
     );
     changed |= ui.history.poll(ui.pane == Pane::History);
-    changed |= files::poll(ui);
+    changed |= files::poll(ui) | meeting_tabs::requests::poll(ui) | playback::poll(ui);
     if ui.pane == Pane::Output && !ui.labs_open {
         changed |= output::poll(ui, clock, tx);
     }
@@ -1433,7 +1435,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .role("window")
         .fill(p.k.c.bg_deep)
         .hover_motion_within(Anim::INSTANT, Anim::INSTANT)
-        .child(sidebar(ui, p))
+        .child(sidebar(ui, p, &mut layer))
         .child(panel);
     let modals = [
         picker::modal(ui, p),

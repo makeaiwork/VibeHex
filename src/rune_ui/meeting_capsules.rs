@@ -975,10 +975,10 @@ fn ready(
     let summary = manifest
         .notes
         .as_ref()
-        .map(|notes| notes.summary.trim().to_string())
+        .map(|notes| notes.gist().trim().to_string())
         .filter(|summary| !summary.is_empty());
     let subtitle = if meeting::notes_in_progress(&manifest.id) {
-        tr("Writing a title and summary with Apple Intelligence…").to_owned()
+        tr("Writing a title and summary…").to_owned()
     } else if let Some(summary) = summary {
         summary
     } else if let Some(path) = &manifest.export_path {
@@ -1442,6 +1442,7 @@ mod tests {
 
     fn call() -> Vec<TranscriptEntry> {
         let entry = |source, start_ms, text: &str| TranscriptEntry {
+            words: Vec::new(),
             source,
             start_ms,
             end_ms: start_ms + 2_000,

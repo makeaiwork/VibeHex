@@ -107,6 +107,12 @@ pub(super) const SCENES: &[Scene] = &[
         output::ai_cleanup_fixture(ui);
         ui.pane = Pane::Output;
     }),
+    ("output-ai-cleanup-codex", |ui| {
+        *ui = portal_fixture();
+        output::fixture(ui);
+        output::ai_cleanup_codex_fixture(ui);
+        ui.pane = Pane::Output;
+    }),
     ("output-ai-cleanup-local", |ui| {
         *ui = portal_fixture();
         output::fixture(ui);
@@ -488,6 +494,103 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
     }),
+    ("meetings-notes", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-questions-menu", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.settings.meetings.questions.engine = Some("codex:gpt-6.1-sol".into());
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        ui.open = Some(Menu::Pick("meeting-questions-engine"));
+    }),
+    ("meetings-notes-unavailable", |ui| {
+        *ui = mac_fixture();
+        ui.settings.labs.ai_cleanup_server = true;
+        ui.platform.notes = super::platform::NotesAvailability::NotEnabled;
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-notes-writer", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        ui.open = Some(Menu::Pick("meeting-notes-writer"));
+    }),
+    ("meetings-codex-notes", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        if let Some(meeting) = ui
+            .meetings
+            .meetings
+            .iter_mut()
+            .find(|meeting| meeting.id == "preview-notes")
+        {
+            meeting.summary = Some(
+                concat!(
+                    "**Summary:** one login for every Anomaly Arcade game; the build screen needs a proposal first.\n\n",
+                    "**Decisions:**\n- Ship the shared login before new games (00:12)\n\n",
+                    "**Action items:**\n- [ ] Draft the build screen proposal. Who: Them. By: Friday"
+                )
+                .into(),
+            );
+            meeting.notes_by = Some(
+                "Written by Qwen3 4B, because the chosen writer failed: GPT-6-Luna: your ChatGPT plan's Codex limit is reached".into(),
+            );
+        }
+        ui.meetings.select("preview-notes".into());
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-requests", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-transcript-ask", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Transcript);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-recent", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Transcript);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.files.recent = vec![
+            "Who owns the next step?".into(),
+            "What did we agree on about the launch date?".into(),
+        ];
+        ui.open = Some(super::Menu::Pick("meeting-recent"));
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-requests-sessions", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.open = Some(super::Menu::Pick("meeting-sessions"));
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-prompt", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        super::meeting_notes::open_prompt(ui);
+    }),
     // System Audio not yet allowed: tap Allow to wait, again to grant.
     ("meetings-allow", |ui| {
         *ui = mac_fixture();
@@ -510,8 +613,52 @@ pub(super) const SCENES: &[Scene] = &[
         ui.pane = Pane::Meetings;
     }),
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
+    ("files-playback", |ui| files_playback(ui, true)),
+    ("files-playback-folded", |ui| files_playback(ui, false)),
+    ("files-playback-cleanup", |ui| {
+        files_playback(ui, true);
+        ui.files.tab = Some(files::Tab::Version(2));
+    }),
+    ("meetings-playback", |ui| meetings_playback(ui, true)),
+    ("meetings-player", |ui| {
+        meetings_playback(ui, false);
+        ui.settings.labs.ai_cleanup_server = false;
+    }),
+    ("meetings-playback-folded", |ui| {
+        meetings_playback(ui, false)
+    }),
+    ("sidebar-foldable", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.collapsible_sidebar = true;
+        ui.sidebar_tip = Some("sidebar-close");
+    }),
+    ("sidebar-folded", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.collapsible_sidebar = true;
+        ui.settings.labs.sidebar_collapsed = true;
+        ui.sidebar_tip = Some("nav-meetings");
+    }),
     ("files-working", |ui| {
         files_scene(ui, files::FilesPane::working_fixture())
+    }),
+    ("files-clean-up", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(4));
+    }),
+    ("files-version-info", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(5));
+        ui.files.hover = Some("info");
+    }),
+    ("files-edit", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(4));
+        let record = ui.files.selected().cloned();
+        let text = record.and_then(|record| Some(record.version(4)?.text.clone()));
+        // Long enough to scroll inside the field.
+        ui.files.edit = rune::TextEdit::new(vec![text.unwrap_or_default(); 3].join("\n\n"));
+        ui.files.edit.focused = true;
+        ui.files.editing = Some(4);
     }),
     ("files-original", |ui| {
         files_scene(ui, files::FilesPane::fixture());
@@ -520,6 +667,21 @@ pub(super) const SCENES: &[Scene] = &[
     ("files-summary", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.files.tab = Some(files::Tab::Version(3));
+    }),
+    ("files-session", |ui| {
+        files_scene(ui, files::FilesPane::session_fixture());
+        let server = &mut ui.settings.dictation_processing.server;
+        server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        server.codex_model = "gpt-6-luna".into();
+        ui.files.tab = Some(files::Tab::Version(3));
+    }),
+    ("files-model-menu", |ui| {
+        files_scene(ui, files::FilesPane::session_fixture());
+        let server = &mut ui.settings.dictation_processing.server;
+        server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        server.codex_model = "gpt-6-luna".into();
+        ui.files.tab = Some(files::Tab::Version(3));
+        ui.open = Some(Menu::Pick("files-composer-model"));
     }),
     ("files-versions", |ui| {
         files_scene(ui, files::FilesPane::fixture());
@@ -554,15 +716,33 @@ pub(super) const SCENES: &[Scene] = &[
         ui.settings.dictation_processing.server.runs_on = crate::app_settings::CleanupRunsOn::Local;
         ui.files.view = files::View::Settings;
     }),
+    ("files-engine-menu", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.ai_cleanup_server = true;
+        let server = &mut ui.settings.dictation_processing.server;
+        server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        server.codex_model = "gpt-6-luna".into();
+        server.openrouter_model = "google/gemma-3-4b-it".into();
+        server.url = "http://127.0.0.1:1234/v1".into();
+        server.custom_model = "gemma-4-e4b-it-mlx-4bit".into();
+        ui.files.codex_models = files::FilesPane::fixture_codex_models();
+        ui.files.view = files::View::Settings;
+        ui.open = Some(Menu::Pick("files-request-engine"));
+    }),
     ("files-settings-prompt", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.settings.files.use_default_prompt = false;
-        ui.files.quick = Some(files::settings::QuickEdit {
-            index: Some(1),
-            label: rune::TextEdit::new("Summary".to_string()),
-            prompt: rune::TextEdit::new("A short summary, as bullet points".to_string()),
-        });
         ui.files.view = files::View::Settings;
+    }),
+    ("files-quick", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.transcription = crate::transcription::models::TranscriptionSelection {
+            model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+            language: "ru".into(),
+        };
+        ui.settings.files.quick_prompts[2].prompt = "Only my own tasks, as a checklist.".into();
+        ui.files.view = files::View::Settings;
+        files::open_quick(ui, 0);
     }),
     ("meetings-off", |ui| {
         *ui = mac_fixture();
@@ -927,4 +1107,39 @@ pub(super) fn fixture(shortcuts: DesktopShortcuts) -> Ui {
         editing: false,
     });
     ui
+}
+
+/// Meeting notes on Codex, in Russian.
+/// Files' Original with the player unfolded and playing the second
+/// paragraph, or folded, paused on a picked one.
+fn files_playback(ui: &mut Ui, playing: bool) {
+    files_scene(ui, files::FilesPane::fixture());
+    ui.settings.labs.playback = true;
+    ui.files.tab = Some(files::Tab::Version(1));
+    let of = super::playback::Of::File("preview-interview".into());
+    ui.playback = super::playback::Playback::still(of, 25_000, 2_530_000, playing, playing);
+}
+
+/// A meeting's transcript with the player unfolded, the third turn
+/// playing, or folded, paused on it.
+fn meetings_playback(ui: &mut Ui, playing: bool) {
+    *ui = mac_fixture();
+    meetings_on_codex(ui);
+    ui.settings.labs.playback = true;
+    ui.meetings.select("preview-notes".into());
+    ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Transcript);
+    super::meeting_tabs::requests::fixture(ui, "preview-notes");
+    ui.pane = Pane::Meetings;
+    let of = super::playback::Of::Meeting("preview-notes".into());
+    ui.playback = super::playback::Playback::still(of, 10_500, 1_640_000, playing, playing);
+}
+
+fn meetings_on_codex(ui: &mut Ui) {
+    ui.settings.labs.ai_cleanup_server = true;
+    ui.settings.transcription = crate::transcription::models::TranscriptionSelection {
+        model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+        language: "ru".into(),
+    };
+    ui.files.codex_models = files::FilesPane::fixture_codex_models();
+    ui.settings.meetings.notes.writer = Some("codex:gpt-6-luna".into());
 }

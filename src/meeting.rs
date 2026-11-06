@@ -48,6 +48,7 @@ mod hour_cycle;
 pub(crate) mod mcp;
 mod notes;
 pub mod query;
+pub(crate) mod requests;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 pub(crate) mod runtime;
 pub(crate) mod transcript;
@@ -284,6 +285,43 @@ pub struct TranscriptEntry {
     pub start_ms: u64,
     pub end_ms: u64,
     pub text: String,
+    /// When each of `text`'s words starts, one per word between spaces,
+    /// when the model timed its words; empty otherwise, and not to be
+    /// trusted once its count no longer matches the text's (an edit).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub words: Vec<u64>,
+}
+
+/// `words` when it times each of `text`'s words, else none.
+pub fn word_starts<'a>(text: &str, words: &'a [u64]) -> Option<&'a [u64]> {
+    (!words.is_empty() && words.len() == text.split_whitespace().count()).then_some(words)
+}
+
+/// One sentence of timed words as an entry: its words joined by spaces,
+/// each word's start kept (a word the model spaced inside, once per piece).
+fn sentence_entry(
+    source: MeetingSource,
+    group: &[crate::transcription::TranscriptSegment],
+) -> TranscriptEntry {
+    let start = |word: &crate::transcription::TranscriptSegment| word.start_ms.max(0) as u64;
+    TranscriptEntry {
+        source,
+        start_ms: group.first().map_or(0, start),
+        end_ms: group
+            .iter()
+            .map(|word| word.end_ms)
+            .max()
+            .unwrap_or_default() as u64,
+        text: group
+            .iter()
+            .map(|word| word.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" "),
+        words: group
+            .iter()
+            .flat_map(|word| std::iter::repeat_n(start(word), word.text.split_whitespace().count()))
+            .collect(),
+    }
 }
 
 pub fn coalesce_transcript(
@@ -297,6 +335,13 @@ pub fn coalesce_transcript(
         {
             if !turn.text.ends_with(char::is_whitespace) {
                 turn.text.push(' ');
+            }
+            let timed = word_starts(&turn.text, &turn.words).is_some()
+                && word_starts(&entry.text, &entry.words).is_some();
+            if timed {
+                turn.words.extend(&entry.words);
+            } else {
+                turn.words.clear();
             }
             turn.text.push_str(entry.text.trim());
             turn.end_ms = turn.end_ms.max(entry.end_ms);

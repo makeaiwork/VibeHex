@@ -26,10 +26,13 @@ by a Rune overlay's compositor on every OS, hand-tuned in HUD Lab.
 1. **Kit tokens only.** Views name kit tokens through `Paint`
    ([`rune_ui/controls.rs`](../src/rune_ui/controls.rs)): `p.k.c.*` colours,
    `p.k.ty.*` type, `p.k.radius.*`, `p.k.elevation.*`, `p.k.motion.*`, or
-   the `Paint` shorthands (`text`, `muted`, `faint`, `accent`, `danger`,
-   `success`). The raw numbers left in views are layout metrics: row heights,
-   column widths, and gaps. Never write a colour literal outside the theme
-   crate.
+   the `Paint` shorthands (`text`, `reading`, `muted`, `faint`, `accent`,
+   `danger`, `success`). Long text people read closely (Files' text and
+   answers, a meeting's notes, transcript, and answers) uses `reading`: in
+   dark mode the base ink at 82% over the background, about 12:1, so a long
+   read doesn't glare; titles, controls, and short labels keep `text`. The raw
+   numbers left in views are layout metrics: row heights, column widths, and
+   gaps. Never write a colour literal outside the theme crate.
 2. **Kit components first.** Use a `rune-kit` component when one fits. When
    Hex needs more, extend the Hex piece below that does the job, or add one
    beside it; never keep two helpers for the same job.

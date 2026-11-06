@@ -157,6 +157,7 @@ fn pane_meeting(meeting: &crate::meeting::query::Meeting, now_ms: u64) -> Meetin
             .as_ref()
             .map(|notes| notes.summary.clone())
             .filter(|summary| !summary.is_empty()),
+        notes_by: manifest.notes.as_ref().and_then(notes_by),
         notes_running: crate::meeting::notes_in_progress(&meeting.id),
         has_markdown: manifest
             .export_path
@@ -201,11 +202,32 @@ fn turns(entries: &[crate::meeting::TranscriptEntry]) -> Vec<Turn> {
             Turn {
                 mine: turn.source == crate::meeting::MeetingSource::Microphone,
                 start_ms: turn.start_ms,
+                end_ms: turn.end_ms,
+                words: crate::meeting::word_starts(&turn.text, &turn.words)
+                    .map(<[u64]>::to_vec)
+                    .unwrap_or_default(),
                 text: turn.text,
                 pause_before_ms,
             }
         })
         .collect()
+}
+
+/// "Written by GPT-6-Luna", with why the chosen writer didn't when another
+/// one wrote the notes; none for Apple Intelligence's two sentences.
+fn notes_by(notes: &crate::meeting::MeetingNotes) -> Option<String> {
+    use crate::desktop::i18n::{tr_fill, tr_named};
+    let model = notes.written_by.trim();
+    if model.is_empty() {
+        return None;
+    }
+    Some(match notes.fell_back.as_deref() {
+        Some(why) => tr_named(
+            "Written by {model}, because the chosen writer failed: {why}",
+            &[("model", model), ("why", why)],
+        ),
+        None => tr_fill("Written by {}", model),
+    })
 }
 
 #[cfg(test)]
@@ -267,6 +289,7 @@ mod tests {
         // One speaker's two lines join into one turn across the boundary
         // at 06:30; the second line belongs to the chapter after.
         let line = |start_ms: u64, end_ms: u64, text: &str| crate::meeting::TranscriptEntry {
+            words: Vec::new(),
             source: crate::meeting::MeetingSource::Microphone,
             start_ms,
             end_ms,

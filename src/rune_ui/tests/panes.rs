@@ -1832,6 +1832,29 @@ fn labs_search_keeps_the_rows_holding_every_word() {
 }
 
 #[test]
+fn the_sidebar_folds_into_icons_and_opens_again() {
+    let mut rt = runtime("mac-settings", true, (980.0, 700.0));
+    assert!(
+        rt.find("sidebar-close").is_none(),
+        "off until Labs turns it on"
+    );
+    rt.state.settings.labs.collapsible_sidebar = true;
+    refresh(&mut rt);
+    tap(&mut rt, "sidebar-close");
+    assert!(rt.state.settings.labs.sidebar_collapsed, "kept in settings");
+    assert!(rt.find("sidebar-open").is_some());
+    assert!(
+        rt.find("brand").is_none(),
+        "the folded sidebar is icons only"
+    );
+    tap(&mut rt, "nav-history");
+    assert_eq!(rt.state.pane, Pane::History);
+    tap(&mut rt, "sidebar-open");
+    assert!(!rt.state.settings.labs.sidebar_collapsed);
+    assert!(rt.find("brand").is_some());
+}
+
+#[test]
 fn vibehex_only_keeps_the_starred_rows() {
     let mut rt = runtime("mac-settings", true, (980.0, 2000.0));
     tap(&mut rt, "nav-labs");

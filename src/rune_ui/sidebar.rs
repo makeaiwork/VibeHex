@@ -49,6 +49,18 @@ static FILES_ICON: Icon = Icon {
     view: 16.0,
     body: r#"<path d="M4 1.8h5l3.5 3.5v8.9H4z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M9 1.8v3.5h3.5M6.5 9v3M8.3 8v5M10.1 9.5v2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#,
 };
+/// A window with its sidebar edge: Close sidebar, and Labs' row.
+pub(super) static CLOSE_SIDEBAR_ICON: Icon = Icon {
+    name: "hex-close-sidebar",
+    view: 16.0,
+    body: r#"<rect x="2" y="2.5" width="12" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" fill="none" stroke="currentColor" stroke-width="1.3"/>"#,
+};
+/// The same window with a chevron pointing out of its sidebar.
+static OPEN_SIDEBAR_ICON: Icon = Icon {
+    name: "hex-open-sidebar",
+    view: 16.0,
+    body: r#"<rect x="2" y="2.5" width="12" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11M8.5 6.5 10 8l-1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#,
+};
 #[cfg(hex_capture)]
 pub(super) static SCRAWL_ICON: Icon = Icon {
     name: "hex-scrawl",
@@ -195,7 +207,10 @@ pub(super) fn title_bar(element: El) -> El {
     }
 }
 
-pub(super) fn sidebar(ui: &Ui, p: Paint) -> El {
+pub(super) fn sidebar(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+    if folded(ui) {
+        return rail(ui, p, layer);
+    }
     let mut nav = lists::source_list(col().key("nav"));
     for pane in labs::main_panes(ui) {
         nav = nav.child(nav_slot(
@@ -218,19 +233,248 @@ pub(super) fn sidebar(ui: &Ui, p: Paint) -> El {
     title_bar(col())
         .key("sidebar")
         .role("navigation")
-        .w(220.0)
+        .w(196.0)
         .h_full()
         .pt(SIDEBAR_TOP - NAV_ROW_GAP / 2.0)
         .pb(12.0)
         .pl(10.0)
         .pr(6.0)
-        .child(super::brand::header(p).mb(10.0))
+        .child(
+            row()
+                .key("brand-row")
+                .mb(10.0)
+                .center_y()
+                .child(super::brand::header(p).grow(1.0).shrink())
+                .children(foldable(ui).then(|| close_button(ui, p, layer))),
+        )
         .child(nav)
         .child(el().key("spacer").grow(1.0))
         .children(sidebar_update::control(ui, p))
         .children(sidebar_update::notes(ui, p))
         .children(host::QUIT_IN_WINDOW.then(|| quit_item(p)))
         .child(footer(ui, p))
+}
+
+/// Labs › Collapsible sidebar is on: the sidebar can fold into icons.
+fn foldable(ui: &Ui) -> bool {
+    crate::labs::Feature::CollapsibleSidebar.on(&ui.settings)
+}
+
+/// The sidebar shows as its narrow column of icons.
+pub(super) fn folded(ui: &Ui) -> bool {
+    foldable(ui) && ui.settings.labs.sidebar_collapsed
+}
+
+/// Folds the sidebar into icons, or opens it again, and keeps it so.
+fn fold(ui: &mut Ui, folded: bool) {
+    ui.sidebar_tip = None;
+    ui.update(|settings| settings.labs.sidebar_collapsed = folded);
+}
+
+/// The folded sidebar's width, as the mockups draw it.
+const RAIL_WIDTH: f32 = 56.0;
+
+/// `trigger` with a tooltip saying `words` while the pointer is on it and
+/// no menu is open.
+fn tip(
+    ui: &Ui,
+    p: Paint,
+    key: &'static str,
+    words: &str,
+    placement: rune_kit::Placement,
+    trigger: El,
+    layer: &mut Vec<El>,
+) -> El {
+    let trigger = trigger.on_hover_change(move |ui: &mut Ui, inside, _| {
+        if inside {
+            ui.sidebar_tip = Some(key);
+        } else if ui.sidebar_tip == Some(key) {
+            ui.sidebar_tip = None;
+        }
+    });
+    rune_kit::Tooltip::new(format!("{key}-tip"))
+        .trigger(trigger)
+        .text(p.k, words)
+        .placement(placement)
+        .open(ui.sidebar_tip == Some(key) && ui.open.is_none())
+        .build(p.k, layer)
+}
+
+/// Close sidebar, at the brand row's right end.
+fn close_button(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+    let c = &p.k.c;
+    let button = row()
+        .key("sidebar-close")
+        .role("button")
+        .label(tr("Close sidebar"))
+        .size(28.0, 28.0)
+        .center()
+        .radius(6.0)
+        .hover(c.hover)
+        .press(c.pressed)
+        .focusable(true)
+        .focus_ring(2.0, -2.0, c.border_focus)
+        .child(
+            icon(&CLOSE_SIDEBAR_ICON, 16.0)
+                .key("icon")
+                .color(c.icon_muted),
+        )
+        .on_press(|ui: &mut Ui| fold(ui, true));
+    tip(
+        ui,
+        p,
+        "sidebar-close",
+        tr("Close sidebar"),
+        rune_kit::Placement::Bottom,
+        button,
+        layer,
+    )
+}
+
+/// One of the folded sidebar's 36 by 32 pt buttons: an icon, its name only
+/// as a tooltip and the accessible label.
+fn rail_item(p: Paint, key: &'static str, glyph: &'static Icon, label: &str, on: bool) -> El {
+    let c = &p.k.c;
+    let item = row()
+        .key(key)
+        .role("button")
+        .label(label)
+        .size(36.0, 32.0)
+        .center()
+        .radius(7.0)
+        .hover(c.hover)
+        .press(c.pressed)
+        .focusable(true)
+        .focus_ring(2.0, -2.0, c.border_focus)
+        .child(
+            icon(glyph, 16.0)
+                .key("icon")
+                .color(if on { c.icon_base } else { c.icon_muted }),
+        );
+    if on { item.fill(c.layer_02) } else { item }
+}
+
+/// The folded sidebar's top: VibeHex's logo, which turns into Open sidebar
+/// while the pointer is on it.
+fn open_button(p: Paint) -> El {
+    let c = &p.k.c;
+    row()
+        .key("sidebar-open")
+        .role("button")
+        .label(tr("Open sidebar"))
+        .size(36.0, 32.0)
+        .center()
+        .radius(7.0)
+        .hover_group()
+        .press(c.pressed)
+        .focusable(true)
+        .focus_ring(2.0, -2.0, c.border_focus)
+        .child(
+            el().key("hover")
+                .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .radius(7.0)
+                .fill(c.layer_02)
+                .group_opacity(0.0, 1.0),
+        )
+        .child(super::brand::mark(p, "logo", 22.0).group_opacity(1.0, 0.0))
+        .child(
+            row()
+                .key("open")
+                .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .center()
+                .group_opacity(0.0, 1.0)
+                .child(
+                    icon(&OPEN_SIDEBAR_ICON, 16.0)
+                        .key("icon")
+                        .color(c.icon_base),
+                ),
+        )
+}
+
+/// The folded sidebar: Open sidebar, every pane, Labs, and About as icons,
+/// and the update check at the bottom.
+fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+    let right = rune_kit::Placement::Right;
+    let mut rail = title_bar(col())
+        .key("sidebar")
+        .role("navigation")
+        .w(RAIL_WIDTH)
+        .h_full()
+        .pt(SIDEBAR_TOP - 4.0)
+        .pb(14.0)
+        .gap(NAV_ROW_GAP)
+        .items_center();
+    let open = open_button(p).on_press(|ui: &mut Ui| fold(ui, false));
+    rail = rail.child(
+        tip(
+            ui,
+            p,
+            "sidebar-open",
+            tr("Open sidebar"),
+            right,
+            open,
+            layer,
+        )
+        .mb(10.0),
+    );
+    let mut panes = labs::main_panes(ui);
+    panes.push(Pane::About);
+    let about = panes.len() - 1;
+    for (index, pane) in panes.into_iter().enumerate() {
+        if index == about {
+            let on = ui.labs_open;
+            let item = rail_item(p, "nav-labs", &labs::LABS_ICON, tr("Labs"), on)
+                .on_press_tx(labs::press_nav);
+            rail = rail.child(tip(ui, p, "nav-labs", tr("Labs"), right, item, layer));
+        }
+        let on = ui.pane == pane && !ui.labs_open;
+        let item = rail_item(p, pane.key(), pane.icon(), pane.title(), on)
+            .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| ui.select_pane(pane, tx));
+        rail = rail.child(tip(ui, p, pane.key(), pane.title(), right, item, layer));
+    }
+    rail = rail.child(el().key("spacer").grow(1.0));
+    rail.children(update_item(ui, p, layer))
+}
+
+/// The folded sidebar's update button: an update to take, in the accent,
+/// or Check for updates while there is none and a check can run.
+fn update_item(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
+    use DesktopUpdateStatus as S;
+    let status = ui.view.as_ref().map(|view| &view.update_status);
+    let check = || Some(DesktopAction::CheckForUpdates);
+    // A state with no check to run names itself, as the footer does.
+    let (words, action, ready) = match (sidebar_update::action(ui), status) {
+        (Some((words, action)), _) => (words, Some(action), true),
+        (None, None | Some(S::Current | S::Failed)) => {
+            (tr("Check for updates").into(), check(), false)
+        }
+        (None, Some(S::Checking)) => (tr("Checking for updates…").into(), None, false),
+        (None, Some(S::Downloading)) => (tr("Downloading update").into(), None, false),
+        (None, Some(S::Managed)) => (tr("Managed by your organization").into(), None, false),
+        (None, Some(S::SourceBuild))
+            if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local =>
+        {
+            (tr("Local build · updates off").into(), None, false)
+        }
+        (None, Some(S::SourceBuild)) => {
+            (tr("Updated from your source checkout").into(), None, false)
+        }
+        (None, Some(_)) => (tr("Updated by your package manager").into(), None, false),
+    };
+    let mut item = rail_item(p, "sidebar-update", &super::icons::REFRESH, &words, false);
+    if let Some(action) = action {
+        item = item.on_press(move |ui: &mut Ui| ui.send(Request::Desktop(action.clone())));
+    }
+    if ready {
+        item = item.child(controls::status_dot(p.accent()).key("dot").pin(
+            None,
+            Some(5.0),
+            Some(5.0),
+            None,
+        ));
+    }
+    let right = rune_kit::Placement::Right;
+    Some(tip(ui, p, "sidebar-update", &words, right, item, layer))
 }
 
 /// The version and, under it, a manual check or what the updater is doing.
@@ -319,7 +563,7 @@ fn footer(ui: &Ui, p: Paint) -> El {
         .child(version_line(
             ui,
             p,
-            line("version", &version_label(), p.faint()),
+            line("version", &version_words(false), p.faint()),
         ))
         .children(status)
 }
@@ -337,7 +581,7 @@ fn version_line(ui: &Ui, p: Paint, version: El) -> El {
         .key("version-row")
         .gap(2.0)
         .center_y()
-        .child(version.key("version"))
+        .child(version.key("version").shrink().min_w(0.0))
         .child(
             row()
                 .key("build-badge")
@@ -386,10 +630,16 @@ pub(super) const FOOTER_LINE: f32 = 20.0;
 /// Test and local builds also name their commit: main moves past a release without
 /// changing the version.
 pub(super) fn version_label() -> String {
+    version_words(true)
+}
+
+/// The version; a local or test build's with its commit, and with its kind
+/// where no badge beside it says it (`kind`).
+fn version_words(kind: bool) -> String {
     // Goldens render a fixed version: a local build's names its commit.
     let version = if cfg!(test) { "0.0.0" } else { crate::VERSION };
     match option_env!("HEX_COMMIT") {
-        Some(commit) => {
+        Some(commit) if kind => {
             let kind = if crate::app_paths::is_local_build() {
                 "local"
             } else {
@@ -397,6 +647,7 @@ pub(super) fn version_label() -> String {
             };
             tr_fill("Version {}", &format!("{version} ({kind} {commit})"))
         }
+        Some(commit) => tr_fill("Version {}", &format!("{version} ({commit})")),
         None => tr_fill("Version {}", version),
     }
 }

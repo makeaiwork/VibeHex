@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicU8, Ordering};
 
+mod codex;
 mod files;
 mod french;
 mod portuguese;
@@ -90,6 +91,22 @@ fn column_for_code(code: &str) -> u8 {
         "pt" => PORTUGUESE_COLUMN,
         "fr" => FRENCH_COLUMN,
         _ => ENGLISH,
+    }
+}
+
+/// The interface's language code (`en`, `pl`, `zh-Hant`…).
+pub(crate) fn interface_code() -> &'static str {
+    match current() {
+        0 => "pl",
+        1 => "zh",
+        2 => "ja",
+        3 => "de",
+        4 => "es",
+        5 => "uk",
+        PORTUGUESE_COLUMN => "pt",
+        FRENCH_COLUMN => "fr",
+        TRADITIONAL_CHINESE_COLUMN => "zh-Hant",
+        _ => "en",
     }
 }
 
@@ -317,7 +334,10 @@ pub(crate) fn event_age(timestamp_ms: u64) -> String {
 
 /// Every string with its six columns: the main table, then Files' (Labs).
 fn translations() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
-    TRANSLATIONS.iter().chain(files::TRANSLATIONS)
+    TRANSLATIONS
+        .iter()
+        .chain(files::TRANSLATIONS)
+        .chain(codex::TRANSLATIONS)
 }
 
 fn tables() -> &'static [HashMap<&'static str, &'static str>; 6] {
@@ -1590,6 +1610,12 @@ mod tests {
         include_str!("../rune_ui/files/settings.rs"),
         include_str!("../rune_ui/files/actions.rs"),
         include_str!("../rune_ui/files/tabs.rs"),
+        include_str!("../rune_ui/files/composer.rs"),
+        include_str!("../rune_ui/files/session.rs"),
+        include_str!("../rune_ui/files/quick.rs"),
+        include_str!("../rune_ui/meeting_notes.rs"),
+        include_str!("../rune_ui/meeting_tabs/mod.rs"),
+        include_str!("../rune_ui/meeting_tabs/requests.rs"),
         include_str!("../rune_ui/hud_lab.rs"),
         include_str!("../rune_ui/labs.rs"),
         include_str!("../rune_ui/linux_host.rs"),
@@ -1615,6 +1641,7 @@ mod tests {
         include_str!("../rune_ui/onboarding_kit/versus.rs"),
         include_str!("../rune_ui/output.rs"),
         include_str!("../rune_ui/output/ai_cleanup.rs"),
+        include_str!("../rune_ui/output/codex_cleanup.rs"),
         include_str!("../rune_ui/picker.rs"),
         include_str!("../rune_ui/picker/compare.rs"),
         include_str!("../rune_ui/picker/facts.rs"),

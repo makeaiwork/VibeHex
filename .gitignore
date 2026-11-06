@@ -16,3 +16,6 @@ __pycache__/
 /ios/HEXMobile.xcodeproj
 /result
 /result-*
+
+# Local copies of the design canvases (sync-designs), not published.
+/docs/design/

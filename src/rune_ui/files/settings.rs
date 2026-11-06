@@ -3,17 +3,13 @@
 //! prompt, and the quick requests above the request field.
 
 use rune::{El, TextEdit, col, icon, row, text};
-use rune_kit::{
-    IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement, TextArea, TextInput,
-};
+use rune_kit::{Menu as KitMenu, MenuItem, Placement, TextArea};
 
 use super::super::controls::{
-    ButtonKind, DESCRIPTION, METRICS, Paint, button, icon_row, icon_toggle_row, section,
-    section_with,
+    ButtonKind, DESCRIPTION, METRICS, Paint, button, icon_row, icon_toggle_row, section, segmented,
 };
-use super::super::list_detail as ld;
 use super::super::{Menu, Ui, icons};
-use crate::app_settings::{DEFAULT_FILES_PROMPT, QuickPrompt};
+use crate::app_settings::{CleanupRunsOn, DEFAULT_FILES_PROMPT};
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::local_models;
 
@@ -60,6 +56,18 @@ pub(in super::super) fn engine_choices(ui: &Ui) -> Vec<EngineChoice> {
             local: false,
         });
     }
+    // Codex, once Output › AI cleanup has been set to it.
+    if server.runs_on == CleanupRunsOn::Codex || !server.codex_model.trim().is_empty() {
+        let label = match server.codex_model.trim() {
+            "" => "Codex".to_owned(),
+            model => tr_fill("Codex: {}", model),
+        };
+        choices.push(EngineChoice {
+            value: "codex".into(),
+            label,
+            local: false,
+        });
+    }
     choices.push(EngineChoice {
         value: "opencode".into(),
         label: "OpenCode".into(),
@@ -84,7 +92,7 @@ fn inline_menu(
     key: &'static str,
     value: &str,
     resolved: Option<String>,
-    items: Vec<MenuItem>,
+    items: Vec<(Option<&'static str>, MenuItem)>,
     layer: &mut Vec<El>,
 ) -> El {
     let c = &p.k.c;
@@ -109,7 +117,12 @@ fn inline_menu(
         .radius(p.k.radius.sm)
         .hover(c.hover)
         .press(c.pressed)
-        .on_press(toggle(key))
+        .on_press(move |ui: &mut Ui| {
+            toggle(key)(ui);
+            if open(ui, key) {
+                super::composer::load_codex_models(ui);
+            }
+        })
         .child(
             text(value.to_string())
                 .key("value")
@@ -128,10 +141,14 @@ fn inline_menu(
     let mut menu = KitMenu::new(format!("{key}-menu"))
         .placement(Placement::BottomEnd)
         .gutter(4.0)
-        .min_width(220.0)
+        // Wide enough that a model's name shows whole.
+        .min_width(300.0)
         .open(is_open)
         .on_close(|ui: &mut Ui| ui.open = None);
-    for item in items {
+    for (group, item) in items {
+        if let Some(group) = group {
+            menu = menu.group_label(group);
+        }
         menu = menu.item(item);
     }
     menu.trigger(trigger).build(p.k, layer)
@@ -167,12 +184,18 @@ fn engine_label(engine: &crate::files::rewrite::Engine) -> String {
         Engine::Server(server) if server.provider == Provider::OpenRouter => {
             tr_fill("OpenRouter: {}", &model)
         }
+        Engine::Server(server) if server.provider == Provider::Codex => {
+            tr_fill("Codex: {}", &model)
+        }
         Engine::Server(_) => tr_fill("Your server: {}", &model),
         Engine::OpenCode(_) => "OpenCode".into(),
     }
 }
 
 pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
+    if let Some(edit) = &ui.files.quick {
+        return vec![super::quick::page(ui, p, edit)];
+    }
     use crate::transcription::models::{definition, language_name};
     let files = &ui.settings.files;
     let dictation = &ui.settings.transcription;
@@ -227,7 +250,7 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             "files-model",
             &model_value,
             model_resolved,
-            model_items,
+            model_items.into_iter().map(|item| (None, item)).collect(),
             layer,
         ),
     )];
@@ -266,7 +289,15 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             &icons::GLOBE,
             tr("Language"),
             Some(tr("For models that take a language hint")),
-            inline_menu(ui, p, "files-language", &value, resolved, items, layer),
+            inline_menu(
+                ui,
+                p,
+                "files-language",
+                &value,
+                resolved,
+                items.into_iter().map(|item| (None, item)).collect(),
+                layer,
+            ),
         ));
     }
     transcription_rows.push(icon_toggle_row(
@@ -390,31 +421,63 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
     }
     let cleanup = section(p, "files-cleanup", tr("Cleanup"), cleanup_rows);
 
-    let requests = section(
+    let mut request_rows = vec![icon_row(
         p,
-        "files-requests",
-        tr("Requests"),
-        vec![icon_row(
+        "files-request-engine",
+        &icons::MONITOR,
+        tr("Runs on"),
+        Some(tr(
+            "Summary, Action items and your own requests. A model with a large window reads a long file whole, without 3 steps",
+        )),
+        engine_select(
+            ui,
             p,
             "files-request-engine",
-            &icons::MONITOR,
-            tr("Runs on"),
-            Some(tr(
-                "Summary, Action items and your own requests. A model with a large window reads a long file whole, without 3 steps",
-            )),
-            engine_select(
-                ui,
-                p,
-                "files-request-engine",
-                files.request_engine.as_deref(),
-                tr("Same as cleanup"),
-                engine_label(&config.engine(None)),
-                |files, value| files.request_engine = value,
-                layer,
-            ),
-        )],
-    );
-    vec![transcription, cleanup, requests, quick_section(ui, p)]
+            files.request_engine.as_deref(),
+            tr("Same as cleanup"),
+            engine_label(&config.engine(None)),
+            |files, value| files.request_engine = value,
+            layer,
+        ),
+    )];
+    if config.request_engine(None, None).effort().is_some() {
+        request_rows.push(effort_row(ui, p));
+    }
+    request_rows.push(super::quick::settings_row(ui, p));
+    let requests = section(p, "files-requests", tr("Requests"), request_rows);
+    vec![transcription, cleanup, requests]
+}
+
+/// Codex's reasoning for requests, while they run on Codex. A session's
+/// field can still choose its own.
+fn effort_row(ui: &Ui, p: Paint) -> El {
+    const EFFORTS: [&str; 3] = ["low", "medium", "high"];
+    let saved = match ui.settings.files.request_effort.trim() {
+        "" => "medium",
+        effort => effort,
+    };
+    let selected = EFFORTS.iter().position(|e| *e == saved).unwrap_or(1);
+    icon_row(
+        p,
+        "files-request-effort",
+        &icons::SPARKLES,
+        tr("Reasoning"),
+        Some(tr(
+            "Low answers soonest. Higher levels think longer before they answer",
+        )),
+        segmented(
+            p,
+            "files-request-effort-picker",
+            &[tr("Low"), tr("Medium"), tr("High")],
+            selected,
+            |ui: &mut Ui, index| {
+                let effort = EFFORTS[index.min(EFFORTS.len() - 1)];
+                if ui.settings.files.request_effort != effort {
+                    ui.update(|settings| settings.files.request_effort = effort.into());
+                }
+            },
+        ),
+    )
 }
 
 /// Where cleanup or requests run: `inherit` (saved as none, resolving to
@@ -430,48 +493,77 @@ fn engine_select(
     set: fn(&mut crate::app_settings::FilesSettings, Option<String>),
     layer: &mut Vec<El>,
 ) -> El {
+    // In groups, names only, so each shows whole; the row shows what the
+    // default resolves to. Codex lists each of its models once they are
+    // read, in place of AI cleanup's one Codex row.
+    let codex = &ui.files.codex_models;
     let engines = engine_choices(ui);
-    let mut items = vec![choice(
-        inherit,
-        Some(&inherited),
-        current.is_none(),
-        move |ui: &mut Ui| ui.update(|settings| set(&mut settings.files, None)),
+    let mut rows: Vec<(&'static str, String, String)> = Vec::new();
+    if engines.iter().any(|engine| engine.value == "codex") {
+        for model in codex {
+            rows.push(("Codex", format!("codex:{}", model.id), model.name.clone()));
+        }
+    }
+    for engine in engines.iter().filter(|engine| engine.local) {
+        rows.push((tr("Built in"), engine.value.clone(), engine.label.clone()));
+    }
+    for engine in engines.iter().filter(|engine| !engine.local) {
+        if engine.value != "codex" || codex.is_empty() {
+            rows.push((tr("Other"), engine.value.clone(), engine.label.clone()));
+        }
+    }
+    // "codex" runs AI cleanup's Codex model: that model's row.
+    let current = match current {
+        Some("codex") if !codex.is_empty() => {
+            let model = ui.settings.dictation_processing.server.codex_model.trim();
+            codex
+                .iter()
+                .find(|known| {
+                    if model.is_empty() {
+                        known.default
+                    } else {
+                        known.id == model
+                    }
+                })
+                .map(|known| format!("codex:{}", known.id))
+        }
+        other => other.map(str::to_owned),
+    };
+    let current = current.as_deref();
+    let mut items = vec![(
+        Some(tr("Default")),
+        choice(inherit, None, current.is_none(), move |ui: &mut Ui| {
+            ui.update(|settings| set(&mut settings.files, None))
+        }),
     )];
-    for engine in &engines {
-        let value = engine.value.clone();
-        let label = if engine.local {
-            tr_fill("Built in, {}", &engine.label)
-        } else {
-            engine.label.clone()
-        };
-        items.push(choice(
-            &label,
+    let mut last = None;
+    for (group, value, label) in &rows {
+        let chosen = value.clone();
+        let item = choice(
+            label,
             None,
-            current == Some(engine.value.as_str()),
+            current == Some(value.as_str()),
             move |ui: &mut Ui| {
-                let value = value.clone();
+                let value = chosen.clone();
                 ui.update(|settings| set(&mut settings.files, Some(value)));
             },
-        ));
+        );
+        items.push(((last != Some(*group)).then_some(*group), item));
+        last = Some(*group);
     }
     let (value, resolved) = match current {
         None => (inherit.to_string(), Some(inherited)),
-        Some(value) => (
-            engines
-                .iter()
-                .find(|engine| engine.value == value)
-                .map_or_else(
-                    || value.to_string(),
-                    |engine| {
-                        if engine.local {
-                            tr_fill("Built in, {}", &engine.label)
-                        } else {
-                            engine.label.clone()
-                        }
-                    },
-                ),
-            None,
-        ),
+        Some(value) => {
+            let shown =
+                rows.iter()
+                    .find(|row| row.1 == value)
+                    .map(|(group, _, label)| match *group {
+                        "Codex" => tr_fill("Codex: {}", label),
+                        group if group == tr("Built in") => tr_fill("Built in, {}", label),
+                        _ => label.clone(),
+                    });
+            (shown.unwrap_or_else(|| value.to_string()), None)
+        }
     };
     inline_menu(ui, p, key, &value, resolved, items, layer)
 }
@@ -538,194 +630,4 @@ fn prompt_row(ui: &Ui, p: Paint) -> El {
         )
         .child(area)
         .child(buttons)
-}
-
-/// A quick request being written: a new one, or the one at `index`.
-#[derive(Clone, Debug, Default)]
-pub(in super::super) struct QuickEdit {
-    pub(in super::super) index: Option<usize>,
-    pub(in super::super) label: TextEdit,
-    pub(in super::super) prompt: TextEdit,
-}
-
-fn quick_slot(ui: &mut Ui) -> &mut QuickEdit {
-    ui.files.quick.get_or_insert_with(QuickEdit::default)
-}
-
-/// The row a quick request is written in, with Save and Cancel.
-fn quick_editor(p: Paint, edit: &QuickEdit) -> El {
-    let ready = !edit.label.text.trim().is_empty() && !edit.prompt.text.trim().is_empty();
-    row()
-        .key("quick-editor")
-        .px(METRICS.row_px)
-        .py(8.0)
-        .gap(8.0)
-        .center_y()
-        .child(
-            TextInput::new(&edit.label)
-                .placeholder(tr("Name"))
-                .width(Some(120.0))
-                .on_edit(|ui: &mut Ui| &mut quick_slot(ui).label)
-                .build(p.k)
-                .key("label"),
-        )
-        .child(
-            TextInput::new(&edit.prompt)
-                .placeholder(tr("What it asks for"))
-                .width(None)
-                .on_edit(|ui: &mut Ui| &mut quick_slot(ui).prompt)
-                .on_submit(|ui: &mut Ui, _| save_quick(ui))
-                .build(p.k)
-                .key("prompt")
-                .grow(1.0)
-                .shrink(),
-        )
-        .child(super::actions::quiet_button(
-            p,
-            "quick-save",
-            None,
-            tr("Save"),
-            None,
-            !ready,
-            |ui: &mut Ui| save_quick(ui),
-        ))
-        .child(
-            rune_kit::Button::new(tr("Cancel"))
-                .variant(rune_kit::ButtonVariant::Ghost)
-                .control_size(rune_kit::ControlSize::Small)
-                .on_press(|ui: &mut Ui| ui.files.quick = None)
-                .build(p.k)
-                .key("quick-cancel"),
-        )
-}
-
-/// Saves the quick request being written, in its place or at the end.
-fn save_quick(ui: &mut Ui) {
-    let Some(edit) = ui.files.quick.take() else {
-        return;
-    };
-    let label = edit.label.text.trim().to_string();
-    let prompt = edit.prompt.text.trim().to_string();
-    if label.is_empty() || prompt.is_empty() {
-        ui.files.quick = Some(edit);
-        return;
-    }
-    ui.update(|settings| {
-        let chips = &mut settings.files.quick_prompts;
-        let chip = QuickPrompt { label, prompt };
-        match edit.index.filter(|index| *index < chips.len()) {
-            Some(index) => chips[index] = chip,
-            None => chips.push(chip),
-        }
-    });
-}
-
-/// The chips above the request field, as a list: each name and what it
-/// asks, with edit and delete; Add request writes a new one.
-fn quick_section(ui: &Ui, p: Paint) -> El {
-    let editing = ui.files.quick.as_ref();
-    let mut rows = Vec::new();
-    for (index, chip) in ui.settings.files.quick_prompts.iter().enumerate() {
-        if let Some(edit) = editing.filter(|edit| edit.index == Some(index)) {
-            rows.push(quick_editor(p, edit));
-            continue;
-        }
-        let (label, prompt) = (chip.label.clone(), chip.prompt.clone());
-        rows.push(
-            row()
-                .key(format!("quick{index}"))
-                .px(METRICS.row_px)
-                .py(8.0)
-                .gap(12.0)
-                .center_y()
-                .child(
-                    text(chip.label.clone())
-                        .key("label")
-                        .font(p.k.ty.ui_medium)
-                        .color(p.text())
-                        .w(110.0)
-                        .truncate(),
-                )
-                .child(
-                    text(chip.prompt.clone())
-                        .key("prompt")
-                        .font(DESCRIPTION)
-                        .color(p.muted())
-                        .grow(1.0)
-                        .shrink()
-                        .truncate(),
-                )
-                .child(
-                    IconButton::new(ld::EDIT_ICON)
-                        .variant(IconButtonVariant::Ghost)
-                        .control_size(rune_kit::ControlSize::Small)
-                        .label(tr("Edit"))
-                        .on_press(move |ui: &mut Ui| {
-                            ui.files.quick = Some(QuickEdit {
-                                index: Some(index),
-                                label: TextEdit::new(label.clone()),
-                                prompt: TextEdit::new(prompt.clone()),
-                            })
-                        })
-                        .build(p.k)
-                        .key("edit"),
-                )
-                .child(
-                    IconButton::new(ld::TRASH_ICON)
-                        .variant(IconButtonVariant::Ghost)
-                        .control_size(rune_kit::ControlSize::Small)
-                        .label(tr("Remove"))
-                        .on_press(move |ui: &mut Ui| {
-                            ui.files.quick = None;
-                            ui.update(|settings| {
-                                if index < settings.files.quick_prompts.len() {
-                                    settings.files.quick_prompts.remove(index);
-                                }
-                            });
-                        })
-                        .build(p.k)
-                        .key("remove"),
-                ),
-        );
-    }
-    if let Some(edit) = editing.filter(|edit| edit.index.is_none()) {
-        rows.push(quick_editor(p, edit));
-    }
-    if rows.is_empty() {
-        rows.push(
-            text(tr(
-                "No quick requests. Add one to see it above the request field.",
-            ))
-            .key("quick-empty")
-            .font(DESCRIPTION)
-            .color(p.faint())
-            .px(METRICS.row_px)
-            .py(12.0),
-        );
-    }
-    let section = section_with(
-        p,
-        "files-quick",
-        tr("Quick requests"),
-        super::actions::quiet_button(
-            p,
-            "quick-add",
-            None,
-            tr("Add request"),
-            None,
-            false,
-            |ui: &mut Ui| ui.files.quick = Some(QuickEdit::default()),
-        ),
-        rows,
-    );
-    col().key("files-quick-block").gap(10.0).child(section).child(
-        text(tr(
-            "The chips above the request field follow this list. Recent requests are kept on their own, last ten.",
-        ))
-        .key("quick-note")
-        .font(DESCRIPTION)
-        .color(p.muted())
-        .wrap()
-        .px(METRICS.row_px),
-    )
 }

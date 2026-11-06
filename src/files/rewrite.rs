@@ -106,6 +106,14 @@ impl Engine {
             None | Some("opencode") => None,
             Some("openrouter") => Server::from_settings(&runs_on(CleanupRunsOn::Openrouter)),
             Some("custom") => Server::from_settings(&runs_on(CleanupRunsOn::Custom)),
+            Some("codex") => Server::from_settings(&runs_on(CleanupRunsOn::Codex)),
+            Some(other) if other.starts_with("codex:") => {
+                Server::from_settings(&CleanupServerSettings {
+                    runs_on: CleanupRunsOn::Codex,
+                    codex_model: other["codex:".len()..].into(),
+                    ..server.clone()
+                })
+            }
             Some(other) => {
                 let id = other.strip_prefix("local:").unwrap_or(other);
                 Server::from_settings(&CleanupServerSettings {
@@ -129,6 +137,9 @@ impl Engine {
                     .name
                     .into()
             }
+            Self::Server(server) if server.provider == Provider::Codex => {
+                cleanup_server::codex::model_name(&server.model)
+            }
             Self::Server(server) => short_model(&server.model),
             Self::OpenCode(mode) => mode
                 .post_processing
@@ -136,6 +147,39 @@ impl Engine {
                 .as_deref()
                 .map(short_model)
                 .unwrap_or_else(|| "OpenCode".into()),
+        }
+    }
+
+    /// The same engine with a Codex model thinking at `effort`; any other
+    /// engine is unchanged.
+    pub fn with_effort(mut self, effort: &str) -> Self {
+        if let Self::Server(server) = &mut self
+            && server.provider == Provider::Codex
+            && !effort.trim().is_empty()
+        {
+            server.effort = effort.trim().into();
+        }
+        self
+    }
+
+    /// The Codex model id, while the engine is Codex; empty for Codex's
+    /// default.
+    pub fn codex_model(&self) -> Option<&str> {
+        match self {
+            Self::Server(server) if server.provider == Provider::Codex => {
+                Some(server.model.as_str())
+            }
+            _ => None,
+        }
+    }
+
+    /// Codex's reasoning effort, while the engine is Codex.
+    pub fn effort(&self) -> Option<&str> {
+        match self {
+            Self::Server(server) if server.provider == Provider::Codex => {
+                Some(server.effort.as_str())
+            }
+            _ => None,
         }
     }
 
@@ -154,11 +198,55 @@ impl Engine {
     fn assumed_window(&self) -> usize {
         match self {
             Self::Server(server) if server.provider == Provider::Custom => 8_192,
+            // Codex's models read 272K tokens and more: a long file goes whole.
+            Self::Server(server) if server.provider == Provider::Codex => 250_000,
             _ => 128_000,
         }
     }
 
-    fn generate(
+    /// The window, in tokens, meeting notes judge a transcript against:
+    /// the built-in engine's wide one, else [`Self::assumed_window`].
+    pub fn notes_window(&self) -> usize {
+        match self.local() {
+            Some(_) => engine::WIDE_CONTEXT_TOKENS as usize,
+            None => self.assumed_window(),
+        }
+    }
+
+    /// One whole answer to `input` within `deadline`, for meeting notes,
+    /// titles, and chapters.
+    pub fn answer(
+        &self,
+        instructions: &str,
+        input: &str,
+        deadline: Duration,
+        cancelled: &AtomicBool,
+    ) -> Result<String> {
+        let text = match self {
+            Self::Server(server) => cleanup_server::generate_in_window(
+                server,
+                engine::WIDE_CONTEXT_TOKENS,
+                instructions,
+                input,
+                deadline,
+                cancelled,
+                None,
+            ),
+            Self::OpenCode(mode) => crate::dictation::processor::generate_for_mode(
+                &format!("{instructions}\n\n{input}"),
+                mode,
+                deadline,
+                cancelled,
+            ),
+        }?;
+        let text = text.trim();
+        if text.is_empty() {
+            return Err(eyre!("the model returned empty text"));
+        }
+        Ok(text.to_owned())
+    }
+
+    pub(super) fn generate(
         &self,
         context: u32,
         instructions: &str,
@@ -290,6 +378,43 @@ fn request_instructions(vocabulary: &[VocabularyEntry]) -> String {
     )
     .trim_end()
     .to_string()
+}
+
+/// How much of an earlier answer a follow-up repeats to the model.
+const EARLIER_ANSWER_CHARS: usize = 6_000;
+/// How much of the last answer it repeats: a follow-up often reworks it
+/// (translate it, shorten it), so it goes nearly whole.
+const LAST_ANSWER_CHARS: usize = 30_000;
+
+/// A follow-up's request: the session so far, then the new question, so any
+/// engine answers it with the whole conversation in view. A question that
+/// changes the last answer (translate, shorten, reformat it) reworks that
+/// answer, keeping its Markdown, not the text the session started from.
+pub fn follow_up_prompt(earlier: &[(&str, &str)], question: &str) -> String {
+    let mut prompt = String::from(
+        "This continues a conversation about the text. Answer the new question. When it asks \
+         to change the last answer (translate it, shorten it, rewrite or reformat it), rework \
+         that answer, not the text, and keep its Markdown: its headings, lists, and tables. \
+         Otherwise answer from the text; the earlier questions and answers are context.\n",
+    );
+    for (index, (asked, answered)) in earlier.iter().enumerate() {
+        let room = if index + 1 == earlier.len() {
+            LAST_ANSWER_CHARS
+        } else {
+            EARLIER_ANSWER_CHARS
+        };
+        let answered = match answered.char_indices().nth(room) {
+            Some((cut, _)) => format!("{}…", &answered[..cut]),
+            None => (*answered).to_string(),
+        };
+        prompt.push_str(&format!(
+            "\n<earlier_question>\n{}\n</earlier_question>\n<earlier_answer>\n{}\n</earlier_answer>\n",
+            asked.trim(),
+            answered.trim()
+        ));
+    }
+    prompt.push_str(&format!("\nThe new question: {}", question.trim()));
+    prompt
 }
 
 fn request_input(prompt: &str, text: &str) -> String {

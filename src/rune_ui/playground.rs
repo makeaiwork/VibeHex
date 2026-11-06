@@ -148,6 +148,10 @@ const PATHS: &[(&str, &str)] = &[
     ("output-trust", "Window/Output/Trust prompt"),
     ("output-ai-cleanup", "Window/Output/AI cleanup"),
     (
+        "output-ai-cleanup-codex",
+        "Window/Output/AI cleanup on Codex",
+    ),
+    (
         "output-ai-cleanup-local",
         "Window/Output/AI cleanup on this Mac",
     ),
@@ -168,14 +172,47 @@ const PATHS: &[(&str, &str)] = &[
         "Window/General/Input source models",
     ),
     ("files", "Window/Files/Files"),
+    (
+        "files-engine-menu",
+        "Window/Files/Settings, Requests run on open",
+    ),
+    ("files-playback", "Window/Files/Listening, playing"),
+    (
+        "files-playback-folded",
+        "Window/Files/Listening, paused and folded",
+    ),
+    (
+        "files-playback-cleanup",
+        "Window/Files/Listening to the Cleanup",
+    ),
+    ("meetings-playback", "Window/Meetings/Listening, playing"),
+    (
+        "meetings-player",
+        "Window/Meetings/Listening without the field",
+    ),
+    (
+        "meetings-playback-folded",
+        "Window/Meetings/Listening, paused and folded",
+    ),
+    ("sidebar-foldable", "Window/Sidebar/Close sidebar"),
+    ("sidebar-folded", "Window/Sidebar/Folded"),
     ("files-working", "Window/Files/Working in 3 steps"),
+    ("files-clean-up", "Window/Files/Original not cleaned up yet"),
+    (
+        "files-version-info",
+        "Window/Files/Version details on hover",
+    ),
+    ("files-edit", "Window/Files/Editing a version"),
     ("files-original", "Window/Files/Original"),
+    ("files-session", "Window/Files/Session on Codex"),
+    ("files-model-menu", "Window/Files/Model menu"),
     ("files-summary", "Window/Files/Summary"),
     ("files-versions", "Window/Files/Versions"),
     ("files-more", "Window/Files/More menu"),
     ("files-again", "Window/Files/Transcribe again"),
     ("files-empty", "Window/Files/Empty"),
     ("files-settings-prompt", "Window/Files/Settings, own prompt"),
+    ("files-quick", "Window/Files/Settings, quick requests"),
     ("files-settings", "Window/Files/Settings"),
     ("meetings", "Window/Meetings/Meetings"),
     ("meetings-recording", "Window/Meetings/Recording"),
@@ -187,6 +224,40 @@ const PATHS: &[(&str, &str)] = &[
     ("meetings-empty", "Window/Meetings/Empty"),
     ("meetings-off", "Window/Meetings/Off"),
     ("meetings-settings", "Window/Meetings/Settings"),
+    ("meetings-notes", "Window/Meetings/Settings, notes on Codex"),
+    (
+        "meetings-notes-writer",
+        "Window/Meetings/Settings, Written by open",
+    ),
+    ("meetings-recent", "Window/Meetings/Transcript, Recent open"),
+    (
+        "meetings-questions-menu",
+        "Window/Meetings/Settings, Questions run on open",
+    ),
+    (
+        "meetings-notes-unavailable",
+        "Window/Meetings/Settings, Apple Intelligence off",
+    ),
+    (
+        "meetings-prompt",
+        "Window/Meetings/Settings, summary prompt",
+    ),
+    (
+        "meetings-codex-notes",
+        "Window/Meetings/Notes by a fallback writer",
+    ),
+    (
+        "meetings-requests",
+        "Window/Meetings/Requests about a meeting",
+    ),
+    (
+        "meetings-transcript-ask",
+        "Window/Meetings/Transcript with the field",
+    ),
+    (
+        "meetings-requests-sessions",
+        "Window/Meetings/Sessions about a meeting",
+    ),
     ("meetings-allow", "Window/Meetings/Allow system audio"),
     ("meetings-calendar", "Window/Meetings/Calendar"),
     (

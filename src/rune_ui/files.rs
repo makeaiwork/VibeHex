@@ -22,8 +22,11 @@ use crate::files::worker::{self, Config, Job, Stage, Task};
 use crate::files::{decode, text as file_text};
 use crate::transcription::models::TranscriptionModelId;
 
-mod actions;
+pub(super) mod actions;
+pub(super) mod composer;
 mod detail;
+mod quick;
+pub(super) mod session;
 pub(super) mod settings;
 mod tabs;
 
@@ -89,6 +92,22 @@ pub(super) struct FilesPane {
     pub(super) editing: Option<u32>,
     pub(super) edit: TextEdit,
     pub(super) ask: TextEdit,
+    /// The engine and effort the next new session runs on, chosen with the
+    /// field's pills; `None` follows Settings.
+    pub(super) ask_engine: Option<String>,
+    pub(super) ask_effort: Option<String>,
+    /// Codex's models for every picker: kept from the last run, then read
+    /// fresh once a run while Codex is set up.
+    pub(super) codex_models: Vec<crate::dictation::cleanup_server::codex::Model>,
+    /// This run asked Codex for its models.
+    pub(super) codex_read: bool,
+    /// How tall the floating field is, so the text can scroll clear of it.
+    pub(super) composer_h: f32,
+    /// Whether text is scrolled under the floating field, which then lifts
+    /// off it with a shadow.
+    pub(super) text_under: bool,
+    /// The version line's control the pointer is on, whose tooltip shows.
+    pub(super) hover: Option<&'static str>,
     drop_over: bool,
     drop_rejected: bool,
     pub(super) armed: Option<Armed>,
@@ -105,8 +124,8 @@ pub(super) struct FilesPane {
     pub(super) engines: Vec<settings::EngineChoice>,
     /// Settings' own prompt while it holds typing not yet saved.
     pub(super) prompt: Option<TextEdit>,
-    /// The quick request being written in Settings.
-    pub(super) quick: Option<settings::QuickEdit>,
+    /// The Quick requests page, while it is open in Settings.
+    pub(super) quick: Option<quick::QuickPage>,
     /// The worker wakes this window.
     woken: bool,
     /// A scene: nothing reads or writes the store.
@@ -209,6 +228,7 @@ impl FilesPane {
             error: None,
         };
         let segment = |start: u64, text: &str| Segment {
+            words: Vec::new(),
             start_ms: start * 1_000,
             end_ms: start * 1_000 + 9_000,
             text: text.into(),
@@ -332,6 +352,8 @@ impl FilesPane {
             model: None,
             window_k: None,
             draft: None,
+            session: None,
+            question: None,
         };
         Self {
             records: vec![
@@ -355,6 +377,79 @@ impl FilesPane {
             fixture: true,
             ..Self::default()
         }
+    }
+
+    /// The Summary session on Codex with a follow-up answered and another
+    /// answering.
+    /// Codex's models, as the scenes show them.
+    pub(super) fn fixture_codex_models() -> Vec<crate::dictation::cleanup_server::codex::Model> {
+        let model = |id: &str, name: &str, description: &str| {
+            crate::dictation::cleanup_server::codex::Model {
+                id: id.into(),
+                name: name.into(),
+                description: description.into(),
+                efforts: vec!["low".into(), "medium".into(), "high".into()],
+                default_effort: "medium".into(),
+                default: id == "gpt-6.1-sol",
+            }
+        };
+        vec![
+            model("gpt-6.1-sol", "GPT-6.1-Sol", "Latest workhorse model"),
+            model("gpt-6-luna", "GPT-6-Luna", "Fast and affordable"),
+        ]
+    }
+
+    pub(super) fn session_fixture() -> Self {
+        use crate::files::store::FollowUp;
+        let mut pane = Self::fixture();
+        pane.codex_models = Self::fixture_codex_models();
+        if let Some(listed) = pane
+            .records
+            .iter_mut()
+            .find(|listed| listed.record.id == "preview-interview")
+            && let Some(version) = listed.record.version_mut(3)
+        {
+            version.model = "GPT-6-Luna".into();
+            version.parts = None;
+            version.engine = Some("codex:gpt-6.1-sol".into());
+            version.effort = Some("medium".into());
+            version.follow_ups.push(FollowUp {
+                question: "What did the client promise, and by when?".into(),
+                answer: concat!(
+                    "- Send the updated price list **by Friday** (00:14:32)\n",
+                    "- Agree the launch date with design after Tuesday's call (00:41:08)\n",
+                    "- Check the new contract clause with legal, no date (01:12:50)",
+                )
+                .into(),
+                model: "GPT-6.1-Sol".into(),
+                seconds: 14,
+                created_ms: FIXTURE_NOW_MS - 20 * 60_000,
+                stopped: false,
+            });
+        }
+        pane.tasks.insert(
+            0,
+            Task {
+                id: 4,
+                record: "preview-interview".into(),
+                stage: Stage::Working,
+                fraction: 0.3,
+                parts: None,
+                name: None,
+                kind: crate::files::store::VersionKind::Request,
+                from: None,
+                model: Some("GPT-6.1-Sol".into()),
+                window_k: None,
+                draft: Some(crate::files::worker::Draft {
+                    kind: crate::files::rewrite::DraftKind::Result,
+                    text: "The price per seat: the client said 12 euros, and".into(),
+                    cut: false,
+                }),
+                session: Some(3),
+                question: Some("Which numbers did they disagree on?".into()),
+            },
+        );
+        pane
     }
 
     /// No files yet.
@@ -388,6 +483,8 @@ impl FilesPane {
                         .into(),
                     cut: false,
                 }),
+                session: None,
+                question: None,
             },
         );
         pane.tab = Some(Tab::Task(3));
@@ -398,8 +495,9 @@ impl FilesPane {
 /// Follows the worker: the queue on every change, the records when a job
 /// starts, moves on, or ends.
 pub(super) fn poll(ui: &mut Ui) -> bool {
+    let preloaded = composer::preload(ui);
     if ui.pane != Pane::Files || !available(ui) || ui.files.fixture || ui.is_fixture() {
-        return false;
+        return preloaded;
     }
     if !ui.files.woken
         && let Some(waker) = ui.modes.waker.clone()
@@ -407,12 +505,13 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         worker::set_waker(move || waker());
         ui.files.woken = true;
     }
+    let models = composer::poll(ui);
     let tasks = worker::tasks();
     let shape: Vec<(u64, String, Stage)> = tasks
         .iter()
         .map(|task| (task.id, task.record.clone(), task.stage))
         .collect();
-    let mut changed = tasks != ui.files.tasks;
+    let mut changed = preloaded || models || tasks != ui.files.tasks;
     ui.files.tasks = tasks;
     if ui.files.stale || ui.files.seen.as_ref() != Some(&shape) {
         ui.files.seen = Some(shape);
@@ -749,6 +848,9 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
         (error, Some(p.danger()), listed.clock.clone())
     } else if let Some(task) = task {
         let percent = (task.fraction * 100.0).round() as u32;
+        // A request answered in one go can't tell how far it is: no
+        // percent and no bar, as its progress card shows none.
+        let measured = task.stage != Stage::Working || task.parts.is_some();
         let with_length = |what: String| {
             length
                 .clone()
@@ -772,12 +874,13 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
                 ),
                 format!("{percent}%"),
             ),
+            Stage::Working if !measured => (with_length(stage_label(task)), listed.clock.clone()),
             Stage::Working | Stage::CleaningUp => (
                 with_length(format!("{} {percent}%", stage_label(task))),
                 listed.clock.clone(),
             ),
         };
-        if task.stage != Stage::Queued {
+        if task.stage != Stage::Queued && measured {
             bar = Some(task.fraction);
         }
         (meta, None, time)
@@ -891,4 +994,9 @@ pub(super) fn reveal(path: &std::path::Path) {
     }
     #[cfg(not(target_os = "macos"))]
     let _ = path;
+}
+
+/// Opens Settings' Quick requests page on request `index`, for scenes.
+pub(super) fn open_quick(ui: &mut Ui, index: usize) {
+    quick::open(ui, Some(index));
 }

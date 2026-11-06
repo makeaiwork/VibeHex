@@ -3,7 +3,7 @@
 
 use rune::{El, TextEdit, Tx, col, icon, row, text};
 use rune_kit::{
-    ButtonVariant, IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement, TextInput,
+    ButtonVariant, IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement,
 };
 
 use super::super::controls::Paint;
@@ -11,21 +11,15 @@ use super::super::list_detail as ld;
 use super::super::{Menu, Pane, Ui, icons};
 use super::detail::{current, tab_label, texts};
 use super::{Again, Armed, Tab, submit};
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::tr;
 use crate::files::store::{self, FileRecord, Version};
-use crate::files::worker::{self, Job};
+use crate::files::worker::Job;
 use crate::transcription::models::TranscriptionModelId;
 
 static MORE_ICON: rune::Icon = rune::Icon {
     name: "hex-files-more",
     view: 16.0,
     body: r#"<circle cx="3.5" cy="8" r="1.25" fill="currentColor"/><circle cx="8" cy="8" r="1.25" fill="currentColor"/><circle cx="12.5" cy="8" r="1.25" fill="currentColor"/>"#,
-};
-
-static SEND_ICON: rune::Icon = rune::Icon {
-    name: "hex-files-send",
-    view: 16.0,
-    body: r#"<path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>"#,
 };
 
 static SAVE_ICON: rune::Icon = rune::Icon {
@@ -73,6 +67,20 @@ pub(super) fn quiet_button(
     disabled: bool,
     press: impl Fn(&mut Ui) + 'static,
 ) -> El {
+    quiet(p, key, glyph, (label, true), chevron, disabled, press)
+}
+
+/// The small button with or without its words (`label.1`); without them
+/// the label is only its accessible name, and a tooltip says it.
+fn quiet(
+    p: Paint,
+    key: &str,
+    glyph: Option<&'static rune::Icon>,
+    (label, words): (&str, bool),
+    chevron: Option<&'static rune::Icon>,
+    disabled: bool,
+    press: impl Fn(&mut Ui) + 'static,
+) -> El {
     let c = &p.k.c;
     let mut button = row()
         .key(key)
@@ -91,12 +99,12 @@ pub(super) fn quiet_button(
             ..Default::default()
         })
         .children(glyph.map(|glyph| icon(glyph, 12.0).key("icon").color(c.icon_base)))
-        .child(
+        .children(words.then(|| {
             text(label.to_string())
                 .key("words")
                 .font(p.k.ty.small_medium)
-                .color(c.text_base),
-        )
+                .color(c.text_base)
+        }))
         .children(chevron.map(|glyph| icon(glyph, 11.0).key("chevron").color(c.icon_muted)));
     if disabled {
         button = button.dim(0.45);
@@ -113,7 +121,7 @@ pub(super) fn quiet_button(
 
 /// A quick request above the field: a lightly filled pill in the body's
 /// weight, with a chevron when it opens a menu.
-fn chip_button(
+pub(in super::super) fn chip_button(
     p: Paint,
     key: &str,
     label: &str,
@@ -122,16 +130,18 @@ fn chip_button(
     press: impl Fn(&mut Ui) + 'static,
 ) -> El {
     let c = &p.k.c;
+    // An opaque fill a step off the card, as the mockups draw it (#1f1f1f
+    // on dark), so text scrolling under a chip never shows through it.
     // Dark needs less: the same steps read brighter on a dark card.
     let (fill, outline, ink) = if p.k.dark {
         (
-            c.layer_01.mix(c.layer_02, 0.5),
+            c.bg_base.mix(c.text_base, 0.012).alpha(1.0),
             c.border_base.mix(c.border_strong, 0.5),
             c.text_base.mix(c.text_weak, 0.45),
         )
     } else {
         (
-            c.layer_02,
+            c.bg_base.mix(c.text_base, 0.04).alpha(1.0),
             c.border_strong,
             c.text_base.mix(c.text_weak, 0.35),
         )
@@ -392,19 +402,52 @@ pub(super) fn again_menu(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec
     } else {
         tr("Transcribe again")
     };
-    let trigger = menu_button(
+    // Just the icon and chevron, so the Original's line keeps to one row;
+    // the tooltip says what it does.
+    let chevron = if open {
+        p.k.glyph.chevron_up
+    } else {
+        p.k.glyph.chevron_down
+    };
+    let trigger = quiet(
         p,
         "file-again",
         Some(&icons::REFRESH),
-        label,
-        open,
+        (label, false),
+        Some(chevron),
         gone,
         |ui: &mut Ui| {
             ui.files.models = super::super::history::installed_models(ui);
             toggle(ui, "files-again");
         },
     );
+    let trigger = hover_tip(ui, p, "again", trigger, label.to_owned(), layer);
     menu.trigger(trigger).build(p.k, layer)
+}
+
+/// `trigger` with a tooltip saying `words` while the pointer is on it and
+/// no menu is open; `key` names it in `files.hover`.
+pub(super) fn hover_tip(
+    ui: &Ui,
+    p: Paint,
+    key: &'static str,
+    trigger: El,
+    words: String,
+    layer: &mut Vec<El>,
+) -> El {
+    let trigger = trigger.on_hover_change(move |ui: &mut Ui, inside, _| {
+        if inside {
+            ui.files.hover = Some(key);
+        } else if ui.files.hover == Some(key) {
+            ui.files.hover = None;
+        }
+    });
+    rune_kit::Tooltip::new(format!("files-{key}-tip"))
+        .trigger(trigger)
+        .text(p.k, words)
+        .placement(Placement::BottomStart)
+        .open(ui.files.hover == Some(key) && ui.open.is_none())
+        .build(p.k, layer)
 }
 
 /// A model chosen from Transcribe again: one that takes a language asks
@@ -593,34 +636,6 @@ pub(super) fn redo_menu(
     menu.trigger(trigger).build(p.k, layer)
 }
 
-/// Sends `prompt` to work on the open version, as a new request.
-fn send(ui: &mut Ui, prompt: String) {
-    let prompt = prompt.trim().to_string();
-    let Some(record) = ui.files.selected() else {
-        return;
-    };
-    let Some(Tab::Version(from)) = current(ui, record) else {
-        return;
-    };
-    if prompt.is_empty() {
-        return;
-    }
-    let quick = &ui.settings.files.quick_prompts;
-    let name = record.unique_name(&worker::request_name(&prompt, quick));
-    let typed = !quick.iter().any(|chip| chip.prompt.trim() == prompt);
-    let id = record.id.clone();
-    if typed && !ui.files.fixture {
-        if let Err(error) = store::remember(&prompt) {
-            tracing::warn!(%error, "couldn't remember the request");
-        }
-        ui.files.recent = store::recent();
-    }
-    if let Some(task) = submit(ui, &id, Job::Request { from, prompt, name }) {
-        ui.files.tab = Some(Tab::Task(task));
-    }
-    ui.files.ask = TextEdit::default();
-}
-
 /// The quick requests as outlined chips, Recent, and the request field,
 /// under a rule.
 ///
@@ -628,16 +643,37 @@ fn send(ui: &mut Ui, prompt: String) {
 /// rests, faded, and the field says to wait for it or stop it.
 pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec<El>) -> El {
     let live = waiting.is_none();
-    let mut chips = row().key("chips").gap(6.0).center_y();
+    let listened = ui
+        .files
+        .selected
+        .clone()
+        .map(super::super::playback::Of::File);
+    let mut chips = row().key("chips").gap(6.0).center_y().children(
+        listened
+            .as_ref()
+            .and_then(|of| super::super::playback::lead(ui, p, of)),
+    );
+    let (language, _) = ui
+        .settings
+        .files
+        .prompt_language(&ui.settings.transcription);
     for (index, chip) in ui.settings.files.quick_prompts.iter().enumerate() {
-        let prompt = chip.prompt.clone();
+        let prompt = chip.resolved(language);
+        let label = chip.label.clone();
         chips = chips.child(chip_button(
             p,
             &format!("chip{index}"),
             &chip.label,
             None,
             live,
-            move |ui: &mut Ui| send(ui, prompt.clone()),
+            move |ui: &mut Ui| {
+                let Some(record) = ui.files.selected().cloned() else {
+                    return;
+                };
+                if let Some(Tab::Version(from)) = current(ui, &record) {
+                    super::composer::start(ui, &record, from, prompt.clone(), Some(label.clone()));
+                }
+            },
         ));
     }
     if !ui.files.recent.is_empty() && !live {
@@ -691,58 +727,44 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec
         );
         chips = chips.child(menu.trigger(trigger).build(p.k, layer));
     }
-    let c = &p.k.c;
-    let mut send_button = row()
-        .key("send")
-        .role("button")
-        .label(tr("Send"))
-        .size(26.0, 26.0)
-        .center()
-        .radius(6.0)
-        .fill(c.layer_02)
-        .child(icon(&SEND_ICON, 14.0).key("arrow").color(c.icon_muted));
-    if live {
-        send_button = send_button
-            .focusable(true)
-            .focus_ring(2.0, 0.0, c.border_focus)
-            .hover(c.hover)
-            .press(c.pressed)
-            .on_press(|ui: &mut Ui| {
-                let prompt = ui.files.ask.text.clone();
-                send(ui, prompt);
-            });
-    }
-    let placeholder = match waiting {
-        Some(name) => tr_fill("Wait for {}, or stop it", name),
-        None => tr("What should I do with this text?").to_string(),
-    };
-    let field = TextInput::new(&ui.files.ask)
-        .placeholder(placeholder)
-        .width(None)
-        .height(34.0)
-        .disabled(!live)
-        .trailing(send_button)
-        .on_edit(|ui: &mut Ui| &mut ui.files.ask)
-        .on_submit(|ui: &mut Ui, _| {
-            let prompt = ui.files.ask.text.clone();
-            send(ui, prompt);
-        })
-        .build(p.k)
-        .key("files-ask");
+    let field = super::composer::field(
+        ui,
+        p,
+        super::composer::Target::New,
+        tr("Ask about this text"),
+        None,
+        waiting,
+        layer,
+    );
     let area = col()
         .key("files-ask-area")
         .gap(8.0)
         .pb(16.0)
         .child(
-            rune::el()
-                .key("rule")
-                .h(p.hair)
-                .fill(p.k.c.border_weak)
-                .mb(4.0),
+            listened
+                .as_ref()
+                .and_then(|of| super::super::playback::unfolded(ui, p, of, layer))
+                .unwrap_or_else(|| strip(chips)),
         )
-        .child(chips)
         .child(field);
     if live { area } else { area.dim(0.55) }
+}
+
+/// The chips in a narrow window: a strip that scrolls sideways, its hidden
+/// end fading, with room for their outlines and focus rings.
+pub(in super::super) fn strip(chips: El) -> El {
+    row()
+        .key("chips-strip")
+        .scroll_x()
+        .scroll_edge_fade(24.0)
+        .py(3.0)
+        .my(-3.0)
+        .child(chips)
+}
+
+/// The field alone, for a session.
+pub(super) fn composer_area(field: El) -> El {
+    col().key("files-ask-area").gap(8.0).pb(16.0).child(field)
 }
 
 #[cfg(test)]

@@ -21,15 +21,18 @@ mod hotkeys;
 mod labs_settings;
 mod meeting_folder;
 mod meeting_providers;
+pub mod notes_settings;
 mod persistence;
+pub mod prompt_defaults;
 mod shortcut_repair;
 
 pub use dictation_processing::*;
-pub use files_settings::{DEFAULT_FILES_PROMPT, FilesSettings, QuickPrompt};
+pub use files_settings::{DEFAULT_FILES_PROMPT, FilesSettings};
 pub use hotkeys::*;
 pub use labs_settings::{LabsSettings, UNLOAD_IDLE_MINUTES};
 pub use meeting_folder::default_meeting_output_folder;
 pub use meeting_providers::{KNOWN_MEETING_PROVIDERS, TELEMOST_APP, TELEMOST_SITE};
+pub use prompt_defaults::QuickPrompt;
 
 static RECORDING_DUCK_VOLUME: AtomicU32 = AtomicU32::new(0.2_f32.to_bits());
 static RECORDING_AUDIO_BEHAVIOR: AtomicU8 = AtomicU8::new(0);
@@ -151,6 +154,10 @@ pub struct MeetingSettings {
     /// meeting notes use; left out of the file while unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opencode_model: Option<String>,
+    /// Who writes notes and from what prompt (`meeting_notes`).
+    pub notes: notes_settings::MeetingNotesSettings,
+    /// Questions about a finished meeting, and the model they start on.
+    pub questions: notes_settings::MeetingQuestionsSettings,
 }
 
 /// How long a finished meeting is kept, counted from when it ended.
@@ -305,6 +312,8 @@ impl Default for MeetingSettings {
             calendar: CalendarSettings::default(),
             retention: None,
             opencode_model: None,
+            notes: Default::default(),
+            questions: Default::default(),
         }
     }
 }
@@ -1179,6 +1188,9 @@ impl AppSettings {
         );
         MEETING_NOTES_OPENCODE.store(self.meetings.summarize_with_opencode, Ordering::Release);
         crate::meeting::generator::set_summary_model(self.meetings.opencode_model.as_deref());
+        crate::meeting::generator::configure(
+            crate::meeting::generator::NotesConfig::from_settings(self),
+        );
         MEETING_INDICATOR_ENABLED.store(self.meetings.show_recording_indicator, Ordering::Release);
         MEETING_INDICATOR_CORNER.store(
             self.meetings.recording_indicator_corner as u8,

@@ -69,7 +69,24 @@ impl Config {
         )
     }
 
-    fn cleanup_prompt(&self) -> &str {
+    /// Where a request runs and how hard Codex thinks: `engine` and
+    /// `effort` override Settings' choice.
+    pub fn request_engine(&self, engine: Option<&str>, effort: Option<&str>) -> Engine {
+        let effort = effort.filter(|effort| !effort.trim().is_empty()).unwrap_or(
+            match self.files.request_effort.trim() {
+                "" => "medium",
+                effort => effort,
+            },
+        );
+        self.engine(engine.or(self.files.request_engine.as_deref()))
+            .with_effort(effort)
+    }
+
+    pub(super) fn vocabulary_for_requests(&self) -> &[VocabularyEntry] {
+        self.vocabulary()
+    }
+
+    pub(super) fn cleanup_prompt(&self) -> &str {
         if self.files.use_default_prompt {
             &self.mode.post_processing.prompt
         } else {
@@ -92,11 +109,33 @@ pub enum Job {
     /// Cleans up version `from`; `engine` overrides Settings' choice (Clean
     /// up again).
     Cleanup { from: u32, engine: Option<String> },
-    /// Applies `prompt` to version `from`, as the tab `name`.
+    /// Applies `prompt` to version `from`, as the tab `name`, starting a
+    /// session; `engine` and `effort` override Settings' choice.
     Request {
         from: u32,
         prompt: String,
         name: String,
+        /// Typed, so the reply names the session.
+        titled: bool,
+        engine: Option<String>,
+        effort: Option<String>,
+    },
+    /// Asks `question` in request `session`'s conversation, on the
+    /// session's engine.
+    FollowUp { session: u32, question: String },
+    /// Asks `question` in session `session` about a meeting, whose
+    /// transcript (with its title and times) is `transcript`; the record is
+    /// `meeting::requests::record`. Runs while Labs › AI cleanup server is
+    /// on, also with Files off. With `tidy`, it cleans those turns instead,
+    /// each keeping its speaker and time (`files::tidy`), and `question`
+    /// is the chip's label.
+    Meeting {
+        session: u32,
+        question: String,
+        /// What the model is asked when `question` is a chip's name.
+        prompt: Option<String>,
+        transcript: String,
+        tidy: Option<Vec<super::tidy::Line>>,
     },
 }
 
@@ -134,6 +173,9 @@ pub struct Task {
     pub window_k: Option<u32>,
     /// What a cleanup or request has written so far.
     pub draft: Option<Draft>,
+    /// A follow-up's session and question.
+    pub session: Option<u32>,
+    pub question: Option<String>,
 }
 
 /// The end of what a running cleanup or request has written.
@@ -150,7 +192,7 @@ const DRAFT_EVERY: Duration = Duration::from_millis(80);
 
 /// Drafts for task `id`, at most one each [`DRAFT_EVERY`] unless what is
 /// written changes.
-fn drafts(id: u64) -> Drafts {
+pub(super) fn drafts(id: u64) -> Drafts {
     let last: Mutex<Option<(DraftKind, Instant)>> = Mutex::new(None);
     Arc::new(move |kind, text| {
         let now = Instant::now();
@@ -248,16 +290,29 @@ pub fn dismiss_error(record: &str) {
 /// Queues `job` on `record` and returns its task id, 0 when Labs › Files
 /// is off. `next` puts it right after the running job.
 pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
-    // Labs › Files off: no job runs.
-    if !crate::labs::files() {
+    // Labs › Files off: no job runs; a meeting's question needs the AI
+    // cleanup engines instead.
+    let allowed = match &job {
+        Job::Meeting { .. } => crate::labs::ai_cleanup_server(),
+        _ => crate::labs::files(),
+    };
+    if !allowed {
         tracing::info!("Files is off in Labs; the job wasn't queued");
         return 0;
     }
     let mut state = state();
     let id = state.next;
     state.next += 1;
+    let (session, question) = match &job {
+        Job::FollowUp { session, question }
+        | Job::Meeting {
+            session, question, ..
+        } => (Some(*session), Some(question.clone())),
+        _ => (None, None),
+    };
     let (name, kind, from) = match &job {
         Job::Request { name, from, .. } => (Some(name.clone()), VersionKind::Request, Some(*from)),
+        Job::FollowUp { .. } | Job::Meeting { .. } => (None, VersionKind::Request, None),
         Job::Cleanup { from, .. } => (Some("Cleanup".into()), VersionKind::Cleanup, Some(*from)),
         Job::Transcribe { .. } => (None, VersionKind::Original, None),
     };
@@ -274,6 +329,8 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
             model: None,
             window_k: None,
             draft: None,
+            session,
+            question,
         },
         job,
         config,
@@ -326,7 +383,7 @@ pub fn cancel_record(record: &str) {
     }
 }
 
-fn update_task(id: u64, change: impl FnOnce(&mut Task)) {
+pub(super) fn update_task(id: u64, change: impl FnOnce(&mut Task)) {
     let mut state = state();
     if let Some(queued) = state.queue.iter_mut().find(|queued| queued.task.id == id) {
         change(&mut queued.task);
@@ -384,7 +441,43 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
             again,
         } => transcribe(task, selection.clone(), model_name, *again, config, cancel),
         Job::Cleanup { from, engine } => cleanup(task, *from, engine.as_deref(), config, cancel),
-        Job::Request { from, prompt, name } => request(task, *from, prompt, name, config, cancel),
+        Job::Request {
+            from,
+            prompt,
+            name,
+            titled,
+            engine,
+            effort,
+        } => super::requests::request(
+            task,
+            super::requests::Asked {
+                from: *from,
+                prompt,
+                name,
+                titled: *titled,
+                engine: engine.as_deref(),
+                effort: effort.as_deref(),
+            },
+            config,
+            cancel,
+        ),
+        Job::FollowUp { session, question } => {
+            super::requests::follow_up(task, *session, question, config, cancel)
+        }
+        Job::Meeting {
+            session,
+            question,
+            prompt,
+            transcript,
+            tidy,
+        } => super::requests::meeting(
+            task,
+            *session,
+            (question, prompt.as_deref()),
+            (transcript, tidy.as_deref()),
+            config,
+            cancel,
+        ),
     }
 }
 
@@ -434,6 +527,7 @@ fn transcribe(
             start_ms: entry.start_ms,
             end_ms: entry.end_ms,
             text: entry.text,
+            words: entry.words,
         })
         .collect();
     if segments.is_empty() {
@@ -495,7 +589,7 @@ fn temporary_wav(record: &str) -> Result<PathBuf> {
 }
 
 /// The text a version is worked from: an Original without its times.
-fn source(record: &store::FileRecord, from: u32) -> Result<String> {
+pub(super) fn source(record: &store::FileRecord, from: u32) -> Result<String> {
     let version = record
         .version(from)
         .ok_or_else(|| eyre!("That version is gone."))?;
@@ -558,66 +652,8 @@ fn cleanup(
     Ok(())
 }
 
-fn request(
-    task: &Task,
-    from: u32,
-    prompt: &str,
-    name: &str,
-    config: &Config,
-    cancel: &AtomicBool,
-) -> Result<()> {
-    let record = store::load(&task.record)?;
-    let input = source(&record, from)?;
-    let engine = config.engine(config.files.request_engine.as_deref());
-    update_task(task.id, |task| {
-        task.stage = Stage::Working;
-        task.model = Some(engine.model_name());
-    });
-    let started = Instant::now();
-    let made = rewrite::request(
-        &engine,
-        prompt,
-        &input,
-        config.vocabulary(),
-        cancel,
-        &mut |fraction, parts, window_k| {
-            update_task(task.id, |task| {
-                task.fraction = fraction;
-                task.parts = parts;
-                task.window_k = window_k;
-            });
-        },
-        &drafts(task.id),
-    )?;
-    let model = engine.model_name();
-    store::update(&task.record, |record| {
-        let name = record.unique_name(name);
-        record.push(Version {
-            kind: VersionKind::Request,
-            name,
-            text: made.text,
-            model,
-            from: Some(from),
-            prompt: Some(prompt.into()),
-            window_k: made.window_k,
-            parts: made.parts,
-            seconds: started.elapsed().as_secs(),
-            created_ms: store::now_ms(),
-            failed: made.failed,
-            ..Version::default()
-        });
-    })?;
-    Ok(())
-}
-
-/// The tab name for a request: its chip's label, else its first words.
-pub fn request_name(prompt: &str, quick: &[crate::app_settings::QuickPrompt]) -> String {
-    if let Some(chip) = quick
-        .iter()
-        .find(|chip| chip.prompt.trim() == prompt.trim())
-    {
-        return chip.label.clone();
-    }
+/// The tab name for a typed request: its first words.
+pub fn request_name(prompt: &str) -> String {
     let words: Vec<&str> = prompt.split_whitespace().take(3).collect();
     let mut name = words.join(" ");
     name = name
@@ -636,21 +672,15 @@ pub fn request_name(prompt: &str, quick: &[crate::app_settings::QuickPrompt]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_settings::QuickPrompt;
 
     #[test]
-    fn requests_are_named_by_their_chip_or_first_words() {
-        let quick = vec![QuickPrompt {
-            label: "Summary".into(),
-            prompt: "Write a summary".into(),
-        }];
-        assert_eq!(request_name("Write a summary", &quick), "Summary");
+    fn typed_requests_are_named_by_their_first_words() {
         assert_eq!(
-            request_name("сделай из этого пост для Telegram", &quick),
+            request_name("сделай из этого пост для Telegram"),
             "Сделай из этого…"
         );
-        assert_eq!(request_name("переведи", &quick), "Переведи");
-        assert_eq!(request_name("  ", &quick), "Request");
+        assert_eq!(request_name("переведи"), "Переведи");
+        assert_eq!(request_name("  "), "Request");
     }
 
     #[test]

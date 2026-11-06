@@ -234,7 +234,7 @@ pub(super) fn error_section(ui: &Ui, p: Paint) -> Option<El> {
     ))
 }
 
-fn notes_description(availability: NotesAvailability) -> &'static str {
+pub(super) fn notes_description(availability: NotesAvailability) -> &'static str {
     match availability {
         NotesAvailability::Available => {
             tr("Meeting titles and short summaries, written on this Mac")
@@ -440,6 +440,10 @@ pub(super) fn meetings_settings(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<E
     }
     let mut sections = vec![card(p, "meetings", rows)];
     if meetings.enabled {
+        sections.push(super::meeting_notes::notes_section(ui, p, layer));
+        if ui.settings.labs.ai_cleanup_server {
+            sections.push(super::meeting_notes::questions_section(ui, p, layer));
+        }
         sections.extend(calendar_section(ui, p, layer));
         sections.push(detected_calls_section(ui, p, layer));
         sections.push(advanced_toggle(ui, p, Pane::Meetings));

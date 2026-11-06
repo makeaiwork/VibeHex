@@ -33,6 +33,22 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   │   then with Labs › Choose meeting summary model on, Summary model: the
 │   │   provider/model OpenCode notes use, no fallback; empty -> the ranked fast
 │   │   models (meetings.opencode_model; see labs.md, #1107)
+│   ├── Notes -> Written by (meetings.notes.writer: Apple Intelligence or OpenCode
+│   │   as before (none), Codex's models, the engines Output › AI cleanup set up,
+│   │   OpenCode; a 260 pt menu in groups Default, Codex, Built in, Other, so a
+│   │   model's name shows whole; Codex's models load as the menu opens, as
+│   │   Questions run on's do, and AI cleanup's own Codex row then folds into
+│   │   them), Reasoning Low / Medium / High on Codex (meetings.notes.effort,
+│   │   Low when unset), Summary prompt: Default or Edited, Edit… -> its page
+│   │   (‹ Settings, the language as a tag with why, the prompt, Default prompt /
+│   │   Edited, Reset to default, Save; meetings.notes.prompts per language;
+│   │   Hex's prompts in app_settings/prompts/meeting.json, 11 languages)
+│   ├── Questions (Labs › AI cleanup server) -> Ask about a meeting
+│   │   (meetings.questions.enabled, on: the Requests tab, the chip and the
+│   │   field under a finished recording), Questions run on
+│   │   (meetings.questions.engine and .effort: Same as Files, Codex's
+│   │   models, Built in, Other, and Reasoning for Codex, in one menu whose
+│   │   field reads "GPT-6.1-Sol, Medium"); a session's pills still change it
 │   ├── Calendar -> Connect calendar; reminders before meetings // meetings.calendar
 │   └── Detected calls -> Ask / Always record / Never offer per provider // meetings.policy
 │       ├── Slack huddles, Zoom, Google Meet, Microsoft Teams, FaceTime, WhatsApp,
@@ -942,7 +958,16 @@ Detail (a raised card beside the list)
 │       Regenerate summary ("Summarizing…" disabled while running), separator,
 │       Delete… (finished meetings only for the last three)
 ├── Errors at the top of the scroll area
-├── Summary: one paragraph, at most two sentences
+├── Tabs as in Files, the transcript first as Files puts the Original first:
+│   Transcript, Summary (the notes as Markdown, who wrote them, the
+│   chapters; shown once there are notes, chapters, or notes on the way),
+│   and Requests (a finished meeting with a transcript, while
+│   Labs › AI cleanup server is on); a finished meeting with notes opens on
+│   Summary, a recording one on Transcript; the tab chosen last stays
+│   (meetings.tab, not saved)
+├── Requests: questions about the meeting, in sessions (see Questions About
+│   A Meeting below)
+├── Summary: full notes in Markdown, or one paragraph of at most two sentences
 ├── Chapters (when present): start, name, line, and a Copy section icon
 └── Transcript: stacked turns, no bubbles; "You" in text colour, "Them"
     faint, each with its clock; merged turns; 30 s+ pause lines;
@@ -977,6 +1002,113 @@ Scenes: `meetings`, `meetings-recording`, `meetings-actions`,
 
 Checks: `markdown_lists_metadata_and_labeled_turns` and
 `export_never_overwrites_and_uses_safe_names`.
+
+#### Questions About A Meeting
+
+```text
+Requests tab (finished meeting, transcript, Labs › AI cleanup server on)
+├── Requests N ▾: the chevron lists "Sessions about this meeting", newest
+│   first: name, "N questions, Today, 10:55", ✓ on the open one; "+ New
+│   session" empties the field for a new one
+├── The open session as a chat, as Files has it: each question in a bubble,
+│   each answer as Markdown with Copy, Ask again, its model, Stopped when
+│   stopped, and its time; "<model> is answering" and the draft while it
+│   comes; "The question wasn't answered: <why>" when it failed
+├── No session yet: "Ask about decisions, tasks, or who said what. Answers
+│   come from the transcript"
+├── Clean up transcript, a chip over the field (faded while an answer
+│   comes) -> a new session of that name: the turns go to the session's
+│   model a few at a time as numbered lines, [3] text, and come back the
+│   same way, cleaned with Files' cleanup prompt and vocabulary; each turn
+│   keeps who spoke and when (You `00:12`), none runs into the next, and a
+│   turn the model leaves out keeps its words. "<model> is cleaning up"
+│   under the turns as they come; a stop keeps the turns done. Asking the
+│   label again (Ask again, or typed) cleans again. There is no Cleanup tab
+├── Action items, the next chip: Files' Action items request (its label and
+│   prompt as Files › Settings has them, in Files' request language) in a
+│   new session of that name; the bubble shows the label, the model gets the
+│   prompt, and no title is asked. No Summary chip: the notes hold it
+├── Recent, while there are any: the requests last typed in Files or here
+│   (one shared recent.json, newest first, 10); one fills the field, Clear
+│   recent empties the list. A typed meeting question joins it on send
+├── Transcript and Summary have the same chips and field (while Requests
+│   exists): they always start a new session and move to Requests, as
+│   Files' field does on a version
+└── Field floating at the bottom, as in Files: "Ask about this meeting",
+    the model pill (Codex's models, then the AI cleanup engines), the
+    reasoning pill on Codex, Send, or Stop while an answer comes
+Send -> a new session, named by the model that answers its first question
+  (the reply opens with "Title: <two to four words>", which the chat never
+  shows; the question's first words when it doesn't), or the next
+  question in the open one -> Files' worker (also while Labs › Files is off)
+  reads "Meeting: <title>", when, and the transcript with You/Them and
+  clocks, and answers from it, giving times where they help
+  -> Application Support/meetings/<id>/requests.json (trashed with the
+     meeting); a first question that fails leaves no empty session
+```
+
+The model starts from Settings › Questions run on, else Files › Settings'
+request engine and reasoning; a
+session keeps the one its pills chose. Sources:
+[meeting_tabs/requests.rs](../../src/rune_ui/meeting_tabs/requests.rs),
+[meeting/requests.rs](../../src/meeting/requests.rs), and `meeting` in
+[files/requests.rs](../../src/files/requests.rs), and the turn-by-turn
+cleanup in [files/tidy.rs](../../src/files/tidy.rs). Checks:
+`a_record_names_its_meeting_and_ids_stay_in_the_meeting_folder`,
+`sessions_read_back_as_written`,
+`each_turn_comes_back_to_its_own_place_and_keeps_its_time`,
+`a_number_outside_the_piece_is_ignored`, and
+`turns_go_in_pieces_and_a_long_turn_stands_alone`. Scenes: `meetings-requests`,
+`meetings-requests-sessions`.
+
+#### Listen To The Recording (Labs)
+
+Labs › Listen to the recording puts Play before the chips over the field of
+a finished meeting, the same player as Files'. Without the field (Labs › AI
+cleanup server or Questions off) the player stands open under the meeting
+instead, with no ×, on every tab (`playback::standing`; scene
+`meetings-player`):
+
+```text
+Listen to the recording (Labs, off by default; playback::Player, rune_ui::playback)
+├── Closed: a round Play button leads the chips over the field; once
+│   something played or a line was picked, it shows the time instead
+│   ("▶ 00:25", "Play from 00:25")
+├── Play -> the button unfolds into the player, an oval pill in the chips'
+│   place inside the card, and the chips step aside: × (Close player),
+│   Pause/Play with the time, Back 5 seconds, the position rail (drag or
+│   click to seek), the length, and the speed (0.75× to 2×, at the voice's
+│   own pitch: files/stretch.rs, WSOLA in 40 ms frames); × folds it
+│   back and the chips return. "Couldn't play it: <why>" in the rail's
+│   place when the audio can't be read
+├── The transcript follows word by word: the word playing has the accent's
+│   fill and its paragraph's or turn's time the accent; nothing else is
+│   tinted. A word plays at the model's own time for it, kept with each
+│   line since word times were kept (`words`, one start per word between
+│   spaces); older recordings, models without word times, and lines whose
+│   word count an edit changed fall back to the line's time shared by its
+│   words' length (playback/timing.rs)
+├── A click on a line plays from its start while playing; while paused it
+│   marks the line (underlined), and Play starts there
+└── Space plays or pauses, ← and → skip 5 s, while the player is open and
+    no menu is
+```
+
+The sound is the meeting's two tracks, `system.wav` and `microphone.wav`,
+mixed where each started (`first_arrival_us` in `manifest.json`), the
+origin the transcript's clocks count from, so a turn plays from its own
+time. Each transcript entry keeps its words' starts (`words` in
+`TranscriptEntry`, from the sentence's timed words, `meeting::sentence_entry`);
+a turn joins them while every entry it joins has them, else its words
+spread over its start and end. Models that time words: Parakeet (word times) and
+GigaAM (token times, joined into words at their `▁` markers by
+`transcription::transcript::words_from_tokens`); Whisper and models without
+timestamps keep line times only. Checks: `turns_keep_their_word_times_only_while_every_entry_has_them`,
+`timed_words_become_sentences_at_punctuation_and_pauses`.
+Sources: [files/playback.rs](../../src/files/playback.rs) (`Audio::Meeting`),
+[rune_ui/playback/](../../src/rune_ui/playback/). Checks:
+`tracks_mix_where_each_started`; scenes `meetings-playback`,
+`meetings-playback-folded`.
 
 ### Retention
 
@@ -1019,6 +1151,25 @@ Checks: `retention_expires_meetings_by_when_they_ended_and_skips_active_ones`,
 live run of an expiry pass against a real Trash has been observed.
 
 ### Titles And Summary (Apple Intelligence)
+
+A writer chosen in Settings › Notes (`generator::Writer::Engine`) writes the
+provisional title, the live chapters, and full notes instead: the summary
+prompt for the speech model's language plus "# Title, then the notes", over
+the whole meeting (the excerpt budget follows the engine's window: Codex
+250K tokens, OpenRouter and OpenCode 128K, a built-in model 32K, Your server
+8K), one call of up to 5 minutes. When it fails (Codex's plan limit, not
+signed in, too slow) the same call goes to dictation's AI cleanup engine,
+then OpenCode while it runs; the notes record `written_by` and `fell_back`,
+and the meeting shows "Written by <model>, because the chosen writer
+failed: <why>". OpenCode as before (Summarize with OpenCode) also writes full
+notes. Apple Intelligence keeps the two sentences below. Left to Apple
+Intelligence (no writer chosen) on a Mac where it is off or unavailable,
+while Labs › AI cleanup server is on, the notes go the engine way from
+dictation's AI cleanup engine, `fell_back` saying why ("Apple Intelligence:
+Turn on Apple Intelligence…"), and Written by says so under its name; the
+meeting's … menu offers Summarize then too. The pane renders
+notes as Markdown; capsules show their first paragraph, two sentences at
+most.
 
 ```ts
 While recording, setting on, model available           // meetings.title.provisional

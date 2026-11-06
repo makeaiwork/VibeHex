@@ -52,7 +52,10 @@ impl Status {
 pub(super) struct Turn {
     pub(super) mine: bool,
     pub(super) start_ms: u64,
+    pub(super) end_ms: u64,
     pub(super) text: String,
+    /// When each word starts, when the model's word times were kept.
+    pub(super) words: Vec<u64>,
     /// A silence of 30 s or more before this turn.
     pub(super) pause_before_ms: Option<u64>,
 }
@@ -89,6 +92,8 @@ pub(super) struct Meeting {
     pub(super) duration_ms: u64,
     pub(super) app: Option<String>,
     pub(super) summary: Option<String>,
+    /// Who wrote full notes, and why the chosen writer didn't.
+    pub(super) notes_by: Option<String>,
     pub(super) notes_running: bool,
     /// The exported Markdown still exists, so trashing takes it too.
     pub(super) has_markdown: bool,
@@ -104,7 +109,7 @@ pub(super) struct Meeting {
 }
 
 impl Meeting {
-    fn turns(&self) -> &[Turn] {
+    pub(super) fn turns(&self) -> &[Turn] {
         match &self.transcript {
             Transcript::Loaded(turns) => turns,
             Transcript::Unavailable(_) => &[],
@@ -141,11 +146,11 @@ pub(super) fn available(ui: &Ui) -> bool {
         && (ui.settings.meetings.enabled || ui.platform.developer)
 }
 
-/// Whether something can write a meeting's notes: Apple Intelligence on a
-/// Mac that has it, or OpenCode once turned on.
+/// Whether anything can write notes: Apple Intelligence, OpenCode, or AI cleanup's models.
 fn notes_available(ui: &Ui) -> bool {
     (ui.platform.caps.os == super::platform::Os::Macos && ui.platform.notes.is_available())
         || ui.settings.meetings.summarize_with_opencode
+        || ui.settings.labs.ai_cleanup_server
 }
 
 #[derive(Default)]
@@ -169,6 +174,12 @@ pub(super) struct MeetingsPane {
     /// Labs › Choose meeting summary model's field while it holds typing
     /// not yet saved; `None` shows the saved model.
     pub(super) summary_model: Option<TextEdit>,
+    /// The summary prompt's page while it is open, with its typing.
+    pub(super) prompt: Option<TextEdit>,
+    /// The meeting tab chosen last; `None` opens each meeting's own.
+    pub(super) tab: Option<super::meeting_tabs::MeetingTab>,
+    /// The Requests tab's sessions and field.
+    pub(super) requests: super::meeting_tabs::requests::RequestsPane,
     /// Where Linux and Windows perform meeting requests.
     #[cfg(not(target_os = "macos"))]
     pub(super) local: super::meetings_host::LocalMeetings,
@@ -191,13 +202,13 @@ fn length(milliseconds: u64) -> String {
 }
 
 /// `mm:ss`, as `meeting::format_duration`.
-fn clock_offset(milliseconds: u64) -> String {
+pub(super) fn clock_offset(milliseconds: u64) -> String {
     let seconds = milliseconds / 1_000;
     format!("{:02}:{:02}", seconds / 60, seconds % 60)
 }
 
 /// Speaker turns as Markdown, as `meeting::transcript_markdown`.
-fn transcript_markdown(turns: &[Turn]) -> String {
+pub(super) fn transcript_markdown(turns: &[Turn]) -> String {
     turns
         .iter()
         .map(|turn| {
@@ -275,7 +286,9 @@ impl MeetingsPane {
         let turn = |mine, seconds: u64, text: &str| Turn {
             mine,
             start_ms: seconds * 1_000,
+            end_ms: seconds * 1_000 + 3_000,
             text: text.into(),
+            words: Vec::new(),
             pause_before_ms: None,
         };
         let mut conversation = vec![
@@ -325,6 +338,7 @@ impl MeetingsPane {
                 duration_ms: minutes * 60_000 + 20_000,
                 app: None,
                 summary: None,
+                notes_by: None,
                 notes_running: false,
                 has_markdown: false,
                 error: None,
@@ -538,8 +552,12 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
     }
     let action = recording_action(ui, p);
     if ui.meetings.view == View::Settings {
-        let content =
-            page("content").children(super::platform_settings::meetings_settings(ui, p, layer));
+        let content = match &ui.meetings.prompt {
+            Some(edit) => page("content").child(super::meeting_notes::prompt_page(ui, p, edit)),
+            None => {
+                page("content").children(super::platform_settings::meetings_settings(ui, p, layer))
+            }
+        };
         return (vec![action], super::scroll_body("settings-scroll", content));
     }
     recordings(ui, p, layer, action)
@@ -927,60 +945,65 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
     for (key, title, error) in errors.into_iter().flatten() {
         body = body.child(error_panel(p, key, title, error));
     }
-    if let Some(summary) = &meeting.summary {
-        let summary = summary.trim();
-        body = body.child(
-            col()
-                .key("notes")
-                .gap(6.0)
-                .child(section_label(p, "summary-label", tr("Summary")))
-                .child(
-                    text(if summary.is_empty() {
-                        tr("Nothing to summarize.")
-                    } else {
-                        summary
-                    })
-                    .key("summary")
-                    .font(p.k.ty.body)
-                    .color(if summary.is_empty() {
-                        p.faint()
-                    } else {
-                        p.text()
-                    })
-                    .wrap(),
-                ),
-        );
-    } else if meeting.notes_running {
-        body = body.child(
-            text(tr("Writing a title and summary with Apple Intelligence…"))
-                .key("notes-running")
-                .font(DESCRIPTION)
-                .color(p.faint()),
-        );
+    let tab = super::meeting_tabs::open(ui, meeting);
+    if let Some(strip) = super::meeting_tabs::strip(ui, p, meeting, layer) {
+        body = body.child(strip);
     }
-    if !meeting.chapters.is_empty() {
-        body = body.child(chapters(p, meeting, &copied));
+    match tab {
+        super::meeting_tabs::MeetingTab::Summary => {
+            let chapters = (!meeting.chapters.is_empty()).then(|| chapters(p, meeting, &copied));
+            body = body.child(super::meeting_tabs::summary(p, meeting, chapters));
+        }
+        super::meeting_tabs::MeetingTab::Transcript => {
+            let transcript_label = match meeting.status {
+                Status::Starting | Status::Recording if !pane.stop_pending => tr("Live transcript"),
+                Status::Starting | Status::Recording | Status::Transcribing => {
+                    tr("Draft transcript")
+                }
+                Status::Complete => tr("Transcript"),
+                Status::Interrupted | Status::Failed => tr("Recovered draft"),
+            };
+            body = body.child(
+                col()
+                    .key("transcript-block")
+                    .gap(10.0)
+                    .child(section_label(p, "transcript-label", transcript_label))
+                    .child(transcript(ui, p, meeting, pane.stop_pending)),
+            );
+        }
+        super::meeting_tabs::MeetingTab::Requests => {
+            body = body.child(super::meeting_tabs::requests::chat(ui, p));
+        }
     }
-    let transcript_label = match meeting.status {
-        Status::Starting | Status::Recording if !pane.stop_pending => tr("Live transcript"),
-        Status::Starting | Status::Recording | Status::Transcribing => tr("Draft transcript"),
-        Status::Complete => tr("Transcript"),
-        Status::Interrupted | Status::Failed => tr("Recovered draft"),
+    let stage = match tab {
+        _ if super::meeting_tabs::requests::available(ui, meeting) => {
+            super::meeting_tabs::requests::stage(ui, p, body, tab, layer)
+        }
+        _ => {
+            // Without the field, the player stands under the meeting.
+            let of = super::playback::Of::Meeting(meeting.id.clone());
+            let player = (meeting.status == Status::Complete && !meeting.turns().is_empty())
+                .then(|| super::playback::standing(ui, p, &of, layer))
+                .flatten();
+            let scroll = ld::card_scroll("meeting-transcript", body);
+            match player {
+                Some(player) => col()
+                    .key("meeting-listen")
+                    .grow(1.0)
+                    .shrink()
+                    .child(scroll)
+                    .child(player.pt(8.0).pb(16.0)),
+                None => scroll,
+            }
+        }
     };
-    body = body.child(
-        col()
-            .key("transcript-block")
-            .gap(10.0)
-            .child(section_label(p, "transcript-label", transcript_label))
-            .child(transcript(p, meeting, pane.stop_pending)),
-    );
     col()
         .key("meeting-detail")
         .grow(1.0)
         .shrink()
         .child(ld::card_header(title, meta, actions))
         .children(confirm)
-        .child(ld::card_scroll("meeting-transcript", body))
+        .child(stage)
 }
 
 /// The meeting's chapters, each with its start, name, line, and Copy
@@ -1139,7 +1162,7 @@ fn overflow(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> Option
     Some(menu.trigger(trigger).build(p.k, layer))
 }
 
-fn transcript(p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
+fn transcript(ui: &Ui, p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
     let empty = |copy: &str| {
         text(copy)
             .key("transcript-empty")
@@ -1167,8 +1190,22 @@ fn transcript(p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
         });
     }
     let mut lines = col().key("turns").gap(14.0);
+    // Labs › Listen to the recording: every turn plays from its start, and
+    // the one playing is lit.
+    let of = super::playback::Of::Meeting(meeting.id.clone());
+    let heard = (meeting.status == Status::Complete)
+        .then(|| super::playback::heard(ui, &of))
+        .flatten();
+    let playing = heard
+        .and_then(|heard| heard.at_ms)
+        .and_then(|at| super::playback::playing_line(turns.iter().map(|turn| turn.start_ms), at));
     for (index, turn) in turns.iter().enumerate() {
-        lines = lines.children(turn_line(p, index, turn));
+        let listened = heard.map(|heard| {
+            let at = heard.at_ms.unwrap_or(turn.start_ms);
+            let lit = (Some(turn.start_ms) == playing).then_some((at, heard.marked));
+            (&of, lit)
+        });
+        lines = lines.children(turn_line(p, index, turn, listened));
     }
     if meeting.status == Status::Recording && !stop_pending {
         lines = lines.child(
@@ -1182,8 +1219,14 @@ fn transcript(p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
 }
 
 /// One turn of a transcript: the pause before it, if any, then the speaker,
-/// the time, and the words.
-pub(super) fn turn_line(p: Paint, index: usize, turn: &Turn) -> Vec<El> {
+/// the time, and the words; `listened`, the words play from the turn's start
+/// and the turn is lit while it plays (`Some(marked)`).
+pub(super) fn turn_line(
+    p: Paint,
+    index: usize,
+    turn: &Turn,
+    listened: Option<(&super::playback::Of, Option<(u64, bool)>)>,
+) -> Vec<El> {
     let mut els = Vec::new();
     if let Some(pause) = turn.pause_before_ms {
         els.push(
@@ -1211,15 +1254,25 @@ pub(super) fn turn_line(p: Paint, index: usize, turn: &Turn) -> Vec<El> {
                         text(clock_offset(turn.start_ms))
                             .key("clock")
                             .font(p.k.ty.small)
-                            .color(p.faint()),
+                            .color(match listened {
+                                Some((_, Some(_))) => p.accent(),
+                                _ => p.faint(),
+                            }),
                     ),
             )
             .child(
-                text(turn.text.clone())
-                    .key("text")
-                    .font(p.k.ty.body)
-                    .color(p.text())
-                    .wrap(),
+                match listened {
+                    Some((of, lit)) => {
+                        let times = (turn.start_ms, turn.end_ms);
+                        let words = (turn.text.clone(), turn.words.as_slice());
+                        super::playback::meeting_turn(p, of, words, times, lit)
+                    }
+                    None => text(turn.text.clone()),
+                }
+                .key("text")
+                .font(p.k.ty.body)
+                .color(p.reading())
+                .wrap(),
             ),
     );
     els

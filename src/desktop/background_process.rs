@@ -1,5 +1,5 @@
-//! Child processes Hex starts for its own work: the OpenCode CLI, curl, and
-//! PowerShell. The native app detaches from its console, so on Windows each
+//! Child processes Hex starts for its own work: the OpenCode CLI, curl,
+//! PowerShell, and the Codex CLI's app-server. The native app detaches from its console, so on Windows each
 //! console program would otherwise open a terminal window of its own, and
 //! closing it would kill the child.
 

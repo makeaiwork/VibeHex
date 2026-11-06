@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::dictation::StreamingResampler;
 #[cfg(target_os = "macos")]
 use crate::transcription::Transcriber;
+use crate::transcription::float_samples;
 #[cfg(not(target_os = "macos"))]
 use crate::transcription::local_transcriber::LocalTranscriber as Transcriber;
 use crate::transcription::models::TranscriptionSelection;
@@ -254,6 +255,7 @@ impl TrackTranscript {
                     let start = (segment.start_ms.max(0) as u64).min(duration_ms);
                     let end = (segment.end_ms.max(0) as u64).min(duration_ms);
                     (!text.is_empty() && end > start).then(|| TranscriptEntry {
+                        words: Vec::new(),
                         source: self.source,
                         start_ms: chunk_ms + start,
                         end_ms: chunk_ms + end,
@@ -265,6 +267,7 @@ impl TrackTranscript {
             let text = transcript.text.trim();
             (!text.is_empty())
                 .then(|| TranscriptEntry {
+                    words: Vec::new(),
                     source: self.source,
                     start_ms: chunk_ms,
                     end_ms: chunk_ms + duration_ms,
@@ -380,20 +383,8 @@ impl TrackTranscript {
         }
         for group in groups.into_iter().take(published) {
             let group = words.drain(..group.len()).collect::<Vec<_>>();
-            self.entries.push(TranscriptEntry {
-                source: self.source,
-                start_ms: group[0].start_ms as u64,
-                end_ms: group
-                    .iter()
-                    .map(|word| word.end_ms)
-                    .max()
-                    .unwrap_or_default() as u64,
-                text: group
-                    .iter()
-                    .map(|word| word.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            });
+            self.entries
+                .push(super::sentence_entry(self.source, &group));
         }
     }
 }
@@ -1840,7 +1831,7 @@ fn transcribe_file(
     let source_rate = reader.spec().sample_rate;
     let mut resampler = StreamingResampler::new(source_rate).map_err(|error| eyre!(error))?;
     let mut chunker = Chunker::default();
-    let mut samples = reader.samples::<f32>();
+    let mut samples = float_samples(&mut reader);
     let mut block = Vec::with_capacity(source_rate as usize);
     let mut fed = 0;
     let mut transcribe_chunk = |chunk: Chunk, transcript: &mut TrackTranscript| -> Result<()> {
@@ -1960,7 +1951,7 @@ pub(super) fn echo_report(
         let mut old_track = TrackTranscript::new(*source, *origin_ms);
         let mut new_track = TrackTranscript::new(*source, *origin_ms);
         let mut fed = 0;
-        let samples = reader.samples::<f32>().collect::<Result<Vec<_>, _>>()?;
+        let samples = float_samples(&mut reader).collect::<Result<Vec<_>, _>>()?;
         let mut chunks = Vec::new();
         for block in samples.chunks(rate as usize) {
             let resampled = resampler.push(block);
@@ -2344,6 +2335,7 @@ mod tests {
 
     fn entry(source: MeetingSource, start_ms: u64, end_ms: u64, text: &str) -> TranscriptEntry {
         TranscriptEntry {
+            words: Vec::new(),
             source,
             start_ms,
             end_ms,
@@ -3692,6 +3684,8 @@ mod tests {
                 (2_000, 2_600, "Later words"),
             ]
         );
+        let starts: Vec<&[u64]> = track.entries.iter().map(|entry| &entry.words[..]).collect();
+        assert_eq!(starts, [&[0, 320][..], &[560, 820], &[2_000, 2_320]]);
     }
 
     #[test]

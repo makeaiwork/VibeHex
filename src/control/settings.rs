@@ -32,7 +32,10 @@ fn available() -> bool {
     true
 }
 
+mod codex_keys;
 mod files_keys;
+mod meeting_notes_keys;
+mod sidebar_keys;
 
 #[derive(Clone, Copy, Debug)]
 enum Kind {
@@ -274,8 +277,8 @@ const KEYS: &[Key] = &[
     ),
     key(
         "dictation_processing.server.runs_on",
-        Kind::Choice(&["opencode", "openrouter", "custom", "local"]),
-        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, your own OpenAI-compatible server, or a model Hex downloads (local, macOS)",
+        Kind::Choice(&["opencode", "openrouter", "custom", "local", "codex"]),
+        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, your own OpenAI-compatible server, a model Hex downloads (local, macOS), or the Codex CLI on your ChatGPT plan (codex)",
     ),
     key(
         "dictation_processing.server.url",
@@ -766,7 +769,10 @@ fn managed(name: &str, lock: crate::policy::Lock) -> ControlError {
 fn keys() -> impl Iterator<Item = &'static Key> {
     KEYS.iter()
         .chain(CAPTURE_KEYS)
+        .chain(codex_keys::CODEX_KEYS)
+        .chain(meeting_notes_keys::MEETING_NOTES_KEYS)
         .chain(files_keys::FILES_KEYS)
+        .chain(sidebar_keys::SIDEBAR_KEYS)
 }
 
 /// Settings `hex settings` never shows: Hex's own bookkeeping.
@@ -871,6 +877,7 @@ pub fn set_api_key(name: &str, raw: &str) -> Option<Result<super::ControlReply, 
         crate::dictation::cleanup_server::Provider::OpenRouter => "OpenRouter",
         crate::dictation::cleanup_server::Provider::Custom => "your server's",
         crate::dictation::cleanup_server::Provider::Local => "the built-in model's",
+        crate::dictation::cleanup_server::Provider::Codex => "Codex's",
     };
     Some(
         crate::dictation::cleanup_server::keys::set(provider, if clear { "" } else { raw })
@@ -1580,6 +1587,16 @@ mod tests {
             meetings: crate::app_settings::MeetingSettings {
                 retention: Some(crate::app_settings::MeetingRetention::Day),
                 opencode_model: Some("openai/gpt-5".into()),
+                notes: crate::app_settings::notes_settings::MeetingNotesSettings {
+                    writer: Some("codex:gpt-6.1-sol".into()),
+                    effort: "medium".into(),
+                    prompts: [("ru".to_string(), "Только задачи.".to_string())].into(),
+                },
+                questions: crate::app_settings::notes_settings::MeetingQuestionsSettings {
+                    enabled: true,
+                    engine: Some("codex:gpt-6.1-sol".into()),
+                    effort: "medium".into(),
+                },
                 ..Default::default()
             },
             files: crate::app_settings::FilesSettings {
@@ -1587,6 +1604,7 @@ mod tests {
                 language: Some("ru".into()),
                 cleanup_engine: Some("opencode".into()),
                 request_engine: Some("openrouter".into()),
+                request_effort: "high".into(),
                 last_folder: Some("/tmp".into()),
                 ..Default::default()
             },

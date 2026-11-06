@@ -380,6 +380,15 @@ impl Profiles {
         // Labs › Clean up on your own server: the same instructions and
         // vocabulary, as chat messages to OpenRouter or the person's server.
         let server = crate::dictation::cleanup_server::active();
+        // Codex answers in 5 to 20 seconds, so it gets its own, longer wait.
+        let deadline = match &server {
+            Some(server)
+                if server.provider == crate::dictation::cleanup_server::Provider::Codex =>
+            {
+                crate::dictation::cleanup_server::codex_wait()
+            }
+            _ => profile.deadline,
+        };
         // In pieces of a few minutes' speech, each within the deadline, so a
         // dictation of any length is cleaned whole (`cleanup_pieces`).
         let cleaned = crate::dictation::cleanup_pieces::clean(
@@ -393,7 +402,7 @@ impl Profiles {
                         server,
                         &instructions,
                         &transcript,
-                        profile.deadline,
+                        deadline,
                         stop,
                         streamed,
                     )
@@ -1384,6 +1393,7 @@ mod tests {
             provider: crate::dictation::cleanup_server::Provider::Custom,
             url,
             model,
+            effort: String::new(),
         };
         let vocabulary = [
             VocabularyEntry {
@@ -1436,6 +1446,7 @@ mod tests {
             provider: crate::dictation::cleanup_server::Provider::Custom,
             url: var("HEX_E2E_CLEANUP_URL"),
             model: var("HEX_E2E_CLEANUP_MODEL"),
+            effort: String::new(),
         };
         let text = std::fs::read_to_string(var("HEX_E2E_LONG_TEXT")).unwrap();
         let profile = Profile::new(
@@ -1504,6 +1515,7 @@ mod tests {
             provider: crate::dictation::cleanup_server::Provider::Custom,
             url,
             model,
+            effort: String::new(),
         };
         let replacements: Vec<crate::dictation::text_replacements::TextReplacement> =
             serde_json::from_str(include_str!("../../docs/vocabulary/replacements-ru.json"))

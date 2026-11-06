@@ -29,6 +29,7 @@ fn rejects_non_numeric_media_times() {
 #[test]
 fn transcript_entries_coalesce_into_source_turns_without_hiding_long_pauses() {
     let entry = |source, start_ms, end_ms, text: &str| TranscriptEntry {
+        words: Vec::new(),
         source,
         start_ms,
         end_ms,
@@ -48,6 +49,29 @@ fn transcript_entries_coalesce_into_source_turns_without_hiding_long_pauses() {
 }
 
 #[test]
+fn turns_keep_their_word_times_only_while_every_entry_has_them() {
+    let entry = |start_ms, text: &str, words: Vec<u64>| TranscriptEntry {
+        words,
+        source: MeetingSource::System,
+        start_ms,
+        end_ms: start_ms + 900,
+        text: text.into(),
+    };
+    let timed = coalesce_transcript([
+        entry(0, "Two words.", vec![0, 400]),
+        entry(1_000, "And three more.", vec![1_000, 1_300, 1_600]),
+    ]);
+    assert_eq!(timed[0].words, vec![0, 400, 1_000, 1_300, 1_600]);
+    assert!(crate::meeting::word_starts(&timed[0].text, &timed[0].words).is_some());
+    let mixed = coalesce_transcript([
+        entry(0, "Two words.", vec![0, 400]),
+        entry(1_000, "Untimed.", Vec::new()),
+    ]);
+    assert!(mixed[0].words.is_empty());
+    assert!(crate::meeting::word_starts("An edited line", &[0, 400]).is_none());
+}
+
+#[test]
 fn final_transcript_replaces_the_rolling_transcript_atomically() {
     let directory = std::env::temp_dir().join(format!(
         "hex-meeting-transcript-{}-{}",
@@ -56,6 +80,7 @@ fn final_transcript_replaces_the_rolling_transcript_atomically() {
     ));
     fs::create_dir_all(&directory).unwrap();
     let rolling = TranscriptEntry {
+        words: Vec::new(),
         source: MeetingSource::Microphone,
         start_ms: 0,
         end_ms: 500,
@@ -75,6 +100,7 @@ fn final_transcript_replaces_the_rolling_transcript_atomically() {
     );
 
     let final_entry = TranscriptEntry {
+        words: Vec::new(),
         source: MeetingSource::Microphone,
         start_ms: 0,
         end_ms: 500,
@@ -110,6 +136,7 @@ fn reading_a_transcript_ignores_an_in_flight_trailing_write() {
         now_ms()
     ));
     let complete = TranscriptEntry {
+        words: Vec::new(),
         source: MeetingSource::System,
         start_ms: 0,
         end_ms: 500,
@@ -661,6 +688,7 @@ fn hex_rewriting_its_markdown_keeps_it_hexs_and_a_user_edit_does_not() {
 #[test]
 fn paste_cursor_counts_coalesced_turns_and_advances_only_on_success() {
     let entry = |source, start_ms, end_ms, text: &str| TranscriptEntry {
+        words: Vec::new(),
         source,
         start_ms,
         end_ms,
@@ -720,6 +748,7 @@ fn paste_cursor_counts_coalesced_turns_and_advances_only_on_success() {
 #[test]
 fn paste_cursor_neither_repeats_nor_drops_text_when_the_transcript_is_rewritten() {
     let entry = |source, start_ms, end_ms, text: &str| TranscriptEntry {
+        words: Vec::new(),
         source,
         start_ms,
         end_ms,
@@ -782,6 +811,7 @@ fn paste_cursor_neither_repeats_nor_drops_text_when_the_transcript_is_rewritten(
 #[test]
 fn paste_cursor_pastes_text_the_final_pass_recovers_for_skipped_audio() {
     let entry = |start_ms, end_ms, text: &str| TranscriptEntry {
+        words: Vec::new(),
         source: MeetingSource::System,
         start_ms,
         end_ms,

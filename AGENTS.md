@@ -969,6 +969,14 @@ CoreAudio formats, AppleScript details, or event serialization.
   service is looked for again at a coarse interval only while that pane shows;
   catalog failures require an explicit retry. Hex's OpenCode workspace folder is
   created by the first request that uses it.
+- Codex (Labs › AI cleanup › Runs on Codex) is the one agent CLI Hex starts:
+  `codex app-server`, found on `PATH` or in the usual install folders, only
+  when a request set to Codex runs or Output shows Codex
+  (`dictation/cleanup_server/codex`). Hex keeps no key or password for it,
+  overrides the person's Codex config with `-c` so no tool, hook, MCP server,
+  memory, plugin, web search, project instruction, or `notify` command runs,
+  uses ephemeral read-only threads in an empty folder, refuses every server
+  request, and stops the process after 10 idle minutes.
 - Personal transformations run in-process: no child process,
   no Node or Bun, and no filesystem, network, process, or timer API in the
   script engine; scripts import only `@hex/commands` and files inside the

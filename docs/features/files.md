@@ -23,7 +23,8 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   ├── Clean up after transcription on -> Cleanup queued right after
 │   ├── Each row: "1 h 12 min, 2nd in line" with Queued; "Extracting audio" or
 │   │   "Transcribing, 54 min" with its percent; "42 min, Structure 45%" while
-│   │   a request runs; a thin bar under every running job; when done
+│   │   a request runs in steps, "42 min, Structure" with no percent or bar
+│   │   while one runs in one go; a thin bar under every measured job; when done
 │   │   "42 min, 3 versions"; a failure in red
 │   ├── Stop (Remove while queued) ends a job between chunks or pieces
 │   └── The queue empties -> the built-in engine goes back to its 8K window
@@ -35,23 +36,44 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   tab, time, ✓ on the open one; a job shows its stage and percent
 │   ├── Clicking a tab opens the version last opened there (until Hex quits),
 │   │   else its newest; a new version opens at once
-│   ├── The version line ends with "1 of 3" while its tab holds more
-│   ├── Original: Timestamps | Plain text (files.show_timestamps opens it),
-│   │   Transcribe again ▾ ("Transcribe the audio again with": downloaded
+│   ├── The version line keeps to one row: a tag ("v2" while its tab holds
+│   │   more than one version, a request's name) with an ⓘ in it, as tall
+│   │   as the Timestamps switch, whose tooltip says what made it, from
+│   │   what, and when (the ⓘ alone for a tab's only version); the actions
+│   │   sit at the end
+│   ├── Original: Timestamps | Plain text as a clock and a lines icon, each
+│   │   named in a tooltip (files.show_timestamps opens it), Transcribe
+│   │   again as ↻ ▾ with a tooltip ("Transcribe the audio again with": downloaded
 │   │   models, "Same model" on the one that made the first Original; "Adds a
 │   │   version to Original"; More models in General); a model that takes a
 │   │   language asks for it first in a row under the line, starting at the
-│   │   saved one, with Transcribe and Cancel; Clean up while no Cleanup was
+│   │   saved one, with Transcribe and Cancel; Clean up (a small button
+│   │   with sparkles, as compact as Transcribe again) while no Cleanup was
 │   │   made from it
-│   ├── Cleanup: "<model> in an 8K window", Clean up again ▾ (Built in,
+│   ├── Cleanup: "<model> in an 8K window" in the ⓘ, Clean up again ▾ (Built in,
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›
 │   │   AI cleanup)
-│   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
-│   │   32K window"
+│   ├── Requests: the request's name as a tag (a chip's label; a typed
+│   │   request is named by the model that answers it: its reply opens with
+│   │   "Title: <two to four words>", hidden from the draft and the answer,
+│   │   or the request's first words when it doesn't), "Made from <tab> by <model>,
+│   │   32K window" in the ⓘ; each request tab is a session, a chat: a typed request
+│   │   as a bubble (on the right, always 72 pt in from the left edge) (a chip's request shows no bubble), its answer, then each
+│   │   follow-up as a bubble with its answer. Every answer ends in one row:
+│   │   Copy and Ask again as quiet icons in the grey of the model and the
+│   │   time, the model, Stopped in amber when stopped (what came is kept),
+│   │   and the day and time. A follow-up reads
+│   │   the same source tab with the conversation so far (earlier answers cut
+│   │   at 6,000 characters, the last at 30,000); one that changes the last
+│   │   answer (translate, shorten, reformat it) reworks that answer and keeps
+│   │   its Markdown, not the source tab's plain text; while it runs, "<model> is answering" under the
+│   │   streaming draft. Saved in the version: engine, effort, follow_ups
 │   ├── A three-step version: a note with × (closed for that version for good)
 │   └── A running job's tab turns a ring before its name and shows "Made from
 │       Cleanup by Qwen3 4B, 32K window", then a card: title and percent,
-│       Stop, a thin bar, and for three steps each step with a green tick,
+│       Stop, a thin bar (a request answered in one go can't measure itself:
+│       a turning ring instead of the percent and no bar), and for three
+│       steps each step with a green tick,
 │       a turning ring, or an empty ring; under it what the job writes so
 │       far, as Markdown with a cursor ("Summary of part 2 so far:", "Outline
 │       so far:", "Text so far:"; its last ~1,500 characters), streamed from
@@ -61,29 +83,59 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 ├── Header   The name in up to two lines (a long word breaks anywhere), then the
 │            day and time (24-hour where the Mac uses it), ⏱ length, 🎙 model;
 │            list rows wrap names the same way
-├── Actions  Copy ▾ (as Markdown / as plain text), Edit (Save marks it edited),
+├── Actions  Copy ▾ (as Markdown / as plain text), Edit (the field fills the
+│            card down to Cancel and Save, bottom right, and scrolls inside
+│            itself; Save marks the version edited),
 │            … (Show in Finder, Open original with the app that opens it
 │            named on the right; Save as… .md or .txt; Delete this version…
 │            (not the first Original), Delete file from list… (red icon);
 │            then where the file is, "…/<folder>/<name>" with a long name cut
 │            in its middle, or "File not found" with the first two off), each
 │            delete confirmed under the tabs; the file on disk is never touched
-├── Ask      FILES-ASK: under a rule, quick chips (files.quick_prompts) and
-│            Recent ▾ (last 10 typed requests, <support>/files/recent.json)
-│            as pills, then "What should I do with this text?" -> works on
-│            the open version and adds the result to Requests
+├── Ask      FILES-ASK: floats over the bottom of the text, which scrolls on
+│            under it and fades out above it; once text is under it the
+│            field lifts off with the floating shadow. On an Original or
+│            Cleanup tab: quick chips (files.quick_prompts) and Recent ▾
+│            (last 10 typed requests, <support>/files/recent.json) as pills,
+│            then "Ask about this text" -> starts a session in Requests. On a
+│            session: "Ask a follow-up". The field: Return sends, Shift+Return
+│            a new line; under the text a model pill ("Model for the next
+│            session" / "for this session": Codex's models (kept on disk from
+│            the last run in <support>/codex-models.json, shown at once, and
+│            read fresh once a run at launch while anything runs on Codex), then the engines Settings offers) and, on Codex,
+│            a Low / Medium / High pill; the round button turns Stop while an
+│            answer comes. The model's name starts under the text and reads
+│            bright, its effort quieter, both brighter than the placeholder;
+│            a pill's hover sits as far in from the left as Send from the right
 └── Settings Rows lead with icons; each choice is borderless and shows what it
              resolves to in grey ("Same as dictation  Parakeet v3"). Model
              (Same as dictation or a downloaded one), Language (files.language,
              only for a model that takes a hint: Same as dictation or one of
              its languages; a new model choice clears it), Use vocabulary, Show
              timestamps; Cleanup: Clean up after transcription, Runs on (Same
-             as dictation / built in / OpenRouter / Your server / OpenCode),
+             as dictation / built in / OpenRouter / Your server / Codex once
+             Output › AI cleanup chose it / OpenCode),
              Use the Default mode's prompt (its start in italics while on;
              off, Files' own prompt); Requests › Runs on (files.request_engine:
-             Same as cleanup or any of those); Quick requests as a list (name,
-             what it asks, ✎ edits in place with Save and Cancel, 🗑 removes),
-             Add request, and a note that the chips follow the list
+             Same as cleanup or any of those; both Runs on menus are 300 pt
+             wide in groups Default, Codex (each of Codex's models, read as the
+             menu opens, in place of AI cleanup's one Codex row), Built in,
+             Other with names only, so a model's name shows whole; a Codex
+             engine reads "Codex: <model>"),
+             Reasoning (files.request_effort,
+             only while requests run on Codex; Medium when unset); Quick requests
+             (the chips' names and the prompts' language, Default or Edited,
+             Edit…) -> its own page: ‹ Settings, the language as a tag with
+             why (the speech model's language: chosen, or the only one the
+             model speaks; else the app's), the list (Edited in amber, + Add
+             request) beside Name and the prompt, then Default prompt /
+             Edited / Your own request, Remove, Reset to default, Save.
+             Structure, Summary and Action items start from Hex's prompt in
+             that language (app_settings::prompt_defaults,
+             prompts/quick.json: en ru uk pl de es pt fr ja zh zh-Hant,
+             English for any other); saved with an empty prompt they follow
+             the language, and one saved with its old English default
+             follows it too
 ```
 
 ```ts
@@ -98,8 +150,55 @@ How much a model reads                          // files::rewrite
              └── neither -> 3 steps over ~2,500-word parts: summaries -> outline
                  -> each part with the outline -> joined
              Other servers estimate tokens (3 characters each): OpenRouter and
-             OpenCode read 128K, Your server 8K (1,000-word parts)
+             OpenCode read 128K, Codex 250K (a long file whole), Your server 8K
+             (1,000-word parts)
 ```
+
+```ts
+Listen to the recording (Labs, off by default; playback::Player, rune_ui::playback)
+├── Closed: a round Play button leads the chips over the field; once
+│   something played or a line was picked, it shows the time instead
+│   ("▶ 00:25", "Play from 00:25")
+├── Play -> the button unfolds into the player, an oval pill in the chips'
+│   place inside the card, and the chips step aside: × (Close player),
+│   Pause/Play with the time, Back 5 seconds, the position rail (drag or
+│   click to seek), the length, and the speed (0.75× to 2×, at the voice's
+│   own pitch: files/stretch.rs, WSOLA in 40 ms frames); × folds it
+│   back and the chips return. "Couldn't play it: <why>" in the rail's
+│   place when the audio can't be read
+├── The transcript follows word by word: the word playing has the accent's
+│   fill and its paragraph's or turn's time the accent; nothing else is
+│   tinted. A word plays at the model's own time for it, kept with each
+│   line since word times were kept (`words`, one start per word between
+│   spaces); older recordings, models without word times, and lines whose
+│   word count an edit changed fall back to the line's time shared by its
+│   words' length (playback/timing.rs)
+├── A Cleanup of plain paragraphs follows too: its words take the times of
+│   the Original's words they match in order (a word found a step or two
+│   on, or further when the next word follows it there too; a word not
+│   found keeps the time before it), each sentence a link from its first
+│   word's time; a Cleanup with Markdown (headings, lists, bold) or edited
+│   stays Markdown, without links
+├── A click on a line plays from its start while playing; while paused it
+│   marks the line (underlined), and Play starts there
+└── Space plays or pauses, ← and → skip 5 s, while the player is open and
+    no menu is
+```
+
+A file plays from its own path (decoded to 16 kHz mono through AVFoundation
+into `<support>/files/playing/`, then played with rodio); the Original tab
+is the one whose lines are links. The player stops when the file leaves the
+screen or the Lab turns off. The chips' row scrolls sideways in a narrow
+window, its hidden end fading (`actions::strip`, the meeting's chips too).
+Sources: [files/playback.rs](../../src/files/playback.rs),
+[rune_ui/playback/](../../src/rune_ui/playback/). Checks:
+`each_segment_keeps_its_range_in_its_paragraph`,
+`the_line_playing_is_the_last_one_started`, `speeds_read_short`,
+`a_lines_words_share_its_time_by_length`,
+`cleanup_words_take_the_times_of_the_words_they_match`,
+`a_common_word_far_ahead_needs_its_neighbour_to_match`,
+`a_cleanups_sentences_are_links_from_their_first_word`; scenes
+`files-playback`, `files-playback-folded`, `files-playback-cleanup`.
 
 Records: `<support>/files/<id>.json`, owner-only, one per file (name, path,
 length, versions with segments, model, window, parts, edited, note closed).
@@ -110,11 +209,13 @@ Checks: `files::store`, `files::text`, `files::rewrite`
 (`requests_take_the_usual_window_then_the_wide_one_then_three_steps`, the
 three-step fake generator and its drafts, a draft's tail),
 `dictation::cleanup_server` (a streamed answer's text so far),
-`files::worker` (tab names); scenes `files`,
+`files::worker` (tab names), `files::requests` (a stop keeps what came, a
+follow-up carries the session); scenes `files`, `files-session` (a session on
+Codex with a follow-up streaming),
 `files-working`, `files-original`, `files-summary`, `files-versions` (the
 open tab's list), `files-more` (the … menu), `files-again` (Transcribe
 again's language), `files-empty`, `files-settings`, `files-settings-prompt`
-(Files' own prompt and a quick request being edited); no goldens yet.
+(Files' own prompt), `files-quick` (the Quick requests page on Russian); no goldens yet.
 `app_settings::files_settings` checks how files.language and the model
 combine.
 

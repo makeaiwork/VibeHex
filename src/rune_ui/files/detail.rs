@@ -8,6 +8,7 @@ use rune_kit::TextArea;
 use super::super::Ui;
 use super::super::controls::{ButtonKind, DESCRIPTION, Paint, button};
 use super::super::list_detail as ld;
+use super::super::playback::{self, Of};
 use super::actions;
 use super::tabs;
 use super::{Armed, Tab, failure, stage_label, submit};
@@ -16,6 +17,12 @@ use crate::files::rewrite::DraftKind;
 use crate::files::store::{self, FileRecord, Version, VersionKind};
 use crate::files::text as file_text;
 use crate::files::worker::{self, Draft, Job, Stage, Task};
+
+static LINES_ICON: rune::Icon = rune::Icon {
+    name: "hex-files-plain-text",
+    view: 16.0,
+    body: r#"<path d="M3 4.5h10M3 8h10M3 11.5h6.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>"#,
+};
 
 static CLOCK_ICON: rune::Icon = rune::Icon {
     name: "hex-files-clock",
@@ -54,7 +61,7 @@ pub(super) fn current(ui: &Ui, record: &FileRecord) -> Option<Tab> {
 }
 
 /// Applies `change` to the shown record and, outside scenes, the stored one.
-fn change(ui: &mut Ui, id: &str, change: impl Fn(&mut FileRecord)) {
+pub(super) fn change(ui: &mut Ui, id: &str, change: impl Fn(&mut FileRecord)) {
     if let Some(listed) = ui.files.records.iter_mut().find(|l| l.record.id == id) {
         change(&mut listed.record);
     }
@@ -233,6 +240,20 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
             }
             if editing.is_some() {
                 body = body.child(editor(p, ui, record, version.id));
+            } else if version.kind == VersionKind::Request {
+                let typed = tabs::typed_prompt(ui, version).is_some();
+                body = body.child(super::session::chat(ui, p, record, version, typed));
+                let target = super::composer::Target::Session(version.id);
+                let running = super::composer::running(ui, target);
+                ask = Some(actions::composer_area(super::composer::field(
+                    ui,
+                    p,
+                    target,
+                    tr("Ask a follow-up"),
+                    running,
+                    None,
+                    layer,
+                )));
             } else {
                 body = body.child(content(ui, p, version));
                 ask = Some(actions::ask_area(ui, p, None, layer));
@@ -250,13 +271,82 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
             }
         }
     }
-    col()
+    let detail = col()
         .key("file-detail")
         .grow(1.0)
         .shrink()
-        .child(header)
-        .child(ld::card_scroll("file-text", body))
-        .children(ask)
+        .min_h(0.0)
+        .child(header);
+    match ask {
+        Some(ask) => detail.child(floating(p, pane, body, ask)),
+        // The editor takes the whole pane and scrolls inside itself. The
+        // viewport around it never scrolls; it only keeps a long text from
+        // stretching the pane, as the text's own scroll does. Its sides
+        // leave room for the field's focus outline, which it would clip.
+        None if editing.is_some() => detail.child(
+            col()
+                .key("file-editing")
+                .grow(1.0)
+                .shrink()
+                .min_h(0.0)
+                .mx(-OUTLINE_ROOM)
+                .px(OUTLINE_ROOM)
+                .scroll(rune::ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(body.h_full().min_h(0.0).pt(EDITOR_TOP).pb(16.0)),
+        ),
+        None => detail.child(ld::card_scroll("file-text", body)),
+    }
+}
+
+/// Room left under the text for the field, past its own height.
+const FIELD_CLEARANCE: f32 = 12.0;
+/// Before the field is first measured.
+const FIELD_GUESS: f32 = 110.0;
+
+/// The text with the field floating over its bottom: the text scrolls on
+/// under it, fading out as it nears the field, and once text is under it the
+/// field lifts off with a shadow.
+fn floating(p: Paint, pane: &super::FilesPane, body: El, ask: El) -> El {
+    let field_h = if pane.composer_h > 0.0 {
+        pane.composer_h
+    } else {
+        FIELD_GUESS
+    };
+    let room = field_h + FIELD_CLEARANCE;
+    let bg = p.k.c.bg_base;
+    let body = body.child(rune::el().key("field-room").h(room));
+    let text = ld::card_scroll("file-text", body)
+        .on_at_bottom(|ui: &mut Ui, at: bool| ui.files.text_under = !at);
+    let veil = rune::el()
+        .key("field-veil")
+        .pin(Some(0.0), None, Some(0.0), Some(0.0))
+        .h(room + 32.0)
+        .linear_gradient(
+            std::f32::consts::PI,
+            [
+                (0.0, bg.alpha(0.0)),
+                (0.3, bg.alpha(0.7)),
+                (0.55, bg.alpha(0.85)),
+                (1.0, bg.alpha(0.95)),
+            ],
+        );
+    let ask =
+        ask.pin(Some(0.0), None, Some(0.0), Some(0.0))
+            .on_layout(|ui: &mut Ui, rect: [f32; 4]| {
+                if (ui.files.composer_h - rect[3]).abs() > 0.5 {
+                    ui.files.composer_h = rect[3];
+                }
+            });
+    col()
+        .key("file-stage")
+        .grow(1.0)
+        .shrink()
+        .min_h(0.0)
+        .child(text)
+        .child(veil)
+        .child(ask)
 }
 
 /// The open version's line: where it came from, and what it can do again.
@@ -298,57 +388,37 @@ fn version_line(
             }
         }
     };
-    if version.edited {
-        if words.is_empty() {
-            words = tr("Edited").into();
-        } else {
-            words = format!("{words}, {}", tr("edited"));
-        }
+    if version.kind == VersionKind::Original {
+        words = version.model.clone();
     }
+    let made = super::session::when(version.created_ms);
+    let details = if words.is_empty() {
+        made
+    } else {
+        format!("{words}\n{made}")
+    };
     let mut line = row().key("version-line").gap(6.0).pr(1.0).center_y();
-    if let Some(name) = tabs::tag(version) {
-        line = line.child(
-            row()
-                .key("tag")
-                .h(20.0)
-                .px(7.0)
-                .center_y()
-                .radius(p.k.radius.sm)
-                .fill(p.k.c.layer_02)
-                .border(p.hair, p.k.c.border_weak)
-                .child(
-                    text(name)
-                        .key("name")
-                        .font(p.k.ty.small_medium)
-                        .color(p.text())
-                        .max_w(180.0)
-                        .truncate(),
-                ),
-        );
+    let tag = tabs::tag(ui, record, version);
+    let tagged = tag.is_some();
+    if tagged {
+        line = line.child(details_tip(ui, p, tag, details.clone(), layer));
     }
     if version.kind == VersionKind::Original && !version.edited {
         let selected = usize::from(!timestamps(ui));
-        line = line.child(timestamp_switch(p, selected == 0));
+        line = line.child(timestamp_switch(ui, p, selected == 0, layer));
     }
-    if !words.is_empty() {
+    if version.edited {
         line = line.child(
-            text(words)
-                .key("version-words")
+            text(tr("Edited"))
+                .key("edited")
                 .font(DESCRIPTION)
-                .color(p.muted())
-                .shrink()
-                .truncate(),
+                .color(p.muted()),
         );
     }
-    line = line.child(rune::el().key("spacer").grow(1.0));
-    if let Some(position) = tabs::position(ui, record, version) {
-        line = line.child(
-            text(position)
-                .key("position")
-                .font(DESCRIPTION)
-                .color(p.faint()),
-        );
+    if !tagged {
+        line = line.child(details_tip(ui, p, None, details, layer));
     }
+    let mut buttons = row().key("actions").gap(6.0).center_y();
     match version.kind {
         VersionKind::Original => {
             let cleaned = record
@@ -357,26 +427,75 @@ fn version_line(
                 .any(|other| other.kind == VersionKind::Cleanup && other.from == Some(version.id));
             if !cleaned {
                 let (id, from) = (record.id.clone(), version.id);
-                line = line.child(button(
+                // Compact, as Transcribe again beside it.
+                buttons = buttons.child(actions::quiet_button(
                     p,
                     "file-clean-up",
+                    Some(&super::super::icons::SPARKLES),
                     tr("Clean up"),
-                    ButtonKind::Secondary,
-                    move |ui: &mut Ui, _| {
+                    None,
+                    false,
+                    move |ui: &mut Ui| {
                         if let Some(task) = submit(ui, &id, Job::Cleanup { from, engine: None }) {
                             ui.files.tab = Some(Tab::Task(task));
                         }
                     },
                 ));
             }
-            line = line.child(actions::again_menu(ui, p, record, layer));
+            buttons = buttons.child(actions::again_menu(ui, p, record, layer));
         }
         VersionKind::Cleanup => {
-            line = line.child(actions::redo_menu(ui, p, record, version, layer))
+            buttons = buttons.child(actions::redo_menu(ui, p, record, version, layer))
         }
         VersionKind::Request => {}
     }
-    line
+    line.child(rune::el().key("spacer").grow(1.0))
+        .child(buttons)
+}
+
+/// The version's tag with an ⓘ in it (or the ⓘ alone while the tab
+/// holds one version), as tall as the Timestamps switch beside it; on
+/// hover a tooltip says what made the version, from what, and when, so
+/// the line stays one compact row.
+fn details_tip(ui: &Ui, p: Paint, tag: Option<String>, details: String, layer: &mut Vec<El>) -> El {
+    let c = &p.k.c;
+    let spoken = details.replace('\n', ", ");
+    let info = icon(&super::super::icons::INFO, 13.0)
+        .key("glyph")
+        .color(p.faint());
+    let trigger = match tag {
+        Some(name) => row()
+            .key("tag")
+            .role("img")
+            .label(format!("{name}, {spoken}"))
+            .h(24.0)
+            .pl(8.0)
+            .pr(6.0)
+            .gap(5.0)
+            .center_y()
+            .radius(p.k.radius.md)
+            .fill(c.layer_02)
+            .border(p.hair, c.border_weak)
+            .child(
+                text(name)
+                    .key("name")
+                    .font(p.k.ty.small_medium)
+                    .color(p.text())
+                    .max_w(180.0)
+                    .truncate(),
+            )
+            .child(info),
+        None => row()
+            .key("version-info")
+            .role("img")
+            .label(spoken)
+            .size(24.0, 24.0)
+            .center()
+            .radius(p.k.radius.md)
+            .hover(c.hover)
+            .child(info),
+    };
+    actions::hover_tip(ui, p, "info", trigger, details, layer)
 }
 
 /// Why a version went in three steps, until closed.
@@ -391,7 +510,7 @@ fn steps_note(p: Paint, record: &FileRecord, version: u32, parts: usize) -> El {
         .fill(p.k.c.layer_02)
         .child(
             text(tr_fill(
-                "The text is longer than the model's window, so it went in 3 steps over {} parts. A model with a large window reads it whole: OpenRouter or OpenCode.",
+                "The text is longer than the model's window, so it went in 3 steps over {} parts. A model with a large window reads it whole: Codex, OpenRouter or OpenCode.",
                 &parts.to_string(),
             ))
             .key("words")
@@ -416,6 +535,34 @@ fn steps_note(p: Paint, record: &FileRecord, version: u32, parts: usize) -> El {
         ))
 }
 
+/// A Cleanup of plain paragraphs while it can be listened to: it follows
+/// the sound with the times of the Original it was made from.
+fn cleanup_followed(ui: &Ui, p: Paint, version: &Version) -> Option<El> {
+    if version.kind != VersionKind::Cleanup || version.edited {
+        return None;
+    }
+    let of = Of::File(ui.files.selected.clone()?);
+    let heard = playback::heard(ui, &of)?;
+    let record = ui
+        .files
+        .selected
+        .as_deref()
+        .and_then(|id| ui.files.record(id))?;
+    let originals = || {
+        record
+            .versions
+            .iter()
+            .filter(|other| other.kind == VersionKind::Original && !other.segments.is_empty())
+    };
+    let source = originals()
+        .find(|other| Some(other.id) == version.from)
+        .or_else(|| originals().next())?;
+    playback::followed(&version.text, &source.segments).then(|| {
+        let shown = (version.text.as_str(), source.segments.as_slice());
+        playback::file_cleanup(p, &of, shown, heard, timestamps(ui))
+    })
+}
+
 /// The version's text: an Original as timed or plain paragraphs, anything
 /// else as Markdown.
 fn content(ui: &Ui, p: Paint, version: &Version) -> El {
@@ -428,12 +575,17 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
                 .color(p.faint());
         }
         let shown = timestamps(ui);
+        let listened = ui.files.selected.clone().map(Of::File);
+        if let Some((of, heard)) = listened.and_then(|of| playback::heard(ui, &of).map(|h| (of, h)))
+        {
+            return playback::file_original(p, &of, &version.segments, heard, shown);
+        }
         let mut lines = col().key("paragraphs").gap(12.0);
         for (index, paragraph) in paragraphs.into_iter().enumerate() {
             let words = text(paragraph.text)
                 .key("text")
                 .font(p.k.ty.ui)
-                .color(p.text())
+                .color(p.reading())
                 .grow(1.0)
                 .shrink()
                 .wrap();
@@ -456,6 +608,9 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
         }
         return lines;
     }
+    if let Some(followed) = cleanup_followed(ui, p, version) {
+        return followed;
+    }
     if version.text.trim().is_empty() {
         return text(tr("This version is empty."))
             .key("empty")
@@ -463,32 +618,56 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
             .color(p.faint());
     }
     rune_kit::Markdown::new(version.text.clone())
-        .style(rune_kit::MarkdownStyle::from_kit(p.k).body_font(p.k.ty.ui))
+        .style(
+            rune_kit::MarkdownStyle::from_kit(p.k)
+                .body_font(p.k.ty.ui)
+                .text(p.reading()),
+        )
         .selectable(true)
         .tasks_read_only()
         .build(p.k)
         .key("markdown")
 }
 
-/// Editing a version by hand, with Save and Cancel.
+/// Above the editor, as the scrolling text sits under its fade.
+const EDITOR_TOP: f32 = 18.0;
+/// Each side of the editor, for the focus outline drawn just outside it.
+const OUTLINE_ROOM: f32 = 2.0;
+
+/// Editing a version by hand: the field fills the pane down to Cancel and
+/// Save, bottom right, and scrolls inside itself.
 fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
     let id = record.id.clone();
     col()
         .key("file-editor")
-        .gap(8.0)
+        .gap(12.0)
+        .grow(1.0)
+        .shrink()
+        .min_h(0.0)
         .child(
             TextArea::new(&ui.files.edit)
-                .rows(14)
-                .max_height(440.0)
+                .rows(6)
+                .max_height(10_000.0)
                 .width(None)
                 .on_edit(|ui: &mut Ui| &mut ui.files.edit)
                 .build(p.k)
-                .key("file-edit-text"),
+                .key("file-edit-text")
+                .grow(1.0)
+                .shrink()
+                .min_h(0.0),
         )
         .child(
             row()
                 .key("edit-actions")
                 .gap(8.0)
+                .child(rune::el().key("push").grow(1.0))
+                .child(button(
+                    p,
+                    "file-edit-cancel",
+                    tr("Cancel"),
+                    ButtonKind::Secondary,
+                    |ui: &mut Ui, _| ui.files.editing = None,
+                ))
                 .child(button(
                     p,
                     "file-edit-save",
@@ -504,13 +683,6 @@ fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
                         });
                         ui.files.editing = None;
                     },
-                ))
-                .child(button(
-                    p,
-                    "file-edit-cancel",
-                    tr("Cancel"),
-                    ButtonKind::Secondary,
-                    |ui: &mut Ui, _| ui.files.editing = None,
                 )),
         )
 }
@@ -520,6 +692,13 @@ fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
 fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
     let c = &p.k.c;
     let percent = (task.fraction * 100.0).round() as u32;
+    // A request answered in one go can't tell how far it is: a turning
+    // ring, no percent or bar, and its draft shows it come.
+    let measured = match task.stage {
+        Stage::Working => task.parts.is_some(),
+        Stage::Queued => false,
+        _ => true,
+    };
     let title = match (task.stage, task.parts) {
         (Stage::Working, Some(_)) => tr("Working in 3 steps").to_string(),
         _ => stage_label(task),
@@ -582,16 +761,20 @@ fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
                         .shrink()
                         .truncate(),
                 )
-                .children((task.stage != Stage::Queued).then(|| {
+                .children(measured.then(|| {
                     text(format!("{percent}%"))
                         .key("percent")
                         .font(p.k.ty.text_xsmall_medium)
                         .color(p.muted())
                 }))
+                .children(
+                    (task.stage == Stage::Working && !measured)
+                        .then(|| rune_kit::Loader::new().size(12.0).build(p.k).key("working")),
+                )
                 .child(rune::el().key("spacer").grow(1.0))
                 .child(stop),
         );
-    if task.stage != Stage::Queued {
+    if measured {
         card = card.child(ld::thin_bar(p, task.fraction));
     }
     if let Some(detail) = detail {
@@ -831,18 +1014,19 @@ fn delete(ui: &mut Ui, armed: Armed) {
 
 /// Timestamps | Plain text, smaller than the tabs above it, the first with
 /// a clock.
-fn timestamp_switch(p: Paint, timed: bool) -> El {
+fn timestamp_switch(ui: &Ui, p: Paint, timed: bool, layer: &mut Vec<El>) -> El {
     let c = &p.k.c;
-    let segment = |key: &str, label: &str, glyph: Option<&'static rune::Icon>, on: bool| {
+    // Icons only, so the Original's line keeps to one row; each says what
+    // it is on hover.
+    let mut segment = |key: &'static str, label: &str, glyph: &'static rune::Icon, on: bool| {
         let mut cell = row()
             .key(key)
             .role("button")
             .label(label)
             .focusable(true)
             .h(20.0)
-            .px(7.0)
-            .gap(4.0)
-            .center_y()
+            .w(26.0)
+            .center()
             .radius(p.k.radius.sm);
         cell = if on {
             cell.fill(c.layer_02).box_shadow(rune::Shadow {
@@ -854,21 +1038,17 @@ fn timestamp_switch(p: Paint, timed: bool) -> El {
             cell.hover(c.hover)
         };
         let ink = if on { p.text() } else { p.muted() };
-        if let Some(glyph) = glyph {
-            cell = cell.child(icon(glyph, 11.0).key("icon").color(ink));
-        }
         let timed_now = key == "timed";
-        cell.child(
-            text(label.to_string())
-                .key("words")
-                .font(p.k.ty.small_medium)
-                .color(ink),
-        )
-        .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
-            tx.settle();
-            ui.files.timestamps = Some(timed_now);
-        })
+        let cell = cell
+            .child(icon(glyph, 13.0).key("icon").color(ink))
+            .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
+                tx.settle();
+                ui.files.timestamps = Some(timed_now);
+            });
+        actions::hover_tip(ui, p, key, cell, label.to_owned(), layer)
     };
+    let timed_cell = segment("timed", tr("Timestamps"), &CLOCK_ICON, timed);
+    let plain_cell = segment("plain", tr("Plain text"), &LINES_ICON, !timed);
     row()
         .key("file-timestamps")
         .role("segmented")
@@ -883,6 +1063,6 @@ fn timestamp_switch(p: Paint, timed: bool) -> El {
             color: c.border_base,
             ..Default::default()
         })
-        .child(segment("timed", tr("Timestamps"), Some(&CLOCK_ICON), timed))
-        .child(segment("plain", tr("Plain text"), None, !timed))
+        .child(timed_cell)
+        .child(plain_cell)
 }

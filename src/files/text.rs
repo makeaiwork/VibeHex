@@ -189,6 +189,7 @@ mod tests {
 
     fn segment(start_ms: u64, end_ms: u64, text: &str) -> Segment {
         Segment {
+            words: Vec::new(),
             start_ms,
             end_ms,
             text: text.into(),

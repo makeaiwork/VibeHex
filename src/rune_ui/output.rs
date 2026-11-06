@@ -22,6 +22,7 @@ use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::text_replacements::ReplacementSet;
 
 mod ai_cleanup;
+mod codex_cleanup;
 mod examples;
 mod local_cleanup;
 
@@ -826,6 +827,16 @@ pub(super) fn fixture(ui: &mut Ui) {
 /// Labs › Clean up on your own server on, with LM Studio chosen and tested.
 pub(super) fn ai_cleanup_fixture(ui: &mut Ui) {
     ai_cleanup::fixture(ui);
+}
+
+/// Labs › Clean up on your own server on Codex, signed in.
+pub(super) fn ai_cleanup_codex_fixture(ui: &mut Ui) {
+    ai_cleanup::fixture(ui);
+    let server = &mut ui.settings.dictation_processing.server;
+    server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+    server.codex_model = "gpt-6-luna".into();
+    server.codex_effort = "low".into();
+    codex_cleanup::fixture(&mut ui.output.cleanup.codex);
 }
 
 /// Labs › Clean up on your own server, built in, its model downloading.
