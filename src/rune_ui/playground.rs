@@ -172,6 +172,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/General/Input source models",
     ),
     ("files", "Window/Files/Files"),
+    (
+        "files-engine-menu",
+        "Window/Files/Settings, Requests run on open",
+    ),
     ("sidebar-foldable", "Window/Sidebar/Close sidebar"),
     ("sidebar-folded", "Window/Sidebar/Folded"),
     ("files-working", "Window/Files/Working in 3 steps"),

@@ -113,7 +113,10 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
              Output › AI cleanup chose it / OpenCode),
              Use the Default mode's prompt (its start in italics while on;
              off, Files' own prompt); Requests › Runs on (files.request_engine:
-             Same as cleanup or any of those), Reasoning (files.request_effort,
+             Same as cleanup or any of those; both Runs on menus are 300 pt
+             wide in groups Default, Built in, Other with names only, so a
+             model's name shows whole, and a Codex engine reads "Codex: <model>"),
+             Reasoning (files.request_effort,
              only while requests run on Codex; Medium when unset); Quick requests
              (the chips' names and the prompts' language, Default or Edited,
              Edit…) -> its own page: ‹ Settings, the language as a tag with

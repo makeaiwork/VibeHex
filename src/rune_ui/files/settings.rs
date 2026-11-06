@@ -92,7 +92,7 @@ fn inline_menu(
     key: &'static str,
     value: &str,
     resolved: Option<String>,
-    items: Vec<MenuItem>,
+    items: Vec<(Option<&'static str>, MenuItem)>,
     layer: &mut Vec<El>,
 ) -> El {
     let c = &p.k.c;
@@ -136,10 +136,14 @@ fn inline_menu(
     let mut menu = KitMenu::new(format!("{key}-menu"))
         .placement(Placement::BottomEnd)
         .gutter(4.0)
-        .min_width(220.0)
+        // Wide enough that a model's name shows whole.
+        .min_width(300.0)
         .open(is_open)
         .on_close(|ui: &mut Ui| ui.open = None);
-    for item in items {
+    for (group, item) in items {
+        if let Some(group) = group {
+            menu = menu.group_label(group);
+        }
         menu = menu.item(item);
     }
     menu.trigger(trigger).build(p.k, layer)
@@ -174,6 +178,9 @@ fn engine_label(engine: &crate::files::rewrite::Engine) -> String {
         }
         Engine::Server(server) if server.provider == Provider::OpenRouter => {
             tr_fill("OpenRouter: {}", &model)
+        }
+        Engine::Server(server) if server.provider == Provider::Codex => {
+            tr_fill("Codex: {}", &model)
         }
         Engine::Server(_) => tr_fill("Your server: {}", &model),
         Engine::OpenCode(_) => "OpenCode".into(),
@@ -238,7 +245,7 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             "files-model",
             &model_value,
             model_resolved,
-            model_items,
+            model_items.into_iter().map(|item| (None, item)).collect(),
             layer,
         ),
     )];
@@ -277,7 +284,15 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             &icons::GLOBE,
             tr("Language"),
             Some(tr("For models that take a language hint")),
-            inline_menu(ui, p, "files-language", &value, resolved, items, layer),
+            inline_menu(
+                ui,
+                p,
+                "files-language",
+                &value,
+                resolved,
+                items.into_iter().map(|item| (None, item)).collect(),
+                layer,
+            ),
         ));
     }
     transcription_rows.push(icon_toggle_row(
@@ -474,28 +489,37 @@ fn engine_select(
     layer: &mut Vec<El>,
 ) -> El {
     let engines = engine_choices(ui);
-    let mut items = vec![choice(
-        inherit,
-        Some(&inherited),
-        current.is_none(),
-        move |ui: &mut Ui| ui.update(|settings| set(&mut settings.files, None)),
+    // In groups, names only, so each shows whole; the row shows what the
+    // default resolves to.
+    let mut items = vec![(
+        Some(tr("Default")),
+        choice(inherit, None, current.is_none(), move |ui: &mut Ui| {
+            ui.update(|settings| set(&mut settings.files, None))
+        }),
     )];
-    for engine in &engines {
+    let mut last = None;
+    for engine in engines
+        .iter()
+        .filter(|engine| engine.local)
+        .chain(engines.iter().filter(|engine| !engine.local))
+    {
         let value = engine.value.clone();
-        let label = if engine.local {
-            tr_fill("Built in, {}", &engine.label)
+        let group = if engine.local {
+            tr("Built in")
         } else {
-            engine.label.clone()
+            tr("Other")
         };
-        items.push(choice(
-            &label,
+        let label = choice(
+            &engine.label,
             None,
             current == Some(engine.value.as_str()),
             move |ui: &mut Ui| {
                 let value = value.clone();
                 ui.update(|settings| set(&mut settings.files, Some(value)));
             },
-        ));
+        );
+        items.push(((last != Some(group)).then_some(group), label));
+        last = Some(group);
     }
     let (value, resolved) = match current {
         None => (inherit.to_string(), Some(inherited)),

@@ -702,6 +702,18 @@ pub(super) const SCENES: &[Scene] = &[
         ui.settings.dictation_processing.server.runs_on = crate::app_settings::CleanupRunsOn::Local;
         ui.files.view = files::View::Settings;
     }),
+    ("files-engine-menu", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.ai_cleanup_server = true;
+        let server = &mut ui.settings.dictation_processing.server;
+        server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        server.codex_model = "gpt-6-luna".into();
+        server.openrouter_model = "google/gemma-3-4b-it".into();
+        server.url = "http://127.0.0.1:1234/v1".into();
+        server.custom_model = "gemma-4-e4b-it-mlx-4bit".into();
+        ui.files.view = files::View::Settings;
+        ui.open = Some(Menu::Pick("files-request-engine"));
+    }),
     ("files-settings-prompt", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.settings.files.use_default_prompt = false;
