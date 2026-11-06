@@ -173,6 +173,8 @@ pub(super) struct MeetingsPane {
     pub(super) summary_model: Option<TextEdit>,
     /// The summary prompt's page while it is open, with its typing.
     pub(super) prompt: Option<TextEdit>,
+    /// The meeting tab chosen last; `None` opens each meeting's own.
+    pub(super) tab: Option<super::meeting_tabs::MeetingTab>,
     /// Where Linux and Windows perform meeting requests.
     #[cfg(not(target_os = "macos"))]
     pub(super) local: super::meetings_host::LocalMeetings,
@@ -936,60 +938,33 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
     for (key, title, error) in errors.into_iter().flatten() {
         body = body.child(error_panel(p, key, title, error));
     }
-    if let Some(summary) = &meeting.summary {
-        let summary = summary.trim();
-        body = body.child(
-            col()
-                .key("notes")
-                .gap(6.0)
-                .child(section_label(p, "summary-label", tr("Summary")))
-                .child(if summary.is_empty() {
-                    text(tr("Nothing to summarize."))
-                        .key("summary")
-                        .font(p.k.ty.body)
-                        .color(p.faint())
-                        .wrap()
-                } else {
-                    rune_kit::Markdown::new(summary.to_owned())
-                        .style(rune_kit::MarkdownStyle::from_kit(p.k).body_font(p.k.ty.body))
-                        .selectable(true)
-                        .tasks_read_only()
-                        .build(p.k)
-                        .key("summary")
-                })
-                .children(meeting.notes_by.as_deref().map(|by| {
-                    text(by.to_owned())
-                        .key("notes-by")
-                        .font(p.k.ty.small)
-                        .color(p.faint())
-                        .wrap()
-                        .mt(4.0)
-                })),
-        );
-    } else if meeting.notes_running {
-        body = body.child(
-            text(tr("Writing a title and summary with Apple Intelligence…"))
-                .key("notes-running")
-                .font(DESCRIPTION)
-                .color(p.faint()),
-        );
+    let tab = super::meeting_tabs::open(ui, meeting);
+    if let Some(strip) = super::meeting_tabs::strip(ui, p, meeting) {
+        body = body.child(strip);
     }
-    if !meeting.chapters.is_empty() {
-        body = body.child(chapters(p, meeting, &copied));
+    match tab {
+        super::meeting_tabs::MeetingTab::Summary => {
+            let chapters = (!meeting.chapters.is_empty()).then(|| chapters(p, meeting, &copied));
+            body = body.child(super::meeting_tabs::summary(p, meeting, chapters));
+        }
+        super::meeting_tabs::MeetingTab::Transcript => {
+            let transcript_label = match meeting.status {
+                Status::Starting | Status::Recording if !pane.stop_pending => tr("Live transcript"),
+                Status::Starting | Status::Recording | Status::Transcribing => {
+                    tr("Draft transcript")
+                }
+                Status::Complete => tr("Transcript"),
+                Status::Interrupted | Status::Failed => tr("Recovered draft"),
+            };
+            body = body.child(
+                col()
+                    .key("transcript-block")
+                    .gap(10.0)
+                    .child(section_label(p, "transcript-label", transcript_label))
+                    .child(transcript(p, meeting, pane.stop_pending)),
+            );
+        }
     }
-    let transcript_label = match meeting.status {
-        Status::Starting | Status::Recording if !pane.stop_pending => tr("Live transcript"),
-        Status::Starting | Status::Recording | Status::Transcribing => tr("Draft transcript"),
-        Status::Complete => tr("Transcript"),
-        Status::Interrupted | Status::Failed => tr("Recovered draft"),
-    };
-    body = body.child(
-        col()
-            .key("transcript-block")
-            .gap(10.0)
-            .child(section_label(p, "transcript-label", transcript_label))
-            .child(transcript(p, meeting, pane.stop_pending)),
-    );
     col()
         .key("meeting-detail")
         .grow(1.0)

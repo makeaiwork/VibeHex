@@ -240,7 +240,7 @@ pub(crate) fn notes_instructions(short: &str) -> String {
         return short.to_owned();
     }
     let prompt = config().map_or_else(
-        || crate::app_settings::meeting_notes::default_prompt("en").to_owned(),
+        || crate::app_settings::notes_settings::default_prompt("en").to_owned(),
         |config| config.prompt,
     );
     format!("{prompt}\n\n{NOTES_FORM}")

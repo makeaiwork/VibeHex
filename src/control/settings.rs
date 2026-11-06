@@ -1585,7 +1585,7 @@ mod tests {
             meetings: crate::app_settings::MeetingSettings {
                 retention: Some(crate::app_settings::MeetingRetention::Day),
                 opencode_model: Some("openai/gpt-5".into()),
-                notes: crate::app_settings::meeting_notes::MeetingNotesSettings {
+                notes: crate::app_settings::notes_settings::MeetingNotesSettings {
                     writer: Some("codex:gpt-6.1-sol".into()),
                     effort: "medium".into(),
                     prompts: [("ru".to_string(), "Только задачи.".to_string())].into(),

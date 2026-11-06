@@ -20,8 +20,8 @@ mod files_settings;
 mod hotkeys;
 mod labs_settings;
 mod meeting_folder;
-pub mod meeting_notes;
 mod meeting_providers;
+pub mod notes_settings;
 mod persistence;
 pub mod prompt_defaults;
 mod shortcut_repair;
@@ -155,7 +155,7 @@ pub struct MeetingSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opencode_model: Option<String>,
     /// Who writes notes and from what prompt (`meeting_notes`).
-    pub notes: meeting_notes::MeetingNotesSettings,
+    pub notes: notes_settings::MeetingNotesSettings,
 }
 
 /// How long a finished meeting is kept, counted from when it ended.

@@ -11,7 +11,7 @@ use super::icons;
 use super::lists::{Tone, tone_tag};
 use super::settings as s;
 use super::{Menu, Ui};
-use crate::app_settings::meeting_notes::default_prompt;
+use crate::app_settings::notes_settings::default_prompt;
 use crate::app_settings::prompt_defaults::{self, Basis};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 

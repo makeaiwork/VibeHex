@@ -41,6 +41,7 @@ mod live_notes;
 pub(crate) mod live_text;
 pub(crate) mod meeting_capsules;
 mod meeting_notes;
+mod meeting_tabs;
 mod meetings;
 mod meetings_host;
 mod model_details;

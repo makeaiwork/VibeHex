@@ -949,7 +949,11 @@ Detail (a raised card beside the list)
 │       Regenerate summary ("Summarizing…" disabled while running), separator,
 │       Delete… (finished meetings only for the last three)
 ├── Errors at the top of the scroll area
-├── Summary: one paragraph, at most two sentences
+├── Tabs as in Files: Summary (the notes as Markdown, who wrote them, the
+│   chapters; shown once there are notes, chapters, or notes on the way) and
+│   Transcript; a finished meeting with notes opens on Summary, a recording
+│   one on Transcript; the tab chosen last stays (meetings.tab, not saved)
+├── Summary: full notes in Markdown, or one paragraph of at most two sentences
 ├── Chapters (when present): start, name, line, and a Copy section icon
 └── Transcript: stacked turns, no bubbles; "You" in text colour, "Them"
     faint, each with its clock; merged turns; 30 s+ pause lines;
