@@ -128,7 +128,11 @@ pub(super) fn summary(p: Paint, meeting: &Meeting, chapters: Option<El>) -> El {
                         .wrap()
                 } else {
                     rune_kit::Markdown::new(summary.to_owned())
-                        .style(rune_kit::MarkdownStyle::from_kit(p.k).body_font(p.k.ty.body))
+                        .style(
+                            rune_kit::MarkdownStyle::from_kit(p.k)
+                                .body_font(p.k.ty.body)
+                                .text(p.reading()),
+                        )
                         .selectable(true)
                         .tasks_read_only()
                         .build(p.k)
