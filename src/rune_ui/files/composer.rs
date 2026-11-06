@@ -473,16 +473,42 @@ fn choose(ui: &mut Ui, target: Target, engine: Option<String>, effort: Option<St
     }
 }
 
-/// Reads Codex's models on their own thread when none are known yet.
-pub(in super::super) fn load_codex_models(ui: &mut Ui) {
-    if !ui.files.codex_models.is_empty() || ui.files.fixture {
-        return;
+/// Codex's models for every picker from the start: the list the last run
+/// kept at once, and, while anything runs on Codex, one fresh read a run.
+pub(super) fn preload(ui: &mut Ui) -> bool {
+    if ui.files.fixture || ui.is_fixture() {
+        return false;
+    }
+    if !ui.files.codex_read && codex_wanted(&ui.settings) {
+        ui.files.codex_read = true;
+        read_codex_models(ui);
     }
     let known = codex::models();
-    if !known.is_empty() {
-        ui.files.codex_models = known;
-        return;
+    if known.is_empty() || known == ui.files.codex_models {
+        return false;
     }
+    ui.files.codex_models = known;
+    true
+}
+
+/// Whether Codex is set up for anything a picker offers it for.
+fn codex_wanted(settings: &crate::app_settings::AppSettings) -> bool {
+    let server = &settings.dictation_processing.server;
+    let on_codex = |engine: &Option<String>| {
+        engine
+            .as_deref()
+            .is_some_and(|engine| engine.starts_with("codex"))
+    };
+    server.runs_on == crate::app_settings::CleanupRunsOn::Codex
+        || !server.codex_model.trim().is_empty()
+        || on_codex(&settings.files.cleanup_engine)
+        || on_codex(&settings.files.request_engine)
+        || on_codex(&settings.meetings.notes.writer)
+        || on_codex(&settings.meetings.questions.engine)
+}
+
+/// Asks Codex for its models on their own thread.
+fn read_codex_models(ui: &Ui) {
     let waker = ui.modes.waker.clone();
     let _ = std::thread::Builder::new()
         .name("hex-files-codex-models".into())
@@ -494,6 +520,22 @@ pub(in super::super) fn load_codex_models(ui: &mut Ui) {
                 waker();
             }
         });
+}
+
+/// Reads Codex's models on their own thread when none are known yet.
+pub(in super::super) fn load_codex_models(ui: &mut Ui) {
+    if !ui.files.codex_models.is_empty() || ui.files.fixture {
+        return;
+    }
+    let known = codex::models();
+    if !known.is_empty() {
+        ui.files.codex_models = known;
+        return;
+    }
+    if !ui.files.codex_read {
+        ui.files.codex_read = true;
+        read_codex_models(ui);
+    }
 }
 
 /// Picks up Codex's models once a status read has listed them.

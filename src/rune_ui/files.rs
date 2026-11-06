@@ -96,8 +96,11 @@ pub(super) struct FilesPane {
     /// field's pills; `None` follows Settings.
     pub(super) ask_engine: Option<String>,
     pub(super) ask_effort: Option<String>,
-    /// Codex's models for the field's model pill, read when it opens.
+    /// Codex's models for every picker: kept from the last run, then read
+    /// fresh once a run while Codex is set up.
     pub(super) codex_models: Vec<crate::dictation::cleanup_server::codex::Model>,
+    /// This run asked Codex for its models.
+    pub(super) codex_read: bool,
     /// How tall the floating field is, so the text can scroll clear of it.
     pub(super) composer_h: f32,
     /// Whether text is scrolled under the floating field, which then lifts
@@ -491,8 +494,9 @@ impl FilesPane {
 /// Follows the worker: the queue on every change, the records when a job
 /// starts, moves on, or ends.
 pub(super) fn poll(ui: &mut Ui) -> bool {
+    let preloaded = composer::preload(ui);
     if ui.pane != Pane::Files || !available(ui) || ui.files.fixture || ui.is_fixture() {
-        return false;
+        return preloaded;
     }
     if !ui.files.woken
         && let Some(waker) = ui.modes.waker.clone()
@@ -506,7 +510,7 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         .iter()
         .map(|task| (task.id, task.record.clone(), task.stage))
         .collect();
-    let mut changed = models || tasks != ui.files.tasks;
+    let mut changed = preloaded || models || tasks != ui.files.tasks;
     ui.files.tasks = tasks;
     if ui.files.stale || ui.files.seen.as_ref() != Some(&shape) {
         ui.files.seen = Some(shape);

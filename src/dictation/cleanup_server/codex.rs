@@ -82,7 +82,7 @@ pub enum Account {
 }
 
 /// One model Codex offers, from `model/list`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, serde::Serialize)]
 pub struct Model {
     pub id: String,
     pub name: String,
@@ -190,12 +190,47 @@ fn child_path(executable: &Path) -> std::ffi::OsString {
 /// The models the last [`status`] listed, for pickers outside Output.
 static MODELS: Mutex<Vec<Model>> = Mutex::new(Vec::new());
 
-/// The models Codex listed last, empty until [`status`] has run.
+/// Where the last list is kept, so pickers show Codex's models at once
+/// after a restart, before Codex answers again.
+fn models_cache() -> Option<PathBuf> {
+    Some(
+        crate::app_paths::support_dir()
+            .ok()?
+            .join("codex-models.json"),
+    )
+}
+
+/// The models Codex listed last: this run's [`status`], else the list the
+/// last run kept; empty when Codex never listed any here.
 pub fn models() -> Vec<Model> {
+    static READ: std::sync::Once = std::sync::Once::new();
+    READ.call_once(|| {
+        let kept: Option<Vec<Model>> = models_cache()
+            .and_then(|path| std::fs::read(path).ok())
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        if let (Some(kept), Ok(mut listed)) = (kept, MODELS.lock())
+            && listed.is_empty()
+        {
+            *listed = kept;
+        }
+    });
     MODELS
         .lock()
         .map(|models| models.clone())
         .unwrap_or_default()
+}
+
+/// Keeps `models` for the next run.
+fn keep_models(models: &[Model]) {
+    let Some(path) = models_cache() else { return };
+    match serde_json::to_vec_pretty(models) {
+        Ok(json) => {
+            if let Err(error) = crate::durable::write(&path, &json) {
+                tracing::warn!(%error, "couldn't keep Codex's models");
+            }
+        }
+        Err(error) => tracing::warn!(%error, "couldn't keep Codex's models"),
+    }
 }
 
 /// A model's name as Codex shows it (GPT-6-Luna), else its id; Codex's
@@ -242,6 +277,9 @@ pub fn status(cancelled: &AtomicBool) -> Result<Status> {
     if !models.is_empty()
         && let Ok(mut listed) = MODELS.lock()
     {
+        if *listed != models {
+            keep_models(&models);
+        }
         *listed = models.clone();
     }
     Ok(Status {

@@ -100,8 +100,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │            then "Ask about this text" -> starts a session in Requests. On a
 │            session: "Ask a follow-up". The field: Return sends, Shift+Return
 │            a new line; under the text a model pill ("Model for the next
-│            session" / "for this session": Codex's models, read from Codex
-│            when it opens, then the engines Settings offers) and, on Codex,
+│            session" / "for this session": Codex's models (kept on disk from
+│            the last run in <support>/codex-models.json, shown at once, and
+│            read fresh once a run at launch while anything runs on Codex), then the engines Settings offers) and, on Codex,
 │            a Low / Medium / High pill; the round button turns Stop while an
 │            answer comes. The model's name starts under the text and reads
 │            bright, its effort quieter, both brighter than the placeholder;
