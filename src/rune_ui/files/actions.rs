@@ -130,16 +130,18 @@ pub(in super::super) fn chip_button(
     press: impl Fn(&mut Ui) + 'static,
 ) -> El {
     let c = &p.k.c;
+    // An opaque fill a step off the card, as the mockups draw it (#1f1f1f
+    // on dark), so text scrolling under a chip never shows through it.
     // Dark needs less: the same steps read brighter on a dark card.
     let (fill, outline, ink) = if p.k.dark {
         (
-            c.layer_01.mix(c.layer_02, 0.5),
+            c.bg_base.mix(c.text_base, 0.012).alpha(1.0),
             c.border_base.mix(c.border_strong, 0.5),
             c.text_base.mix(c.text_weak, 0.45),
         )
     } else {
         (
-            c.layer_02,
+            c.bg_base.mix(c.text_base, 0.04).alpha(1.0),
             c.border_strong,
             c.text_base.mix(c.text_weak, 0.35),
         )
