@@ -166,11 +166,12 @@ pub(in super::super) fn shell(
         .gap(6.0)
         .pt(10.0)
         .pb(6.0)
-        .pl(12.0)
-        .pr(6.0)
+        // The pills' hover sits as far in from the left as Send from the
+        // right, and the model's name starts under the text.
+        .px(6.0)
         .radius(p.k.radius.md + 2.0)
         .fill(c.bg_base)
-        .child(text_area)
+        .child(text_area.ml(PILL_INSET))
         .child(
             row()
                 .key("controls")
@@ -253,11 +254,17 @@ pub(in super::super) fn round_button(
         .on_press(press)
 }
 
-/// A borderless pill: plain text with a chevron, a quiet background on hover.
+/// How far a pill's words sit in from its edge.
+const PILL_INSET: f32 = 6.0;
+
+/// A borderless pill: plain text with a chevron, a quiet background on
+/// hover. The model's name reads `strong`, brighter than the field's
+/// placeholder; its effort beside it is quieter, yet
+/// brighter than the placeholder too.
 pub(in super::super) fn pill(
     p: Paint,
     key: &str,
-    label: &str,
+    (label, strong): (&str, bool),
     open: bool,
     press: impl Fn(&mut Ui) + 'static,
 ) -> El {
@@ -274,7 +281,7 @@ pub(in super::super) fn pill(
         .focusable(true)
         .focus_ring(2.0, 0.0, c.border_focus)
         .h(24.0)
-        .px(6.0)
+        .px(PILL_INSET)
         .gap(3.0)
         .center_y()
         .radius(6.0)
@@ -287,7 +294,10 @@ pub(in super::super) fn pill(
                     size: 12.0,
                     ..p.k.ty.ui
                 })
-                .color(c.text_weak)
+                .color(rune::theme::for_blend(
+                    c.text_base.alpha(if strong { 0.82 } else { 0.58 }),
+                    c.bg_base,
+                ))
                 .max_lines(1),
         )
         .child(icon(chevron, 11.0).key("chevron").color(c.icon_muted))
@@ -376,7 +386,7 @@ pub(in super::super) fn model_menu(
                 .on_select(move |ui: &mut Ui| pick(ui, value.clone())),
         );
     }
-    let trigger = pill(p, "model", &label, open, move |ui: &mut Ui| {
+    let trigger = pill(p, "model", (&label, true), open, move |ui: &mut Ui| {
         toggle(ui, key);
         if menu_open(ui, key) {
             ui.files.engines = settings::engine_choices(ui);
@@ -427,7 +437,7 @@ pub(in super::super) fn effort_menu(
                 .on_select(move |ui: &mut Ui| pick(ui, value.into())),
         );
     }
-    let trigger = pill(p, "effort", tr(shown), open, move |ui: &mut Ui| {
+    let trigger = pill(p, "effort", (tr(shown), false), open, move |ui: &mut Ui| {
         toggle(ui, key);
     });
     menu.trigger(trigger).build(p.k, layer)

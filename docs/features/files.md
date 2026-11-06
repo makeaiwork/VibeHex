@@ -100,7 +100,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │            session" / "for this session": Codex's models, read from Codex
 │            when it opens, then the engines Settings offers) and, on Codex,
 │            a Low / Medium / High pill; the round button turns Stop while an
-│            answer comes
+│            answer comes. The model's name starts under the text and reads
+│            bright, its effort quieter, both brighter than the placeholder;
+│            a pill's hover sits as far in from the left as Send from the right
 └── Settings Rows lead with icons; each choice is borderless and shows what it
              resolves to in grey ("Same as dictation  Parakeet v3"). Model
              (Same as dictation or a downloaded one), Language (files.language,
