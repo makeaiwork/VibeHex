@@ -103,13 +103,18 @@ pub(in super::super) fn lead(ui: &Ui, p: Paint, of: &Of) -> Option<El> {
     Some(outlined(p, button))
 }
 
+/// The time in figures of one width, so Play's pill keeps its size as the
+/// seconds turn and the rail beside it stays still.
 fn time(p: Paint, key: &str, ms: u64, color: rune::Color) -> El {
     text(clock(ms))
         .key(key.to_owned())
-        .font(rune::TextStyle {
-            size: 12.0,
-            ..p.k.ty.ui_medium
-        })
+        .font(
+            rune::TextStyle {
+                size: 12.0,
+                ..p.k.ty.ui_medium
+            }
+            .features("'tnum' 1"),
+        )
         .color(color)
         .max_lines(1)
 }
