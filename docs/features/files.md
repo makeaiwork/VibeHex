@@ -68,7 +68,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   ├── A three-step version: a note with × (closed for that version for good)
 │   └── A running job's tab turns a ring before its name and shows "Made from
 │       Cleanup by Qwen3 4B, 32K window", then a card: title and percent,
-│       Stop, a thin bar, and for three steps each step with a green tick,
+│       Stop, a thin bar (a request answered in one go can't measure itself:
+│       a turning ring instead of the percent and no bar), and for three
+│       steps each step with a green tick,
 │       a turning ring, or an empty ring; under it what the job writes so
 │       far, as Markdown with a cursor ("Summary of part 2 so far:", "Outline
 │       so far:", "Text so far:"; its last ~1,500 characters), streamed from

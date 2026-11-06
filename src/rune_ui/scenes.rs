@@ -607,6 +607,14 @@ pub(super) const SCENES: &[Scene] = &[
         server.codex_model = "gpt-6-luna".into();
         ui.files.tab = Some(files::Tab::Version(3));
     }),
+    ("files-model-menu", |ui| {
+        files_scene(ui, files::FilesPane::session_fixture());
+        let server = &mut ui.settings.dictation_processing.server;
+        server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        server.codex_model = "gpt-6-luna".into();
+        ui.files.tab = Some(files::Tab::Version(3));
+        ui.open = Some(Menu::Pick("files-composer-model"));
+    }),
     ("files-versions", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.files.tab = Some(files::Tab::Version(3));

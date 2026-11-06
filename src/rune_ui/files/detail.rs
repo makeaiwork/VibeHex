@@ -655,6 +655,13 @@ fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
 fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
     let c = &p.k.c;
     let percent = (task.fraction * 100.0).round() as u32;
+    // A request answered in one go can't tell how far it is: a turning
+    // ring, no percent or bar, and its draft shows it come.
+    let measured = match task.stage {
+        Stage::Working => task.parts.is_some(),
+        Stage::Queued => false,
+        _ => true,
+    };
     let title = match (task.stage, task.parts) {
         (Stage::Working, Some(_)) => tr("Working in 3 steps").to_string(),
         _ => stage_label(task),
@@ -717,16 +724,20 @@ fn progress(p: Paint, record: &FileRecord, task: &Task) -> El {
                         .shrink()
                         .truncate(),
                 )
-                .children((task.stage != Stage::Queued).then(|| {
+                .children(measured.then(|| {
                     text(format!("{percent}%"))
                         .key("percent")
                         .font(p.k.ty.text_xsmall_medium)
                         .color(p.muted())
                 }))
+                .children(
+                    (task.stage == Stage::Working && !measured)
+                        .then(|| rune_kit::Loader::new().size(12.0).build(p.k).key("working")),
+                )
                 .child(rune::el().key("spacer").grow(1.0))
                 .child(stop),
         );
-    if task.stage != Stage::Queued {
+    if measured {
         card = card.child(ld::thin_bar(p, task.fraction));
     }
     if let Some(detail) = detail {

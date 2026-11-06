@@ -355,7 +355,6 @@ pub(in super::super) fn model_menu(
             let pick = pick.clone();
             menu = menu.item(
                 MenuItem::new(model.name.clone())
-                    .shortcut(model.description.clone())
                     .checked(checked)
                     .on_select(move |ui: &mut Ui| pick(ui, value.clone())),
             );

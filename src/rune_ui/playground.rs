@@ -181,6 +181,7 @@ const PATHS: &[(&str, &str)] = &[
     ("files-edit", "Window/Files/Editing a version"),
     ("files-original", "Window/Files/Original"),
     ("files-session", "Window/Files/Session on Codex"),
+    ("files-model-menu", "Window/Files/Model menu"),
     ("files-summary", "Window/Files/Summary"),
     ("files-versions", "Window/Files/Versions"),
     ("files-more", "Window/Files/More menu"),
