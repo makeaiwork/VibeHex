@@ -21,6 +21,6 @@ About                                           // rune_ui::about
 Each link opens in its app through `opencode_catalog::open_url`; a failure
 shows as the window's error. Fixtures and tests open nothing.
 
-Checks: `rune_ui::about` (the mailto link and its encoding); scene `about`
+Checks: `labs::feedback_mailto_names_the_version_in_the_subject` (the mailto link, shared with Labs › Send feedback); scene `about`
 and its light and dark goldens. Not yet verified by pressing the links in a
 running app.
