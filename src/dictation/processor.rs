@@ -380,6 +380,15 @@ impl Profiles {
         // Labs › Clean up on your own server: the same instructions and
         // vocabulary, as chat messages to OpenRouter or the person's server.
         let server = crate::dictation::cleanup_server::active();
+        // Codex answers in 5 to 20 seconds, so it gets its own, longer wait.
+        let deadline = match &server {
+            Some(server)
+                if server.provider == crate::dictation::cleanup_server::Provider::Codex =>
+            {
+                crate::dictation::cleanup_server::codex_wait()
+            }
+            _ => profile.deadline,
+        };
         // In pieces of a few minutes' speech, each within the deadline, so a
         // dictation of any length is cleaned whole (`cleanup_pieces`).
         let cleaned = crate::dictation::cleanup_pieces::clean(
@@ -393,7 +402,7 @@ impl Profiles {
                         server,
                         &instructions,
                         &transcript,
-                        profile.deadline,
+                        deadline,
                         stop,
                         streamed,
                     )

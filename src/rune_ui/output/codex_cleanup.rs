@@ -74,6 +74,7 @@ pub(super) fn rows(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<CardRow> {
     }
     rows.push(model_row(ui, p, status, layer).into());
     rows.push(effort_row(ui, p).into());
+    rows.push(wait_row(ui, p).into());
     if !status.limits.is_empty() || status.limited {
         rows.push(usage_row(p, status).into());
     }
@@ -279,6 +280,51 @@ fn effort_row(ui: &Ui, p: Paint) -> El {
                 if ui.settings.dictation_processing.server.codex_effort != effort {
                     ui.update(|settings| {
                         settings.dictation_processing.server.codex_effort = effort.into()
+                    });
+                }
+            },
+        ),
+    )
+}
+
+/// The waits Output offers, in seconds; settings may hold any other.
+const WAITS: [u64; 3] = [30, 60, 120];
+
+fn wait_row(ui: &Ui, p: Paint) -> El {
+    let wait = ui
+        .settings
+        .dictation_processing
+        .server
+        .codex_wait()
+        .as_secs();
+    let selected = WAITS
+        .iter()
+        .position(|seconds| *seconds == wait)
+        .unwrap_or(1);
+    setting_row(
+        p,
+        "ai-cleanup-codex-wait",
+        tr("Wait for Codex"),
+        Some(tr(
+            "How long a dictation waits for Codex before it pastes as heard",
+        )),
+        segmented(
+            p,
+            "ai-cleanup-codex-wait-picker",
+            &[tr("30 s"), tr("1 min"), tr("2 min")],
+            selected,
+            |ui: &mut Ui, index| {
+                let seconds = WAITS[index.min(WAITS.len() - 1)];
+                if ui
+                    .settings
+                    .dictation_processing
+                    .server
+                    .codex_wait()
+                    .as_secs()
+                    != seconds
+                {
+                    ui.update(|settings| {
+                        settings.dictation_processing.server.codex_wait_seconds = seconds
                     });
                 }
             },

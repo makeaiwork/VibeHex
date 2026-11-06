@@ -927,6 +927,8 @@ Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 │   │   ├── Model -> select of Codex's model/list (hidden ones left out), the chosen one's
 │   │   │   description under it; empty is Codex's default (dictation_processing.server.codex_model)
 │   │   ├── Reasoning -> Low · Medium · High (codex_effort; empty reads as Low)
+│   │   ├── Wait for Codex -> 30 s · 1 min · 2 min (codex_wait_seconds; 0 reads as 60): a dictation's
+│   │   │   cleanup on Codex waits this long instead of the mode's deadline, then pastes as heard
 │   │   ├── Plan usage (ChatGPT sign-in only) -> each account/rateLimits/read window: "5 hours 23%",
 │   │   │   "This week 41%"; reached -> "The limit is reached. Until it resets, dictations paste as heard"
 │   │   └── under the card: "Codex gets only the dictation and your instructions: no tools, no
@@ -1067,11 +1069,13 @@ is refused. Cancellation and the mode's deadline send `turn/interrupt` and
 paste the corrected transcript, as for any server. A usage limit reads "your
 ChatGPT plan's Codex limit is reached". Measured in the owner's Codex 0.164 on
 a Pro plan: a warm thread starts in 0.07 s, a short dictation answers in 5 to
-19 s on GPT-6-Luna or GPT-6.1-Sol at Low (Fast tier no quicker), so a mode's
-30-second deadline suits it and a 6-second one would mostly paste as heard.
+19 s on GPT-6-Luna or GPT-6.1-Sol at Low (Fast tier no quicker), so a
+dictation on Codex waits `codex_wait_seconds` (60 by default) instead of the
+mode's deadline (`cleanup_server::codex_wait`).
 `answers_on_the_installed_codex` (ignored; needs Codex signed in) checks the
 status, a streamed answer, and an immediate cancel. Keys:
-`dictation_processing.server.codex_model`, `.codex_effort`.
+`dictation_processing.server.codex_model`, `.codex_effort`,
+`.codex_wait_seconds`.
 
 Built in (macOS app only; `runs_on` `local`) runs a model Hex downloads
 itself, with no LM Studio or Ollama. The offered models are pinned in

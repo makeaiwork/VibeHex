@@ -63,6 +63,15 @@ pub fn active() -> Option<Server> {
     Server::from_settings(&saved)
 }
 
+/// How long a dictation waits for Codex, in place of the mode's deadline.
+pub fn codex_wait() -> Duration {
+    SAVED
+        .read()
+        .ok()
+        .and_then(|saved| saved.as_ref().map(CleanupServerSettings::codex_wait))
+        .unwrap_or_else(|| CleanupServerSettings::default().codex_wait())
+}
+
 /// The built-in model, while it is the chosen server.
 pub fn local_model() -> Option<&'static local_models::LocalModel> {
     let server = active()?;

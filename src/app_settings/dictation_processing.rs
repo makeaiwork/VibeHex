@@ -37,6 +37,24 @@ pub struct CleanupServerSettings {
     /// How hard the Codex model thinks first: `low`, `medium`, or `high`;
     /// empty means the model's default.
     pub codex_effort: String,
+    /// How long a dictation waits for Codex before it pastes as heard, in
+    /// seconds, instead of the mode's deadline; 0 means
+    /// [`CODEX_WAIT_SECONDS`].
+    pub codex_wait_seconds: u64,
+}
+
+/// How long a dictation waits for Codex unless the person chose otherwise:
+/// Codex answers a short dictation in 5 to 20 seconds.
+pub const CODEX_WAIT_SECONDS: u64 = 60;
+
+impl CleanupServerSettings {
+    /// How long a dictation waits for Codex.
+    pub fn codex_wait(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(match self.codex_wait_seconds {
+            0 => CODEX_WAIT_SECONDS,
+            seconds => seconds,
+        })
+    }
 }
 
 /// The service that rewrites dictations.

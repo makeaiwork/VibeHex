@@ -32,6 +32,7 @@ fn available() -> bool {
     true
 }
 
+mod codex_keys;
 mod files_keys;
 
 #[derive(Clone, Copy, Debug)]
@@ -296,16 +297,6 @@ const KEYS: &[Key] = &[
         "dictation_processing.server.local_model",
         Kind::Text,
         "The downloaded model local cleanup runs, such as qwen3-4b-instruct-2507; empty for the recommended one",
-    ),
-    key(
-        "dictation_processing.server.codex_model",
-        Kind::Text,
-        "The Codex model cleanup uses, such as gpt-6-luna; empty for Codex's default",
-    ),
-    key(
-        "dictation_processing.server.codex_effort",
-        Kind::Text,
-        "How hard the Codex model thinks first: low, medium, or high; empty for the model's default",
     ),
     key(
         "history_retention",
@@ -776,6 +767,7 @@ fn managed(name: &str, lock: crate::policy::Lock) -> ControlError {
 fn keys() -> impl Iterator<Item = &'static Key> {
     KEYS.iter()
         .chain(CAPTURE_KEYS)
+        .chain(codex_keys::CODEX_KEYS)
         .chain(files_keys::FILES_KEYS)
 }
 

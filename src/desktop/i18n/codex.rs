@@ -30,4 +30,7 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Shared with Codex itself. A dictation spends very little of it", ["Wspólne z samym Codex. Dyktowanie zużywa go bardzo mało", "与 Codex 本身共用。一次听写只用很少一部分", "Codex 本体と共有です。音声入力が使うのはごくわずかです", "Geteilt mit Codex selbst. Ein Diktat verbraucht davon sehr wenig", "Compartido con el propio Codex. Un dictado gasta muy poco", "Спільне із самим Codex. Диктування витрачає дуже мало"]),
     ("This week", ["Ten tydzień", "本周", "今週", "Diese Woche", "Esta semana", "Цей тиждень"]),
     ("{} hours", ["{} godz.", "{} 小时", "{} 時間", "{} Stunden", "{} horas", "{} год"]),
+    ("30 s", ["30 s", "30 秒", "30 秒", "30 s", "30 s", "30 с"]),
+    ("Wait for Codex", ["Czekaj na Codex", "等待 Codex", "Codex を待つ時間", "Auf Codex warten", "Esperar a Codex", "Чекати на Codex"]),
+    ("How long a dictation waits for Codex before it pastes as heard", ["Jak długo dyktowanie czeka na Codex, zanim zostanie wklejone tak, jak je usłyszano", "听写在按识别原文粘贴前等待 Codex 的时长", "聞き取ったまま貼り付ける前に、音声入力が Codex を待つ時間", "Wie lange ein Diktat auf Codex wartet, bevor es wie gehört eingefügt wird", "Cuánto espera un dictado a Codex antes de pegarse tal como se oyó", "Скільки диктування чекає на Codex, перш ніж вставитися як почуте"]),
 ];

@@ -1248,6 +1248,9 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Shared with Codex itself. A dictation spends very little of it", "Partagé avec Codex lui-même. Une dictée en consomme très peu"),
     ("This week", "Cette semaine"),
     ("{} hours", "{} heures"),
+    ("30 s", "30 s"),
+    ("Wait for Codex", "Attendre Codex"),
+    ("How long a dictation waits for Codex before it pastes as heard", "Combien de temps une dictée attend Codex avant d’être collée telle qu’entendue"),
 ];
 
 #[cfg(test)]
