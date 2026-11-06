@@ -199,7 +199,7 @@ fn length(milliseconds: u64) -> String {
 }
 
 /// `mm:ss`, as `meeting::format_duration`.
-fn clock_offset(milliseconds: u64) -> String {
+pub(super) fn clock_offset(milliseconds: u64) -> String {
     let seconds = milliseconds / 1_000;
     format!("{:02}:{:02}", seconds / 60, seconds % 60)
 }

@@ -12,7 +12,7 @@ use super::composer::Target;
 use super::submit;
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::files::store::{FileRecord, Version};
-use crate::files::worker::{Job, Task};
+use crate::files::worker::{Job, Stage, Task};
 
 static COPY_ICON: rune::Icon = rune::Icon {
     name: "hex-files-answer-copy",
@@ -240,7 +240,12 @@ pub(in super::super) fn answering(p: Paint, task: &Task) -> Vec<El> {
         shown.push(bubble(p, "asking", question));
     }
     let model = task.model.as_deref().unwrap_or("Codex");
-    let status = text(tr_fill("{} is answering", model))
+    let status = if task.stage == Stage::CleaningUp {
+        tr_fill("{} is cleaning up", model)
+    } else {
+        tr_fill("{} is answering", model)
+    };
+    let status = text(status)
         .key("answering")
         .font(rune::TextStyle {
             size: 12.0,

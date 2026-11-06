@@ -246,7 +246,7 @@ impl Engine {
         Ok(text.to_owned())
     }
 
-    fn generate(
+    pub(super) fn generate(
         &self,
         context: u32,
         instructions: &str,

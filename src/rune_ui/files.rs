@@ -22,7 +22,7 @@ use crate::files::worker::{self, Config, Job, Stage, Task};
 use crate::files::{decode, text as file_text};
 use crate::transcription::models::TranscriptionModelId;
 
-mod actions;
+pub(super) mod actions;
 pub(super) mod composer;
 mod detail;
 mod quick;

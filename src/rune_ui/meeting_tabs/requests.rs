@@ -13,15 +13,18 @@ use super::super::controls::{DESCRIPTION, Paint};
 use super::super::files::composer;
 use super::super::files::session::{self, Answered};
 use super::super::list_detail as ld;
-use super::super::meetings::{Meeting, Status, transcript_markdown};
+use super::super::meetings::{Meeting, Status, clock_offset, transcript_markdown};
 use super::super::{Menu, Pane, Ui};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
+use crate::files::tidy;
 use crate::files::worker::{self, Config, Job, Task};
 use crate::meeting::requests::{self as store, Session};
 
 const MODEL_MENU: &str = "meeting-ask-model";
 const EFFORT_MENU: &str = "meeting-ask-effort";
 const SESSIONS_MENU: &str = "meeting-sessions";
+/// The chip that cleans the transcript, turn by turn, in a new session.
+const TIDY: &str = "Clean up transcript";
 /// Room under the text for the field, and its height before it is measured.
 const FIELD_CLEARANCE: f32 = 12.0;
 const FIELD_GUESS: f32 = 110.0;
@@ -361,7 +364,11 @@ pub(in super::super) fn stage(ui: &Ui, p: Paint, body: El, layer: &mut Vec<El>) 
                 (1.0, bg.alpha(0.95)),
             ],
         );
-    let ask = field(ui, p, layer)
+    let ask = col()
+        .key("meeting-ask-area")
+        .gap(8.0)
+        .child(chips(ui, p))
+        .child(field(ui, p, layer))
         .pin(Some(0.0), None, Some(0.0), Some(FIELD_BOTTOM))
         .on_layout(|ui: &mut Ui, rect: [f32; 4]| {
             if (ui.meetings.requests.composer_h - rect[3]).abs() > 0.5 {
@@ -376,6 +383,23 @@ pub(in super::super) fn stage(ui: &Ui, p: Paint, body: El, layer: &mut Vec<El>) 
         .child(text)
         .child(veil)
         .child(ask)
+}
+
+/// Over the field: Clean up transcript, which cleans every turn in a new
+/// session, each keeping who spoke and when.
+fn chips(ui: &Ui, p: Paint) -> El {
+    let live = ui.meetings.requests.tasks.is_empty();
+    let chip = super::super::files::actions::chip_button(
+        p,
+        "tidy",
+        tr(TIDY),
+        None,
+        live,
+        |ui: &mut Ui| {
+            ask(ui, None, tr(TIDY).to_owned());
+        },
+    );
+    row().key("chips").gap(6.0).center_y().child(chip)
 }
 
 /// The engine the open session (or a new one) asks on, and its effort.
@@ -527,6 +551,8 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     }
     let id = meeting.id.clone();
     let transcript = transcript(meeting);
+    // The chip's label, also asked again or typed, cleans the turns.
+    let tidy = (question.trim() == tr(TIDY)).then(|| lines(meeting));
     let pane = &mut ui.meetings.requests;
     if pane.fixture {
         return false;
@@ -534,7 +560,11 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     let session = match session {
         Some(session) => session,
         None => {
-            let name = worker::request_name(&question);
+            let name = if tidy.is_some() {
+                question.trim().to_owned()
+            } else {
+                worker::request_name(&question)
+            };
             match store::start(&id, &name, pane.engine.clone(), pane.effort.clone()) {
                 Ok(session) => session,
                 Err(error) => {
@@ -548,6 +578,7 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
         session,
         question,
         transcript,
+        tidy,
     };
     if worker::submit(
         &store::record(&id),
@@ -566,6 +597,19 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
         .filter(|task| store::meeting_of(&task.record).is_some())
         .collect();
     true
+}
+
+/// The meeting's turns for a tidy: who, when, and the words.
+fn lines(meeting: &Meeting) -> Vec<tidy::Line> {
+    meeting
+        .turns()
+        .iter()
+        .map(|turn| tidy::Line {
+            speaker: tr(if turn.mine { "You" } else { "Them" }).to_owned(),
+            clock: clock_offset(turn.start_ms),
+            text: turn.text.clone(),
+        })
+        .collect()
 }
 
 /// What the model reads: the meeting's title, when it was, and its

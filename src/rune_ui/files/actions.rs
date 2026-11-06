@@ -121,7 +121,7 @@ fn quiet(
 
 /// A quick request above the field: a lightly filled pill in the body's
 /// weight, with a chevron when it opens a menu.
-fn chip_button(
+pub(in super::super) fn chip_button(
     p: Paint,
     key: &str,
     label: &str,

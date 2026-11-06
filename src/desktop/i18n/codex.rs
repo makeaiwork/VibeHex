@@ -40,6 +40,8 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Model for the next session", ["Model dla następnej sesji", "下一个会话的模型", "次のセッションのモデル", "Modell für die nächste Sitzung", "Modelo para la próxima sesión", "Модель для наступного сеансу"]),
     ("Model for this session", ["Model dla tej sesji", "此会话的模型", "このセッションのモデル", "Modell für diese Sitzung", "Modelo para esta sesión", "Модель для цього сеансу"]),
     ("{} is answering", ["{} odpowiada", "{} 正在回答", "{} が回答中", "{} antwortet", "{} está respondiendo", "{} відповідає"]),
+    ("{} is cleaning up", ["{} porządkuje", "{} 正在整理", "{} が整えています", "{} räumt auf", "{} está limpiando", "{} упорядковує"]),
+    ("Clean up transcript", ["Uporządkuj transkrypcję", "整理转录", "文字起こしを整える", "Transkript aufräumen", "Limpiar transcripción", "Упорядкувати транскрипт"]),
     ("Writing a title and summary…", ["Tworzenie tytułu i podsumowania…", "正在撰写标题和摘要…", "タイトルと要約を作成中…", "Titel und Zusammenfassung werden geschrieben…", "Escribiendo un título y un resumen…", "Створення назви й підсумку…"]),
     ("Apple Intelligence", ["Apple Intelligence", "Apple 智能", "Apple Intelligence", "Apple Intelligence", "Apple Intelligence", "Apple Intelligence"]),
     ("Notes", ["Notatki", "纪要", "メモ", "Notizen", "Notas", "Нотатки"]),

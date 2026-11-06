@@ -1007,6 +1007,14 @@ Requests tab (finished meeting, transcript, Labs › AI cleanup server on)
 │   comes; "The question wasn't answered: <why>" when it failed
 ├── No session yet: "Ask about decisions, tasks, or who said what. Answers
 │   come from the transcript"
+├── Clean up transcript, a chip over the field (faded while an answer
+│   comes) -> a new session of that name: the turns go to the session's
+│   model a few at a time as numbered lines, [3] text, and come back the
+│   same way, cleaned with Files' cleanup prompt and vocabulary; each turn
+│   keeps who spoke and when (You `00:12`), none runs into the next, and a
+│   turn the model leaves out keeps its words. "<model> is cleaning up"
+│   under the turns as they come; a stop keeps the turns done. Asking the
+│   label again (Ask again, or typed) cleans again. There is no Cleanup tab
 └── Field floating at the bottom, as in Files: "Ask about this meeting",
     the model pill (Codex's models, then the AI cleanup engines), the
     reasoning pill on Codex, Send, or Stop while an answer comes
@@ -1024,9 +1032,13 @@ The model starts from Files › Settings' request engine and reasoning; a
 session keeps the one its pills chose. Sources:
 [meeting_tabs/requests.rs](../../src/rune_ui/meeting_tabs/requests.rs),
 [meeting/requests.rs](../../src/meeting/requests.rs), and `meeting` in
-[files/requests.rs](../../src/files/requests.rs). Checks:
-`a_record_names_its_meeting_and_ids_stay_in_the_meeting_folder` and
-`sessions_read_back_as_written`. Scenes: `meetings-requests`,
+[files/requests.rs](../../src/files/requests.rs), and the turn-by-turn
+cleanup in [files/tidy.rs](../../src/files/tidy.rs). Checks:
+`a_record_names_its_meeting_and_ids_stay_in_the_meeting_folder`,
+`sessions_read_back_as_written`,
+`each_turn_comes_back_to_its_own_place_and_keeps_its_time`,
+`a_number_outside_the_piece_is_ignored`, and
+`turns_go_in_pieces_and_a_long_turn_stands_alone`. Scenes: `meetings-requests`,
 `meetings-requests-sessions`.
 
 ### Retention

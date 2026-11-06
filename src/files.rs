@@ -8,4 +8,5 @@ pub mod requests;
 pub mod rewrite;
 pub mod store;
 pub mod text;
+pub mod tidy;
 pub mod worker;

@@ -13,6 +13,7 @@ use color_eyre::eyre::{Result, eyre};
 
 use super::rewrite::{self, DraftKind, Drafts};
 use super::store::{self, FollowUp, Version, VersionKind};
+use super::tidy;
 use super::worker::{Config, Stage, Task, drafts, source, update_task};
 
 /// What a typed request adds, so the model names it in the same reply.
@@ -245,13 +246,16 @@ pub(super) fn meeting(
     task: &Task,
     session: u32,
     question: &str,
-    transcript: &str,
+    (transcript, tidy): (&str, Option<&[tidy::Line]>),
     config: &Config,
     cancel: &AtomicBool,
 ) -> Result<()> {
     let id = crate::meeting::requests::meeting_of(&task.record)
         .ok_or_else(|| eyre!("That isn't a meeting."))?;
-    let answered = meeting_answer(task, id, session, question, transcript, config, cancel);
+    let answered = match tidy {
+        Some(lines) => meeting_tidy(task, id, session, question, lines, config, cancel),
+        None => meeting_answer(task, id, session, question, transcript, config, cancel),
+    };
     if answered.is_err()
         && let Err(error) = crate::meeting::requests::drop_if_empty(id, session)
     {
@@ -325,22 +329,80 @@ fn meeting_answer(
     } else {
         (None, answer)
     };
-    let effort = engine.effort().map(str::to_owned);
+    let turn = FollowUp {
+        question: question.trim().into(),
+        answer,
+        model,
+        seconds: started.elapsed().as_secs(),
+        created_ms: store::now_ms(),
+        stopped,
+    };
+    add_turn(id, session, turn, title, engine.effort())
+}
+
+/// Cleans the meeting's turns in session `session`, on its engine, with
+/// Files' cleanup prompt; the cleaned transcript is the turn's answer.
+fn meeting_tidy(
+    task: &Task,
+    id: &str,
+    session: u32,
+    label: &str,
+    lines: &[tidy::Line],
+    config: &Config,
+    cancel: &AtomicBool,
+) -> Result<()> {
+    let asked = crate::meeting::requests::load(id)
+        .into_iter()
+        .find(|asked| asked.id == session)
+        .ok_or_else(|| eyre!("That session is gone."))?;
+    let engine = config.request_engine(asked.engine.as_deref(), asked.effort.as_deref());
+    let model = engine.model_name();
+    update_task(task.id, |task| {
+        task.stage = Stage::CleaningUp;
+        task.model = Some(model.clone());
+    });
+    let started = Instant::now();
+    let instructions =
+        tidy::instructions(config.cleanup_prompt(), config.vocabulary_for_requests());
+    let made = tidy::tidy(
+        &engine,
+        &instructions,
+        lines,
+        cancel,
+        &mut |fraction| update_task(task.id, |task| task.fraction = fraction),
+        &drafts(task.id),
+    )?;
+    if let Some(failed) = &made.failed {
+        tracing::warn!(meeting = id, "some turns kept their words: {failed}");
+    }
+    let turn = FollowUp {
+        question: label.trim().into(),
+        answer: tidy::markdown(&made.lines),
+        model,
+        seconds: started.elapsed().as_secs(),
+        created_ms: store::now_ms(),
+        stopped: made.stopped,
+    };
+    add_turn(id, session, turn, None, engine.effort())
+}
+
+/// Adds `turn` to the meeting's session, naming the session `title` when it
+/// is its first.
+fn add_turn(
+    id: &str,
+    session: u32,
+    turn: FollowUp,
+    title: Option<String>,
+    effort: Option<&str>,
+) -> Result<()> {
     crate::meeting::requests::update(id, |sessions| {
         if let Some(asked) = sessions.iter_mut().find(|asked| asked.id == session) {
             if let Some(title) = title.filter(|_| asked.turns.is_empty()) {
                 asked.name = title;
             }
-            asked.turns.push(FollowUp {
-                question: question.trim().into(),
-                answer,
-                model,
-                seconds: started.elapsed().as_secs(),
-                created_ms: store::now_ms(),
-                stopped,
-            });
+            asked.turns.push(turn);
             if asked.effort.is_none() {
-                asked.effort = effort;
+                asked.effort = effort.map(str::to_owned);
             }
         }
     })?;

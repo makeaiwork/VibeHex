@@ -86,7 +86,7 @@ impl Config {
         self.vocabulary()
     }
 
-    fn cleanup_prompt(&self) -> &str {
+    pub(super) fn cleanup_prompt(&self) -> &str {
         if self.files.use_default_prompt {
             &self.mode.post_processing.prompt
         } else {
@@ -126,11 +126,14 @@ pub enum Job {
     /// Asks `question` in session `session` about a meeting, whose
     /// transcript (with its title and times) is `transcript`; the record is
     /// `meeting::requests::record`. Runs while Labs › AI cleanup server is
-    /// on, also with Files off.
+    /// on, also with Files off. With `tidy`, it cleans those turns instead,
+    /// each keeping its speaker and time (`files::tidy`), and `question`
+    /// is the chip's label.
     Meeting {
         session: u32,
         question: String,
         transcript: String,
+        tidy: Option<Vec<super::tidy::Line>>,
     },
 }
 
@@ -463,7 +466,15 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
             session,
             question,
             transcript,
-        } => super::requests::meeting(task, *session, question, transcript, config, cancel),
+            tidy,
+        } => super::requests::meeting(
+            task,
+            *session,
+            question,
+            (transcript, tidy.as_deref()),
+            config,
+            cancel,
+        ),
     }
 }
 
