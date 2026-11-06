@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::dictation::StreamingResampler;
 #[cfg(target_os = "macos")]
 use crate::transcription::Transcriber;
+use crate::transcription::float_samples;
 #[cfg(not(target_os = "macos"))]
 use crate::transcription::local_transcriber::LocalTranscriber as Transcriber;
 use crate::transcription::models::TranscriptionSelection;
@@ -1840,7 +1841,7 @@ fn transcribe_file(
     let source_rate = reader.spec().sample_rate;
     let mut resampler = StreamingResampler::new(source_rate).map_err(|error| eyre!(error))?;
     let mut chunker = Chunker::default();
-    let mut samples = reader.samples::<f32>();
+    let mut samples = float_samples(&mut reader);
     let mut block = Vec::with_capacity(source_rate as usize);
     let mut fed = 0;
     let mut transcribe_chunk = |chunk: Chunk, transcript: &mut TrackTranscript| -> Result<()> {
@@ -1960,7 +1961,7 @@ pub(super) fn echo_report(
         let mut old_track = TrackTranscript::new(*source, *origin_ms);
         let mut new_track = TrackTranscript::new(*source, *origin_ms);
         let mut fed = 0;
-        let samples = reader.samples::<f32>().collect::<Result<Vec<_>, _>>()?;
+        let samples = float_samples(&mut reader).collect::<Result<Vec<_>, _>>()?;
         let mut chunks = Vec::new();
         for block in samples.chunks(rate as usize) {
             let resampled = resampler.push(block);
