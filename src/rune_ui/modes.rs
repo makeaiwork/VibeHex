@@ -417,17 +417,17 @@ fn delete_mode(ui: &mut Ui) {
     }
 }
 
+/// Adds an empty correction with its phrase focused and saves it the way a
+/// removal does, through the drafts: `Ui::update` would reload the editor
+/// from settings that already hold the new row, then add a second one.
 fn add_replacement(ui: &mut Ui) {
-    if update_mode(ui, |mode| {
-        mode.replacements.push(TextReplacement::default())
-    }) {
-        let mut phrase = TextEdit::default();
-        phrase.focused = true;
-        ui.modes
-            .editor
-            .replacements
-            .push((phrase, TextEdit::default()));
-    }
+    let mut phrase = TextEdit::default();
+    phrase.focused = true;
+    ui.modes
+        .editor
+        .replacements
+        .push((phrase, TextEdit::default()));
+    ui.flush_drafts();
 }
 
 fn remove_replacement(ui: &mut Ui, index: usize) {
