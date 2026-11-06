@@ -375,25 +375,10 @@ fn version_line(
         format!("{words}\n{made}")
     };
     let mut line = row().key("version-line").gap(6.0).pr(1.0).center_y();
-    if let Some(name) = tabs::tag(ui, record, version) {
-        line = line.child(
-            row()
-                .key("tag")
-                .h(20.0)
-                .px(7.0)
-                .center_y()
-                .radius(p.k.radius.sm)
-                .fill(p.k.c.layer_02)
-                .border(p.hair, p.k.c.border_weak)
-                .child(
-                    text(name)
-                        .key("name")
-                        .font(p.k.ty.small_medium)
-                        .color(p.text())
-                        .max_w(180.0)
-                        .truncate(),
-                ),
-        );
+    let tag = tabs::tag(ui, record, version);
+    let tagged = tag.is_some();
+    if tagged {
+        line = line.child(details_tip(ui, p, tag, details.clone(), layer));
     }
     if version.kind == VersionKind::Original && !version.edited {
         let selected = usize::from(!timestamps(ui));
@@ -407,7 +392,9 @@ fn version_line(
                 .color(p.muted()),
         );
     }
-    line = line.child(details_tip(ui, p, details, layer));
+    if !tagged {
+        line = line.child(details_tip(ui, p, None, details, layer));
+    }
     let mut buttons = row().key("actions").gap(6.0).center_y();
     match version.kind {
         VersionKind::Original => {
@@ -443,23 +430,48 @@ fn version_line(
         .child(buttons)
 }
 
-/// The line's ⓘ: what made the version, from what, and when, shown on
-/// hover so the line stays one compact row.
-fn details_tip(ui: &Ui, p: Paint, details: String, layer: &mut Vec<El>) -> El {
+/// The version's tag with an ⓘ in it (or the ⓘ alone while the tab
+/// holds one version), as tall as the Timestamps switch beside it; on
+/// hover a tooltip says what made the version, from what, and when, so
+/// the line stays one compact row.
+fn details_tip(ui: &Ui, p: Paint, tag: Option<String>, details: String, layer: &mut Vec<El>) -> El {
     let c = &p.k.c;
-    let trigger = row()
-        .key("version-info")
-        .role("img")
-        .label(details.replace('\n', ", "))
-        .size(20.0, 20.0)
-        .center()
-        .radius(5.0)
-        .hover(c.hover)
-        .child(
-            icon(&super::super::icons::INFO, 14.0)
-                .key("glyph")
-                .color(p.faint()),
-        );
+    let spoken = details.replace('\n', ", ");
+    let info = icon(&super::super::icons::INFO, 13.0)
+        .key("glyph")
+        .color(p.faint());
+    let trigger = match tag {
+        Some(name) => row()
+            .key("tag")
+            .role("img")
+            .label(format!("{name}, {spoken}"))
+            .h(24.0)
+            .pl(8.0)
+            .pr(6.0)
+            .gap(5.0)
+            .center_y()
+            .radius(p.k.radius.md)
+            .fill(c.layer_02)
+            .border(p.hair, c.border_weak)
+            .child(
+                text(name)
+                    .key("name")
+                    .font(p.k.ty.small_medium)
+                    .color(p.text())
+                    .max_w(180.0)
+                    .truncate(),
+            )
+            .child(info),
+        None => row()
+            .key("version-info")
+            .role("img")
+            .label(spoken)
+            .size(24.0, 24.0)
+            .center()
+            .radius(p.k.radius.md)
+            .hover(c.hover)
+            .child(info),
+    };
     actions::hover_tip(ui, p, "info", trigger, details, layer)
 }
 

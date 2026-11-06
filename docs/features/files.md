@@ -36,8 +36,10 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   ├── Clicking a tab opens the version last opened there (until Hex quits),
 │   │   else its newest; a new version opens at once
 │   ├── The version line keeps to one row: a tag ("v2" while its tab holds
-│   │   more than one version, a request's name), then an ⓘ whose tooltip
-│   │   says what made it, from what, and when; the actions sit at the end
+│   │   more than one version, a request's name) with an ⓘ in it, as tall
+│   │   as the Timestamps switch, whose tooltip says what made it, from
+│   │   what, and when (the ⓘ alone for a tab's only version); the actions
+│   │   sit at the end
 │   ├── Original: Timestamps | Plain text as a clock and a lines icon, each
 │   │   named in a tooltip (files.show_timestamps opens it), Transcribe
 │   │   again as ↻ ▾ with a tooltip ("Transcribe the audio again with": downloaded
