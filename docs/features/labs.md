@@ -24,7 +24,7 @@ ignoring case, and says "No Labs features match." when none do; a Labs link
 clears it so its row shows. Check: `labs_search_keeps_the_rows_holding_every_word`.
 A feature VibeHex added (`labs::Feature::vibehex`: Clean up on your own
 server, Cleanup progress, Russian vibe coding, Vocabulary text view, Add to
-vocabulary from a selection, Files, Stop shortcut, Collapsible sidebar; Hex itself has none of
+vocabulary from a selection, Files, Stop shortcut, Collapsible sidebar, Listen to the recording; Hex itself has none of
 them) carries a small yellow star (`warning.icon`) raised to its title's top
 right, whose tooltip and accessible label say "Added in VibeHex"; searching
 "vibehex" lists just these rows, and so does the VibeHex only switch beside
@@ -88,6 +88,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 │                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
+├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the line playing lights up, a click on a line plays from there (files.md, meetings.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on

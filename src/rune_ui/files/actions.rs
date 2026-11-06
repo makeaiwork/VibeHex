@@ -643,7 +643,16 @@ pub(super) fn redo_menu(
 /// rests, faded, and the field says to wait for it or stop it.
 pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec<El>) -> El {
     let live = waiting.is_none();
-    let mut chips = row().key("chips").gap(6.0).center_y();
+    let listened = ui
+        .files
+        .selected
+        .clone()
+        .map(super::super::playback::Of::File);
+    let mut chips = row().key("chips").gap(6.0).center_y().children(
+        listened
+            .as_ref()
+            .and_then(|of| super::super::playback::lead(ui, p, of)),
+    );
     let (language, _) = ui
         .settings
         .files
@@ -731,7 +740,12 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec
         .key("files-ask-area")
         .gap(8.0)
         .pb(16.0)
-        .child(chips)
+        .child(
+            listened
+                .as_ref()
+                .and_then(|of| super::super::playback::unfolded(ui, p, of, layer))
+                .unwrap_or(chips),
+        )
         .child(field);
     if live { area } else { area.dim(0.55) }
 }

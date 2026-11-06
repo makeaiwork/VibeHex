@@ -85,6 +85,9 @@ pub struct LabsSettings {
     pub collapsible_sidebar: bool,
     /// The sidebar is folded into icons (while `collapsible_sidebar` is on).
     pub sidebar_collapsed: bool,
+    /// Play beside the requests plays a meeting or a file from its
+    /// transcript (macOS).
+    pub playback: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -137,6 +140,7 @@ impl Default for LabsSettings {
             stop_shortcut: false,
             collapsible_sidebar: false,
             sidebar_collapsed: false,
+            playback: false,
         }
     }
 }

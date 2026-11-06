@@ -154,6 +154,36 @@ How much a model reads                          // files::rewrite
              (1,000-word parts)
 ```
 
+```ts
+Listen to the recording (Labs, off by default; playback::Player, rune_ui::playback)
+├── Closed: a round Play button leads the chips over the field; once
+│   something played or a line was picked, it shows the time instead
+│   ("▶ 00:25", "Play from 00:25")
+├── Play -> the button unfolds into the player, an oval pill in the chips'
+│   place inside the card, and the chips step aside: × (Close player),
+│   Pause/Play with the time, Back 5 seconds, the position rail (drag or
+│   click to seek), the length, and the speed (0.75× to 2×); × folds it
+│   back and the chips return. "Couldn't play it: <why>" in the rail's
+│   place when the audio can't be read
+├── The transcript follows: the line playing (a segment of a file, a turn
+│   of a meeting) is lit, its paragraph or turn tinted and its time in the
+│   accent; there are no word timings, so it is lit line by line, never by
+│   word
+├── A click on a line plays from its start while playing; while paused it
+│   marks the line (underlined), and Play starts there
+└── Space plays or pauses, ← and → skip 5 s, while the player is open and
+    no menu is
+```
+
+A file plays from its own path (decoded to 16 kHz mono through AVFoundation
+into `<support>/files/playing/`, then played with rodio); the Original tab
+is the one whose lines are links. The player stops when the file leaves the
+screen or the Lab turns off. Sources: [files/playback.rs](../../src/files/playback.rs),
+[rune_ui/playback/](../../src/rune_ui/playback/). Checks:
+`each_segment_keeps_its_range_in_its_paragraph`,
+`the_line_playing_is_the_last_one_started`, `speeds_read_short`; scenes
+`files-playback`, `files-playback-folded`.
+
 Records: `<support>/files/<id>.json`, owner-only, one per file (name, path,
 length, versions with segments, model, window, parts, edited, note closed).
 Only the path is kept, never a copy of the file. No retention or caps: a file

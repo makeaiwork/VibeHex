@@ -9,6 +9,7 @@ use rune_kit::{Menu as KitMenu, MenuItem, Placement};
 
 use super::super::controls::Paint;
 use super::super::files::actions::chip_button;
+use super::super::playback::{self, Of};
 use super::super::{Menu, Ui};
 use super::requests::{TIDY, ask};
 use crate::desktop::i18n::tr;
@@ -53,13 +54,19 @@ pub(super) fn chips(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let items = chip_button(p, "action-items", &label, None, live, move |ui: &mut Ui| {
         ask(ui, None, asked.clone());
     });
-    row()
+    let listened = ui.meetings.selected.clone().map(Of::Meeting);
+    let chips = row()
         .key("chips")
         .gap(6.0)
         .center_y()
+        .children(listened.as_ref().and_then(|of| playback::lead(ui, p, of)))
         .child(tidy)
         .child(items)
-        .children(recent(ui, p, live, layer))
+        .children(recent(ui, p, live, layer));
+    // Play unfolds into the player in the chips' place.
+    listened
+        .and_then(|of| playback::unfolded(ui, p, &of, layer))
+        .unwrap_or(chips)
 }
 
 /// Recent, while there are recent requests: one fills the field.

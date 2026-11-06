@@ -8,6 +8,7 @@ use rune_kit::TextArea;
 use super::super::Ui;
 use super::super::controls::{ButtonKind, DESCRIPTION, Paint, button};
 use super::super::list_detail as ld;
+use super::super::playback::{self, Of};
 use super::actions;
 use super::tabs;
 use super::{Armed, Tab, failure, stage_label, submit};
@@ -546,6 +547,11 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
                 .color(p.faint());
         }
         let shown = timestamps(ui);
+        let listened = ui.files.selected.clone().map(Of::File);
+        if let Some((of, heard)) = listened.and_then(|of| playback::heard(ui, &of).map(|h| (of, h)))
+        {
+            return playback::file_original(p, &of, &version.segments, heard, shown);
+        }
         let mut lines = col().key("paragraphs").gap(12.0);
         for (index, paragraph) in paragraphs.into_iter().enumerate() {
             let words = text(paragraph.text)
