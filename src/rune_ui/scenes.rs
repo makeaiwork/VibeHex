@@ -500,6 +500,13 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
     }),
+    ("meetings-notes-unavailable", |ui| {
+        *ui = mac_fixture();
+        ui.settings.labs.ai_cleanup_server = true;
+        ui.platform.notes = super::platform::NotesAvailability::NotEnabled;
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+    }),
     ("meetings-notes-writer", |ui| {
         *ui = mac_fixture();
         meetings_on_codex(ui);

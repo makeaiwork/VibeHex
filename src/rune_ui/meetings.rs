@@ -143,11 +143,11 @@ pub(super) fn available(ui: &Ui) -> bool {
         && (ui.settings.meetings.enabled || ui.platform.developer)
 }
 
-/// Whether something can write a meeting's notes: Apple Intelligence on a
-/// Mac that has it, or OpenCode once turned on.
+/// Whether anything can write notes: Apple Intelligence, OpenCode, or AI cleanup's models.
 fn notes_available(ui: &Ui) -> bool {
     (ui.platform.caps.os == super::platform::Os::Macos && ui.platform.notes.is_available())
         || ui.settings.meetings.summarize_with_opencode
+        || ui.settings.labs.ai_cleanup_server
 }
 
 #[derive(Default)]

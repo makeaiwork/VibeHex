@@ -110,14 +110,29 @@ pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         );
     }
     let select = list.trigger(trigger).build(p.k, layer).mr(-8.0);
+    // Left to an Apple Intelligence this Mac can't run: say why, and who
+    // writes the notes instead.
+    let unavailable =
+        cfg!(target_os = "macos") && notes.writer.is_none() && !ui.platform.notes.is_available();
+    let description = if unavailable {
+        let why = super::platform_settings::notes_description(ui.platform.notes);
+        if ui.settings.labs.ai_cleanup_server {
+            format!(
+                "{why}. {}",
+                tr("Your AI cleanup model writes the notes instead")
+            )
+        } else {
+            format!("{why}. {}", tr("Pick another writer to get notes"))
+        }
+    } else {
+        tr("Title, notes, and live chapters. Apple Intelligence keeps the transcript on this Mac; any other writer receives it").to_owned()
+    };
     let mut rows = vec![icon_row(
         p,
         "meeting-notes-writer",
         &icons::SPARKLES,
         tr("Written by"),
-        Some(tr(
-            "Title, notes, and live chapters. Apple Intelligence keeps the transcript on this Mac; any other writer receives it",
-        )),
+        Some(&description),
         select,
     )];
     let codex = notes

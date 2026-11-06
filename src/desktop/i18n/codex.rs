@@ -40,6 +40,8 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Model for the next session", ["Model dla następnej sesji", "下一个会话的模型", "次のセッションのモデル", "Modell für die nächste Sitzung", "Modelo para la próxima sesión", "Модель для наступного сеансу"]),
     ("Model for this session", ["Model dla tej sesji", "此会话的模型", "このセッションのモデル", "Modell für diese Sitzung", "Modelo para esta sesión", "Модель для цього сеансу"]),
     ("{} is answering", ["{} odpowiada", "{} 正在回答", "{} が回答中", "{} antwortet", "{} está respondiendo", "{} відповідає"]),
+    ("Your AI cleanup model writes the notes instead", ["Notatki pisze zamiast tego Twój model porządkowania AI", "改由你的 AI 整理模型撰写笔记", "代わりに AI 整理のモデルがノートを書きます", "Stattdessen schreibt dein KI-Aufräummodell die Notizen", "En su lugar, tu modelo de limpieza con IA escribe las notas", "Натомість нотатки пише ваша модель AI-упорядкування"]),
+    ("Pick another writer to get notes", ["Wybierz innego autora, aby dostać notatki", "选择其他撰写者以获得笔记", "ノートを得るには別の書き手を選んでください", "Wähle einen anderen Verfasser, um Notizen zu bekommen", "Elige otro redactor para obtener notas", "Виберіть іншого автора, щоб отримати нотатки"]),
     ("{} is cleaning up", ["{} porządkuje", "{} 正在整理", "{} が整えています", "{} räumt auf", "{} está limpiando", "{} упорядковує"]),
     ("Clean up transcript", ["Uporządkuj transkrypcję", "整理转录", "文字起こしを整える", "Transkript aufräumen", "Limpiar transcripción", "Упорядкувати транскрипт"]),
     ("Writing a title and summary…", ["Tworzenie tytułu i podsumowania…", "正在撰写标题和摘要…", "タイトルと要約を作成中…", "Titel und Zusammenfassung werden geschrieben…", "Escribiendo un título y un resumen…", "Створення назви й підсумку…"]),

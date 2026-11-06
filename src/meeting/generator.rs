@@ -198,9 +198,30 @@ fn chosen() -> Option<Writer> {
     {
         return Some(Writer::AppleIntelligence);
     }
+    if apple_fallback().is_some() {
+        return Some(Writer::Engine);
+    }
     (crate::app_settings::meeting_notes_with_opencode()
         && crate::desktop::opencode_service::running())
     .then_some(Writer::OpenCode)
+}
+
+/// Why Apple Intelligence can't write the notes it was left to write, when
+/// AI cleanup's engines can write them instead, so a meeting never stays
+/// without notes while a model is set up.
+fn apple_fallback() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        let availability = crate::apple_intelligence::availability();
+        let left_to_apple =
+            config().is_some_and(|config| config.writer.is_none() && config.server_on);
+        (left_to_apple
+            && crate::app_settings::meeting_notes_enabled()
+            && !availability.is_available())
+        .then(|| availability.description().to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    None
 }
 
 /// Whether finished meetings get notes, and recording ones titles,
@@ -295,7 +316,11 @@ fn engine_notes(
     let config = config().ok_or_else(|| GenerationError::Failed("no notes writer".into()))?;
     let deadline = Instant::now() + timeout;
     let cancelled = AtomicBool::new(false);
-    let mut failures = Vec::new();
+    // Apple Intelligence was left to write them: say why something else did.
+    let mut failures: Vec<String> = apple_fallback()
+        .map(|why| format!("Apple Intelligence: {why}"))
+        .into_iter()
+        .collect();
     for engine in config.engines() {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {

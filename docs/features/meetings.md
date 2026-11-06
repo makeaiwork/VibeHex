@@ -1097,7 +1097,12 @@ signed in, too slow) the same call goes to dictation's AI cleanup engine,
 then OpenCode while it runs; the notes record `written_by` and `fell_back`,
 and the meeting shows "Written by <model>, because the chosen writer
 failed: <why>". OpenCode as before (Summarize with OpenCode) also writes full
-notes. Apple Intelligence keeps the two sentences below. The pane renders
+notes. Apple Intelligence keeps the two sentences below. Left to Apple
+Intelligence (no writer chosen) on a Mac where it is off or unavailable,
+while Labs › AI cleanup server is on, the notes go the engine way from
+dictation's AI cleanup engine, `fell_back` saying why ("Apple Intelligence:
+Turn on Apple Intelligence…"), and Written by says so under its name; the
+meeting's … menu offers Summarize then too. The pane renders
 notes as Markdown; capsules show their first paragraph, two sentences at
 most.
 

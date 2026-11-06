@@ -1282,6 +1282,8 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Model for this session", "Modelo para esta sessão"),
     ("{} is answering", "{} está respondendo"),
     ("{} is cleaning up", "{} está limpando"),
+    ("Your AI cleanup model writes the notes instead", "Seu modelo de limpeza com IA escreve as notas no lugar"),
+    ("Pick another writer to get notes", "Escolha outro redator para ter notas"),
     ("Clean up transcript", "Limpar transcrição"),
     ("How long a dictation waits for Codex before it pastes as heard", "Quanto tempo um ditado espera o Codex antes de ser colado como foi ouvido"),
 ];

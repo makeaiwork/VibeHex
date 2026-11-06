@@ -234,7 +234,7 @@ pub(super) fn error_section(ui: &Ui, p: Paint) -> Option<El> {
     ))
 }
 
-fn notes_description(availability: NotesAvailability) -> &'static str {
+pub(super) fn notes_description(availability: NotesAvailability) -> &'static str {
     match availability {
         NotesAvailability::Available => {
             tr("Meeting titles and short summaries, written on this Mac")
