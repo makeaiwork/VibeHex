@@ -55,6 +55,7 @@ mod paste_access;
 mod picker;
 mod platform;
 mod platform_settings;
+mod playback;
 pub(crate) mod playground;
 mod practice;
 mod scenes;
@@ -717,14 +718,12 @@ pub(crate) struct Ui {
     host: platform::PlatformHost,
     meetings: meetings::MeetingsPane,
     files: files::FilesPane,
+    playback: playback::Playback,
     fun: fun::FunPane,
     activity: activity::ActivityPane,
-    /// HUD Lab's preset was copied since it last changed.
-    hud_copied: bool,
-    /// HUD Lab saved Dot scope's tuning, until the next change.
-    hud_saved: bool,
-    /// Settings saves and Quit Hex a fixture recorded.
-    saved: usize,
+    hud_copied: bool, // HUD Lab's preset was copied since it last changed.
+    hud_saved: bool,  // HUD Lab saved Dot scope's tuning, until the next change.
+    saved: usize,     // Settings saves and Quit Hex a fixture recorded.
     quit_requested: bool,
 }
 
@@ -825,6 +824,7 @@ impl Ui {
             host: platform::PlatformHost::Local(Default::default()),
             meetings: meetings::MeetingsPane::default(),
             files: files::FilesPane::default(),
+            playback: playback::Playback::default(),
             fun: fun::FunPane::default(),
             activity: activity::ActivityPane::default(),
             hud_copied: false,
@@ -1149,7 +1149,7 @@ impl Ui {
 /// sidebar's panes in order; otherwise Escape closes Shortcut mode,
 /// the sound sets sheet, the picker, or the open menu.
 fn on_key(ui: &mut Ui, event: &rune::KeyEvent, tx: &mut Tx) -> bool {
-    if settings::on_key(ui, event, tx) {
+    if settings::on_key(ui, event, tx) || playback::on_key(ui, event) {
         return true;
     }
     // Labs › Playground: ⇧⌘D (Ctrl+Shift+D off macOS) opens the playground.
@@ -1270,7 +1270,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
             && ui.window.as_ref().is_some_and(rune::AppHandle::is_visible),
     );
     changed |= ui.history.poll(ui.pane == Pane::History);
-    changed |= files::poll(ui) | meeting_tabs::requests::poll(ui);
+    changed |= files::poll(ui) | meeting_tabs::requests::poll(ui) | playback::poll(ui);
     if ui.pane == Pane::Output && !ui.labs_open {
         changed |= output::poll(ui, clock, tx);
     }

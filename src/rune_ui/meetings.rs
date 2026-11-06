@@ -963,7 +963,7 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
                     .key("transcript-block")
                     .gap(10.0)
                     .child(section_label(p, "transcript-label", transcript_label))
-                    .child(transcript(p, meeting, pane.stop_pending)),
+                    .child(transcript(ui, p, meeting, pane.stop_pending)),
             );
         }
         super::meeting_tabs::MeetingTab::Requests => {
@@ -1141,7 +1141,7 @@ fn overflow(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> Option
     Some(menu.trigger(trigger).build(p.k, layer))
 }
 
-fn transcript(p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
+fn transcript(ui: &Ui, p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
     let empty = |copy: &str| {
         text(copy)
             .key("transcript-empty")
@@ -1169,8 +1169,21 @@ fn transcript(p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
         });
     }
     let mut lines = col().key("turns").gap(14.0);
+    // Labs › Listen to the recording: every turn plays from its start, and
+    // the one playing is lit.
+    let of = super::playback::Of::Meeting(meeting.id.clone());
+    let heard = (meeting.status == Status::Complete)
+        .then(|| super::playback::heard(ui, &of))
+        .flatten();
+    let playing = heard
+        .and_then(|heard| heard.at_ms)
+        .and_then(|at| super::playback::playing_line(turns.iter().map(|turn| turn.start_ms), at));
     for (index, turn) in turns.iter().enumerate() {
-        lines = lines.children(turn_line(p, index, turn));
+        let listened = heard.map(|heard| {
+            let lit = (Some(turn.start_ms) == playing).then_some(heard.marked);
+            (&of, lit)
+        });
+        lines = lines.children(turn_line(p, index, turn, listened));
     }
     if meeting.status == Status::Recording && !stop_pending {
         lines = lines.child(
@@ -1184,8 +1197,14 @@ fn transcript(p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
 }
 
 /// One turn of a transcript: the pause before it, if any, then the speaker,
-/// the time, and the words.
-pub(super) fn turn_line(p: Paint, index: usize, turn: &Turn) -> Vec<El> {
+/// the time, and the words; `listened`, the words play from the turn's start
+/// and the turn is lit while it plays (`Some(marked)`).
+pub(super) fn turn_line(
+    p: Paint,
+    index: usize,
+    turn: &Turn,
+    listened: Option<(&super::playback::Of, Option<bool>)>,
+) -> Vec<El> {
     let mut els = Vec::new();
     if let Some(pause) = turn.pause_before_ms {
         els.push(
@@ -1213,17 +1232,37 @@ pub(super) fn turn_line(p: Paint, index: usize, turn: &Turn) -> Vec<El> {
                         text(clock_offset(turn.start_ms))
                             .key("clock")
                             .font(p.k.ty.small)
-                            .color(p.faint()),
+                            .color(match listened {
+                                Some((_, Some(_))) => p.accent(),
+                                _ => p.faint(),
+                            }),
                     ),
             )
             .child(
-                text(turn.text.clone())
-                    .key("text")
-                    .font(p.k.ty.body)
-                    .color(p.reading())
-                    .wrap(),
+                match listened {
+                    Some((of, lit)) => {
+                        super::playback::meeting_turn(p, of, turn.text.clone(), turn.start_ms, lit)
+                    }
+                    None => text(turn.text.clone()),
+                }
+                .key("text")
+                .font(p.k.ty.body)
+                .color(p.reading())
+                .wrap(),
             ),
     );
+    if let Some((_, Some(_))) = listened
+        && let Some(turn) = els.pop()
+    {
+        els.push(
+            turn.fill(super::playback::playing_fill(p))
+                .radius(8.0)
+                .px(8.0)
+                .mx(-8.0)
+                .py(4.0)
+                .my(-4.0),
+        );
+    }
     els
 }
 

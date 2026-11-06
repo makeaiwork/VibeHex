@@ -1059,6 +1059,42 @@ cleanup in [files/tidy.rs](../../src/files/tidy.rs). Checks:
 `turns_go_in_pieces_and_a_long_turn_stands_alone`. Scenes: `meetings-requests`,
 `meetings-requests-sessions`.
 
+#### Listen To The Recording (Labs)
+
+Labs › Listen to the recording puts Play before the chips over the field of
+a finished meeting (so it needs the field: Labs › AI cleanup server and
+Questions on), the same player as Files':
+
+```text
+Listen to the recording (Labs, off by default; playback::Player, rune_ui::playback)
+├── Closed: a round Play button leads the chips over the field; once
+│   something played or a line was picked, it shows the time instead
+│   ("▶ 00:25", "Play from 00:25")
+├── Play -> the button unfolds into the player, an oval pill in the chips'
+│   place inside the card, and the chips step aside: × (Close player),
+│   Pause/Play with the time, Back 5 seconds, the position rail (drag or
+│   click to seek), the length, and the speed (0.75× to 2×); × folds it
+│   back and the chips return. "Couldn't play it: <why>" in the rail's
+│   place when the audio can't be read
+├── The transcript follows: the line playing (a segment of a file, a turn
+│   of a meeting) is lit, its paragraph or turn tinted and its time in the
+│   accent; there are no word timings, so it is lit line by line, never by
+│   word
+├── A click on a line plays from its start while playing; while paused it
+│   marks the line (underlined), and Play starts there
+└── Space plays or pauses, ← and → skip 5 s, while the player is open and
+    no menu is
+```
+
+The sound is the meeting's two tracks, `system.wav` and `microphone.wav`,
+mixed where each started (`first_arrival_us` in `manifest.json`), the
+origin the transcript's clocks count from, so a turn plays from its own
+time. Turns carry a start only; a turn lasts until the next one starts.
+Sources: [files/playback.rs](../../src/files/playback.rs) (`Audio::Meeting`),
+[rune_ui/playback/](../../src/rune_ui/playback/). Checks:
+`tracks_mix_where_each_started`; scenes `meetings-playback`,
+`meetings-playback-folded`.
+
 ### Retention
 
 Meeting data is a liability, so new meetings are kept 24 hours by default.

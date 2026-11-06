@@ -172,6 +172,16 @@ const PATHS: &[(&str, &str)] = &[
         "Window/General/Input source models",
     ),
     ("files", "Window/Files/Files"),
+    ("files-playback", "Window/Files/Listening, playing"),
+    (
+        "files-playback-folded",
+        "Window/Files/Listening, paused and folded",
+    ),
+    ("meetings-playback", "Window/Meetings/Listening, playing"),
+    (
+        "meetings-playback-folded",
+        "Window/Meetings/Listening, paused and folded",
+    ),
     ("sidebar-foldable", "Window/Sidebar/Close sidebar"),
     ("sidebar-folded", "Window/Sidebar/Folded"),
     ("files-working", "Window/Files/Working in 3 steps"),

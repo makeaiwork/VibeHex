@@ -308,6 +308,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
             tr("Drop audio and video files to transcribe them, clean them up, and rework the text with your own requests"),
         ));
         rows.push(row(
+            Feature::Playback,
+            &super::playback::PLAY_ICON,
+            tr("Listen to the recording"),
+            tr("Play a meeting or a file from its transcript: Play beside the requests opens a player, the line playing lights up, and a click on a line plays from there"),
+        ));
+        rows.push(row(
             Feature::CleanupProgress,
             &SPARKLES,
             tr("Cleanup progress"),
@@ -602,6 +608,7 @@ impl Group {
             Feature::HistoryStats
             | Feature::KeepRecordings
             | Feature::LiveText
+            | Feature::Playback
             | Feature::Files => Self::HistoryAndRecording,
             Feature::VoiceFilter
             | Feature::PauseBrowser
@@ -667,6 +674,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::StopShortcut => "lab-stop-shortcut",
         Feature::CollapsibleSidebar => "lab-collapsible-sidebar",
+        Feature::Playback => "lab-playback",
         Feature::SmartSpacing => "lab-smart-spacing",
         Feature::SpokenSymbols => "lab-spoken-symbols",
         Feature::PickerSortFilter => "lab-picker-sort-filter",

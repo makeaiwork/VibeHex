@@ -4,6 +4,7 @@
 //! version of the file's text. See `docs/features/files.md`.
 
 pub mod decode;
+pub mod playback;
 pub mod requests;
 pub mod rewrite;
 pub mod store;

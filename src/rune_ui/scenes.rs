@@ -613,6 +613,12 @@ pub(super) const SCENES: &[Scene] = &[
         ui.pane = Pane::Meetings;
     }),
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
+    ("files-playback", |ui| files_playback(ui, true)),
+    ("files-playback-folded", |ui| files_playback(ui, false)),
+    ("meetings-playback", |ui| meetings_playback(ui, true)),
+    ("meetings-playback-folded", |ui| {
+        meetings_playback(ui, false)
+    }),
     ("sidebar-foldable", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.settings.labs.collapsible_sidebar = true;
@@ -1083,6 +1089,30 @@ pub(super) fn fixture(shortcuts: DesktopShortcuts) -> Ui {
 }
 
 /// Meeting notes on Codex, in Russian.
+/// Files' Original with the player unfolded and playing the second
+/// paragraph, or folded, paused on a picked one.
+fn files_playback(ui: &mut Ui, playing: bool) {
+    files_scene(ui, files::FilesPane::fixture());
+    ui.settings.labs.playback = true;
+    ui.files.tab = Some(files::Tab::Version(1));
+    let of = super::playback::Of::File("preview-interview".into());
+    ui.playback = super::playback::Playback::still(of, 25_000, 2_530_000, playing, playing);
+}
+
+/// A meeting's transcript with the player unfolded, the third turn
+/// playing, or folded, paused on it.
+fn meetings_playback(ui: &mut Ui, playing: bool) {
+    *ui = mac_fixture();
+    meetings_on_codex(ui);
+    ui.settings.labs.playback = true;
+    ui.meetings.select("preview-notes".into());
+    ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Transcript);
+    super::meeting_tabs::requests::fixture(ui, "preview-notes");
+    ui.pane = Pane::Meetings;
+    let of = super::playback::Of::Meeting("preview-notes".into());
+    ui.playback = super::playback::Playback::still(of, 10_500, 1_640_000, playing, playing);
+}
+
 fn meetings_on_codex(ui: &mut Ui) {
     ui.settings.labs.ai_cleanup_server = true;
     ui.settings.transcription = crate::transcription::models::TranscriptionSelection {
