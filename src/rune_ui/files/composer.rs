@@ -94,7 +94,7 @@ pub(super) fn field(
         .key("input")
         .w_full()
         .color(c.text_base)
-        .placeholder(placeholder.clone(), c.text_faint)
+        .placeholder(placeholder.clone(), p.placeholder())
         .caret(c.text_base, p.k.selection());
     if waiting.is_none() {
         input = input

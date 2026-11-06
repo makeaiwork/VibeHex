@@ -104,6 +104,12 @@ impl Paint {
             c.text_base
         }
     }
+    /// An empty field's hint: dimmer than faint text, as chat apps keep
+    /// it, so it reads as a hint and not as typed text.
+    pub(super) fn placeholder(self) -> Color {
+        let c = &self.k.c;
+        rune::theme::for_blend(c.text_faint.alpha(0.7), c.bg_base)
+    }
     pub(super) fn muted(self) -> Color {
         self.k.c.text_muted
     }

@@ -402,7 +402,7 @@ fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         .key("input")
         .w_full()
         .color(c.text_base)
-        .placeholder(placeholder, c.text_faint)
+        .placeholder(placeholder, p.placeholder())
         .caret(c.text_base, p.k.selection())
         .on_edit(|ui: &mut Ui| &mut ui.meetings.requests.ask)
         .on_submit(|ui: &mut Ui, _| send(ui));
