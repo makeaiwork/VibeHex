@@ -7,9 +7,15 @@
 //! rest through the computer's proxy and trusted roots. The request runs on
 //! its own thread so cancellation and the deadline end the wait at once; a
 //! late answer is dropped. API keys come from the OS credential store
-//! ([`keys`]), never from settings.json.
+//! ([`keys`]), never from settings.json. Built in runs a model Hex downloads
+//! ([`local_models`]) on the bundled llama.cpp server ([`engine`]).
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub mod engine;
 pub(crate) mod keys;
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub mod local_models;
+pub mod models;
 
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,12 +27,15 @@ use color_eyre::eyre::{Result, eyre};
 use serde::{Deserialize, Serialize};
 
 use crate::app_settings::{CleanupRunsOn, CleanupServerSettings};
+use crate::dictation::cleanup_pieces::Streamed;
 
 pub const OPENROUTER_URL: &str = "https://openrouter.ai/api/v1";
 pub const LM_STUDIO_URL: &str = "http://127.0.0.1:1234/v1";
 pub const OLLAMA_URL: &str = "http://127.0.0.1:11434/v1";
 /// How long Test waits: a local server may still be loading its model.
 pub const TEST_DEADLINE: Duration = Duration::from_secs(30);
+/// Test of the built-in model may first load the model.
+const ENGINE_TEST_DEADLINE: Duration = Duration::from_secs(120);
 /// How often a waiting rewrite checks cancellation.
 const POLL: Duration = Duration::from_millis(50);
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
@@ -52,11 +61,20 @@ pub fn active() -> Option<Server> {
     Server::from_settings(&saved)
 }
 
+/// The built-in model, while it is the chosen server.
+pub fn local_model() -> Option<&'static local_models::LocalModel> {
+    let server = active()?;
+    (server.provider == Provider::Local).then(|| local_models::chosen(&server.model))
+}
+
 /// Which credential a server uses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Provider {
     OpenRouter,
     Custom,
+    /// A downloaded model on the bundled engine; it needs no key of the
+    /// person's.
+    Local,
 }
 
 impl Provider {
@@ -64,6 +82,7 @@ impl Provider {
         match self {
             Self::OpenRouter => "openrouter",
             Self::Custom => "custom",
+            Self::Local => "local",
         }
     }
 }
@@ -91,16 +110,23 @@ impl Server {
                 url: settings.url.trim().into(),
                 model: settings.custom_model.trim().into(),
             }),
+            // The engine's address is known once it runs ([`engine::endpoint`]).
+            CleanupRunsOn::Local => Some(Self {
+                provider: Provider::Local,
+                url: String::new(),
+                model: local_models::chosen(&settings.local_model).id.into(),
+            }),
         }
     }
 
     /// The server's name for a person: OpenRouter, LM Studio, Ollama, or its
     /// host and port.
     pub fn name(&self) -> String {
-        if self.provider == Provider::OpenRouter {
-            return "OpenRouter".into();
+        match self.provider {
+            Provider::OpenRouter => "OpenRouter".into(),
+            Provider::Local => local_models::chosen(&self.model).name.into(),
+            Provider::Custom => server_name(&self.url),
         }
-        server_name(&self.url)
     }
 }
 
@@ -133,7 +159,19 @@ pub fn generate(
     transcript: &str,
     deadline: Duration,
     cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
 ) -> Result<String> {
+    if server.provider == Provider::Local {
+        return generate_locally(
+            server,
+            engine::CONTEXT_TOKENS,
+            instructions,
+            transcript,
+            deadline,
+            cancelled,
+            streamed,
+        );
+    }
     let key = keys::get(server.provider);
     generate_with_key(
         server,
@@ -142,12 +180,124 @@ pub fn generate(
         transcript,
         deadline,
         cancelled,
+        streamed,
     )
+}
+
+/// Rewrites with the built-in model: starts the engine with the chosen model when it
+/// isn't running (loading counts against `deadline`), then asks it.
+fn generate_locally(
+    server: &Server,
+    context: u32,
+    instructions: &str,
+    transcript: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
+) -> Result<String> {
+    let started = Instant::now();
+    let model = local_models::chosen(&server.model);
+    let endpoint = engine::endpoint_with(model, context, deadline, cancelled)?;
+    let running = Server {
+        url: endpoint.url,
+        ..server.clone()
+    };
+    generate_with_key(
+        &running,
+        Some(&endpoint.key),
+        instructions,
+        transcript,
+        deadline.saturating_sub(started.elapsed()),
+        cancelled,
+        streamed,
+    )
+}
+
+/// Labs › Files: [`generate`] on the built-in engine in a window of at least
+/// `context` tokens (another server ignores it), its answer streamed to
+/// `streamed` as it arrives.
+pub fn generate_in_window(
+    server: &Server,
+    context: u32,
+    instructions: &str,
+    transcript: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
+) -> Result<String> {
+    if server.provider != Provider::Local {
+        return generate(
+            server,
+            instructions,
+            transcript,
+            deadline,
+            cancelled,
+            streamed,
+        );
+    }
+    generate_locally(
+        server,
+        context,
+        instructions,
+        transcript,
+        deadline,
+        cancelled,
+        streamed,
+    )
+}
+
+/// How many tokens the built-in `model` reads `text` as, from its server's
+/// `/tokenize` (started at the usual window if it isn't running).
+pub fn count_tokens(
+    model: &'static local_models::LocalModel,
+    text: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+) -> Result<usize> {
+    #[derive(Serialize)]
+    struct Tokenize<'a> {
+        content: &'a str,
+    }
+    #[derive(Deserialize)]
+    struct Tokens {
+        tokens: Vec<serde_json::Value>,
+    }
+    // Any window will do: a wide one already running is kept.
+    let endpoint = engine::endpoint_with(model, engine::CONTEXT_TOKENS, deadline, cancelled)?;
+    let base = api_base(&endpoint.url);
+    let url = format!("{}/tokenize", base.strip_suffix("/v1").unwrap_or(base));
+    let exchange = Exchange {
+        loopback: true,
+        url,
+        key: Some(endpoint.key),
+        openrouter: false,
+        body: Some(serde_json::to_vec(&Tokenize { content: text })?),
+        timeout: deadline,
+        limit: MAX_RESPONSE_BYTES * 4,
+        name: model.name.into(),
+        streamed: None,
+    };
+    let body = exchange.run()?;
+    let tokens: Tokens = serde_json::from_slice(&body)
+        .map_err(|error| eyre!("{} sent token counts Hex can't read: {error}", model.name))?;
+    Ok(tokens.tokens.len())
 }
 
 /// Sends a one-word request and reports how long the answer took.
 pub fn test(server: &Server, key: Option<&str>) -> Result<Duration> {
     let started = Instant::now();
+    if server.provider == Provider::Local {
+        generate_locally(
+            server,
+            engine::CONTEXT_TOKENS,
+            "Reply with the single word OK.",
+            "ping",
+            ENGINE_TEST_DEADLINE,
+            &AtomicBool::new(false),
+            None,
+        )?;
+        return Ok(started.elapsed());
+    }
     generate_with_key(
         server,
         key,
@@ -155,6 +305,7 @@ pub fn test(server: &Server, key: Option<&str>) -> Result<Duration> {
         "ping",
         TEST_DEADLINE,
         &AtomicBool::new(false),
+        None,
     )?;
     Ok(started.elapsed())
 }
@@ -166,6 +317,7 @@ fn generate_with_key(
     transcript: &str,
     deadline: Duration,
     cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
 ) -> Result<String> {
     let started = Instant::now();
     let name = server.name();
@@ -194,22 +346,27 @@ fn generate_with_key(
             },
         ],
         temperature: 0.0,
-        stream: false,
+        // Streamed only for Labs › Cleanup progress, which shows the
+        // answer arriving; a server that ignores it answers whole.
+        stream: streamed.is_some(),
     })?;
     let exchange = Exchange {
         loopback: is_loopback(&parsed),
         url,
         key: key.map(str::to_owned),
         openrouter: server.provider == Provider::OpenRouter,
-        body,
+        body: Some(body),
         timeout: deadline,
+        limit: MAX_RESPONSE_BYTES,
         name: name.clone(),
+        streamed,
     };
     let (sender, receiver) = mpsc::channel();
+    let answered = name.clone();
     thread::Builder::new()
         .name("hex-cleanup-server".into())
         .spawn(move || {
-            let _ = sender.send(exchange.run());
+            let _ = sender.send(exchange.run().and_then(|body| answer(&answered, &body)));
         })
         .map_err(|error| eyre!("couldn't start the request to {name}: {error}"))?;
     loop {
@@ -236,12 +393,13 @@ fn generate_with_key(
 /// `{base}/chat/completions`, whether or not the base ends in a slash or
 /// already names the endpoint.
 fn endpoint(base: &str) -> String {
+    format!("{}/chat/completions", api_base(base))
+}
+
+/// The base URL without a trailing slash or a named endpoint.
+fn api_base(base: &str) -> &str {
     let base = base.trim().trim_end_matches('/');
-    if base.ends_with("/chat/completions") {
-        base.into()
-    } else {
-        format!("{base}/chat/completions")
-    }
+    base.strip_suffix("/chat/completions").unwrap_or(base)
 }
 
 fn is_loopback(url: &url::Url) -> bool {
@@ -284,18 +442,24 @@ struct ChoiceMessage {
     content: Option<String>,
 }
 
+/// One request to a server: a POST with `body`, else a GET.
 struct Exchange {
     url: String,
     loopback: bool,
     key: Option<String>,
     openrouter: bool,
-    body: Vec<u8>,
+    body: Option<Vec<u8>>,
     timeout: Duration,
+    /// The most of the answer's body read.
+    limit: u64,
     name: String,
+    /// Reads a streamed answer as it arrives, reporting its length and text.
+    streamed: Option<Streamed>,
 }
 
 impl Exchange {
-    fn run(self) -> Result<String> {
+    /// The answer's body, or why the server refused or couldn't be reached.
+    fn run(self) -> Result<Vec<u8>> {
         let timeout = self.timeout;
         let configure = |config: crate::net::Config| {
             config
@@ -308,33 +472,104 @@ impl Exchange {
             crate::net::agent(&self.url, configure)
         };
         let mut builder = ureq::http::Request::builder()
-            .method("POST")
-            .uri(self.url.as_str())
-            .header("Content-Type", "application/json");
+            .method(if self.body.is_some() { "POST" } else { "GET" })
+            .uri(self.url.as_str());
+        if self.body.is_some() {
+            builder = builder.header("Content-Type", "application/json");
+        }
         if let Some(key) = &self.key {
             builder = builder.header("Authorization", format!("Bearer {key}"));
         }
         if self.openrouter {
             builder = builder.header("X-Title", "Hex");
         }
-        let request = builder
-            .body(self.body)
-            .map_err(|error| eyre!("invalid request to {}: {error}", self.name))?;
-        let mut response = agent
-            .run(request)
-            .map_err(|error| eyre!(crate::net::unreachable(&self.url, &error)))?;
+        let invalid = |error: ureq::http::Error| eyre!("invalid request to {}: {error}", self.name);
+        let sent = match self.body {
+            Some(body) => agent.run(builder.body(body).map_err(invalid)?),
+            None => agent.run(builder.body(()).map_err(invalid)?),
+        };
+        let mut response =
+            sent.map_err(|error| eyre!(crate::net::unreachable(&self.url, &error)))?;
         let status = response.status().as_u16();
+        let event_stream = response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("text/event-stream"));
+        if let Some(streamed) = self.streamed.as_ref().filter(|_| event_stream)
+            && (200..300).contains(&status)
+        {
+            let reader = response.body_mut().with_config().limit(self.limit).reader();
+            let text = read_events(std::io::BufReader::new(reader), streamed.as_ref())
+                .map_err(|error| eyre!("{} stopped answering: {error}", self.name))?;
+            // The whole answer, as a non-streamed one reads.
+            return Ok(serde_json::to_vec(&serde_json::json!({
+                "choices": [{ "message": { "content": text } }]
+            }))?);
+        }
         let body = response
             .body_mut()
             .with_config()
-            .limit(MAX_RESPONSE_BYTES)
+            .limit(self.limit)
             .read_to_vec()
             .map_err(|error| eyre!(crate::net::unreachable(&self.url, &error)))?;
         if !(200..300).contains(&status) {
             return Err(eyre!(refusal(&self.name, status, &body)));
         }
-        answer(&self.name, &body)
+        Ok(body)
     }
+}
+
+/// A streamed chat answer (server-sent events) read to its end: each
+/// event's `choices[0].delta.content` appended, with `on` told how many
+/// characters have arrived and what they say.
+fn read_events(
+    reader: impl std::io::BufRead,
+    on: &(dyn Fn(usize, &str) + Send + Sync),
+) -> std::io::Result<String> {
+    let mut text = String::new();
+    let mut chars = 0;
+    for line in reader.lines() {
+        let line = line?;
+        let Some(data) = line.strip_prefix("data:").map(str::trim) else {
+            continue;
+        };
+        if data == "[DONE]" {
+            break;
+        }
+        let Ok(event) = serde_json::from_str::<StreamEvent>(data) else {
+            continue;
+        };
+        if let Some(piece) = event
+            .choices
+            .into_iter()
+            .next()
+            .and_then(|choice| choice.delta.content)
+        {
+            chars += piece.chars().count();
+            text.push_str(&piece);
+            on(chars, &text);
+        }
+    }
+    Ok(text)
+}
+
+#[derive(Deserialize)]
+struct StreamEvent {
+    #[serde(default)]
+    choices: Vec<StreamChoice>,
+}
+
+#[derive(Deserialize)]
+struct StreamChoice {
+    #[serde(default)]
+    delta: StreamDelta,
+}
+
+#[derive(Default, Deserialize)]
+struct StreamDelta {
+    #[serde(default)]
+    content: Option<String>,
 }
 
 /// Why a server refused, with the reason it gave when it gave one.

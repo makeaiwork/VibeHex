@@ -70,6 +70,15 @@ pub struct LabsSettings {
     pub meeting_summary_model: bool,
     pub ai_cleanup_server: bool,
     pub vocabulary_paste_list: bool,
+    /// The Russian vibe-coding preset is written into these settings.
+    pub russian_vibe_coding: bool,
+    /// A shortcut adds a selected misheard word to Vocabulary (macOS).
+    pub vocabulary_quick_add: bool,
+    /// A plate beside the HUD shows AI cleanup's progress, with Paste now
+    /// (macOS).
+    pub cleanup_progress: bool,
+    /// The Files pane transcribes dropped audio and video files (macOS).
+    pub files: bool,
     /// `stop_hotkey` finishes a shortcut's dictation and pastes it (macOS).
     pub stop_shortcut: bool,
 }
@@ -117,6 +126,10 @@ impl Default for LabsSettings {
             meeting_summary_model: false,
             ai_cleanup_server: false,
             vocabulary_paste_list: false,
+            russian_vibe_coding: false,
+            vocabulary_quick_add: false,
+            cleanup_progress: false,
+            files: false,
             stop_shortcut: false,
         }
     }

@@ -16,8 +16,11 @@ use crate::audio::CaptureInstant;
 use crate::dictation::{BOTH_SIDES_WINDOW, MINIMUM_HOLD_DURATION};
 
 mod hotkey;
+mod modifier_tap;
 mod tap;
+
 pub use hotkey::{DictationHotkey, HotkeyAction};
+pub(crate) use modifier_tap::ModifierTap;
 use tap::*;
 
 const DOUBLE_TAP_WINDOW: Duration = MINIMUM_HOLD_DURATION;
@@ -998,6 +1001,7 @@ impl ShortcutSuppression {
                 capture: None,
                 raw_dictation: None,
                 second_dictation: None,
+                vocabulary_add: None,
                 cancel: None,
                 stop: None,
             },
@@ -1025,6 +1029,12 @@ fn paste_action(input: InputEvent, hotkeys: RuntimeHotkeys) -> Option<HotkeyActi
                 .paste_meeting
                 .filter(|binding| binding.matches_key_press(code, flags))
                 .map(|_| HotkeyAction::PasteMeeting)
+        })
+        .or_else(|| {
+            hotkeys
+                .vocabulary_add
+                .filter(|binding| binding.matches_key_press(code, flags))
+                .map(|_| HotkeyAction::VocabularyAdd)
         })
 }
 

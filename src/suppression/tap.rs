@@ -91,6 +91,7 @@ pub(super) fn mouse_input(
         hotkeys.raw_dictation,
         hotkeys.second_dictation,
         hotkeys.paste_last,
+        hotkeys.vocabulary_add,
         hotkeys.paste_meeting,
     ]
     .iter()

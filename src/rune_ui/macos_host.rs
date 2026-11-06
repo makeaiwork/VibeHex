@@ -463,11 +463,13 @@ pub(super) fn hotkey_key_named(name: &str) -> Result<HotkeyKey, &'static str> {
 /// macOS accepts every binding the capture can produce, except that Paste
 /// Last fires only on a key press (`suppression::paste_action`), and the
 /// capture shortcut, pressed once to start and again to finish, and the
-/// send-to list's need a key.
+/// send-to list's need a key. Add to vocabulary takes either.
 pub(super) fn validate_hotkey(
     target: ShortcutTarget,
     binding: &HotkeyBinding,
 ) -> Result<(), &'static str> {
+    // Add to vocabulary takes a key, or modifiers alone (Right Control)
+    // tapped on their own (`suppression::ModifierTap`).
     if matches!(
         target,
         ShortcutTarget::PasteLast | ShortcutTarget::Cancel | ShortcutTarget::Stop

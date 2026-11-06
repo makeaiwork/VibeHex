@@ -63,8 +63,8 @@ const PATHS: &[(&str, &str)] = &[
     ),
     ("mac-settings-vocabulary", "Window/General/Vocabulary"),
     (
-        "mac-settings-vocabulary-paste",
-        "Window/General/Vocabulary paste list",
+        "mac-settings-vocabulary-text",
+        "Window/General/Vocabulary text view",
     ),
     (
         "mac-settings-vocabulary-empty",
@@ -100,6 +100,7 @@ const PATHS: &[(&str, &str)] = &[
         "mac-update-ready",
         "Window/General/Updates/Ready to restart",
     ),
+    ("mac-update-sheet", "Window/General/Updates/Update sheet"),
     (
         "mac-settings-dev-channel",
         "Window/General/Updates/Dev channel",
@@ -146,6 +147,10 @@ const PATHS: &[(&str, &str)] = &[
     ("output-open", "Window/Output/App rule open"),
     ("output-trust", "Window/Output/Trust prompt"),
     ("output-ai-cleanup", "Window/Output/AI cleanup"),
+    (
+        "output-ai-cleanup-local",
+        "Window/Output/AI cleanup on this Mac",
+    ),
     ("output-empty", "Window/Output/Empty"),
     ("modes", "Window/Modes/Modes"),
     ("modes-global", "Window/Modes/Global mode"),
@@ -162,6 +167,16 @@ const PATHS: &[(&str, &str)] = &[
         "mac-input-source-models",
         "Window/General/Input source models",
     ),
+    ("files", "Window/Files/Files"),
+    ("files-working", "Window/Files/Working in 3 steps"),
+    ("files-original", "Window/Files/Original"),
+    ("files-summary", "Window/Files/Summary"),
+    ("files-versions", "Window/Files/Versions"),
+    ("files-more", "Window/Files/More menu"),
+    ("files-again", "Window/Files/Transcribe again"),
+    ("files-empty", "Window/Files/Empty"),
+    ("files-settings-prompt", "Window/Files/Settings, own prompt"),
+    ("files-settings", "Window/Files/Settings"),
     ("meetings", "Window/Meetings/Meetings"),
     ("meetings-recording", "Window/Meetings/Recording"),
     ("meetings-chapters", "Window/Meetings/Chapters"),
@@ -180,6 +195,7 @@ const PATHS: &[(&str, &str)] = &[
     ),
     ("history", "Window/History/History"),
     ("history-empty", "Window/History/Empty"),
+    ("about", "Window/About/About"),
     #[cfg(hex_capture)]
     ("mac-scrawl", "Window/Annotate/On"),
     #[cfg(hex_capture)]

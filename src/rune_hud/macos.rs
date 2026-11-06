@@ -9,7 +9,7 @@ use objc2_app_kit::{NSEvent, NSScreen, NSStatusBar};
 use objc2_foundation::NSRect;
 use rune::{DisplayTarget, OverlayHandle, OverlayPlacement};
 
-use super::{Hud, HudEvent, HudSender, LIVE_TEXT_GAP, WINDOW, set_live_text};
+use super::{Hud, HudEvent, HudSender, LIVE_TEXT_GAP, WINDOW, set_hud_center, set_live_text};
 use crate::app_settings::IndicatorPosition;
 use crate::rune_hud::hud_placement;
 use crate::rune_ui::live_text::Spot;
@@ -128,6 +128,7 @@ impl Hud {
         let content = content(0.0);
         let placed = hud_placement::place(Default::default(), &screen, content, false);
         let (top, _) = hud_placement::plate_span(&placed, content);
+        set_hud_center(None);
         set_live_text(Spot::Global {
             x: (screen.frame.x + screen.frame.width / 2.0) as f32,
             y: (primary_top - top) as f32,
@@ -153,6 +154,14 @@ impl Hud {
             self.position == IndicatorPosition::Bottom,
         );
         set_live_text(live_text_beside(&placed, &metrics, content, primary_top));
+        set_hud_center(placed.layout.island.is_none().then(|| {
+            let (top, bottom) = hud_placement::plate_span(&placed, content);
+            (
+                (placed.top_left.0 + content.window.0 / 2.0 + f64::from(placed.layout.center[0]))
+                    as f32,
+                (primary_top - (top + bottom) / 2.0) as f32,
+            )
+        }));
         if self.placed == Some(placed) {
             return;
         }

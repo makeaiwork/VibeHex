@@ -268,6 +268,11 @@ impl IndicatorModel {
         self.active
     }
 
+    /// Whether a capture is recording.
+    pub fn capturing(&self) -> bool {
+        self.capturing
+    }
+
     /// Dot scope's tuning, as set.
     #[cfg(target_os = "macos")]
     pub fn tuning(&self) -> Tuning {

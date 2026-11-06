@@ -27,8 +27,32 @@ use color_eyre::eyre::eyre;
 
 use crate::app_settings::{AppSettings, LabsSettings};
 
-/// Where people send feedback on Labs features.
-pub const FEEDBACK_URL: &str = "https://github.com/anomalyco/hex/issues/new";
+/// Where feedback on Hex goes.
+pub const FEEDBACK_EMAIL: &str = "zelenpro@gmail.com";
+
+/// A `mailto:` link that opens a new message to [`FEEDBACK_EMAIL`] whose
+/// subject names the running version.
+pub fn feedback_mailto(version: &str) -> String {
+    format!(
+        "mailto:{FEEDBACK_EMAIL}?subject={}",
+        mailto_encode(&format!("VibeHex feedback (version {version})"))
+    )
+}
+
+/// Percent-encodes a `mailto:` query value: everything but unreserved
+/// characters, so spaces become `%20` (not `+`, which mail apps show as is).
+fn mailto_encode(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(byte as char)
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
 
 /// Who a Labs feature is for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -101,11 +125,15 @@ pub enum Feature {
     MeetingSummaryModel,
     AiCleanupServer,
     VocabularyPasteList,
+    RussianVibeCoding,
+    VocabularyQuickAdd,
+    CleanupProgress,
+    Files,
     StopShortcut,
 }
 
 impl Feature {
-    pub const ALL: [Self; 43] = [
+    pub const ALL: [Self; 47] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -148,6 +176,10 @@ impl Feature {
         Self::MeetingSummaryModel,
         Self::AiCleanupServer,
         Self::VocabularyPasteList,
+        Self::RussianVibeCoding,
+        Self::VocabularyQuickAdd,
+        Self::CleanupProgress,
+        Self::Files,
         Self::StopShortcut,
     ];
 
@@ -214,6 +246,10 @@ impl Feature {
             | Self::MeetingSummaryModel
             | Self::AiCleanupServer
             | Self::VocabularyPasteList
+            | Self::RussianVibeCoding
+            | Self::VocabularyQuickAdd
+            | Self::CleanupProgress
+            | Self::Files
             | Self::StopShortcut => Audience::Everyone,
         }
     }
@@ -264,7 +300,10 @@ impl Feature {
             | Self::SidedChords
             | Self::TapOrHold
             | Self::RecentDictations
-            | Self::HideMenuBarIcon => cfg!(target_os = "macos"),
+            | Self::HideMenuBarIcon
+            | Self::VocabularyQuickAdd
+            | Self::CleanupProgress
+            | Self::Files => cfg!(target_os = "macos"),
             Self::KeyboardModelSwitching => crate::keyboard_input_sources::available(),
             Self::Playground
             | Self::LiveText
@@ -284,8 +323,24 @@ impl Feature {
             | Self::KeepRecordings
             | Self::FillerWords
             | Self::AiCleanupServer
-            | Self::VocabularyPasteList => true,
+            | Self::VocabularyPasteList
+            | Self::RussianVibeCoding => true,
         }
+    }
+
+    /// Whether VibeHex added this feature: Hex itself (anomalyco/hex) has
+    /// no such lab. Settings › Labs marks these rows with a star.
+    pub const fn vibehex(self) -> bool {
+        matches!(
+            self,
+            Self::AiCleanupServer
+                | Self::CleanupProgress
+                | Self::Files
+                | Self::RussianVibeCoding
+                | Self::StopShortcut
+                | Self::VocabularyPasteList
+                | Self::VocabularyQuickAdd
+        )
     }
 
     /// The name `hex labs on|off` takes.
@@ -333,6 +388,10 @@ impl Feature {
             Self::MeetingSummaryModel => "meeting-summary-model",
             Self::AiCleanupServer => "ai-cleanup-server",
             Self::VocabularyPasteList => "vocabulary-paste-list",
+            Self::RussianVibeCoding => "russian-vibe-coding",
+            Self::VocabularyQuickAdd => "vocabulary-quick-add",
+            Self::CleanupProgress => "cleanup-progress",
+            Self::Files => "files",
             Self::StopShortcut => "stop-shortcut",
         }
     }
@@ -382,6 +441,10 @@ impl Feature {
             Self::MeetingSummaryModel => "labs.meeting_summary_model",
             Self::AiCleanupServer => "labs.ai_cleanup_server",
             Self::VocabularyPasteList => "labs.vocabulary_paste_list",
+            Self::RussianVibeCoding => "labs.russian_vibe_coding",
+            Self::VocabularyQuickAdd => "labs.vocabulary_quick_add",
+            Self::CleanupProgress => "labs.cleanup_progress",
+            Self::Files => "labs.files",
             Self::StopShortcut => "labs.stop_shortcut",
         }
     }
@@ -495,7 +558,19 @@ impl Feature {
                 "Clean up dictations with OpenRouter or your own OpenAI-compatible server, such as LM Studio or Ollama, instead of OpenCode"
             }
             Self::VocabularyPasteList => {
-                "The Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like"
+                "The Vocabulary sheet's Text view shows the whole list as text, one term per line as Term | sounds like, sounds like, to paste, fix, or delete many at once"
+            }
+            Self::RussianVibeCoding => {
+                "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI and every other VibeHex feature but Stop shortcut; off takes back what it added and you haven't changed"
+            }
+            Self::VocabularyQuickAdd => {
+                "Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"
+            }
+            Self::CleanupProgress => {
+                "While AI cleanup takes a while, a bar beside the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"
+            }
+            Self::Files => {
+                "Drop audio and video files to transcribe them, clean them up, and rework the text with your own requests"
             }
             Self::StopShortcut => {
                 "Another key, such as Return, finishes a dictation and pastes it, while your shortcut starts it (stop_hotkey)"
@@ -552,6 +627,10 @@ impl Feature {
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list,
+            Self::RussianVibeCoding => settings.labs.russian_vibe_coding,
+            Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add,
+            Self::CleanupProgress => settings.labs.cleanup_progress,
+            Self::Files => settings.labs.files,
             Self::StopShortcut => settings.labs.stop_shortcut,
         }
     }
@@ -603,6 +682,10 @@ impl Feature {
             &mut labs.meeting_summary_model,
             &mut labs.ai_cleanup_server,
             &mut labs.vocabulary_paste_list,
+            &mut labs.russian_vibe_coding,
+            &mut labs.vocabulary_quick_add,
+            &mut labs.cleanup_progress,
+            &mut labs.files,
             &mut labs.stop_shortcut,
         ]
     }
@@ -654,6 +737,16 @@ impl Feature {
             Self::MeetingSummaryModel => settings.labs.meeting_summary_model = on,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server = on,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
+            Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add = on,
+            Self::CleanupProgress => settings.labs.cleanup_progress = on,
+            Self::Files => settings.labs.files = on,
+            // The preset writes into the person's settings once, on the edge.
+            Self::RussianVibeCoding => {
+                if settings.labs.russian_vibe_coding != on {
+                    crate::dictation::presets::russian_vibe_coding(settings, on);
+                }
+                settings.labs.russian_vibe_coding = on;
+            }
             Self::StopShortcut => settings.labs.stop_shortcut = on,
             // Off, no shortcut keeps a key only the feature allows.
             Self::StandaloneSpecialKeys => {
@@ -696,6 +789,10 @@ const MOVABLE_MEETING_CAPSULES: u64 = 1 << 23;
 const MEETING_SUMMARY_MODEL: u64 = 1 << 24;
 const AI_CLEANUP_SERVER: u64 = 1 << 25;
 const VOCABULARY_PASTE_LIST: u64 = 1 << 26;
+const RUSSIAN_VIBE_CODING: u64 = 1 << 27;
+const VOCABULARY_QUICK_ADD: u64 = 1 << 28;
+const CLEANUP_PROGRESS: u64 = 1 << 29;
+const FILES: u64 = 1 << 30;
 /// Unload-idle minutes (at most 1,440, 11 bits) sit above the switches.
 const MINUTES_SHIFT: u64 = 32;
 
@@ -740,6 +837,23 @@ pub fn vocabulary_biasing() -> bool {
 
 /// Mouse buttons may be recorded as shortcuts (macOS).
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+/// Labs › Add to vocabulary from a selection: the shortcut that adds a
+/// selected misheard word to Vocabulary (macOS).
+pub fn vocabulary_quick_add() -> bool {
+    on(VOCABULARY_QUICK_ADD)
+}
+
+/// Labs › Cleanup progress: AI cleanup reports how far it is, which a plate
+/// beside the HUD shows with Paste now (macOS).
+pub fn cleanup_progress() -> bool {
+    on(CLEANUP_PROGRESS)
+}
+
+/// Labs › Files: the Files pane, its queue, and its worker (macOS).
+pub fn files() -> bool {
+    on(FILES)
+}
+
 pub fn mouse_shortcuts() -> bool {
     on(MOUSE_SHORTCUTS)
 }
@@ -987,6 +1101,22 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             settings.vocabulary_paste_list,
             VOCABULARY_PASTE_LIST,
         ),
+        (
+            Feature::RussianVibeCoding,
+            settings.russian_vibe_coding,
+            RUSSIAN_VIBE_CODING,
+        ),
+        (
+            Feature::VocabularyQuickAdd,
+            settings.vocabulary_quick_add,
+            VOCABULARY_QUICK_ADD,
+        ),
+        (
+            Feature::CleanupProgress,
+            settings.cleanup_progress,
+            CLEANUP_PROGRESS,
+        ),
+        (Feature::Files, settings.files, FILES),
     ]
     .into_iter()
     .filter(|(feature, on, _)| *on && reaches(*feature))
@@ -1158,6 +1288,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn feedback_mailto_names_the_version_in_the_subject() {
+        assert_eq!(
+            feedback_mailto("0.0.0-dev-12"),
+            "mailto:zelenpro@gmail.com?subject=VibeHex%20feedback%20%28version%200.0.0-dev-12%29"
+        );
+    }
+
+    #[test]
     fn graduated_features_answer_by_name() {
         let error = resolve("custom-models", |_| true).unwrap_err().to_string();
         assert!(error.contains("graduated"), "{error}");
@@ -1166,14 +1304,12 @@ mod tests {
 
     #[test]
     fn every_feature_is_off_by_default_and_round_trips() {
-        let mut settings = AppSettings::default();
+        let fresh = AppSettings::default();
         for feature in Feature::ALL {
-            assert!(
-                !feature.on(&settings),
-                "{} is on by default",
-                feature.name()
-            );
+            assert!(!feature.on(&fresh), "{} is on by default", feature.name());
             assert_eq!(Feature::from_name(feature.name()), Some(feature));
+            // Each on its own: Russian vibe coding turns other Labs on too.
+            let mut settings = fresh.clone();
             feature.set(&mut settings, true);
             assert!(feature.on(&settings));
         }

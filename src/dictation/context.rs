@@ -290,6 +290,19 @@ pub fn frontmost_pid() -> Option<i32> {
     })
 }
 
+/// Brings application `pid` to the front, as clicking its window would.
+#[cfg(target_os = "macos")]
+pub fn activate(pid: i32) {
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
+    autoreleasepool(|_| {
+        if let Some(application) =
+            NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+        {
+            application.activateWithOptions(NSApplicationActivationOptions::empty());
+        }
+    })
+}
+
 /// How a browser's AppleScript dictionary names the front window's tab.
 #[cfg(target_os = "macos")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

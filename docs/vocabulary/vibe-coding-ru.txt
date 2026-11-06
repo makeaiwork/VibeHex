@@ -1,6 +1,6 @@
 # Vibe-coding vocabulary for Russian dictation: names and acronyms written
 # in Latin letters, and how a Russian speech model tends to hear them.
-# Paste it into the Vocabulary sheet (Labs › Paste vocabulary as a list) or
+# Paste it into the Vocabulary sheet's Text view (Labs › Vocabulary text view) or
 # load it with the loop in docs/features/vocabulary.md.
 # One term per line: Term | sounds like, …
 #

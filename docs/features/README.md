@@ -42,9 +42,13 @@ speaker's review yet. It offers 简体中文 (`zh`) and 繁體中文 (`zh-Hant`,
 Traditional Chinese is drafted from the Simplified strings by a character and
 Taiwan-usage phrase converter (`desktop/i18n/traditional_chinese.rs`), not yet
 reviewed by a native speaker.
+[Files](files.md) (Labs, macOS) transcribes dropped audio and video files and
+reworks their text with cleanup and your own requests.
 The [vocabulary](vocabulary.md) biases transcription toward names you list.
 [Your own speech models](own-models.md) covers adding a GGUF file and using
 models another app already downloaded.
+[About](about.md) names the fork (VibeHex) in the sidebar and links its
+source and developer.
 [Annotate](capture.md) (macOS, Linux,
 and Windows) records the screen while you draw and talk and sends it to an agent.
 The other capabilities stay here until they need their own verification recipe.
@@ -1210,7 +1214,19 @@ Menu-bar installation fails -> Show Dock icon and open the window // recovery ac
 Show Dock icon off                       // maintain.dock-policy
 ├── Settings window open -> Dock icon stays // hiding it would deactivate Hex
 └── Settings window closes -> Menu-bar only
+
+Window's menu bar (macOS)                // maintain.edit-menu
+├── Hex, File, Edit, View, Window (macos_rune::install_main_menu)
+└── Edit -> Undo, Redo, Cut, Copy, Paste, Select All for the focused field
+    └── Any keyboard layout -> AppKit matches ⌘V on a Cyrillic layout (where the key
+        reads ⌘м) and Rune's `standard_menus` hands the field ⌘V itself
 ```
+
+Without an Edit menu, Rune's fields saw ⌘V on a Russian layout as ⌘м and
+ignored it, so paste, copy, cut, and select all did nothing until the layout
+was switched to English. The Edit items have no target: the window's view
+answers them (`rune::App::standard_menus` in `rune_ui::build`). No check
+drives AppKit's key-equivalent matching; not yet observed in a running Hex.
 
 ```ts
 General > Launch at login                // maintain.login-item
@@ -1320,8 +1336,17 @@ Hex checks the release service            // maintain.updates
 │   ├── Staged -> checks continue; Restart to update stays offered meanwhile
 │   │   ├── Another release this install takes (update, required) -> download -> replaces the staged one
 │   │   └── Same release, rollout deferred, unconfirmed switch, rollback, failure -> keep the staged one
-│   └── Sidebar Update, menu bar / tray: Restart to update; a dev build lists its
-│       first changes and What's new (https://anoma.ly/hex/dev) under it (updater/notes.rs)
+│   ├── Staged -> notes: <channel>-notes.json beside the manifest (updater/notes.rs),
+│   │   every release from the staged one back to the running one, skipped ones too
+│   │   ├── Update sheet (rune_ui/update_sheet.rs): Hex <version> is ready, each release's
+│   │   │   version, date, and changes, Not now / Restart to update
+│   │   │   ├── Opens once per staged version, after anything else holding the window
+│   │   │   │   (another sheet, the first run, a shortcut recording) closes
+│   │   │   └── macOS window closed -> shown without focus, never while dictation
+│   │   │       captures or transcribes (macos_rune/update_window.rs)   // fork
+│   │   └── Notes missing or unlisted -> the sheet shows only the version
+│   └── Sidebar Update, menu bar / tray: Restart to update; the first changes and
+│       What's new (the release's page) under it
 │       ├── One more check first (manifest within 15 s) -> Checking / Downloading -> newest staged
 │       │   └── A release published after the relaunch -> the next launch's check
 │       └── macOS -> renamex_np swap (also at quit) -> relaunch -> old bundle removed at launch

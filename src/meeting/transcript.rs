@@ -694,6 +694,10 @@ pub(super) struct ChunkModel {
     selection: TranscriptionSelection,
     owned: Option<Transcriber>,
     unavailable: bool,
+    /// Always `selection` in its own model (Labs › Files' own model).
+    fixed: bool,
+    /// Runs read the vocabulary.
+    vocabulary: bool,
 }
 
 enum Chunked {
@@ -710,6 +714,8 @@ impl ChunkModel {
             selection,
             owned: None,
             unavailable: false,
+            fixed: false,
+            vocabulary: true,
         }
     }
 
@@ -724,9 +730,10 @@ impl ChunkModel {
         if speechless(samples) {
             return Ok(Chunked::Done(Transcript::default()));
         }
-        let engine = crate::transcription::engine::TranscriptionEngine::shared();
+        let engine =
+            crate::transcription::engine::TranscriptionEngine::shared().filter(|_| !self.fixed);
         if let Some(engine) = &engine
-            && let Some(result) = Self::transcribe_shared(engine, samples)
+            && let Some(result) = Self::transcribe_shared(engine, samples, self.vocabulary)
         {
             self.owned = None;
             return result;
@@ -761,15 +768,18 @@ impl ChunkModel {
                 return Ok(Chunked::Unavailable(error));
             }
         };
-        model
-            .transcribe_segments(samples.to_vec())
-            .map(Chunked::Done)
+        let samples = samples.to_vec();
+        crate::dictation::vocabulary::heard_if(self.vocabulary, || {
+            model.transcribe_segments(samples)
+        })
+        .map(Chunked::Done)
     }
 
     /// `None` when the engine has no GGUF model loaded.
     fn transcribe_shared(
         engine: &crate::transcription::engine::TranscriptionEngine,
         samples: &[f32],
+        vocabulary: bool,
     ) -> Option<Result<Chunked>> {
         let samples = samples.to_vec();
         enum Shared {
@@ -785,7 +795,9 @@ impl ChunkModel {
             match engine_model(model) {
                 Some(transcriber) => Shared::Ran(
                     crate::transcription::background_priority::at_background_priority(|| {
-                        transcriber.transcribe_segments(samples)
+                        crate::dictation::vocabulary::heard_if(vocabulary, || {
+                            transcriber.transcribe_segments(samples)
+                        })
                     }),
                 ),
                 None => Shared::NoModel,
@@ -1863,6 +1875,40 @@ fn transcribe_file(
     Ok(transcript)
 }
 
+/// Labs › Files: transcribes the 16 kHz mono WAV at `path` as one track in
+/// meeting chunks, yielding to dictation like a meeting. `selection` is a
+/// model of its own; `None` shares dictation's. `progress` hears how many
+/// milliseconds are done; `cancelled` ends it between chunks.
+pub(crate) fn transcribe_wav(
+    path: &Path,
+    selection: Option<TranscriptionSelection>,
+    vocabulary: bool,
+    cancelled: &AtomicBool,
+    progress: &mut dyn FnMut(u64),
+) -> Result<Vec<TranscriptEntry>> {
+    let fixed = selection.is_some();
+    let selection = selection.unwrap_or_else(|| crate::app_settings::transcription_selection().1);
+    let mut model = ChunkModel {
+        fixed,
+        vocabulary,
+        ..ChunkModel::new(selection)
+    };
+    let transcript = transcribe_file(
+        |chunk| {
+            if cancelled.load(Ordering::Acquire) {
+                return Err(eyre!("cancelled"));
+            }
+            let transcript = model.transcribe_blocking(&chunk.samples)?;
+            progress(samples_ms(chunk.start + chunk.samples.len()));
+            Ok(transcript)
+        },
+        path,
+        TrackTranscript::new(MeetingSource::System, 0),
+        &mut EchoEnvelope::default(),
+    )?;
+    Ok(transcript.entries)
+}
+
 /// Debug CLI `hex meeting echo <dir>`: replays a recording's tracks and
 /// reports how many microphone lines echo suppression keeps, before (words
 /// only, one entry per model segment) and after (signal plus words, one
@@ -2032,13 +2078,9 @@ impl LocalTime {
         }
     }
 
+    /// `14:05` where the Mac's region uses a 24-hour clock, else `2:05 PM`.
     pub(super) fn clock(&self) -> String {
-        let hour = match self.hour % 12 {
-            0 => 12,
-            hour => hour,
-        };
-        let period = if self.hour < 12 { "AM" } else { "PM" };
-        format!("{hour}:{:02} {period}", self.minute)
+        super::hour_cycle::clock(self.hour, self.minute)
     }
 
     /// `2026-10-30T14:05:00`, as the Trash records a deletion.

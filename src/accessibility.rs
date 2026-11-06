@@ -22,6 +22,11 @@ unsafe extern "C" {
         attribute: CfStringRef,
         value: CfTypeRef,
     ) -> i32;
+    fn AXUIElementIsAttributeSettable(
+        element: AxUiElementRef,
+        attribute: CfStringRef,
+        settable: *mut u8,
+    ) -> i32;
     fn AXUIElementCopyParameterizedAttributeValue(
         element: AxUiElementRef,
         parameterized_attribute: CfStringRef,
@@ -35,6 +40,18 @@ unsafe extern "C" {
 
 /// `kAXValueTypeCFRange`.
 const AX_VALUE_CF_RANGE: u32 = 4;
+/// `kAXValueTypeCGRect`.
+const AX_VALUE_CG_RECT: u32 = 3;
+
+/// Core Graphics' `CGRect`: origin, then size, in points.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct CgRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
 
 /// Core Foundation's `CFRange`, in UTF-16 code units.
 #[repr(C)]
@@ -70,7 +87,12 @@ unsafe extern "C" {
     fn CFArrayGetCount(array: CfTypeRef) -> isize;
     fn CFArrayGetValueAtIndex(array: CfTypeRef, index: isize) -> CfTypeRef;
     static kCFBooleanTrue: CfTypeRef;
+    fn CFNumberGetTypeID() -> usize;
+    fn CFNumberGetValue(number: CfTypeRef, number_type: isize, value: *mut c_void) -> u8;
 }
+
+/// `kCFNumberSInt64Type`.
+const CF_NUMBER_SINT64: isize = 4;
 
 pub fn focused_window_title(pid: i32) -> Option<String> {
     // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
@@ -233,6 +255,195 @@ pub fn char_before_caret(pid: i32) -> Option<char> {
     })
 }
 
+/// Text selected in an application's focused element, kept so Labs › Add
+/// to vocabulary can put the right spelling in its place.
+pub struct Selection {
+    element: CfObject,
+    /// The application it is in.
+    pub pid: i32,
+    /// What is selected, trimmed.
+    pub text: String,
+    /// Whether the element is text that can be edited: a text field or
+    /// area, or one whose selection or value takes new text. A message
+    /// already sent is neither.
+    pub editable: bool,
+    /// Where the selected text is on screen, `[x, y, width, height]` in
+    /// global top-left points, when the app says.
+    pub bounds: Option<[f64; 4]>,
+    /// The text just before and just after the selection, when the app
+    /// says: which of several dictations it came from.
+    pub around: Option<(String, String)>,
+}
+
+// SAFETY: An AXUIElement is an immutable Core Foundation reference to
+// another process's element; the Accessibility API may be called on it from
+// any thread.
+unsafe impl Send for Selection {}
+
+impl Selection {
+    /// Whether the same element still has the same text selected, so a
+    /// paste replaces exactly it.
+    pub fn still_selected(&self) -> bool {
+        // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
+        let Some(application) = bounded_element(unsafe { AXUIElementCreateApplication(self.pid) })
+        else {
+            return false;
+        };
+        let Some(focused) = copy_element(&application, c"AXFocusedUIElement") else {
+            return false;
+        };
+        // SAFETY: Two live Core Foundation objects.
+        (unsafe { CFEqual(focused.0, self.element.0) } != 0)
+            && copy_string(&focused, c"AXSelectedText").is_some_and(|text| text.trim() == self.text)
+    }
+}
+
+/// The roles of text a person types in.
+const TEXT_ROLES: [&str; 4] = ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"];
+
+/// The text selected in application `pid`'s focused element, through
+/// Accessibility, never the clipboard. Chromium-based apps (Electron
+/// editors, browsers) build that tree only once asked, as `browser_pages`
+/// does. `None` when nothing is selected or the app doesn't say.
+pub fn selection(pid: i32) -> Option<Selection> {
+    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
+    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    request_web_accessibility(pid, &application);
+    let element = copy_element(&application, c"AXFocusedUIElement")?;
+    let text = copy_string(&element, c"AXSelectedText")?;
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let editable = copy_string(&element, c"AXRole")
+        .is_some_and(|role| TEXT_ROLES.contains(&role.as_str()))
+        || settable(&element, c"AXSelectedText")
+        || settable(&element, c"AXValue");
+    let bounds = selection_bounds(&element);
+    let around = text_around_selection(&element);
+    Some(Selection {
+        element,
+        pid,
+        text,
+        editable,
+        bounds,
+        around,
+    })
+}
+
+/// Up to `AROUND` UTF-16 units either side of `element`'s selection.
+fn text_around_selection(element: &CfObject) -> Option<(String, String)> {
+    const AROUND: isize = 300;
+    let selection = copy_range(element, c"AXSelectedTextRange")?;
+    let start = (selection.location - AROUND).max(0);
+    let before = copy_string_for_range(
+        element,
+        CfRange {
+            location: start,
+            length: selection.location - start,
+        },
+    )
+    .unwrap_or_default();
+    let after = copy_string_for_range(
+        element,
+        CfRange {
+            location: selection.location + selection.length,
+            length: AROUND,
+        },
+    )
+    // Past the end, an app may refuse the whole range; ask for less.
+    .or_else(|| {
+        copy_string_for_range(
+            element,
+            CfRange {
+                location: selection.location + selection.length,
+                length: AROUND / 10,
+            },
+        )
+    })
+    .unwrap_or_default();
+    (!before.is_empty() || !after.is_empty()).then_some((before, after))
+}
+
+fn settable(element: &CfObject, name: &CStr) -> bool {
+    cf_string_literal(name)
+        .map(CfObject)
+        .is_some_and(|attribute| {
+            let mut settable = 0_u8;
+            // SAFETY: A live element, a CFString name, and a byte for the Boolean.
+            let status =
+                unsafe { AXUIElementIsAttributeSettable(element.0, attribute.0, &mut settable) };
+            status == 0 && settable != 0
+        })
+}
+
+/// Whether application `pid`'s ⌘X menu item, Edit › Cut found by its
+/// shortcut so any language matches, is enabled: what is selected there
+/// can be edited. `None` when the app has no such item or doesn't say.
+pub fn can_cut(pid: i32) -> Option<bool> {
+    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
+    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    let bar = copy_element(&application, c"AXMenuBar")?;
+    copy_elements(&bar, c"AXChildren")
+        .iter()
+        .flat_map(|menu| copy_elements(menu, c"AXChildren"))
+        .flat_map(|list| copy_elements(&list, c"AXChildren"))
+        .find(|item| {
+            copy_string(item, c"AXMenuItemCmdChar").as_deref() == Some("X")
+                && copy_number(item, c"AXMenuItemCmdModifiers") == Some(0)
+        })
+        .map(|item| {
+            // SAFETY: A live value against the immortal kCFBooleanTrue.
+            copy_attribute(&item, c"AXEnabled")
+                .is_some_and(|enabled| unsafe { CFEqual(enabled.0, kCFBooleanTrue) } != 0)
+        })
+}
+
+fn copy_number(element: &CfObject, name: &CStr) -> Option<i64> {
+    let value = copy_attribute(element, name)?;
+    if unsafe { CFGetTypeID(value.0) } != unsafe { CFNumberGetTypeID() } {
+        return None;
+    }
+    let mut number = 0_i64;
+    // SAFETY: A CFNumber read into an i64 of the requested type.
+    (unsafe { CFNumberGetValue(value.0, CF_NUMBER_SINT64, (&mut number as *mut i64).cast()) } != 0)
+        .then_some(number)
+}
+
+/// The selected range's rectangle (`AXBoundsForRange`). Apps that answer
+/// with nothing useful (an empty or screen-sized rectangle) count as silent.
+fn selection_bounds(element: &CfObject) -> Option<[f64; 4]> {
+    let range = copy_range(element, c"AXSelectedTextRange")?;
+    // SAFETY: AXValueCreate copies the CFRange and returns a retained object.
+    let parameter = unsafe { AXValueCreate(AX_VALUE_CF_RANGE, (&range as *const CfRange).cast()) };
+    if parameter.is_null() {
+        return None;
+    }
+    let parameter = CfObject(parameter);
+    let attribute = CfObject(cf_string_literal(c"AXBoundsForRange")?);
+    let mut value = ptr::null();
+    let status = unsafe {
+        AXUIElementCopyParameterizedAttributeValue(element.0, attribute.0, parameter.0, &mut value)
+    };
+    if status != 0 || value.is_null() {
+        return None;
+    }
+    let value = CfObject(value);
+    if unsafe { CFGetTypeID(value.0) } != unsafe { AXValueGetTypeID() } {
+        return None;
+    }
+    let mut rect = CgRect::default();
+    // SAFETY: `value` is an AXValue and `rect` has CGRect's layout.
+    let read =
+        unsafe { AXValueGetValue(value.0, AX_VALUE_CG_RECT, (&mut rect as *mut CgRect).cast()) };
+    (read && rect.height > 0.0 && rect.height < 600.0 && rect.width < 4000.0).then_some([
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+    ])
+}
+
 fn copy_range(element: &CfObject, name: &CStr) -> Option<CfRange> {
     let value = copy_attribute(element, name)?;
     if unsafe { CFGetTypeID(value.0) } != unsafe { AXValueGetTypeID() } {
@@ -357,5 +568,6 @@ mod tests {
         assert_eq!(focused_window_title(i32::MAX), None);
         assert_eq!(focused_web_url(i32::MAX), None);
         assert_eq!(char_before_caret(i32::MAX), None);
+        assert!(selection(i32::MAX).is_none());
     }
 }

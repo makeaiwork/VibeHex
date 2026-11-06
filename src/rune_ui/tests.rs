@@ -59,10 +59,40 @@ fn texts(rt: &Runtime<Ui>) -> Vec<String> {
 
 /// Presses an element by key and lets every animation settle.
 fn tap(rt: &mut Runtime<Ui>, key: &str) {
+    scroll_to(rt, key);
     let (x, y) = rt.find(key).unwrap_or_else(|| panic!("no element {key}"));
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
     settle(rt);
+}
+
+/// Wheels the pane's scroll until `key`'s centre is inside it, as a person
+/// would before pressing a row below the window's edge (Labs is taller than
+/// most test windows). Anything outside the pane's scroll is left alone.
+fn scroll_to(rt: &mut Runtime<Ui>, key: &str) {
+    let inside = rt
+        .elements()
+        .into_iter()
+        .any(|e| e.key.as_deref() == Some(key) && e.path.contains("/scroll/"));
+    if !inside {
+        return;
+    }
+    for _ in 0..200 {
+        let (Some((_, y)), Some((view, _))) = (rt.find(key), rt.presented("scroll")) else {
+            return;
+        };
+        let (top, bottom) = (view[1], view[1] + view[3]);
+        if y > top && y < bottom {
+            return;
+        }
+        // A negative delta moves content up, bringing what's below into view.
+        let dy = if y >= bottom { -40.0 } else { 40.0 };
+        rt.wheel(view[0] + view[2] / 2.0, top + view[3] / 2.0, dy);
+        rt.frame(1.0 / 60.0);
+        if rt.find(key).is_some_and(|(_, after)| after == y) {
+            return;
+        }
+    }
 }
 
 /// Chooses option `index` from the quiet select keyed `{key}-control`.
@@ -657,8 +687,9 @@ fn flush(rt: &mut Runtime<Ui>) {
 /// A shown window keeps drawing while its runtime animates, has input queued
 /// or has live values pending (Rune's `Host::redraw`). Five seconds after
 /// mounting, with nothing changing, the only motion left in any scene is the
-/// pulsing dot of something live, Output's turning spark, or the
-/// shortcut explainer's looping demo, and under Reduce Motion, which stills
+/// pulsing dot of something live, Output's turning spark, the
+/// shortcut explainer's looping demo, or a running Files job's rings, and
+/// under Reduce Motion, which stills
 /// them all, no scene asks for another frame.
 #[test]
 fn every_scene_stops_asking_for_frames() {
@@ -672,7 +703,8 @@ fn every_scene_stops_asking_for_frames() {
         for _ in 0..150 {
             rt.frame(1.0 / 30.0);
         }
-        if *scene != "shortcut-mode-motion" {
+        // A running Files job turns its rings for as long as it runs.
+        if !matches!(*scene, "shortcut-mode-motion" | "files-working") {
             moving.extend(
                 rt.elements()
                     .into_iter()
@@ -1955,8 +1987,11 @@ fn the_sidebar_moves_with_arrows_and_command_numbers() {
         Key::Command(char::from(b'0' + main.len() as u8)),
         command,
     );
+    assert_eq!(rt.state.pane, last);
     key(&mut rt, Key::Down, Mods::default());
-    assert_eq!(rt.state.pane, last, "Down stops at the last pane");
+    assert_eq!(rt.state.pane, Pane::About, "About follows Labs");
+    key(&mut rt, Key::Down, Mods::default());
+    assert_eq!(rt.state.pane, Pane::About, "Down stops at the last pane");
 }
 
 #[test]
@@ -2439,6 +2474,7 @@ fn goldens() {
     for dark in [true, false] {
         check_golden("portal", dark, GOLDEN_SIZE);
         for scene in [
+            "about",
             "history",
             "mac-labs-link",
             "output",

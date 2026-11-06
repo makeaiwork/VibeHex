@@ -58,6 +58,7 @@ use crate::transcription::preparation::TranscriptionPreparation;
 
 mod control;
 pub(crate) mod status_item;
+mod update_window;
 
 #[cfg(test)]
 mod tests;
@@ -118,10 +119,10 @@ pub(crate) enum ShortcutTarget {
     RawDictation,
     /// Labs › Second dictation shortcut.
     SecondDictation,
+    VocabularyAdd, // Labs › Add to vocabulary from a selection.
     /// Toggle mode's cancel shortcut.
     Cancel,
-    /// Labs › Stop shortcut: finishes a shortcut's recording.
-    Stop,
+    Stop, // Labs › Stop shortcut: finishes a shortcut's recording.
 }
 
 /// What the runtime last published for the window and the menu bar.
@@ -270,9 +271,8 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|error| error.into_inner())
 }
 
-/// Asks a running 2.3.1 or Swift Hex to quit once this Hex is ready to
-/// listen, so the two never answer the same shortcut. The old app stays
-/// installed.
+/// Asks a running 2.3.1 or Swift Hex to quit once this Hex is ready to listen,
+/// so the two never answer the same shortcut. The old app stays installed.
 fn quit_legacy_hex() {
     objc2::rc::autoreleasepool(|_| {
         for bundle_id in crate::desktop::onboarding::LEGACY_MAC_BUNDLE_IDS {
@@ -309,6 +309,9 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
     crate::keyboard::initialize_layout()?;
     crate::updater::finish_on_launch();
     let _ = UPDATER.set(crate::updater::Updater::start());
+    // Labs › Clean up on your own server › Built in: warms the model on a
+    // dictation's press and unloads it when idle.
+    crate::dictation::cleanup_server::engine::start_watcher();
     // Never a silent launch failure: unreadable settings start with defaults
     // and the window says why (#744).
     let (mut settings, settings_error) = AppSettings::load_for_launch();
@@ -502,6 +505,16 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
     };
     let hud = crate::rune_hud::install(&mut app);
     crate::rune_ui::live_text::install(&mut app, crate::rune_hud::live_text_place);
+    crate::rune_ui::cleanup_plate::install(&mut app, crate::rune_hud::live_text_place);
+    // Labs › Add to vocabulary from a selection.
+    crate::rune_ui::vocabulary_card::install(&mut app, {
+        let runtime = handle.clone();
+        Arc::new(move |term, heard| {
+            crate::rune_ui::vocabulary_card::save_word(&term, &heard, || {
+                let _ = runtime.send(Request::ReloadSettings);
+            })
+        })
+    });
     // The capture capsule, picker, and ink.
     #[cfg(hex_capture)]
     let capture_overlays =
@@ -524,6 +537,7 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
         meeting_menu_at: Instant::now(),
         model_menu_at: Instant::now(),
         show_dock_icon: settings.show_dock_icon,
+        announced_update: None,
     };
     // Quit ends the loop and finishes below; AppKit's own terminate (the quit
     // Apple event, logout) would `exit` from inside it, so its
@@ -536,6 +550,7 @@ pub fn run(shutdown: &'static AtomicBool, listener: ListenerConfig) -> Result<()
         }
         drop(requests);
         local_api.shutdown();
+        crate::dictation::cleanup_server::engine::stop();
         // The listener owns the transcription engine; joining it frees the
         // model after its last use.
         for (name, worker) in [
@@ -841,6 +856,8 @@ struct Pump {
     meeting_menu_at: Instant,
     model_menu_at: Instant,
     show_dock_icon: bool,
+    /// The staged update the window was last brought up for.
+    announced_update: Option<String>,
 }
 
 struct PumpState {
@@ -879,9 +896,8 @@ fn observe_termination(target: &MenuTarget) {
     }
 }
 
-/// Starts the main-thread setup after `seconds` if the window's first frame
-/// hasn't by then, so a window that never draws (no GPU, displays asleep)
-/// still leaves a status item.
+/// Starts the main-thread setup after `seconds` if the window's first frame hasn't
+/// by then, so a window that never draws (no GPU, displays asleep) still leaves a status item.
 fn start_main_thread_after(seconds: f64) {
     let block = RcBlock::new(|_: std::ptr::NonNull<NSTimer>| start_main_thread());
     // SAFETY: the timer runs its block on this (main) thread's run loop.
@@ -1063,6 +1079,7 @@ impl Pump {
                 crate::app_settings::meetings_enabled(),
             );
             crate::macos_rune::status_item::update_software(&update_status());
+            update_window::announce(&self.window, &mut self.announced_update);
             self.meeting_menu_at = now + MEETING_MENU_REFRESH;
         }
     }
@@ -1364,9 +1381,13 @@ fn with_window(f: impl FnOnce(&rune::AppHandle<Ui>)) {
     }
 }
 
-/// The menu bar while the window is active: Hex, File, View (with the
-/// Labs), Window.
-/// Rune draws no Edit menu items, so ⌘C/⌘V reach its text fields as keys.
+/// The menu bar while the window is active: Hex, File, Edit, View (with
+/// the Labs), Window.
+/// Edit's items have no target: the window's view answers them (Rune's
+/// `standard_menus`, see `rune_ui::build`) by handing its field the
+/// ⌘-key itself. AppKit matches a menu's key equivalents under any layout,
+/// so ⌘C/⌘V work with a Cyrillic layout, where the key alone reads as
+/// ⌘с/⌘м and Rune's fields would ignore it.
 fn install_main_menu(target: &MenuTarget, mtm: MainThreadMarker) {
     let main = NSMenu::new(mtm);
     let name = crate::app_paths::app_name();
@@ -1390,6 +1411,7 @@ fn install_main_menu(target: &MenuTarget, mtm: MainThreadMarker) {
             vec![Some(("Close Window", sel!(closeWindow:), "w"))],
         ),
     ];
+    let edit_menu = edit_menu(mtm);
     // Rune's own View › Playground item, which this menu bar replaces. A
     // capital letter adds Shift: ⇧⌘D. It opens the playground only while
     // Labs › Playground is on.
@@ -1414,8 +1436,47 @@ fn install_main_menu(target: &MenuTarget, mtm: MainThreadMarker) {
         let heading = NSMenuItem::new(mtm);
         heading.setSubmenu(Some(&menu));
         main.addItem(&heading);
+        if title == "File" {
+            let heading = NSMenuItem::new(mtm);
+            heading.setSubmenu(Some(&edit_menu));
+            main.addItem(&heading);
+        }
     }
     NSApplication::sharedApplication(mtm).setMainMenu(Some(&main));
+}
+
+/// Undo, Redo, Cut, Copy, Paste, and Select All for the focused text
+/// field, sent to the first responder. A capital letter adds Shift.
+fn edit_menu(mtm: MainThreadMarker) -> Retained<NSMenu> {
+    let menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str("Edit"));
+    let items = [
+        Some(("Undo", sel!(undo:), "z")),
+        Some(("Redo", sel!(redo:), "Z")),
+        None,
+        Some(("Cut", sel!(cut:), "x")),
+        Some(("Copy", sel!(copy:), "c")),
+        Some(("Paste", sel!(paste:), "v")),
+        Some(("Select All", sel!(selectAll:), "a")),
+    ];
+    for item in items {
+        let Some((title, action, key)) = item else {
+            menu.addItem(&NSMenuItem::separatorItem(mtm));
+            continue;
+        };
+        // SAFETY: a plain menu item with no target: AppKit sends its action
+        // along the responder chain to the window's view.
+        let entry = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &NSString::from_str(title),
+                Some(action),
+                &NSString::from_str(key),
+            )
+        };
+        entry.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
+        menu.addItem(&entry);
+    }
+    menu
 }
 
 fn menu_item(

@@ -395,6 +395,68 @@ impl Paster {
     }
 }
 
+/// The frontmost app's selected text, copied with ⌘C, for Labs › Add to
+/// vocabulary where Accessibility can't read the selection. The clipboard
+/// is put back as it was; `None` when the copy didn't change it within
+/// `wait` or held no text.
+pub fn copy_selection(wait: Duration) -> Option<String> {
+    let clipboard = NSPasteboard::generalPasteboard();
+    let before = clipboard.changeCount();
+    let previous = match capture_clipboard(&clipboard) {
+        Ok(previous) => previous,
+        Err(error) => {
+            tracing::debug!(%error, "couldn't keep the clipboard to copy a selection");
+            return None;
+        }
+    };
+    if let Err(error) = keyboard::post_command('c') {
+        tracing::debug!(%error, "couldn't copy the selection");
+        return None;
+    }
+    let deadline = Instant::now() + wait;
+    while clipboard.changeCount() == before && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    if clipboard.changeCount() == before {
+        return None;
+    }
+    let text = clipboard
+        .stringForType(unsafe { NSPasteboardTypeString })
+        .map(|text| text.to_string());
+    if let Err(error) = restore_clipboard(&clipboard, &previous) {
+        tracing::warn!(%error, "could not restore the clipboard after copying a selection");
+    }
+    text.map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+}
+
+/// Puts `text` in place of the frontmost app's selection with ⌘V (typed
+/// into a Chromium 155 or 156 app instead), for Labs › Add to vocabulary.
+/// The clipboard is put back once the app has read it, unless something
+/// newer has replaced it since.
+pub fn paste_over_selection(text: &str) -> Result<()> {
+    if crate::dictation::context::frontmost_bundle_path()
+        .is_some_and(|bundle| has_clipboard_race(&bundle))
+    {
+        return keyboard::type_text(text);
+    }
+    let clipboard = NSPasteboard::generalPasteboard();
+    let previous = capture_clipboard(&clipboard)?;
+    write_clipboard_text(&clipboard, text, true)?;
+    let staged = clipboard.changeCount();
+    let pasted = keyboard::post_command('v');
+    thread::sleep(PASTE_SETTLE);
+    if clipboard.changeCount() == staged
+        && let Err(error) = restore_clipboard(&clipboard, &previous)
+    {
+        tracing::warn!(%error, "could not restore the clipboard after replacing a selection");
+    }
+    pasted
+}
+
+/// How long an app takes to read a pasted clipboard.
+const PASTE_SETTLE: Duration = Duration::from_millis(500);
+
 pub(crate) fn commit_prepared_paste<P, T>(
     prepare: impl FnOnce() -> Result<P>,
     commit: impl FnOnce() -> bool,

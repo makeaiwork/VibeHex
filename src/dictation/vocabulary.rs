@@ -122,6 +122,17 @@ static FOCUS: OnceLock<RwLock<Option<ContextSnapshot>>> = OnceLock::new();
 
 thread_local! {
     static DICTATING: Cell<bool> = const { Cell::new(false) };
+    /// Transcription on this thread reads no vocabulary (`heard_if`).
+    static WITHOUT: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Runs `run` with transcription on this thread reading the vocabulary
+/// only when `heard`, as Labs › Files does with Use vocabulary off.
+pub(crate) fn heard_if<T>(heard: bool, run: impl FnOnce() -> T) -> T {
+    let was = WITHOUT.replace(!heard);
+    let result = run();
+    WITHOUT.set(was);
+    result
 }
 
 /// Records the focused app and page, so the next dictation's transcription
@@ -150,6 +161,9 @@ pub(crate) fn for_dictation<R>(work: impl FnOnce() -> R) -> R {
 /// The focused mode's own terms first, so the bias cap keeps them, then the
 /// shared list, each term once.
 fn transcription_entries() -> Vec<VocabularyEntry> {
+    if WITHOUT.with(Cell::get) {
+        return Vec::new();
+    }
     let shared = entries();
     if !DICTATING.with(Cell::get) {
         return shared;
@@ -324,9 +338,9 @@ pub fn parse_sounds_like(raw: &str) -> Vec<String> {
         .collect()
 }
 
-/// A pasted list (Labs › Paste vocabulary as a list), one term per line as
+/// The list as text (Labs › Vocabulary text view), one term per line as
 /// `Term | sounds like, sounds like`; a tab works like `|`, and blank lines
-/// and lines starting with `#` are skipped.
+/// and lines starting with `#` are skipped. [`to_list`] writes it.
 pub fn parse_list(text: &str) -> Vec<(String, Vec<String>)> {
     text.lines()
         .map(str::trim)
@@ -340,6 +354,22 @@ pub fn parse_list(text: &str) -> Vec<(String, Vec<String>)> {
             (!term.is_empty()).then(|| (term, parse_sounds_like(spellings)))
         })
         .collect()
+}
+
+/// `entries` as [`parse_list`] reads them back: one term per line, its
+/// spellings after ` | `, ending with a newline so typing at the end starts
+/// a new term.
+pub fn to_list(entries: &[VocabularyEntry]) -> String {
+    let mut text = String::new();
+    for entry in entries {
+        text.push_str(&entry.term);
+        if !entry.sounds_like.is_empty() {
+            text.push_str(" | ");
+            text.push_str(&entry.sounds_like.join(", "));
+        }
+        text.push('\n');
+    }
+    text
 }
 
 fn clean(text: &str) -> String {
@@ -679,6 +709,28 @@ mod tests {
                 ("Cursor".into(), vec![]),
             ]
         );
+    }
+
+    #[test]
+    fn a_list_written_as_text_reads_back_the_same() {
+        let entries = vec![
+            VocabularyEntry {
+                term: "Claude Code".into(),
+                sounds_like: vec!["клод код".into(), "клот код".into()],
+            },
+            VocabularyEntry {
+                term: "Cursor".into(),
+                sounds_like: Vec::new(),
+            },
+        ];
+        let text = to_list(&entries);
+        assert_eq!(text, "Claude Code | клод код, клот код\nCursor\n");
+        let read: Vec<VocabularyEntry> = parse_list(&text)
+            .into_iter()
+            .map(|(term, sounds_like)| VocabularyEntry { term, sounds_like })
+            .collect();
+        assert_eq!(read, entries);
+        assert_eq!(to_list(&[]), "");
     }
 
     /// The starter list in docs stays pasteable: every line fits the limits,

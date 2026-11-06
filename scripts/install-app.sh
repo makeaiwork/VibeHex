@@ -29,16 +29,20 @@ stop_bundle() {
 mkdir -p "$install_dir"
 if [ -e "$installed_bundle" ] || [ -L "$installed_bundle" ]; then
   existing_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$installed_bundle/Contents/Info.plist" 2>/dev/null || true)
-  # The Kit-signed com.kitlangton.hex2 build is the same Rust app under its old identity.
   case "$existing_id" in
-    anomaly.hex | com.kitlangton.hex2) ;;
+    ai.makeaiwork.vibehex | ai.makeaiwork.vibehex2) ;;
     *)
-      echo "Refusing to replace $installed_bundle: it is not the Rust Hex app. Install the new app manually." >&2
+      echo "Refusing to replace $installed_bundle: it is not VibeHex. Install the new app manually." >&2
       exit 1
       ;;
   esac
 fi
 stop_bundle "$installed_bundle"
+# Hex (anomaly.hex) and the other VibeHex share this one's data folder and
+# its single-instance lock, so a running one stops first; it stays installed.
+for sibling in Hex.app VibeHex.app "VibeHex 2.app"; do
+  stop_bundle "$install_dir/$sibling"
+done
 rm -rf "$installed_bundle"
 /usr/bin/ditto "$source_bundle" "$installed_bundle"
 /usr/bin/open "$installed_bundle"

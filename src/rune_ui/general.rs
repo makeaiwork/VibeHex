@@ -97,8 +97,7 @@ fn basics(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
                 Some(tr("Dictates like the shortcut above")),
             ));
         }
-        // Labs › Stop shortcut (macOS): another key, Return by default,
-        // finishes and pastes what a shortcut started recording.
+        // Labs › Stop shortcut (macOS): another key finishes what a shortcut started.
         #[cfg(target_os = "macos")]
         if crate::labs::Feature::StopShortcut.on(&ui.settings) {
             rows.extend(shortcut_rows(
@@ -263,7 +262,12 @@ pub(super) fn shortcut_rows(
     let second = target == ShortcutTarget::SecondDictation;
     #[cfg(not(target_os = "macos"))]
     let second = false;
+    #[cfg(target_os = "macos")]
+    let vocabulary = target == ShortcutTarget::VocabularyAdd;
+    #[cfg(not(target_os = "macos"))]
+    let vocabulary = false;
     let optional = second
+        || vocabulary
         || matches!(
             target,
             ShortcutTarget::PasteLast | ShortcutTarget::RawDictation
@@ -278,6 +282,7 @@ pub(super) fn shortcut_rows(
                 ui.update(|settings| match target {
                     ShortcutTarget::RawDictation => settings.raw_dictation_hotkey = None,
                     _ if second => settings.second_dictation_hotkey = None,
+                    _ if vocabulary => settings.vocabulary_add_hotkey = None,
                     _ => settings.paste_last_hotkey = None,
                 });
             },
@@ -287,16 +292,16 @@ pub(super) fn shortcut_rows(
     // offered while the shortcut is something else or off. Cancel's
     // default, Escape, can't be recorded (Escape ends the recorder), so its
     // restore is always offered.
+    use crate::app_settings::HotkeyBinding;
     let mut default_note = None;
+    let restore = crate::labs::Feature::RestoreShortcutDefault.on(&ui.settings);
     let default = match target {
-        ShortcutTarget::PasteLast
-            if crate::labs::Feature::RestoreShortcutDefault.on(&ui.settings) =>
-        {
-            Some(crate::app_settings::HotkeyBinding::paste_last_default())
-        }
-        ShortcutTarget::Cancel => Some(crate::app_settings::HotkeyBinding::cancel_default()),
+        ShortcutTarget::PasteLast if restore => Some(HotkeyBinding::paste_last_default()),
+        ShortcutTarget::Cancel => Some(HotkeyBinding::cancel_default()),
         #[cfg(target_os = "macos")]
-        ShortcutTarget::Stop => Some(crate::app_settings::HotkeyBinding::stop_default()),
+        ShortcutTarget::VocabularyAdd => HotkeyBinding::vocabulary_add_default(),
+        #[cfg(target_os = "macos")]
+        ShortcutTarget::Stop => Some(HotkeyBinding::stop_default()),
         _ => None,
     };
     if let Some(default) = default {
@@ -925,6 +930,21 @@ fn output(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<CardRow> {
             ShortcutTarget::PasteLast,
             None,
         ));
+        // Labs › Add to vocabulary from a selection (macOS).
+        #[cfg(target_os = "macos")]
+        if crate::labs::Feature::VocabularyQuickAdd.on(&ui.settings) {
+            rows.extend(shortcut_rows(
+                ui,
+                p,
+                "vocabulary-add",
+                &BOOK,
+                tr("Add selection to vocabulary"),
+                ShortcutTarget::VocabularyAdd,
+                Some(tr(
+                    "Select a misheard word anywhere, then press this shortcut",
+                )),
+            ));
+        }
     }
     let behaviors = RecordingAudioBehavior::ALL;
     rows.push(pick_row(

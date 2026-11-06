@@ -9,13 +9,18 @@
 //! shows. Everything is drawn with `rune-kit`'s components in OpenCode's
 //! design language (`rune-theme-opencode`); see `docs/design-system.md`.
 
+mod about;
 mod activity;
+mod brand;
 #[cfg(hex_capture)]
 pub(crate) mod capture_capsule;
+#[cfg(target_os = "macos")]
+pub(crate) mod cleanup_plate;
 mod controls;
 #[cfg(target_os = "macos")]
 pub(crate) mod deep_link;
 mod explainer;
+mod files;
 mod found;
 mod found_choice;
 mod fun;
@@ -61,7 +66,10 @@ mod sound_sets;
 mod spark;
 #[cfg(target_os = "macos")]
 pub(crate) mod story_link;
+mod update_sheet;
 mod vocabulary;
+#[cfg(target_os = "macos")]
+pub(crate) mod vocabulary_card;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -82,7 +90,7 @@ use host::{Backend, Request, ShortcutTarget};
 use onboarding_kit::live::Page;
 use scenes::{SCENES, Scene, fixture, mac_fixture, portal_fixture};
 use settings::Capture;
-use sidebar::{BuildKind, Pane, sidebar, title_bar};
+use sidebar::{BuildKind, Pane, pane_header, sidebar};
 
 /// How long typing pauses before a text field's edit is saved.
 const DRAFT_DELAY: Duration = Duration::from_millis(250);
@@ -167,9 +175,8 @@ pub(crate) fn run_app(
     }
 }
 
-/// The window as a Rune app whose lifetime the caller chooses, connected to
-/// its host through `connect`, with the playground that Labs › Playground
-/// opens.
+/// The window as a Rune app whose lifetime the caller chooses, connected to its
+/// host through `connect`, with the playground that Labs › Playground opens.
 pub(crate) fn app(connect: host::Connect) -> rune::App<Ui> {
     onboarding_kit::set_live_window(true);
     let app = build(move || Ui::load_with(connect), PlaygroundMode::Gated);
@@ -312,6 +319,11 @@ fn build(init: impl FnOnce() -> Ui + 'static, playground: PlaygroundMode) -> run
     // alone reaches the recorder, which says Linux needs a key with it.
     #[cfg(target_os = "linux")]
     let app = app.modifier_keys();
+    // The window's view answers `macos_rune`'s Edit menu (cut:, copy:, paste:,
+    // selectAll:, undo:, redo:), which AppKit matches under any layout, so ⌘V
+    // pastes with a Russian or Greek layout too, where the key reads as ⌘м.
+    #[cfg(target_os = "macos")]
+    let app = app.standard_menus();
     let app = match playground {
         PlaygroundMode::None => app,
         PlaygroundMode::Attached => playground::attach(app),
@@ -393,6 +405,7 @@ pub(crate) fn show(ui: &mut Ui, destination: Destination, tx: &mut Tx) {
     explainer::close(ui);
     sound_sets::close(ui);
     vocabulary::close(ui);
+    update_sheet::close(ui);
     if pane.shown(ui) {
         ui.select_pane(pane, tx);
     }
@@ -460,6 +473,10 @@ pub(crate) fn shortcut_rule(
         // meets the dictation shortcut's rules.
         #[cfg(not(target_os = "macos"))]
         HotkeySlot::SecondDictation => ShortcutTarget::Dictation,
+        #[cfg(target_os = "macos")]
+        HotkeySlot::VocabularyAdd => ShortcutTarget::VocabularyAdd,
+        #[cfg(not(target_os = "macos"))] // macOS's only; a key, as Paste Last.
+        HotkeySlot::VocabularyAdd => ShortcutTarget::PasteLast,
         #[cfg(target_os = "macos")]
         HotkeySlot::Stop => ShortcutTarget::Stop,
         // Labs › Stop shortcut is macOS's; elsewhere a saved one meets the
@@ -669,6 +686,9 @@ pub(crate) struct Ui {
     labs_open: bool,
     /// The Labs row a link just opened, pulsing until it is cleared.
     lab_flash: Option<(crate::labs::Feature, Instant)>,
+    lab_search: TextEdit, // The Labs page's search field.
+    /// The Labs page lists only the starred features VibeHex added.
+    lab_vibehex_only: bool,
     /// A scene previewing the badge of a build kind this binary is not.
     build_preview: Option<BuildKind>,
     capture: Capture,
@@ -687,6 +707,7 @@ pub(crate) struct Ui {
     found: found::FoundState,
     explainer: explainer::Explainer,
     sound_sets: sound_sets::SoundSets,
+    update_sheet: update_sheet::UpdateSheet,
     tour: Option<onboarding::Tour>,
     /// The new first run over the tour (Labs).
     first_run: Option<onboarding_kit::Onboard>,
@@ -694,6 +715,7 @@ pub(crate) struct Ui {
     platform: platform::PlatformState,
     host: platform::PlatformHost,
     meetings: meetings::MeetingsPane,
+    files: files::FilesPane,
     fun: fun::FunPane,
     activity: activity::ActivityPane,
     /// HUD Lab's preset was copied since it last changed.
@@ -778,6 +800,8 @@ impl Ui {
             advanced: Vec::new(),
             labs_open: false,
             lab_flash: None,
+            lab_search: TextEdit::default(),
+            lab_vibehex_only: false,
             build_preview: None,
             capture: Capture::Idle,
             vocabulary,
@@ -792,11 +816,13 @@ impl Ui {
             found: found::FoundState::default(),
             explainer: explainer::Explainer::default(),
             sound_sets: sound_sets::SoundSets::default(),
+            update_sheet: update_sheet::UpdateSheet::default(),
             tour: None,
             first_run: None,
             platform: platform::PlatformState::new(platform::Capabilities::current()),
             host: platform::PlatformHost::Local(Default::default()),
             meetings: meetings::MeetingsPane::default(),
+            files: files::FilesPane::default(),
             fun: fun::FunPane::default(),
             activity: activity::ActivityPane::default(),
             hud_copied: false,
@@ -834,7 +860,20 @@ impl Ui {
     fn update(&mut self, change: impl FnOnce(&mut AppSettings)) -> bool {
         let mut candidate = self.drafted();
         change(&mut candidate);
-        self.commit(candidate)
+        if !self.commit(candidate) {
+            return false;
+        }
+        // A change an editor didn't make (vibe coding's vocabulary, Global's
+        // fixes) reaches it too, or its next draft save would write it back.
+        if self.vocabulary.project() != self.settings.vocabulary {
+            self.vocabulary.reload(&self.settings.vocabulary);
+        }
+        let mut projected = self.settings.clone();
+        self.modes.project(&mut projected);
+        if projected.dictation_processing != self.settings.dictation_processing {
+            self.modes.reload(&self.settings);
+        }
+        true
     }
 
     fn commit(&mut self, candidate: AppSettings) -> bool {
@@ -1148,7 +1187,7 @@ fn on_key(ui: &mut Ui, event: &rune::KeyEvent, tx: &mut Tx) -> bool {
         sound_sets::close(ui);
         true
     } else if ui.vocabulary.open {
-        vocabulary::close(ui);
+        vocabulary::dismiss(ui);
         true
     } else if ui.picker.open {
         picker::close(ui);
@@ -1229,6 +1268,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
             && ui.window.as_ref().is_some_and(rune::AppHandle::is_visible),
     );
     changed |= ui.history.poll(ui.pane == Pane::History);
+    changed |= files::poll(ui);
     if ui.pane == Pane::Output && !ui.labs_open {
         changed |= output::poll(ui, clock, tx);
     }
@@ -1301,6 +1341,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
             ui.view = view;
             changed = true;
         }
+        changed |= update_sheet::follow(ui);
         if let Some(settings) = settings {
             changed |= ui.adopt(settings);
             // A pane the adopted settings hide (the Hex Microphone turned
@@ -1343,15 +1384,20 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
     let (actions, body) = match ui.pane {
         _ if ui.labs_open => (Vec::new(), labs::page(ui, p)),
         Pane::General => (Vec::new(), general::pane(ui, p, &mut layer)),
-        Pane::Output => (Vec::new(), output::pane(ui, p, cx.is_reduced_motion())),
+        Pane::Output => (
+            Vec::new(),
+            output::pane(ui, p, cx.is_reduced_motion(), &mut layer),
+        ),
         Pane::Modes => modes::pane(ui, p, &mut layer),
         Pane::History => history::pane(ui, p, &mut layer),
         Pane::Meetings => meetings::pane(ui, p, &mut layer),
+        Pane::Files => files::pane(ui, p, &mut layer),
         #[cfg(hex_capture)]
         Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, &mut layer)),
         Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
         Pane::HudLab => hud_lab::pane(ui, p),
         Pane::Activity => activity::pane(ui, p),
+        Pane::About => (Vec::new(), about::pane(ui, p)),
     };
     let panel = col()
         .key("panel")
@@ -1373,9 +1419,12 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
             } else {
                 ui.pane.title()
             },
-            (ui.pane == Pane::Meetings && !ui.labs_open)
-                .then(|| meetings::view_switch(ui, p))
-                .flatten(),
+            match ui.pane {
+                _ if ui.labs_open => None,
+                Pane::Meetings => meetings::view_switch(ui, p),
+                Pane::Files => files::view_switch(ui, p),
+                _ => None,
+            },
             actions,
         ))
         .child(body);
@@ -1386,18 +1435,14 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .hover_motion_within(Anim::INSTANT, Anim::INSTANT)
         .child(sidebar(ui, p))
         .child(panel);
-    if let Some(modal) = picker::modal(ui, p) {
-        layer.extend(modal);
-    }
-    if let Some(modal) = explainer::modal(ui, cx, p) {
-        layer.extend(modal);
-    }
-    if let Some(modal) = sound_sets::modal(ui, p) {
-        layer.extend(modal);
-    }
-    if let Some(modal) = vocabulary::modal(ui, p) {
-        layer.extend(modal);
-    }
+    let modals = [
+        picker::modal(ui, p),
+        explainer::modal(ui, cx, p),
+        sound_sets::modal(ui, p),
+        vocabulary::modal(ui, p),
+        update_sheet::modal(ui, p),
+    ];
+    layer.extend(modals.into_iter().flatten().flatten());
     if let Some(first_run) = onboarding_kit::live::overlay(ui, p, cx.is_reduced_motion()) {
         layer.push(first_run);
     }
@@ -1417,28 +1462,6 @@ fn window_focused(ui: &mut Ui, focused: bool, tx: &mut Tx) {
             platform::ScrawlRequest::Refresh,
         ));
     }
-}
-
-/// The title bar of the content panel: the title, a view switch that stays
-/// beside it, and the pane's actions on the right.
-fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Vec<El>) -> El {
-    title_bar(row())
-        .key("pane-header")
-        .h(52.0)
-        .px(METRICS.gutter)
-        .gap(8.0)
-        .center_y()
-        .child(
-            text(title)
-                .key("pane-title")
-                .font(p.k.ty.body_medium)
-                .color(p.text())
-                .shrink()
-                .truncate(),
-        )
-        .children(switch.map(|switch| switch.ml(8.0)))
-        .child(el().key("header-spacer").grow(1.0))
-        .children(actions)
 }
 
 /// How far a scroll body's top and bottom edges fade out.

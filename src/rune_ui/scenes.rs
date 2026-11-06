@@ -76,6 +76,10 @@ pub(super) const SCENES: &[Scene] = &[
         ui.history = history::HistoryPane::fixture();
         ui.pane = Pane::History;
     }),
+    ("about", |ui| {
+        *ui = mac_fixture();
+        ui.pane = Pane::About;
+    }),
     ("history-empty", |ui| {
         *ui = portal_fixture();
         ui.history = history::HistoryPane::fixture_empty();
@@ -101,6 +105,12 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = portal_fixture();
         output::fixture(ui);
         output::ai_cleanup_fixture(ui);
+        ui.pane = Pane::Output;
+    }),
+    ("output-ai-cleanup-local", |ui| {
+        *ui = portal_fixture();
+        output::fixture(ui);
+        output::ai_cleanup_local_fixture(ui);
         ui.pane = Pane::Output;
     }),
     ("output-empty", |ui| {
@@ -379,10 +389,10 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = mac_fixture();
         vocabulary::fixture(ui, true);
     }),
-    ("mac-settings-vocabulary-paste", |ui| {
+    ("mac-settings-vocabulary-text", |ui| {
         *ui = mac_fixture();
         vocabulary::fixture(ui, true);
-        vocabulary::paste_fixture(ui);
+        vocabulary::text_fixture(ui);
     }),
     ("mac-settings-vocabulary-empty", |ui| {
         *ui = mac_fixture();
@@ -447,6 +457,10 @@ pub(super) const SCENES: &[Scene] = &[
             view.update_status = DesktopUpdateStatus::ReadyToRestart;
         }
     }),
+    ("mac-update-sheet", |ui| {
+        *ui = mac_fixture();
+        super::update_sheet::fixture(ui);
+    }),
     ("mac-update-checking", |ui| {
         *ui = mac_fixture();
         if let Some(view) = &mut ui.view {
@@ -494,6 +508,61 @@ pub(super) const SCENES: &[Scene] = &[
         ui.platform.calendar.access = crate::calendar::CalendarAccess::Denied;
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
+    }),
+    ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
+    ("files-working", |ui| {
+        files_scene(ui, files::FilesPane::working_fixture())
+    }),
+    ("files-original", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(1));
+    }),
+    ("files-summary", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(3));
+    }),
+    ("files-versions", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(3));
+        ui.open = Some(Menu::Pick("files-versions"));
+    }),
+    ("files-more", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.opener = Some("QuickTime Player".into());
+        ui.open = Some(Menu::Pick("files-more"));
+    }),
+    ("files-again", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.files.tab = Some(files::Tab::Version(1));
+        ui.files.again = Some(files::Again {
+            record: "preview-interview".into(),
+            model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+            name: "Whisper Large v3 Turbo",
+            language: "ru".into(),
+        });
+    }),
+    ("files-empty", |ui| {
+        files_scene(ui, files::FilesPane::empty_fixture())
+    }),
+    ("files-settings", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.transcription = crate::transcription::models::TranscriptionSelection {
+            model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+            language: "ru".into(),
+        };
+        ui.settings.labs.ai_cleanup_server = true;
+        ui.settings.dictation_processing.server.runs_on = crate::app_settings::CleanupRunsOn::Local;
+        ui.files.view = files::View::Settings;
+    }),
+    ("files-settings-prompt", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.files.use_default_prompt = false;
+        ui.files.quick = Some(files::settings::QuickEdit {
+            index: Some(1),
+            label: rune::TextEdit::new("Summary".to_string()),
+            prompt: rune::TextEdit::new("A short summary, as bullet points".to_string()),
+        });
+        ui.files.view = files::View::Settings;
     }),
     ("meetings-off", |ui| {
         *ui = mac_fixture();
@@ -773,6 +842,14 @@ pub(super) fn mac_fixture() -> Ui {
     });
     ui.meetings = meetings::MeetingsPane::fixture();
     ui
+}
+
+/// Labs › Files on a Mac, showing `pane`.
+fn files_scene(ui: &mut Ui, pane: files::FilesPane) {
+    *ui = mac_fixture();
+    ui.settings.labs.files = true;
+    ui.files = pane;
+    ui.pane = Pane::Files;
 }
 
 fn shortcut_row(ui: &mut Ui, capture: Capture) {

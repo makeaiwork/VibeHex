@@ -22,16 +22,24 @@ General › Vocabulary   // vocabulary.settings; after Language
 ├── Add term -> New empty row, focused; the list glides to its end and the row
 │   rises 8 pt as it fades in (SETTLE, bounce 0; Reduce Motion: fade only);
 │   saved once the term has text
-├── Labs › Paste vocabulary as a list -> Paste list beside Add term: a field for
-│   one term per line, "Term | sounds like, sounds like" (a tab works as |;
-│   blank and # lines skipped); Add to list, or Done, merges it: a listed term
-│   (any case) gains the spellings it lacks, a new one gets a row at the end,
-│   and the list saves at once; Cancel drops it. Starter list for Russian
-│   vibe coding: docs/vocabulary/vibe-coding-ru.txt   // vocabulary.paste-list
+├── Labs › Vocabulary text view -> Text view beside Add term: the whole list
+│   as text, one term per line, "Term | sounds like, sounds like" (a tab works
+│   as |; blank and # lines skipped), in a sheet up to 900 pt wide that fills
+│   the window's height (24 pt margin) and scrolls inside the field
+│   ├── Save -> the list becomes exactly that text: an edited line fixes its
+│   │   term, a deleted line removes it, a pasted one adds it, repeats (any
+│   │   case) merge; saves at once and returns to the rows
+│   └── Cancel or Escape -> back to the rows, nothing saved; a press outside
+│       does nothing; closing the window or sheet from Text view saves nothing
+│   Starter list for Russian vibe coding: docs/vocabulary/vibe-coding-ru.txt
+│                                                   // vocabulary.text-view
+├── Labs › Add to vocabulary from a selection (macOS) -> ⌥⇧A over a misheard
+│   word in any app adds it as a spelling of the term typed in its card, and
+│   puts the term in place of an editable selection (labs.md)
 ├── Edits -> Debounced drafts, like Modes' corrections -> settings.json `vocabulary`
 ├── × -> Removes that row at any click speed or focus; rows keep an identity,
 │   so a late edit, focus change, or second × for a removed row touches nothing
-├── Done, Escape, or a press outside -> Saves, drops blank rows, closes
+├── Done, Escape, or a press outside (rows) -> Saves, drops blank rows, closes
 ├── Past the limits -> Keep the term (cut to 64 characters) and the spellings
 │   that fit; inline danger note    // never drops the term
 └── Boost -> no control in the window: Normal (default) unless changed with
@@ -105,8 +113,13 @@ OpenCode rewriting (Modes)               // vocabulary.prompt
 ├── Labs › Clean up on your own server -> the same lines go to OpenRouter or
 │   the person's server in the system message; Russian presets and their
 │   eval in docs/vocabulary/ (labs.md)
-└── Prompt gains "Vocabulary (spell these exactly when the speaker means them):
-    term (may be transcribed as a, b); …" before the foreground application
+└── Prompt gains "Vocabulary: the speaker's names and terms, spelled exactly as
+    they must be written. Where the transcript has a form on the left of "→" and
+    the speaker means the term, write the term on the right instead:" and one
+    line per term ("- a, b → term", or "- term" without spellings) before the
+    foreground application. Replayed over 25 History dictations with 44
+    misheard forms, the arrow took Gemma 4 E2B from 23 terms written to 36
+    (Qwen3 4B 31 -> 37; Gemma 4 E4B 41 -> 40)
 
 Live meeting chapters (experiment live-chapters)  // vocabulary.chapters
 └── Chapter passes and the boundary pass start with "Names and terms that may

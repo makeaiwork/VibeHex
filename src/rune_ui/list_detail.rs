@@ -90,6 +90,10 @@ pub(super) struct Item {
     pub(super) time: String,
     pub(super) hover: Vec<El>,
     pub(super) selected: bool,
+    /// Lines the title may take before "…"; a long word breaks anywhere.
+    pub(super) title_lines: usize,
+    /// A running job's progress, drawn as a thin bar under the meta line.
+    pub(super) bar: Option<f32>,
 }
 
 /// A selectable list row hung past the gutter: a hover fill (and the row's
@@ -125,34 +129,53 @@ pub(super) fn item(p: Paint, item: Item, select: impl Fn(&mut Ui) + 'static) -> 
         .radius(p.k.radius.md)
         .hover(c.hover)
         .hover_group()
-        .child(
-            row()
-                .key("top")
-                .gap(12.0)
-                .center_y()
-                .child(
-                    text(item.title)
-                        .key("title")
-                        .font(p.k.ty.ui_medium)
-                        .color(p.text())
-                        .grow(1.0)
-                        .shrink()
-                        .truncate(),
-                )
-                .child(end),
-        )
+        .child({
+            let title = text(item.title)
+                .key("title")
+                .font(p.k.ty.ui_medium)
+                .color(p.text())
+                .grow(1.0)
+                .shrink();
+            let top = row().key("top").gap(12.0);
+            if item.title_lines > 1 {
+                top.items_start()
+                    .child(title.wrap_anywhere().max_lines(item.title_lines))
+                    .child(end)
+            } else {
+                top.center_y().child(title.truncate()).child(end)
+            }
+        })
         .child(
             text(item.meta)
                 .key("meta")
                 .font(p.k.ty.small)
                 .color(item.meta_ink.unwrap_or(p.muted()))
                 .truncate(),
-        );
+        )
+        .children(item.bar.map(|fraction| thin_bar(p, fraction).mt(5.0)));
     if item.selected {
         row_el = row_el.fill(c.layer_02);
     }
     let row_el = super::lists::select_at_once(row_el, item.selected, select);
     super::lists::source_item(row_el, item.selected)
+}
+
+/// A thin progress bar: the part done in the text's ink over a quiet track.
+pub(super) fn thin_bar(p: Paint, fraction: f32) -> El {
+    row()
+        .key("bar")
+        .w_full()
+        .h(3.0)
+        .radius(2.0)
+        .fill(p.k.c.layer_03)
+        .clip_soft(0.0)
+        .child(
+            el().key("done")
+                .h_full()
+                .radius(2.0)
+                .fill(p.k.c.text_base)
+                .w_frac(fraction.clamp(0.0, 1.0)),
+        )
 }
 
 /// The card's title block: the title over its meta line, actions at the

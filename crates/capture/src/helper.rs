@@ -306,10 +306,13 @@ pub fn shrink(movie: &Path, out: &Path, max_edge: u32) -> Result<crate::retentio
 
 /// Mixes a movie's audio to 16 kHz mono WAV, aligned to the movie's start.
 pub fn export_audio(movie: &Path, wav: &Path) -> Result<()> {
-    let _: serde_json::Value = run(
-        &[os("audio"), movie.as_os_str(), wav.as_os_str()],
-        Duration::from_secs(120),
-    )?;
+    export_audio_within(movie, wav, Duration::from_secs(120))
+}
+
+/// [`export_audio`] for any audio or video file AVFoundation reads, given
+/// as long as `timeout`, since a long recording takes a while to decode.
+pub fn export_audio_within(movie: &Path, wav: &Path, timeout: Duration) -> Result<()> {
+    let _: serde_json::Value = run(&[os("audio"), movie.as_os_str(), wav.as_os_str()], timeout)?;
     Ok(())
 }
 

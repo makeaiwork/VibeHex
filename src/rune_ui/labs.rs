@@ -1,7 +1,11 @@
-//! Labs: one flat sidebar item listing every Labs feature (`crate::labs`)
-//! as a row with a toggle, each off by default, plus Send feedback and Run
-//! setup again. A feature with its own pane (Meetings, Voice Filter,
-//! Playground) joins the main sidebar while on and is hidden while off.
+//! Labs: one sidebar item listing every Labs feature (`crate::labs`) as a
+//! row with a toggle, each off by default, in titled sections by what it
+//! touches (`Group`), plus Send feedback and Run setup again, under a search
+//! field that narrows the rows to those whose
+//! name or description holds every word typed, and a VibeHex only switch
+//! that keeps just the starred features VibeHex added. A feature with its
+//! own pane (Meetings, Voice Filter, Playground) joins the main sidebar
+//! while on and is hidden while off.
 
 use rune::{El, Icon, Tx, row, text};
 
@@ -27,9 +31,14 @@ pub(super) static LABS_ICON: Icon = Icon {
 pub(super) fn main_panes(ui: &Ui) -> Vec<Pane> {
     let mut panes = vec![Pane::General, Pane::Output, Pane::History];
     #[cfg(hex_capture)]
-    let optional = [Pane::Meetings, Pane::Annotate, Pane::VoiceFilter];
+    let optional = [
+        Pane::Meetings,
+        Pane::Files,
+        Pane::Annotate,
+        Pane::VoiceFilter,
+    ];
     #[cfg(not(hex_capture))]
-    let optional = [Pane::Meetings, Pane::VoiceFilter];
+    let optional = [Pane::Meetings, Pane::Files, Pane::VoiceFilter];
     panes.extend(optional.into_iter().filter(|pane| pane.shown(ui)));
     panes
 }
@@ -110,6 +119,9 @@ pub(super) fn reveal(ui: &mut Ui, name: Option<&str>, tx: &mut Tx) {
     open(ui, tx);
     ui.lab_flash = None;
     let Some(name) = name else { return };
+    // The linked row shows whatever was searched for or filtered.
+    ui.lab_search = rune::TextEdit::default();
+    ui.lab_vibehex_only = false;
     match Feature::from_name(name).filter(|feature| rows(ui).iter().any(|r| r.feature == *feature))
     {
         Some(feature) => {
@@ -265,8 +277,14 @@ fn rows(ui: &Ui) -> Vec<Row> {
     rows.push(row(
         Feature::VocabularyPasteList,
         &BOOK,
-        tr("Paste vocabulary as a list"),
-        tr("Add many terms at once in the Vocabulary sheet: one per line, Term | sounds like"),
+        tr("Vocabulary text view"),
+        tr("Edit the whole Vocabulary as text, one term per line as Term | sounds like, to paste, fix, or delete many terms at once"),
+    ));
+    rows.push(row(
+        Feature::RussianVibeCoding,
+        &BOOK,
+        tr("Russian vibe coding"),
+        tr("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI and the other starred Labs features except Stop shortcut. Off takes back the terms, fixes, and instructions"),
     ));
     if caps.keyboard_model_switching {
         rows.push(row(
@@ -277,6 +295,24 @@ fn rows(ui: &Ui) -> Vec<Row> {
         ));
     }
     if caps.os == super::platform::Os::Macos {
+        rows.push(row(
+            Feature::VocabularyQuickAdd,
+            &BOOK,
+            tr("Add to vocabulary from a selection"),
+            tr("Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"),
+        ));
+        rows.push(row(
+            Feature::Files,
+            Pane::Files.icon(),
+            tr("Files"),
+            tr("Drop audio and video files to transcribe them, clean them up, and rework the text with your own requests"),
+        ));
+        rows.push(row(
+            Feature::CleanupProgress,
+            &SPARKLES,
+            tr("Cleanup progress"),
+            tr("While AI cleanup takes a while, a bar in place of the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"),
+        ));
         rows.push(row(
             Feature::MouseShortcuts,
             &MOUSE,
@@ -491,6 +527,110 @@ fn rows(ui: &Ui) -> Vec<Row> {
     rows
 }
 
+/// The Labs page's sections, in the order they show.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Group {
+    Shortcuts,
+    Pasting,
+    TextCleanup,
+    Vocabulary,
+    SpeechModels,
+    Meetings,
+    HistoryAndRecording,
+    SoundAndInterface,
+}
+
+impl Group {
+    const ALL: [Self; 8] = [
+        Self::Shortcuts,
+        Self::Pasting,
+        Self::TextCleanup,
+        Self::Vocabulary,
+        Self::SpeechModels,
+        Self::Meetings,
+        Self::HistoryAndRecording,
+        Self::SoundAndInterface,
+    ];
+
+    fn of(feature: Feature) -> Self {
+        match feature {
+            Feature::SecondDictationShortcut
+            | Feature::StopShortcut
+            | Feature::TapOrHold
+            | Feature::SidedChords
+            | Feature::StandaloneSpecialKeys
+            | Feature::SectionKeyAlone
+            | Feature::MouseShortcuts
+            | Feature::RestoreShortcutDefault
+            | Feature::ShareShortcut => Self::Shortcuts,
+            Feature::CopyOnly
+            | Feature::KeepOnClipboard
+            | Feature::SmartSpacing
+            | Feature::TerminalPaste
+            | Feature::RecentDictations => Self::Pasting,
+            Feature::SpokenFormatting
+            | Feature::SpokenSymbols
+            | Feature::FillerWords
+            | Feature::SkipPauses
+            | Feature::OutputFixes
+            | Feature::AiCleanupServer
+            | Feature::CleanupProgress => Self::TextCleanup,
+            Feature::VocabularyBiasing
+            | Feature::VocabularyPasteList
+            | Feature::VocabularyQuickAdd
+            | Feature::RussianVibeCoding => Self::Vocabulary,
+            Feature::ParakeetUltra
+            | Feature::KeyboardModelSwitching
+            | Feature::UnloadIdle
+            | Feature::PickerSortFilter
+            | Feature::PickerActiveFirst
+            | Feature::PickerDownloaded
+            | Feature::ModelInPlace
+            | Feature::BenchmarkDetails => Self::SpeechModels,
+            Feature::Meetings
+            | Feature::LiveChapters
+            | Feature::SubtitleExport
+            | Feature::StopWhenCallEnds
+            | Feature::MovableMeetingCapsules
+            | Feature::MeetingSummaryModel => Self::Meetings,
+            Feature::HistoryStats
+            | Feature::KeepRecordings
+            | Feature::LiveText
+            | Feature::Files => Self::HistoryAndRecording,
+            Feature::VoiceFilter
+            | Feature::PauseBrowser
+            | Feature::HideMenuBarIcon
+            | Feature::Playground => Self::SoundAndInterface,
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Self::Shortcuts => tr("Shortcuts"),
+            Self::Pasting => tr("Pasting"),
+            Self::TextCleanup => tr("Text cleanup"),
+            Self::Vocabulary => tr("Vocabulary"),
+            Self::SpeechModels => tr("Speech models"),
+            Self::Meetings => tr("Meetings"),
+            Self::HistoryAndRecording => tr("History and recording"),
+            Self::SoundAndInterface => tr("Sound and interface"),
+        }
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::Shortcuts => "labs-shortcuts",
+            Self::Pasting => "labs-pasting",
+            Self::TextCleanup => "labs-text-cleanup",
+            Self::Vocabulary => "labs-vocabulary",
+            Self::SpeechModels => "labs-speech-models",
+            Self::Meetings => "labs-meetings",
+            Self::HistoryAndRecording => "labs-history",
+            Self::SoundAndInterface => "labs-interface",
+        }
+    }
+}
+
 fn row_key(feature: Feature) -> &'static str {
     match feature {
         Feature::Meetings => "lab-meetings",
@@ -512,6 +652,10 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::FillerWords => "lab-filler-words",
         Feature::AiCleanupServer => "lab-ai-cleanup-server",
         Feature::VocabularyPasteList => "lab-vocabulary-paste-list",
+        Feature::RussianVibeCoding => "lab-russian-vibe-coding",
+        Feature::VocabularyQuickAdd => "lab-vocabulary-quick-add",
+        Feature::CleanupProgress => "lab-cleanup-progress",
+        Feature::Files => "lab-files",
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::StopShortcut => "lab-stop-shortcut",
@@ -562,16 +706,61 @@ fn flip(ui: &mut Ui, feature: Feature) {
     }
 }
 
-/// The Labs page: what Labs is with Send feedback, every feature's row,
-/// then Run setup again.
+/// Whether `row` holds every word of `query`, in its title, description,
+/// or command-line name, ignoring case.
+fn matches(row: &Row, query: &str) -> bool {
+    let haystack = format!(
+        "{} {} {} {}",
+        row.title,
+        row.about,
+        row.feature.name().replace('-', " "),
+        if row.feature.vibehex() { "vibehex" } else { "" }
+    )
+    .to_lowercase();
+    query
+        .to_lowercase()
+        .split_whitespace()
+        .all(|word| haystack.contains(word))
+}
+
+fn search(ui: &Ui, p: Paint) -> El {
+    rune_kit::TextInput::new(&ui.lab_search)
+        .placeholder(tr("Search Labs"))
+        .width(None)
+        .leading_icon(p.k.glyph.search)
+        .on_edit(|ui: &mut Ui| &mut ui.lab_search)
+        .build(p.k)
+        .key("labs-search")
+}
+
+/// VibeHex only, beside the search field: a star, the label, and a switch
+/// that keeps just the starred rows. It saves nothing.
+fn vibehex_filter(ui: &Ui, p: Paint) -> El {
+    let label = tr("VibeHex only");
+    pressable_row(
+        row()
+            .key("labs-vibehex-only")
+            .label(label)
+            .gap(6.0)
+            .center_y()
+            .child(rune::icon(&rune_kit::glyphs::STAR_FILLED, 12.0).color(p.k.c.warning.icon))
+            .child(text(label).key("label").font(p.k.ty.small).color(p.text()))
+            .child(row_switch(p, ui.lab_vibehex_only)),
+    )
+    .on_press(|ui: &mut Ui| ui.lab_vibehex_only = !ui.lab_vibehex_only)
+}
+
+/// The Labs page: what Labs is with Send feedback, the search field and
+/// VibeHex only, every feature's row that passes them, then Run setup again.
 pub(super) fn page(ui: &Ui, p: Paint) -> El {
     let feedback = rune_kit::Button::new(tr("Send feedback"))
         .variant(rune_kit::ButtonVariant::Ghost)
         .control_size(rune_kit::ControlSize::Small)
         .on_press(|ui: &mut Ui| {
             if ui.live()
-                && let Err(error) =
-                    crate::desktop::opencode_catalog::open_url(crate::labs::FEEDBACK_URL)
+                && let Err(error) = crate::desktop::opencode_catalog::open_url(
+                    &crate::labs::feedback_mailto(crate::VERSION),
+                )
             {
                 ui.error = Some(format!("{error:#}"));
             }
@@ -592,21 +781,53 @@ pub(super) fn page(ui: &Ui, p: Paint) -> El {
                 .grow(1.0),
         )
         .child(feedback);
-    let mut cards: Vec<CardRow> = Vec::new();
-    for row in rows(ui).into_iter().filter(|row| row.feature.shipped()) {
+    let query = ui.lab_search.text.trim();
+    let mut groups: Vec<(Group, Vec<CardRow>)> = Group::ALL
+        .iter()
+        .map(|group| (*group, Vec::new()))
+        .collect();
+    for row in rows(ui).into_iter().filter(|row| {
+        row.feature.shipped()
+            && matches(row, query)
+            && (!ui.lab_vibehex_only || row.feature.vibehex())
+    }) {
         let unload_idle = row.feature == Feature::UnloadIdle && row.on;
         let flashing = ui
             .lab_flash
             .is_some_and(|(feature, _)| feature == row.feature);
+        let group = Group::of(row.feature);
+        let Some((_, cards)) = groups.iter_mut().find(|(g, _)| *g == group) else {
+            continue;
+        };
         cards.push(feature_row(p, row, flashing));
         if unload_idle {
             cards.push(unload_after_row(ui, p));
         }
     }
-    let rows = cards;
-    let content = controls::page("content")
-        .child(lede)
-        .child(card(p, "labs", rows))
+    let sections: Vec<El> = groups
+        .into_iter()
+        .filter(|(_, cards)| !cards.is_empty())
+        .map(|(group, cards)| controls::section(p, group.key(), group.title(), cards))
+        .collect();
+    let search = row()
+        .key("labs-search-row")
+        .mx(controls::METRICS.row_px)
+        .gap(12.0)
+        .center_y()
+        .child(search(ui, p).grow(1.0))
+        .child(vibehex_filter(ui, p));
+    let mut content = controls::page("content").child(lede).child(search);
+    if sections.is_empty() {
+        content = content.child(
+            text(tr("No Labs features match."))
+                .key("labs-none")
+                .font(p.k.ty.ui)
+                .color(p.muted())
+                .mx(controls::METRICS.row_px),
+        );
+    }
+    let content = content
+        .children(sections)
         .child(card(p, "labs-setup", vec![run_setup_row(p)]));
     super::scroll_body("scroll", content)
 }
@@ -621,8 +842,12 @@ fn feature_row(p: Paint, row: Row, flashing: bool) -> CardRow {
     } else {
         row_switch(p, row.on)
     };
-    let tag = (row.feature.audience() == crate::labs::Audience::Dev)
+    let dev = (row.feature.audience() == crate::labs::Audience::Dev)
         .then(|| tone_tag(p, "dev-tag", tr("Dev"), Tone::Neutral));
+    let tag = match (dev, row.feature.vibehex().then(|| vibehex_star(p))) {
+        (Some(dev), Some(star)) => Some(rune::row().gap(6.0).center_y().child(dev).child(star)),
+        (dev, star) => dev.or(star),
+    };
     let mut item = icon_row_tagged(
         p,
         row_key(row.feature),
@@ -643,6 +868,18 @@ fn feature_row(p: Paint, row: Row, flashing: bool) -> CardRow {
         .hover(p.k.c.hover)
         .on_press(move |ui: &mut Ui| flip(ui, feature))
         .into()
+}
+
+/// The star beside a feature VibeHex added, raised to the title's top
+/// like a superscript; hovering it says so.
+fn vibehex_star(p: Paint) -> El {
+    rune::col()
+        .key("vibehex")
+        .role("image")
+        .label(tr("Added in VibeHex"))
+        .help(tr("Added in VibeHex"))
+        .pb(7.0)
+        .child(rune::icon(&rune_kit::glyphs::STAR_FILLED, 10.0).color(p.k.c.warning.icon))
 }
 
 /// How long the model sits unused before it unloads, under its row while on.

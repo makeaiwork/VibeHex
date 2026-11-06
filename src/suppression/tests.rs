@@ -447,6 +447,7 @@ fn mouse_hotkeys() -> RuntimeHotkeys {
         capture: None,
         raw_dictation: None,
         second_dictation: None,
+        vocabulary_add: None,
         cancel: None,
         stop: None,
     }

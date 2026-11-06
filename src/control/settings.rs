@@ -32,6 +32,8 @@ fn available() -> bool {
     true
 }
 
+mod files_keys;
+
 #[derive(Clone, Copy, Debug)]
 enum Kind {
     Bool,
@@ -220,6 +222,12 @@ const KEYS: &[Key] = &[
          external keyboard (macOS, with labs.second_dictation_shortcut); none (the default) \
          turns it off",
     ),
+    optional(
+        "vocabulary_add_hotkey",
+        Kind::Shortcut(HotkeySlot::VocabularyAdd),
+        "Labs: adds the selected misheard word to Vocabulary (macOS, with \
+         labs.vocabulary_quick_add); option+shift+a by default, none turns it off",
+    ),
     key(
         "stop_hotkey",
         Kind::Shortcut(HotkeySlot::Stop),
@@ -266,8 +274,8 @@ const KEYS: &[Key] = &[
     ),
     key(
         "dictation_processing.server.runs_on",
-        Kind::Choice(&["opencode", "openrouter", "custom"]),
-        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, or your own OpenAI-compatible server",
+        Kind::Choice(&["opencode", "openrouter", "custom", "local"]),
+        "Where dictation cleanup runs, with labs.ai_cleanup_server: OpenCode, OpenRouter, your own OpenAI-compatible server, or a model Hex downloads (local, macOS)",
     ),
     key(
         "dictation_processing.server.url",
@@ -283,6 +291,11 @@ const KEYS: &[Key] = &[
         "dictation_processing.server.custom_model",
         Kind::Text,
         "The model your own server runs dictation cleanup with, as it names it",
+    ),
+    key(
+        "dictation_processing.server.local_model",
+        Kind::Text,
+        "The downloaded model local cleanup runs, such as qwen3-4b-instruct-2507; empty for the recommended one",
     ),
     key(
         "history_retention",
@@ -448,6 +461,21 @@ const KEYS: &[Key] = &[
         "labs.vocabulary_paste_list",
         Kind::Bool,
         "Labs: the Vocabulary sheet takes many terms at once, one per line as Term | sounds like, sounds like",
+    ),
+    key(
+        "labs.russian_vibe_coding",
+        Kind::Bool,
+        "Labs: turning it on adds the Russian vibe-coding vocabulary, Global's word fixes and AI cleanup instructions, and turns on Clean up with AI and every other Labs feature VibeHex added that this Hex has except labs.stop_shortcut; off takes back the terms, fixes, and instructions",
+    ),
+    key(
+        "labs.vocabulary_quick_add",
+        Kind::Bool,
+        "Labs: a shortcut (vocabulary_add_hotkey) adds a selected misheard word to Vocabulary with its right spelling and replaces the selection where it can (macOS)",
+    ),
+    key(
+        "labs.cleanup_progress",
+        Kind::Bool,
+        "Labs: while AI cleanup takes a while, a bar beside the HUD shows its progress with Paste now, which pastes the part already cleaned and the rest as transcribed (macOS)",
     ),
     key(
         "labs.stop_shortcut",
@@ -736,7 +764,9 @@ fn managed(name: &str, lock: crate::policy::Lock) -> ControlError {
 
 /// Every key, in registry order.
 fn keys() -> impl Iterator<Item = &'static Key> {
-    KEYS.iter().chain(CAPTURE_KEYS)
+    KEYS.iter()
+        .chain(CAPTURE_KEYS)
+        .chain(files_keys::FILES_KEYS)
 }
 
 /// Settings `hex settings` never shows: Hex's own bookkeeping.
@@ -840,6 +870,7 @@ pub fn set_api_key(name: &str, raw: &str) -> Option<Result<super::ControlReply, 
     let label = match provider {
         crate::dictation::cleanup_server::Provider::OpenRouter => "OpenRouter",
         crate::dictation::cleanup_server::Provider::Custom => "your server's",
+        crate::dictation::cleanup_server::Provider::Local => "the built-in model's",
     };
     Some(
         crate::dictation::cleanup_server::keys::set(provider, if clear { "" } else { raw })
@@ -1009,6 +1040,7 @@ pub fn apply(
         | "paste_last_hotkey"
         | "raw_dictation_hotkey"
         | "second_dictation_hotkey"
+        | "vocabulary_add_hotkey"
         | "cancel_hotkey"
         | "stop_hotkey"
         | "capture.hotkey" => {
@@ -1020,6 +1052,7 @@ pub fn apply(
                 HotkeySlot::PasteLast => candidate.paste_last_hotkey.as_ref(),
                 HotkeySlot::RawDictation => candidate.raw_dictation_hotkey.as_ref(),
                 HotkeySlot::SecondDictation => candidate.second_dictation_hotkey.as_ref(),
+                HotkeySlot::VocabularyAdd => candidate.vocabulary_add_hotkey.as_ref(),
                 HotkeySlot::Cancel => Some(&candidate.cancel_hotkey),
                 HotkeySlot::Stop => Some(&candidate.stop_hotkey),
                 #[cfg(hex_capture)]
@@ -1072,6 +1105,18 @@ pub fn apply(
             }
             candidate.dictation_processing.server.url = url;
         }
+        "dictation_processing.server.local_model" => {
+            let id = candidate.dictation_processing.server.local_model.trim();
+            if !id.is_empty() && crate::dictation::cleanup_server::local_models::find(id).is_none()
+            {
+                let known: Vec<_> = crate::dictation::cleanup_server::local_models::MODELS
+                    .iter()
+                    .map(|model| model.id)
+                    .collect();
+                return Err(invalid(name, &format!("Hex offers {}", known.join(", "))));
+            }
+            candidate.dictation_processing.server.local_model = id.to_owned();
+        }
         "dictation_processing.modes" => {
             let mut names = std::collections::HashSet::new();
             for mode in &candidate.dictation_processing.modes {
@@ -1094,6 +1139,12 @@ pub fn apply(
         }
         "labs.standalone_special_keys" => candidate.repair_special_keys(),
         "labs.section_key_alone" => candidate.repair_section_key(),
+        "labs.russian_vibe_coding"
+            if candidate.labs.russian_vibe_coding != settings.labs.russian_vibe_coding =>
+        {
+            let on = candidate.labs.russian_vibe_coding;
+            crate::dictation::presets::russian_vibe_coding(&mut candidate, on);
+        }
         "labs.parakeet_ultra" if !candidate.labs.parakeet_ultra => {
             if let Some(why) = crate::labs::Feature::ParakeetUltra.off_refusal(settings) {
                 return Err(invalid(name, why));
@@ -1531,6 +1582,14 @@ mod tests {
                 opencode_model: Some("openai/gpt-5".into()),
                 ..Default::default()
             },
+            files: crate::app_settings::FilesSettings {
+                transcription: Some(Default::default()),
+                language: Some("ru".into()),
+                cleanup_engine: Some("opencode".into()),
+                request_engine: Some("openrouter".into()),
+                last_folder: Some("/tmp".into()),
+                ..Default::default()
+            },
             ..Default::default()
         };
         let json = serde_json::to_value(settings).unwrap();
@@ -1608,6 +1667,28 @@ mod tests {
                 .code,
             "invalid-value"
         );
+    }
+
+    #[test]
+    fn the_russian_vibe_coding_lab_writes_its_preset_once_and_takes_it_back() {
+        let fresh = AppSettings::default();
+        let on = apply(&fresh, "labs.russian_vibe_coding", "true", &rules()).unwrap();
+        let mode = &on.settings.dictation_processing.default_mode;
+        assert!(on.settings.labs.russian_vibe_coding);
+        assert!(mode.post_processing.enabled);
+        assert!(!mode.replacements.is_empty());
+        assert!(crate::dictation::vocabulary::contains(
+            &on.settings.vocabulary,
+            "Claude Code"
+        ));
+        // Setting it on again changes nothing.
+        let again = apply(&on.settings, "labs.russian_vibe_coding", "true", &rules()).unwrap();
+        assert_eq!(again.settings, on.settings);
+        let off = apply(&on.settings, "labs.russian_vibe_coding", "false", &rules()).unwrap();
+        assert!(on.settings.labs.ai_cleanup_server && on.settings.labs.vocabulary_paste_list);
+        let mut off = off.settings;
+        off.labs = fresh.labs.clone();
+        assert_eq!(off, fresh);
     }
 
     #[test]

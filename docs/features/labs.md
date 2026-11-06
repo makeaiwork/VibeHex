@@ -12,9 +12,29 @@ drops it, its gate reads false even when `settings.json` says on, and the
 saved setting is kept untouched. In dev builds a Dev row carries a quiet
 "Dev" tag, and `hex labs` prints each feature's audience. Every feature
 below is `Everyone` today. There is no master switch. **Labs** is always the last item in the
-sidebar and lists every Labs feature as one flat row (name, one-line
-description, toggle), each **off by default**, plus Send feedback and Run
-setup again.
+sidebar and lists every Labs feature as a row (name, one-line
+description, toggle), each **off by default**, in titled sections by what it
+touches (`rune_ui::labs::Group`, every feature in exactly one, titles
+translated like the rest of the window): Shortcuts, Pasting, Text cleanup,
+Vocabulary, Speech models, Meetings, History and recording, Sound and
+interface. A section with no row on this OS, or none matching the search,
+doesn't show. Send feedback sits above them and Run setup again below. A search field above the rows (`labs-search`) keeps only the
+rows whose name, description, or command-line name holds every word typed,
+ignoring case, and says "No Labs features match." when none do; a Labs link
+clears it so its row shows. Check: `labs_search_keeps_the_rows_holding_every_word`.
+A feature VibeHex added (`labs::Feature::vibehex`: Clean up on your own
+server, Cleanup progress, Russian vibe coding, Vocabulary text view, Add to
+vocabulary from a selection, Files, Stop shortcut; Hex itself has none of
+them) carries a small yellow star (`warning.icon`) raised to its title's top
+right, whose tooltip and accessible label say "Added in VibeHex"; searching
+"vibehex" lists just these rows, and so does the VibeHex only switch beside
+the search field (`labs-vibehex-only`, a star, the label, and a switch; it
+saves nothing, combines with the search, and a Labs link turns it off so its
+row shows). Turning on Russian vibe coding also turns on every other starred
+feature this OS and build have and no organization locks, except Stop
+shortcut (it takes a key, Return, so it is left to the person); turning it
+off leaves them on. Checks: `it_turns_on_every_starred_lab_this_hex_has`,
+`vibehex_only_keeps_the_starred_rows`.
 
 ```ts
 Feature             Pane  Toggle (settings.json, hex settings)   On: what it does
@@ -63,13 +83,18 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 │                                        OpenCode meeting notes use exactly that provider/model, no fallback; Meetings › Settings › Advanced shows its field (#1107)
 ├── Clean up on your own server no labs.ai_cleanup_server + dictation_processing.server
 │                                        every mode's rewrite runs on OpenRouter or an OpenAI-compatible server (LM Studio, Ollama) instead of OpenCode; Output shows its AI cleanup section
-├── Paste vocabulary as a list no labs.vocabulary_paste_list  the Vocabulary sheet's Paste list adds many terms at once, "Term | sounds like, …" per line (vocabulary.md)
+├── Vocabulary text view no labs.vocabulary_paste_list  the Vocabulary sheet's Text view edits the whole list as text, "Term | sounds like, …" per line; Save replaces the list (vocabulary.md)
+├── Add to vocabulary from a selection no labs.vocabulary_quick_add + vocabulary_add_hotkey (macOS)
+│                                        ⌥⇧A over a selection in any app opens a card: Heard (the selection) and Should be; Add saves to Vocabulary and replaces the selection where it is editable
+├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
+├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
+├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
 └── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General)
 
 Settings › Labs                          // labs.page
-├── "Try unfinished features. They may change or break." + Send feedback -> https://github.com/anomalyco/hex/issues/new
+├── "Try unfinished features. They may change or break." + Send feedback -> opens a new mail to zelenpro@gmail.com, subject "VibeHex feedback (version <VERSION>)" (mailto:)
 ├── Opened by a link (macOS) -> hex://labs opens this page; hex://labs/<feature> also scrolls to the
 │   feature's row (centred) and pulses it for ~1.4 s (layer_02 fill, then back); it never turns the
 │   feature on. An unknown or absent name -> the page opens and process.log notes it. hex://settings/<pane>
@@ -890,13 +915,40 @@ OpenCode needn't run.
 ```ts
 Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 ├── Clean up with AI -> switch for Global's rewrite (default_mode.post_processing.enabled)
-├── Runs on -> OpenCode · OpenRouter · Your own   (dictation_processing.server.runs_on)
-│   └── OpenCode -> no further rows; rewriting is exactly as without the toggle
+├── Runs on -> OpenCode · OpenRouter · Your own · Built in (macOS)   (dictation_processing.server.runs_on)
+│   ├── OpenCode -> no further rows; rewriting is exactly as without the toggle
+│   └── Built in -> no URL, Model, or key rows; instead:
+│       ├── Built in -> "Download a model below" | "Loads when you dictate" | "Loading the model…" | "Loaded"; Test once one is downloaded
+│       │   while loading, Test hides and only the model's own row shows "Loading 45%",
+│       │   an estimate (engine::load_progress; llama-server reports none) from its last
+│       │   load (`<id>.load-ms` beside the models; else 1 s + its size at 1.5 GB/s),
+│       │   linear to 90% then creeping, never past 99% until it answers; Cleanup
+│       │   progress's plate says "Loading the model…" meanwhile
+│       └── one row per model: its name, then its file's in faint type
+│           (gemma-4-E4B-it-GGUF, the repository without its owner); Speed and Quality
+│           as five-segment meters (green, blue; the rating's word only to a screen
+│           reader); tags for the quantization, its bits, and size (Q4_K_M · 4-bit ·
+│           5.0 GB), then the publisher, its licence on hover -> Download | progress + Cancel |
+│           Use (dictation_processing.server.local_model), which loads the model at
+│           once (engine::warm; a choice made while another loads, once it is done):
+│           "Loading 45%" in its place while it loads (engine::load_progress), then
+│           a green "✓ In use" pill; a trash button asks first (Cancel | "Delete
+│           3.1 GB"); a failure replaces the meters and tags. The meters show
+│           LocalModel::speed/quality (1–5), no machine-dependent numbers: E2B 5 · 3
+│           (≈93 tok/s; 36 of 44 misheard vocabulary forms written as terms), Qwen3
+│           4B 4 · 4 (≈61 tok/s; 37), E4B 3 · 5 (≈47 tok/s; 40), measured on an
+│           M-series Mac
 ├── <server name> -> "Not tested · host" | "Testing…" | "Connected · 0.8 s" | the error; Test
 │   sends one short request on its own thread (30 s), a changed server forgets the result
 ├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama
 │   (http://127.0.0.1:11434/v1); anything but http(s) is refused
-├── Model -> field + Save: openrouter_model or custom_model, as the server names it
+├── Model -> field + Save: openrouter_model or custom_model, as the server names it;
+│   ⌄ beside it opens the server's models, searchable by id and name; choosing one saves it
+│   ├── GET {url}/models on its own thread (15 s) while Output shows, again when the
+│   │   server or a saved key changes: LM Studio's downloaded models, Ollama's pulled
+│   │   ones, OpenRouter's catalog (no key needed); embedding and non-text models left out
+│   ├── Loaded -> "Type one, or choose from N" under Model
+│   └── Loading -> a disabled "Loading models…"; failed -> "Try again" with the reason
 ├── API key -> secure field + Save, Remove once saved; never read back into the field
 │   ├── Saved -> "Saved outside settings.json"
 │   ├── OpenRouter, none -> "Required"; Your own, none -> "Not needed for LM Studio or Ollama"
@@ -917,18 +969,104 @@ the app, as the system message; the transcript as the user message. One
 `POST {url}/chat/completions` with temperature 0; loopback URLs go through
 `net::loopback_agent`, others through the system proxy. The mode's deadline,
 cancellation, and fallback are unchanged: a refusal, timeout, or empty
-answer pastes the corrected transcript and History records why. Reasoning a
+answer pastes the corrected transcript and History records why.
+
+Every AI cleanup (OpenCode or a server, Labs or not) runs in pieces
+(`dictation::cleanup_pieces`): the corrected transcript is cut into pieces
+of at most about 400 words (about three minutes of speech), each after a
+sentence's end (`.`, `!`, `?`, `…`, closing quotes, or a line break), else
+between words, and the pieces join back into it exactly. Each piece is one
+request with the full prompt and the mode's deadline, so a dictation of any
+length is cleaned and there is no limit on the whole; a short dictation is
+one piece, as before. A failed piece keeps its transcribed text and the
+others are still cleaned ("1 of 3 pieces kept as transcribed: …" in History);
+when every piece fails the reason is the first one's. Measured with Gemma 4
+E2B built in, 2,462 words of the owner's own dictations (about 24 minutes)
+took 7 pieces of 4–10 s each, 48 s in all, and kept 2,444 words
+(`cleans_a_long_dictation_in_pieces_on_a_live_server`, ignored: it needs a
+running server). Checks: `pieces_join_back_into_the_text_and_end_at_sentences`,
+`each_piece_is_cleaned_and_a_failed_one_keeps_its_text`,
+`stopping_keeps_the_cleaned_pieces_and_the_rest_as_transcribed`.
+
+Cleanup progress (`cleanup-progress`, macOS): while a cleanup will plainly
+take a while, a plate in the HUD's colours takes its place and shows how far
+it is, with Paste now.
+
+```ts
+Cleanup worth showing, labs.cleanup_progress on   // rune_ui::cleanup_plate
+├── When    cleanup_pieces::worth_showing: past 1.5 s with at least 2 s still to
+│           go at its pace so far, or past 3 s while nothing says its pace (no
+│           streamed answer yet, OpenCode); once shown it stays until the end,
+│           so a one-minute dictation's 2.4 s cleanup never flashes a plate
+├── Plate   on the HUD's own spot (rune_hud::hud_center, its plate's centre) while
+│           the HUD gives way (rune_hud::give_way); while the HUD shows again for a
+│           new capture (rune_hud::hud_shown), just below it where Live text's
+│           would be (rune_hud::live_text_place), back up once it hides; always
+│           below in a notch island or with the HUD set to Hidden:
+│           "Cleaning up" ⠿⠿⠿⠶⠶⠶ 44% [Paste now], black like the HUD in either
+│           appearance, its 40 × 9 dots lit up to the progress (the count of
+│           pieces done is gone: it read 1/2 until a two-piece cleanup ended)
+├── Progress -> pieces done, plus how much of the current piece's answer has
+│   arrived: with the toggle on, server requests ask for a streamed answer
+│   (`stream: true`, read event by event in cleanup_server::read_events), the
+│   characters so far against the piece's (at most 95% of it); OpenCode's
+│   answer isn't streamed, so its bar moves a piece at a time
+├── Paste now -> ends the piece in progress and pastes the pieces already
+│   cleaned, then the rest as transcribed (cleanup_pieces::paste_now); the
+│   job then finishes as usual (transformations, History, Paste Last)
+└── The cleanup ends -> the plate hides; the HUD shows again at the next capture
+```
+
+The HUD stays click-through; only the plate takes a click, and as a
+nonactivating overlay it never takes focus, so the paste lands in the app
+dictated into. Off, nothing is streamed or reported and no plate exists on
+screen. Checks: `the_plate_fits_its_overlay_with_its_dots_and_paste_now`,
+`only_a_cleanup_with_a_while_to_go_shows`,
+`a_streamed_answer_reads_whole_and_reports_its_length`. Observed: the first plate in a running Hex (0/2, then 1/2 through a
+5.8-minute dictation, the HUD above it); not yet observed: this plate. Reasoning a
 server leaves in the answer (`<think>…</think>`, Gemma 4's `…<channel|>`,
 gpt-oss's final channel) and a fence around the whole answer are dropped.
 A managed `opencode_processing` lock turns this rewrite off too. Keys:
 `hex settings set dictation_processing.server.runs_on custom`, `.url`,
 `.openrouter_model`, `.custom_model`; `.openrouter_api_key` and
 `.custom_api_key` save a key (`none` removes it) and read back only `set` or
-`unset`. Not built: a model list from the server, per-mode servers, a model
-running inside Hex. Checks: `dictation::cleanup_server::tests` (chat
+`unset`. Not built: per-mode servers.
+
+Built in (macOS app only; `runs_on` `local`) runs a model Hex downloads
+itself, with no LM Studio or Ollama. The offered models are pinned in
+[cleanup_server/local_models.rs](../../src/dictation/cleanup_server/local_models.rs)
+by Hugging Face commit, size, and SHA-256: Qwen3 4B Instruct 2507 (2.5 GB,
+recommended), Gemma 4 E4B (5.0 GB), and Gemma 4 E2B (3.1 GB), each Q4_K_M
+GGUF by Unsloth, Apache 2.0. A download resumes from `<file>.partial` in
+`<support>/cleanup-models/` and only a file whose size and SHA-256 match is
+moved into place; Delete stops the engine if it runs that model. The engine
+([cleanup_server/engine.rs](../../src/dictation/cleanup_server/engine.rs)) is
+llama.cpp's `llama-server` (build b11960, pinned by SHA-256 in
+`scripts/build-app.sh`), bundled beside `hex` with its libraries in
+`Contents/Frameworks`. Hex starts it on 127.0.0.1, a free port, a random key,
+`--offline`, no web UI, `--reasoning off` (Gemma 4 answers without
+thinking), every layer on Metal, and an 8,192-token context;
+it loads when a dictation's shortcut goes down (or the first rewrite or Test
+asks), is ready once `/health` answers (at most 120 s), serves rewrites
+through the same `generate` as Your own, unloads after 15 minutes without a
+rewrite, and stops when Hex quits; a server left by a crashed Hex is stopped
+at the next start through its pid file. A rewrite that comes while the model
+still loads waits within the mode's deadline, then falls back as any server
+does. `hex settings set dictation_processing.server.local_model
+gemma-4-e2b-it` picks a model (only the listed ids). Checks:
+`every_model_is_pinned_and_unique`, `only_a_matching_file_is_moved_into_place`,
+`the_server_listens_on_loopback_offline_without_its_web_ui`,
+`keys_are_random_and_ports_free`; `validate-app.sh` requires `llama-server`,
+its rpath, and its libraries; scene `output-ai-cleanup-local` (no golden).
+Not yet observed: a download, the engine loading, or a rewrite in a running
+Hex; Gemma 4 on this llama.cpp build.
+
+Checks: `dictation::cleanup_server::tests` (chat
 messages and key, no key for a local server, refusals, empty answers,
-deadline and cancellation, reasoning and fences, OpenCode and the toggle off
-choosing no server),
+deadline and cancellation, reasoning and fences, the toggle choosing the
+server, the model list's GET and refusal),
+`a_listing_keeps_chat_models_in_order_and_names_them` in
+[cleanup_server/models.rs](../../src/dictation/cleanup_server/models.rs),
 `the_key_file_is_owner_only_and_forgets_removed_keys`,
 `prompt_parts_split_instructions_from_the_transcript_and_join_back` in
 [dictation/processor.rs](../../src/dictation/processor.rs),
@@ -956,21 +1094,107 @@ On 2026-11-03 against LM Studio with `gemma-4-e4b-it-mlx@4bit` it passed 62 of
 тот внизу» stays unfixed (should be «если… то»), and that answer dropped a
 word.
 
-Paste vocabulary as a list (`vocabulary-paste-list`, every OS; its row shows
-under Clean up on your own server): the Vocabulary sheet gains Paste list,
-so a long list goes in at once instead of row by row. The behaviour is in
-[vocabulary.md](vocabulary.md); the gate is the toggle itself, checked where
-the button shows and again when it is pressed. `dictation::vocabulary::parse_list`
-reads the text; the sheet merges it into its rows and saves. A starter list
-for Russian vibe coding lives in
+Vocabulary text view (`vocabulary-paste-list`, setting
+`labs.vocabulary_paste_list`, both kept from its first name, Paste
+vocabulary as a list; every OS; its row shows under Clean up on your own
+server): the Vocabulary sheet gains Text view, which shows the whole list as
+text to paste, fix, or delete many terms at once, and Save makes the list
+exactly that text. The behaviour is in [vocabulary.md](vocabulary.md); the
+gate is the toggle itself, checked where the button shows and again when it
+is pressed. `dictation::vocabulary::to_list` writes the text and
+`parse_list` reads it back. A starter list for Russian vibe coding lives in
 [docs/vocabulary/vibe-coding-ru.txt](../vocabulary/vibe-coding-ru.txt).
-Checks: `a_pasted_list_reads_terms_and_spellings_per_line` and
+Checks: `a_pasted_list_reads_terms_and_spellings_per_line`,
+`a_list_written_as_text_reads_back_the_same`, and
 `the_vibe_coding_starter_list_fits` in
 [dictation/vocabulary.rs](../../src/dictation/vocabulary.rs),
-`a_pasted_list_merges_into_the_rows_and_saves` in
+`text_view_saves_the_list_it_shows`,
+`leaving_text_view_without_save_keeps_the_list`, and
+`an_emptied_text_view_saves_no_terms` in
 [rune_ui/vocabulary.rs](../../src/rune_ui/vocabulary.rs); scene
-`mac-settings-vocabulary-paste` (no golden). Not yet observed: a paste in a
+`mac-settings-vocabulary-text` (no golden). Not yet observed: Text view in a
 running Hex.
+
+Add to vocabulary from a selection (`vocabulary-quick-add`, macOS): turn a
+misheard word into a Vocabulary entry where it was misheard.
+
+```ts
+⌥⇧A (vocabulary_add_hotkey; General › Output while on, rebindable)
+├── Modifiers alone (Right Control) -> suppression::ModifierTap: fires when exactly those
+│               modifiers, sides included, go down and all come up within 600 ms with no
+│               key, click, or other modifier between, so ⌃C and holds keep working
+├── Gate        labs::vocabulary_quick_add() where the listener handles the action, and
+│               RuntimeHotkeys::vocabulary_add only while on (suppression::paste_action)
+├── Selection   accessibility::selection: the focused element's AXSelectedText (Chromium
+│               apps asked for their tree first), never the clipboard; else
+│               paste::copy_selection: ⌘C, read, the clipboard put back (400 ms)
+├── Card        rune_ui::vocabulary_card, a key-taking nonactivating overlay just below
+│   │           the selection (AXBoundsForRange of AXSelectedTextRange), above it when
+│   │           the screen ends first, at the pointer when the app gives no bounds, kept
+│   │           on that screen's visible frame: Heard (the selection) and Should be
+│   │           (focused; prefilled when Heard is already a term's spelling)
+│   ├── Cleaned   a word AI cleanup wrote ("Directus" for a heard "Динкдан"): Heard is
+│   │             what transcription wrote there, Should be the selection, and the card
+│   │             says "AI cleanup wrote it as …" (dictation::heard_before: the newest 100
+│   │             History entries, transcript and cleaned text aligned word by word;
+│   │             the entry whose words around the selection match, read through
+│   │             AXStringForRange, else the newest whose spelling Vocabulary lacks)
+│   ├── Add / Return -> saved as `hex vocabulary add` does (term + Heard as a spelling),
+│   │       Runtime ReloadSettings; then, where the selection is editable, pasted over
+│   │       (paste::paste_over_selection: ⌘V, the clipboard put back after 500 ms
+│   │       unless something newer replaced it; typed into Chromium 155/156)
+│   │   ├── Editable  a text role (AXTextField/TextArea/ComboBox/SearchField) or a
+│   │   │             settable AXSelectedText/AXValue, else the app's ⌘X menu item
+│   │   │             (accessibility::can_cut, found by its shortcut, so any language)
+│   │   │             enabled, asked while the app is still in front; a sent message
+│   │   │             or a terminal keeps its text and the card says so before Add
+│   │   └── Guards    the app back in front (activated if Hex kept the keys, 1 s at
+│   │                 most) and, read through Accessibility, the same element with the
+│   │                 same text selected; otherwise nothing is pasted
+│   └── Cancel, Escape, or a click into another app -> closes, nothing saved
+└── Nothing selected -> the card opens with Heard empty and focused
+```
+
+Checks: `the_vocabulary_shortcut_needs_its_lab_and_its_own_keys` in
+[app_settings.rs](../../src/app_settings.rs), `a_listed_spelling_or_term_finds_its_term` and `the_card_sits_by_its_selection`
+in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs), the alignment and the entry's choice in
+[dictation/heard_before.rs](../../src/dictation/heard_before.rs), the taps in
+[suppression/modifier_tap.rs](../../src/suppression/modifier_tap.rs). The card
+has no scene. Observed: AXSelectedText alone was settable almost nowhere (three tries,
+all `replaceable=false`), hence the paste, as AliceMate does. Not yet
+observed: the paste replacement in a running Hex across native, Chromium,
+and terminal apps. Observed against the real History: "Directus", "Claude
+Code", and "Labs" found "Директус", "плод код", and "лэб"; the choice by
+surrounding words is not yet observed in a running Hex.
+
+Russian vibe coding (`russian-vibe-coding`, every OS) is a preset, not a
+runtime gate: turning it on (the row, `hex labs on`, or
+`hex settings set labs.russian_vibe_coding true`) writes
+[docs/vocabulary/](../vocabulary/)'s files into the person's own settings
+once, through `dictation::presets::russian_vibe_coding`:
+
+```ts
+on
+├── vibe-coding-ru.txt        merged into the shared vocabulary (new terms and spellings only)
+├── replacements-ru.json      added to Global's word fixes, unless a fix for the same phrase exists
+├── cleanup-instructions-ru.txt  Global's instructions: replaces Hex's default prompt, else appended once
+├── Global's Clean up with AI    on (it runs where Output says: OpenCode, OpenRouter, or your server)
+└── Labs it builds on            Clean up on your own server and Vocabulary text view on
+off
+├── vocabulary entries and fixes exactly as the preset wrote them are removed; edited ones stay
+├── instructions: only the preset's text is removed; if nothing else was there, Hex's default
+│   prompt returns and Clean up with AI turns off
+└── Clean up on your own server and Paste vocabulary as a list stay on (a server or key set up there is the person's own)
+```
+
+Everything it writes stays editable in Vocabulary and Output. The managed
+Labs lock turns only the switch off and leaves what was written. Checks:
+`turning_it_on_then_off_leaves_a_fresh_install_as_it_was`,
+`it_keeps_what_the_person_wrote_and_changed`, and `the_preset_files_load` in
+[dictation/presets.rs](../../src/dictation/presets.rs);
+`the_russian_vibe_coding_lab_writes_its_preset_once_and_takes_it_back` in
+[control/settings.rs](../../src/control/settings.rs). Not yet observed: the
+row flipped in a running Hex.
 
 Normal features, not Labs: dictation, Annotate (every build; its own pane
 and switch), lowering audio while dictating (#210), Dot scope, chord shortcuts, QuickJS transformations, clipboard
@@ -1126,7 +1350,7 @@ vocabulary list itself (rewriting and search), and Linux's Terminal paste.
   apps that ignore a synthetic Ctrl+V (issue 477 / PR 478). Its toggle is the
   shared `paste_with_shift`; Linux keeps it as a General › Advanced row.
 
-Checks: `labs_is_one_flat_list_of_toggles_off_by_default`,
+Checks: `labs_lists_every_toggle_off_by_default_in_sections`,
 `contributed_options_are_labs_toggles_off_by_default`,
 `the_browser_labs_toggle_turns_on_and_asks_for_system_audio`,
 `keyboard_model_switching_is_a_labs_toggle_wherever_layouts_are_observable`,

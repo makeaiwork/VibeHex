@@ -147,6 +147,9 @@ struct Hotkeys {
     /// The recording (or the last) skips processing: the raw shortcut or
     /// `hex dictation start --raw` started it.
     raw_capture: bool,
+    /// Labs › Add to vocabulary from a selection bound to modifiers alone
+    /// (Right Control): a tap of them.
+    vocabulary_tap: crate::suppression::ModifierTap,
 }
 
 impl Hotkeys {
@@ -264,11 +267,18 @@ impl Hotkeys {
                 Some(HotkeyAction::Start) if others_recording => {
                     machine.suspend();
                 }
-                Some(HotkeyAction::PasteLast | HotkeyAction::PasteMeeting)
-                    if shortcut != Shortcut::Dictation => {}
+                Some(
+                    HotkeyAction::PasteLast
+                    | HotkeyAction::PasteMeeting
+                    | HotkeyAction::VocabularyAdd,
+                ) if shortcut != Shortcut::Dictation => {}
                 Some(action) => actions.push((shortcut, action)),
                 None => {}
             }
+        }
+        let vocabulary = crate::app_settings::runtime_hotkeys().vocabulary_add;
+        if self.vocabulary_tap.process(event, at, vocabulary) {
+            actions.push((Shortcut::Dictation, HotkeyAction::VocabularyAdd));
         }
         actions
     }
@@ -337,6 +347,7 @@ pub fn listen(
         second: None,
         raw: None,
         raw_capture: false,
+        vocabulary_tap: Default::default(),
     };
     hotkeys.configure(CaptureInstant::now());
     let recording_environment = RecordingEnvironmentController::start();
@@ -1311,6 +1322,15 @@ fn handle_hotkey_action(
             }
             emit_engine_state(events, false, worker, device)
         }
+        HotkeyAction::VocabularyAdd => {
+            // Its chord's modifier press started a provisional capture.
+            feedback::retract_start();
+            dictation.cancel()?;
+            if crate::labs::vocabulary_quick_add() {
+                crate::rune_ui::vocabulary_card::open_for_selection();
+            }
+            Ok(())
+        }
     }?;
     Ok(true)
 }
@@ -1862,6 +1882,7 @@ mod tests {
             second: Some(DictationHotkey::new(base, true, control)),
             raw: None,
             raw_capture: false,
+            vocabulary_tap: Default::default(),
         };
         let mut press = |flags: u64, ms: u64| hotkeys.process(InputEvent::Flags(flags), at(ms));
         const START: HotkeyAction = HotkeyAction::Start;

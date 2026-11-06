@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicU8, Ordering};
 
+mod files;
 mod french;
 mod portuguese;
 mod traditional_chinese;
@@ -314,12 +315,16 @@ pub(crate) fn event_age(timestamp_ms: u64) -> String {
     tr_fill(template, &value.to_string())
 }
 
+/// Every string with its six columns: the main table, then Files' (Labs).
+fn translations() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
+    TRANSLATIONS.iter().chain(files::TRANSLATIONS)
+}
+
 fn tables() -> &'static [HashMap<&'static str, &'static str>; 6] {
     static TABLES: OnceLock<[HashMap<&'static str, &'static str>; 6]> = OnceLock::new();
     TABLES.get_or_init(|| {
         std::array::from_fn(|column| {
-            TRANSLATIONS
-                .iter()
+            translations()
                 .map(|(english, translated)| (*english, translated[column]))
                 .collect()
         })
@@ -416,18 +421,41 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Fill in", ["Wstaw", "填入", "入力", "Einsetzen", "Rellenar", "Підставити"]),
     ("Model", ["Model", "模型", "モデル", "Modell", "Modelo", "Модель"]),
     ("API key", ["Klucz API", "API 密钥", "API キー", "API-Schlüssel", "Clave de API", "Ключ API"]),
+    ("A model Hex downloads and runs itself, offline", ["Model, który Hex pobiera i uruchamia sam, offline", "Hex 自行下载并离线运行的模型", "Hex が自分でダウンロードしてオフラインで動かすモデル", "Ein Modell, das Hex selbst lädt und offline ausführt", "Un modelo que Hex descarga y ejecuta por sí mismo, sin conexión", "Модель, яку Hex сам завантажує й запускає офлайн"]),
+    ("Download a model below", ["Pobierz model poniżej", "请在下方下载模型", "下でモデルをダウンロードしてください", "Lade unten ein Modell", "Descarga un modelo abajo", "Завантажте модель нижче"]),
+    ("Loaded", ["Załadowano", "已加载", "読み込み済み", "Geladen", "Cargado", "Завантажено"]),
+    ("Loading the model…", ["Ładowanie modelu…", "正在加载模型…", "モデルを読み込み中…", "Modell wird geladen…", "Cargando el modelo…", "Завантаження моделі…"]),
+    ("Loads when you dictate", ["Ładuje się, gdy dyktujesz", "在你听写时加载", "音声入力するときに読み込みます", "Lädt, wenn du diktierst", "Se carga cuando dictas", "Завантажується, коли ви диктуєте"]),
+    ("Download failed: {}", ["Pobieranie nie powiodło się: {}", "下载失败：{}", "ダウンロードに失敗しました: {}", "Download fehlgeschlagen: {}", "La descarga falló: {}", "Не вдалося завантажити: {}"]),
     ("Saved outside settings.json", ["Zapisany poza settings.json", "保存在 settings.json 之外", "settings.json の外に保存済み", "Außerhalb von settings.json gespeichert", "Guardada fuera de settings.json", "Збережено поза settings.json"]),
     ("Required", ["Wymagany", "必填", "必須", "Erforderlich", "Obligatoria", "Обов'язково"]),
     ("Not needed for LM Studio or Ollama", ["Niepotrzebny dla LM Studio ani Ollama", "LM Studio 或 Ollama 不需要", "LM Studio や Ollama では不要", "Für LM Studio oder Ollama nicht nötig", "No hace falta para LM Studio ni Ollama", "Не потрібен для LM Studio чи Ollama"]),
+    ("Loading models…", ["Wczytywanie modeli…", "正在加载模型…", "モデルを読み込み中…", "Modelle werden geladen…", "Cargando modelos…", "Завантаження моделей…"]),
+    ("Choose a model", ["Wybierz model", "选择模型", "モデルを選ぶ", "Modell auswählen", "Elegir un modelo", "Виберіть модель"]),
+    ("Search models", ["Szukaj modeli", "搜索模型", "モデルを検索", "Modelle suchen", "Buscar modelos", "Шукати моделі"]),
+    ("Type one, or choose from {}", ["Wpisz lub wybierz spośród {}", "输入一个，或从 {} 个中选择", "入力するか、{} 件から選ぶ", "Eintippen oder aus {} wählen", "Escribe uno o elige entre {}", "Введіть або виберіть із {}"]),
+    ("The server lists no models", ["Serwer nie podaje żadnych modeli", "服务器没有列出任何模型", "サーバーにモデルがありません", "Der Server listet keine Modelle", "El servidor no muestra ningún modelo", "Сервер не показує жодної моделі"]),
     ("Custom instructions", ["Własne instrukcje", "自定义指令", "カスタム指示", "Eigene Anweisungen", "Instrucciones personalizadas", "Власні інструкції"]),
     ("Your own rules, added to Hex's prompt along with your vocabulary", ["Twoje zasady, dodawane do promptu Hex razem z Twoim słownictwem", "你自己的规则，会和你的词汇一起加入 Hex 的提示词", "あなた独自のルール。語彙と一緒に Hex のプロンプトに追加されます", "Deine eigenen Regeln, zusammen mit deinem Vokabular zu Hex' Prompt hinzugefügt", "Tus propias reglas, añadidas al prompt de Hex junto con tu vocabulario", "Ваші власні правила, що додаються до промпту Hex разом зі словником"]),
     ("The URL must start with http:// or https://", ["Adres URL musi zaczynać się od http:// lub https://", "URL 必须以 http:// 或 https:// 开头", "URL は http:// または https:// で始まる必要があります", "Die URL muss mit http:// oder https:// beginnen", "La URL debe empezar por http:// o https://", "URL-адреса має починатися з http:// або https://"]),
     ("Rewrite with {}", ["Przepisz przez {}", "用 {} 改写", "{} で書き換え", "Mit {} umschreiben", "Reescribir con {}", "Переписати через {}"]),
-    ("Paste vocabulary as a list", ["Wklejanie słownictwa jako listy", "以列表形式粘贴词汇", "語彙をリストで貼り付け", "Vokabular als Liste einfügen", "Pegar vocabulario como lista", "Вставлення словника списком"]),
-    ("Add many terms at once in the Vocabulary sheet: one per line, Term | sounds like", ["Dodawaj wiele terminów naraz w arkuszu Słownictwo: po jednym w wierszu, Termin | brzmi jak", "在词汇表中一次添加多个词：每行一个，词 | 听起来像", "語彙シートで複数の語を一度に追加：1 行に 1 つ、語 | 聞こえ方", "Viele Begriffe auf einmal im Vokabular hinzufügen: einer pro Zeile, Begriff | klingt wie", "Añade muchos términos a la vez en la hoja Vocabulario: uno por línea, Término | suena como", "Додавайте багато термінів одразу в аркуші Словник: по одному в рядку, Термін | звучить як"]),
+    ("Vocabulary text view", ["Słownictwo jako tekst", "词汇文本视图", "語彙のテキスト表示", "Vokabular als Text", "Vocabulario como texto", "Словник як текст"]),
+    ("Edit the whole Vocabulary as text, one term per line as Term | sounds like, to paste, fix, or delete many terms at once", ["Edytuj całe słownictwo jako tekst, jeden termin w wierszu jako Termin | brzmi jak, aby wklejać, poprawiać lub usuwać wiele terminów naraz", "以文本形式编辑整个词汇表，每行一个词，格式为 词 | 听起来像，可一次粘贴、修改或删除多个词", "語彙全体をテキストで編集します。1 行に 1 語、語 | 聞こえ方 の形式で、多くの語をまとめて貼り付け・修正・削除できます", "Bearbeite das ganze Vokabular als Text, ein Begriff pro Zeile als Begriff | klingt wie, um viele Begriffe auf einmal einzufügen, zu korrigieren oder zu löschen", "Edita todo el vocabulario como texto, un término por línea como Término | suena como, para pegar, corregir o borrar muchos términos a la vez", "Редагуйте весь словник як текст, один термін у рядку як Термін | звучить як, щоб вставляти, виправляти чи видаляти багато термінів одразу"]),
+    ("Russian vibe coding", ["Vibe coding po rosyjsku", "俄语氛围编程", "ロシア語のバイブコーディング", "Russisches Vibe-Coding", "Vibe coding en ruso", "Російський вайб-кодинг"]),
+    ("Adds 80 terms such as Claude Code, GitHub, and MCP, Russian word fixes, and cleanup instructions to your settings, and turns on Clean up with AI and the other starred Labs features except Stop shortcut. Off takes back the terms, fixes, and instructions", ["Dodaje do ustawień 80 terminów, takich jak Claude Code, GitHub i MCP, rosyjskie poprawki słów i instrukcje porządkowania oraz włącza porządkowanie przez AI i pozostałe funkcje Labs z gwiazdką oprócz skrótu zatrzymania. Wyłączenie cofa terminy, poprawki i instrukcje", "向设置添加 80 个术语（如 Claude Code、GitHub 和 MCP）、俄语词语修正和整理说明，并开启 AI 整理以及除停止快捷键外其他带星标的 Labs 功能。关闭即撤回术语、修正和说明", "Claude Code、GitHub、MCP など 80 語、ロシア語の語句修正、整形の指示を設定に追加し、AI で整形と、停止ショートカット以外の星印の付いた Labs 機能をオンにします。オフで語句・修正・指示を元に戻します", "Fügt 80 Begriffe wie Claude Code, GitHub und MCP, russische Wortkorrekturen und Bereinigungsanweisungen zu deinen Einstellungen hinzu und schaltet Mit KI bereinigen und die anderen Labs-Funktionen mit Stern außer dem Stoppkürzel ein. Aus nimmt Begriffe, Korrekturen und Anweisungen zurück", "Añade a tus ajustes 80 términos como Claude Code, GitHub y MCP, correcciones de palabras rusas e instrucciones de limpieza, y activa Limpiar con IA y las demás funciones de Labs con estrella, salvo el atajo para detener. Desactivarlo retira los términos, correcciones e instrucciones", "Додає до налаштувань 80 термінів, як-от Claude Code, GitHub і MCP, виправлення російських слів та інструкції очищення, і вмикає впорядкування за допомогою ШІ та інші функції Labs із зірочкою, крім комбінації зупинки. Вимкнення прибирає терміни, виправлення та інструкції"]),
     ("One term per line: Term | sounds like, sounds like", ["Jeden termin w wierszu: Termin | brzmi jak, brzmi jak", "每行一个词：词 | 听起来像, 听起来像", "1 行に 1 語：語 | 聞こえ方, 聞こえ方", "Ein Begriff pro Zeile: Begriff | klingt wie, klingt wie", "Un término por línea: Término | suena como, suena como", "Один термін у рядку: Термін | звучить як, звучить як"]),
-    ("Add to list", ["Dodaj do listy", "添加到列表", "リストに追加", "Zur Liste hinzufügen", "Añadir a la lista", "Додати до списку"]),
-    ("Paste list", ["Wklej listę", "粘贴列表", "リストを貼り付け", "Liste einfügen", "Pegar lista", "Вставити список"]),
+    ("Text view", ["Widok tekstowy", "文本视图", "テキスト表示", "Textansicht", "Vista de texto", "Текстовий вигляд"]),
+    ("Add to vocabulary from a selection", ["Dodawanie do słownictwa z zaznaczenia", "从选中内容添加到词汇表", "選択範囲から語彙に追加", "Aus einer Auswahl zum Vokabular hinzufügen", "Añadir al vocabulario desde una selección", "Додавання до словника з виділення"]),
+    ("Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited", ["Zaznacz źle usłyszane słowo w dowolnej aplikacji i naciśnij skrót, aby dodać je do słownictwa z poprawną pisownią, która zastąpi też zaznaczenie, jeśli tekst można edytować", "在任意应用中选中被听错的词并按快捷键，即可连同正确拼写添加到词汇表；文本可编辑时还会替换选中内容", "どのアプリでも聞き違えた語を選択してショートカットを押すと、正しい綴りとともに語彙に追加します。テキストを編集できる場合は選択範囲も置き換えます", "Markiere ein falsch erkanntes Wort in einer beliebigen App und drücke ein Tastenkürzel, um es mit der richtigen Schreibweise zum Vokabular hinzuzufügen; wo sich der Text bearbeiten lässt, ersetzt sie auch die Auswahl", "Selecciona una palabra mal oída en cualquier app y pulsa un atajo para añadirla al vocabulario con su escritura correcta, que también reemplaza la selección donde el texto se puede editar", "Виділіть неправильно почуте слово в будь-якій програмі й натисніть сполучення клавіш, щоб додати його до словника з правильним написанням, яке також замінить виділення, якщо текст можна редагувати"]),
+    ("Add selection to vocabulary", ["Dodaj zaznaczenie do słownictwa", "将选中内容添加到词汇表", "選択範囲を語彙に追加", "Auswahl zum Vokabular hinzufügen", "Añadir la selección al vocabulario", "Додати виділене до словника"]),
+    ("Select a misheard word anywhere, then press this shortcut", ["Zaznacz źle usłyszane słowo w dowolnym miejscu i naciśnij ten skrót", "在任意位置选中听错的词，然后按此快捷键", "聞き違えた語をどこでも選択してから、このショートカットを押します", "Markiere irgendwo ein falsch erkanntes Wort und drücke dann dieses Tastenkürzel", "Selecciona una palabra mal oída en cualquier lugar y pulsa este atajo", "Виділіть неправильно почуте слово будь-де й натисніть це сполучення"]),
+    ("Add to vocabulary", ["Dodaj do słownictwa", "添加到词汇表", "語彙に追加", "Zum Vokabular hinzufügen", "Añadir al vocabulario", "Додати до словника"]),
+    ("Heard", ["Usłyszano", "听到的", "聞き取り", "Gehört", "Se oyó", "Почуто"]),
+    ("Should be", ["Powinno być", "应为", "正しくは", "Richtig", "Debería ser", "Має бути"]),
+    ("What was transcribed", ["Co zostało rozpoznane", "转写出的内容", "書き起こされた内容", "Was transkribiert wurde", "Lo que se transcribió", "Що розпізнано"]),
+    ("The right spelling", ["Poprawna pisownia", "正确拼写", "正しい綴り", "Richtige Schreibweise", "La escritura correcta", "Правильне написання"]),
+    ("Couldn't save: {}", ["Nie udało się zapisać: {}", "无法保存：{}", "保存できませんでした：{}", "Speichern fehlgeschlagen: {}", "No se pudo guardar: {}", "Не вдалося зберегти: {}"]),
+    ("This text can't be edited here; the word still goes to Vocabulary", ["Tego tekstu nie można tu edytować; słowo i tak trafi do słownictwa", "此处的文本无法编辑；该词仍会添加到词汇表", "ここのテキストは編集できません。語は語彙に追加されます", "Dieser Text lässt sich hier nicht bearbeiten; das Wort kommt trotzdem ins Vokabular", "Este texto no se puede editar aquí; la palabra se añade igualmente al vocabulario", "Цей текст тут не можна редагувати; слово все одно потрапить до словника"]),
     ("Mouse shortcuts", ["Skróty myszy", "鼠标快捷键", "マウスショートカット", "Maus-Kürzel", "Atajos de ratón", "Комбінації з мишею"]),
     ("Record mouse buttons as shortcuts", ["Nagrywaj przyciski myszy jako skróty", "将鼠标按键录制为快捷键", "マウスボタンをショートカットとして記録します", "Maustasten als Kürzel aufnehmen", "Graba botones del ratón como atajos", "Записувати кнопки миші як комбінації"]),
     ("While dictating with Pause media: YouTube and other tabs, resumed only if Hex paused them", ["Podczas dyktowania z Wstrzymaj multimedia: YouTube i inne karty, wznawiane tylko, jeśli wstrzymał je Hex", "听写时搭配“暂停媒体”：YouTube 等标签页，仅在由 Hex 暂停时才会恢复", "「メディアを一時停止」での音声入力中：YouTube などのタブ。Hex が止めた場合だけ再開します", "Beim Diktieren mit „Medien pausieren“: YouTube und andere Tabs, nur fortgesetzt, wenn Hex sie pausiert hat", "Al dictar con Pausar multimedia: YouTube y otras pestañas, reanudadas solo si Hex las pausó", "Під час диктування з «Призупиняти медіа»: YouTube та інші вкладки, відновлюються, лише якщо їх призупинив Hex"]),
@@ -928,6 +956,8 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Replacement (e.g. OpenCode)", ["Zamiennik (np. OpenCode)", "替换为（例如 OpenCode）", "置換後（例: OpenCode）", "Ersetzung (z. B. OpenCode)", "Reemplazo (p. ej. OpenCode)", "Заміна (наприклад, OpenCode)"]),
     ("Switch to {channel} {version}", ["Przełącz na {channel} {version}", "切换到{channel} {version}", "{channel} {version} に切り替え", "Zu {channel} {version} wechseln", "Cambiar a {channel} {version}", "Перейти на {channel} {version}"]),
     ("Restart to update", ["Uruchom ponownie, aby zaktualizować", "重启以更新", "再起動してアップデート", "Zum Aktualisieren neu starten", "Reiniciar para actualizar", "Перезапустити для оновлення"]),
+    ("Hex {version} is ready", ["Hex {version} jest gotowy", "Hex {version} 已就绪", "Hex {version} の準備ができました", "Hex {version} ist bereit", "Hex {version} está listo", "Hex {version} готовий"]),
+    ("You have {running}. Restart Hex to install it now, or it installs when you quit", ["Masz {running}. Uruchom Hex ponownie, aby zainstalować teraz, albo zainstaluje się po zamknięciu", "当前版本为 {running}。立即重启 Hex 进行安装，或在退出时自动安装", "現在のバージョンは {running} です。今すぐ Hex を再起動してインストールするか、終了時にインストールされます", "Du hast {running}. Starte Hex neu, um es jetzt zu installieren, oder es wird beim Beenden installiert", "Tienes {running}. Reinicia Hex para instalarla ahora, o se instalará al salir", "У вас {running}. Перезапустіть Hex, щоб установити зараз, або оновлення встановиться під час виходу"]),
     ("Retry", ["Ponów", "重试", "再試行", "Erneut versuchen", "Reintentar", "Повторити спробу"]),
     ("Retry setup", ["Ponów konfigurację", "重试设置", "セットアップを再試行", "Einrichtung wiederholen", "Reintentar configuración", "Повторити налаштування"]),
     ("Right", ["Prawy", "右", "右", "Rechts", "Derecha", "Права"]),
@@ -1021,6 +1051,12 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Detected calls", ["Wykryte rozmowy", "检测到的通话", "検出された通話", "Erkannte Anrufe", "Llamadas detectadas", "Виявлені дзвінки"]),
     ("Ask", ["Pytaj", "询问", "確認する", "Fragen", "Preguntar", "Питати"]),
     ("Always record", ["Zawsze nagrywaj", "始终录制", "常に録音", "Immer aufnehmen", "Grabar siempre", "Завжди записувати"]),
+    ("About", ["O aplikacji", "关于", "このアプリについて", "Über", "Acerca de", "Про застосунок"]),
+    ("Open on GitHub", ["Otwórz na GitHubie", "在 GitHub 上打开", "GitHub で開く", "Auf GitHub öffnen", "Abrir en GitHub", "Відкрити на GitHub"]),
+    ("Source code", ["Kod źródłowy", "源代码", "ソースコード", "Quellcode", "Código fuente", "Вихідний код"]),
+    ("Email the developer", ["Napisz do autora", "给开发者发邮件", "開発者にメール", "Entwickler anschreiben", "Escribir al desarrollador", "Написати розробнику"]),
+    ("VibeHex is a fork of Hex, the open-source dictation app. It adds many useful features of its own, and its code is open too.", ["VibeHex to fork Hex, otwartej aplikacji do dyktowania. Dodaje wiele własnych przydatnych funkcji, a jego kod też jest otwarty.", "VibeHex 是开源听写应用 Hex 的分支。它加入了许多实用的新功能，代码同样开源。", "VibeHex は、オープンソースの音声入力アプリ Hex のフォークです。便利な機能を数多く追加しており、コードも公開しています。", "VibeHex ist ein Fork von Hex, der Open-Source-Diktier-App. Er bringt viele eigene nützliche Funktionen mit, und auch sein Code ist offen.", "VibeHex es un fork de Hex, la app de dictado de código abierto. Añade muchas funciones útiles propias, y su código también es abierto.", "VibeHex — це форк Hex, застосунку для диктування з відкритим кодом. Він додає багато власних корисних функцій, і його код теж відкритий."]),
+    ("Hi! I'm Denis, and I make VibeHex. Feedback, ideas, and bug reports are very welcome.", ["Cześć! Jestem Denis i tworzę VibeHex. Chętnie przyjmę opinie, pomysły i zgłoszenia błędów.", "你好！我是 Denis，VibeHex 的作者。欢迎反馈、想法和错误报告。", "こんにちは、VibeHex を作っている Denis です。ご意見、アイデア、不具合の報告を歓迎します。", "Hallo! Ich bin Denis und mache VibeHex. Feedback, Ideen und Fehlerberichte sind sehr willkommen.", "¡Hola! Soy Denis y hago VibeHex. Opiniones, ideas e informes de errores son muy bienvenidos.", "Привіт! Я Денис, і я роблю VibeHex. Буду радий відгукам, ідеям і повідомленням про помилки."]),
     ("Yandex Telemost", ["Yandex Telemost", "Yandex Telemost", "Yandex Telemost", "Yandex Telemost", "Yandex Telemost", "Яндекс Телеміст"]),
     ("Yandex Telemost (web)", ["Yandex Telemost (przeglądarka)", "Yandex Telemost（网页版）", "Yandex Telemost（ウェブ）", "Yandex Telemost (Web)", "Yandex Telemost (web)", "Яндекс Телеміст (веб)"]),
     ("Slack huddles", ["Huddle w Slacku", "Slack 语音小组会", "Slack ハドル", "Slack-Huddles", "Huddles de Slack", "Хадли в Slack"]),
@@ -1056,6 +1092,30 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Finalizing…", ["Kończenie…", "正在完成…", "仕上げ中…", "Wird abgeschlossen…", "Finalizando…", "Завершення…"]),
     ("Failed", ["Niepowodzenie", "失败", "失敗", "Fehlgeschlagen", "Fallido", "Не вдалося"]),
     ("Interrupted", ["Przerwano", "已中断", "中断", "Unterbrochen", "Interrumpido", "Перервано"]),
+    ("Pasting", ["Wklejanie", "粘贴", "貼り付け", "Einfügen", "Pegado", "Вставлення"]),
+    ("Text cleanup", ["Porządkowanie tekstu", "文本整理", "テキストの整形", "Textbereinigung", "Limpieza del texto", "Очищення тексту"]),
+    ("Speech models", ["Modele mowy", "语音模型", "音声モデル", "Sprachmodelle", "Modelos de voz", "Моделі мовлення"]),
+    ("History and recording", ["Historia i nagrywanie", "历史记录与录音", "履歴と録音", "Verlauf und Aufnahme", "Historial y grabación", "Історія та запис"]),
+    ("Sound and interface", ["Dźwięk i interfejs", "声音与界面", "サウンドとインターフェース", "Ton und Oberfläche", "Sonido e interfaz", "Звук та інтерфейс"]),
+    ("Cleanup progress", ["Postęp porządkowania przez AI", "整理进度", "整えの進行状況", "Fortschritt der Bereinigung", "Progreso de la limpieza", "Перебіг упорядкування"]),
+    ("While AI cleanup takes a while, a bar in place of the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed", ["Gdy porządkowanie przez AI trwa dłużej, pasek w miejscu HUD pokazuje postęp, a Wklej teraz wkleja już uporządkowaną część, a resztę tak, jak ją rozpoznano", "AI 整理耗时较长时，取代 HUD 的进度条会显示进度；点按“立即粘贴”可粘贴已整理的部分，其余部分按识别结果粘贴", "AI による整えに時間がかかるときは、HUD の代わりのバーに進み具合が表示されます。「今すぐ貼り付け」で整え済みの部分を貼り付け、残りは認識したまま貼り付けます", "Dauert die KI-Bereinigung länger, zeigt ein Balken anstelle des HUD den Fortschritt; Jetzt einfügen fügt den bereits bereinigten Teil ein und den Rest wie erkannt", "Cuando la limpieza con IA tarda, una barra en lugar del HUD muestra cuánto lleva, y Pegar ahora pega la parte ya limpia y el resto tal como se transcribió", "Коли упорядкування ШІ триває довше, смужка замість HUD показує перебіг, а «Вставити зараз» вставляє вже впорядковану частину, а решту — як розпізнано"]),
+    ("AI cleanup wrote it as {}", ["AI zapisało to jako {}", "AI 整理后写成了 {}", "AI の整えで {} と書かれました", "Die KI-Bereinigung schrieb {}", "La limpieza con IA lo escribió como {}", "Упорядкування ШІ записало це як {}"]),
+    ("Fast", ["Szybki", "快", "高速", "Schnell", "Rápido", "Швидка"]),
+    ("Slower", ["Wolniejszy", "较慢", "やや遅い", "Langsamer", "Más lento", "Повільніша"]),
+    ("Speed", ["Szybkość", "速度", "速度", "Tempo", "Velocidad", "Швидкість"]),
+    ("Quality", ["Jakość", "质量", "品質", "Qualität", "Calidad", "Якість"]),
+    ("Best", ["Najlepsza", "最佳", "最高", "Beste", "La mejor", "Найкраща"]),
+    ("Good", ["Dobra", "良好", "高い", "Gut", "Buena", "Добра"]),
+    ("Basic", ["Podstawowa", "一般", "標準", "Einfach", "Básica", "Базова"]),
+    ("Loading {}", ["Wczytywanie {}", "正在加载 {}", "読み込み中 {}", "Wird geladen {}", "Cargando {}", "Завантаження {}"]),
+    ("{}-bit", ["{}-bitowy", "{} 位", "{} ビット", "{}-Bit", "{} bits", "{}-бітна"]),
+    ("Delete {}", ["Usuń {}", "删除 {}", "{} を削除", "{} löschen", "Eliminar {}", "Видалити {}"]),
+    ("Added in VibeHex", ["Dodane w VibeHex", "VibeHex 新增", "VibeHex で追加", "Neu in VibeHex", "Añadido en VibeHex", "Додано у VibeHex"]),
+    ("Cleaning up", ["Porządkowanie", "正在整理", "整えています", "Wird aufgeräumt", "Limpiando", "Упорядкування"]),
+    ("Paste now", ["Wklej teraz", "立即粘贴", "今すぐ貼り付け", "Jetzt einfügen", "Pegar ahora", "Вставити зараз"]),
+    ("VibeHex only", ["Tylko VibeHex", "仅 VibeHex", "VibeHex のみ", "Nur VibeHex", "Solo VibeHex", "Лише VibeHex"]),
+    ("Search Labs", ["Szukaj w Labs", "搜索 Labs", "Labs を検索", "Labs durchsuchen", "Buscar en Labs", "Пошук у Labs"]),
+    ("No Labs features match.", ["Brak pasujących funkcji Labs.", "没有匹配的 Labs 功能。", "一致する Labs 機能はありません。", "Keine passenden Labs-Funktionen.", "No hay funciones de Labs que coincidan.", "Відповідних функцій Labs немає."]),
     ("Search meetings", ["Szukaj spotkań", "搜索会议", "会議を検索", "Besprechungen suchen", "Buscar reuniones", "Пошук зустрічей"]),
     ("No meetings match.", ["Brak pasujących spotkań.", "没有匹配的会议。", "一致する会議はありません。", "Keine passenden Besprechungen.", "No hay reuniones que coincidan.", "Відповідних зустрічей немає."]),
     ("No meetings yet.", ["Brak spotkań.", "暂无会议。", "会議はまだありません。", "Noch keine Besprechungen.", "Aún no hay reuniones.", "Зустрічей ще немає."]),
@@ -1391,7 +1451,6 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::TRANSLATIONS;
     use super::{language_from_env, primary_subtag};
 
     #[test]
@@ -1504,7 +1563,7 @@ mod tests {
 
     #[test]
     fn templates_keep_their_placeholder_in_every_language() {
-        for (english, translated) in TRANSLATIONS {
+        for (english, translated) in super::translations() {
             if english.contains("{}") {
                 for translation in translated {
                     assert!(
@@ -1520,11 +1579,17 @@ mod tests {
     const SOURCES: &[&str] = &[
         include_str!("opencode_catalog.rs"),
         include_str!("../rune_ui.rs"),
+        include_str!("../rune_ui/about.rs"),
         include_str!("../rune_ui/activity.rs"),
         include_str!("../rune_ui/explainer.rs"),
         include_str!("../rune_ui/fun.rs"),
         include_str!("../rune_ui/general.rs"),
         include_str!("../rune_ui/history.rs"),
+        include_str!("../rune_ui/files.rs"),
+        include_str!("../rune_ui/files/detail.rs"),
+        include_str!("../rune_ui/files/settings.rs"),
+        include_str!("../rune_ui/files/actions.rs"),
+        include_str!("../rune_ui/files/tabs.rs"),
         include_str!("../rune_ui/hud_lab.rs"),
         include_str!("../rune_ui/labs.rs"),
         include_str!("../rune_ui/linux_host.rs"),
@@ -1601,7 +1666,7 @@ mod tests {
 
     #[test]
     fn every_translated_string_has_every_language() {
-        let table: std::collections::HashMap<_, _> = TRANSLATIONS.iter().copied().collect();
+        let table: std::collections::HashMap<_, _> = super::translations().copied().collect();
         let mut checked = 0;
         for source in SOURCES {
             for literal in translated_literals(source) {
@@ -1625,7 +1690,7 @@ mod tests {
     #[test]
     fn every_sound_set_string_has_every_language() {
         use crate::feedback::{Cue, SoundSet};
-        let table: std::collections::HashMap<_, _> = TRANSLATIONS.iter().copied().collect();
+        let table: std::collections::HashMap<_, _> = super::translations().copied().collect();
         let strings = SoundSet::ALL
             .into_iter()
             .flat_map(|set| [set.name(), set.character()])
@@ -1644,7 +1709,7 @@ mod tests {
 
     #[test]
     fn named_placeholders_survive_translation() {
-        for (english, translated) in TRANSLATIONS {
+        for (english, translated) in super::translations() {
             let names = english
                 .split('{')
                 .skip(1)
@@ -1665,7 +1730,7 @@ mod tests {
     #[test]
     fn keys_are_unique() {
         let mut seen = std::collections::HashSet::new();
-        for (english, _) in TRANSLATIONS {
+        for (english, _) in super::translations() {
             assert!(
                 seen.insert(english),
                 "duplicate translation key {english:?}"

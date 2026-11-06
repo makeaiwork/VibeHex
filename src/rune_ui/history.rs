@@ -246,7 +246,7 @@ fn clear(ui: &mut Ui) {
 
 /// The models Transcribe again can use: every available one that is
 /// installed for the language it would run in.
-fn installed_models(ui: &Ui) -> Vec<(TranscriptionModelId, &'static str)> {
+pub(super) fn installed_models(ui: &Ui) -> Vec<(TranscriptionModelId, &'static str)> {
     crate::transcription::models::all_models()
         .into_iter()
         .filter(|model| model.available())
@@ -430,6 +430,8 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
                         time: event_age(entry.timestamp_ms),
                         hover: vec![copy_action(ui, p, id, true)],
                         selected: pane.selected == Some(id),
+                        title_lines: 1,
+                        bar: None,
                     },
                     move |ui: &mut Ui| {
                         ui.history.selected = Some(id);

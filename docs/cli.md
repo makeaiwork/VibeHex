@@ -418,6 +418,11 @@ observe input-source changes or show these controls.
   a key on an external keyboard. It acts only while
   `labs.second_dictation_shortcut` is on (`hex labs on
   second-dictation-shortcut`) and shares no key with another shortcut.
+- `vocabulary_add_hotkey` (macOS, `option+shift+a` by default; `none` clears
+  it) adds the selected misheard word to Vocabulary. It acts only while
+  `labs.vocabulary_quick_add` is on (`hex labs on vocabulary-quick-add`),
+  takes a key or modifiers alone (`right-control`, fired on a quick tap of
+  just that key), and shares no key with another shortcut.
 - `stop_hotkey` (macOS, `return` by default) finishes and pastes a recording
   a shortcut started, in any mode; a key alone is fine, since Hex takes it
   only while such a recording runs. It acts only while `labs.stop_shortcut`
@@ -463,11 +468,11 @@ Writable keys: `release_microphone_while_idle`,
 `sound_effects`, `sound_effect_volume`, `sound_theme`, `microphone`,
 `avoid_bluetooth_microphone`, `recording_audio_behavior`, `recording_duck_volume`, `double_tap_lock`, `double_tap_only`,
 `shortcut_mode`, `dictation_hotkey`, `paste_last_hotkey`, `raw_dictation_hotkey`,
-`second_dictation_hotkey`, `labs.second_dictation_shortcut`, `labs.standalone_special_keys`, `show_dock_icon`, `vocabulary_boost`,
+`second_dictation_hotkey`, `labs.second_dictation_shortcut`, `vocabulary_add_hotkey`, `labs.vocabulary_quick_add`, `labs.cleanup_progress`, `labs.standalone_special_keys`, `show_dock_icon`, `vocabulary_boost`,
 `dictation_processing.default_mode`, `dictation_processing.modes`,
 `labs.ai_cleanup_server`, `dictation_processing.server.runs_on`,
 `dictation_processing.server.url`, `dictation_processing.server.openrouter_model`,
-`dictation_processing.server.custom_model`, `history_retention`, `meetings.enabled`,
+`dictation_processing.server.custom_model`, `dictation_processing.server.local_model`, `history_retention`, `meetings.enabled`,
 `meetings.output_folder`, `meetings.summarize_with_apple_intelligence`,
 `meetings.summarize_with_opencode`,
 `meetings.show_recording_indicator`, `meetings.recording_indicator_corner`,

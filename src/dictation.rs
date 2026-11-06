@@ -2,6 +2,7 @@
 pub(crate) mod audio;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) mod browser_page;
+pub(crate) mod cleanup_pieces;
 pub(crate) mod cleanup_server;
 #[cfg(target_os = "macos")]
 pub(crate) mod config;
@@ -10,10 +11,13 @@ pub(crate) mod context;
 #[cfg(target_os = "macos")]
 pub(crate) mod diagnostics;
 pub(crate) mod filler_words;
+#[cfg(target_os = "macos")]
+pub(crate) mod heard_before;
 pub(crate) mod indicator;
 pub(crate) mod live_text;
 #[cfg_attr(target_os = "macos", allow(dead_code))]
 pub(crate) mod modes;
+pub(crate) mod presets;
 #[cfg_attr(any(target_os = "linux", target_os = "windows"), allow(dead_code))]
 pub(crate) mod processor;
 pub(crate) mod service;
