@@ -35,6 +35,7 @@ fn available() -> bool {
 mod codex_keys;
 mod files_keys;
 mod meeting_notes_keys;
+mod sidebar_keys;
 
 #[derive(Clone, Copy, Debug)]
 enum Kind {
@@ -771,6 +772,7 @@ fn keys() -> impl Iterator<Item = &'static Key> {
         .chain(codex_keys::CODEX_KEYS)
         .chain(meeting_notes_keys::MEETING_NOTES_KEYS)
         .chain(files_keys::FILES_KEYS)
+        .chain(sidebar_keys::SIDEBAR_KEYS)
 }
 
 /// Settings `hex settings` never shows: Hex's own bookkeeping.

@@ -81,6 +81,10 @@ pub struct LabsSettings {
     pub files: bool,
     /// `stop_hotkey` finishes a shortcut's dictation and pastes it (macOS).
     pub stop_shortcut: bool,
+    /// A button beside the logo folds the sidebar into icons.
+    pub collapsible_sidebar: bool,
+    /// The sidebar is folded into icons (while `collapsible_sidebar` is on).
+    pub sidebar_collapsed: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -131,6 +135,8 @@ impl Default for LabsSettings {
             cleanup_progress: false,
             files: false,
             stop_shortcut: false,
+            collapsible_sidebar: false,
+            sidebar_collapsed: false,
         }
     }
 }

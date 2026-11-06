@@ -8,22 +8,8 @@ const SHOWN: usize = 3;
 
 /// An available update, as a secondary button with a dot.
 pub(super) fn control(ui: &Ui, p: Paint) -> Option<El> {
-    let action = match ui.view.as_ref().map(|view| &view.update_status) {
-        Some(DesktopUpdateStatus::ReadyToRestart) => Some((
-            tr("Restart to update").to_owned(),
-            DesktopAction::RestartIntoUpdate,
-        )),
-        Some(DesktopUpdateStatus::Available) => {
-            Some((tr("Download update").to_owned(), DesktopAction::OpenUpdate))
-        }
-        Some(DesktopUpdateStatus::SwitchAvailable { channel, version }) => Some((
-            crate::updater::switch_label(channel, version),
-            DesktopAction::ConfirmUpdateSwitch,
-        )),
-        _ => None,
-    };
     // An available update is a state, not the screen's main action.
-    action.map(|(label, action)| {
+    action(ui).map(|(label, action)| {
         row()
             .key("sidebar-update-control")
             .gap(8.0)
@@ -38,6 +24,24 @@ pub(super) fn control(ui: &Ui, p: Paint) -> Option<El> {
                 move |ui: &mut Ui, _| ui.send(Request::Desktop(action.clone())),
             ))
     })
+}
+
+/// The update there is to take, and its button's words.
+pub(super) fn action(ui: &Ui) -> Option<(String, DesktopAction)> {
+    match ui.view.as_ref().map(|view| &view.update_status) {
+        Some(DesktopUpdateStatus::ReadyToRestart) => Some((
+            tr("Restart to update").to_owned(),
+            DesktopAction::RestartIntoUpdate,
+        )),
+        Some(DesktopUpdateStatus::Available) => {
+            Some((tr("Download update").to_owned(), DesktopAction::OpenUpdate))
+        }
+        Some(DesktopUpdateStatus::SwitchAvailable { channel, version }) => Some((
+            crate::updater::switch_label(channel, version),
+            DesktopAction::ConfirmUpdateSwitch,
+        )),
+        _ => None,
+    }
 }
 
 /// What the staged dev build changed, while Restart to update shows.

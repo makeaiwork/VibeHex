@@ -130,10 +130,11 @@ pub enum Feature {
     CleanupProgress,
     Files,
     StopShortcut,
+    CollapsibleSidebar,
 }
 
 impl Feature {
-    pub const ALL: [Self; 47] = [
+    pub const ALL: [Self; 48] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -181,6 +182,7 @@ impl Feature {
         Self::CleanupProgress,
         Self::Files,
         Self::StopShortcut,
+        Self::CollapsibleSidebar,
     ];
 
     /// The features this OS and build have.
@@ -250,7 +252,8 @@ impl Feature {
             | Self::VocabularyQuickAdd
             | Self::CleanupProgress
             | Self::Files
-            | Self::StopShortcut => Audience::Everyone,
+            | Self::StopShortcut
+            | Self::CollapsibleSidebar => Audience::Everyone,
         }
     }
 
@@ -306,6 +309,7 @@ impl Feature {
             | Self::Files => cfg!(target_os = "macos"),
             Self::KeyboardModelSwitching => crate::keyboard_input_sources::available(),
             Self::Playground
+            | Self::CollapsibleSidebar
             | Self::LiveText
             | Self::VocabularyBiasing
             | Self::UnloadIdle
@@ -335,6 +339,7 @@ impl Feature {
             self,
             Self::AiCleanupServer
                 | Self::CleanupProgress
+                | Self::CollapsibleSidebar
                 | Self::Files
                 | Self::RussianVibeCoding
                 | Self::StopShortcut
@@ -393,6 +398,7 @@ impl Feature {
             Self::CleanupProgress => "cleanup-progress",
             Self::Files => "files",
             Self::StopShortcut => "stop-shortcut",
+            Self::CollapsibleSidebar => "collapsible-sidebar",
         }
     }
 
@@ -446,6 +452,7 @@ impl Feature {
             Self::CleanupProgress => "labs.cleanup_progress",
             Self::Files => "labs.files",
             Self::StopShortcut => "labs.stop_shortcut",
+            Self::CollapsibleSidebar => "labs.collapsible_sidebar",
         }
     }
 
@@ -575,6 +582,9 @@ impl Feature {
             Self::StopShortcut => {
                 "Another key, such as Return, finishes a dictation and pastes it, while your shortcut starts it (stop_hotkey)"
             }
+            Self::CollapsibleSidebar => {
+                "A button beside the logo folds the sidebar into a narrow column of icons, so the pane gets the room"
+            }
         }
     }
 
@@ -632,6 +642,7 @@ impl Feature {
             Self::CleanupProgress => settings.labs.cleanup_progress,
             Self::Files => settings.labs.files,
             Self::StopShortcut => settings.labs.stop_shortcut,
+            Self::CollapsibleSidebar => settings.labs.collapsible_sidebar,
         }
     }
 
@@ -687,6 +698,7 @@ impl Feature {
             &mut labs.cleanup_progress,
             &mut labs.files,
             &mut labs.stop_shortcut,
+            &mut labs.collapsible_sidebar,
         ]
     }
 
@@ -748,6 +760,7 @@ impl Feature {
                 settings.labs.russian_vibe_coding = on;
             }
             Self::StopShortcut => settings.labs.stop_shortcut = on,
+            Self::CollapsibleSidebar => settings.labs.collapsible_sidebar = on,
             // Off, no shortcut keeps a key only the feature allows.
             Self::StandaloneSpecialKeys => {
                 settings.labs.standalone_special_keys = on;

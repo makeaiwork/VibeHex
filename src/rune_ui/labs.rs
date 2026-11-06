@@ -92,16 +92,16 @@ pub(super) fn playground_nav(ui: &Ui, p: Paint) -> Option<El> {
 
 /// The Labs item: opens the Labs page, or goes back to General.
 pub(super) fn nav(ui: &Ui, p: Paint) -> El {
-    let on = ui.labs_open;
-    nav_row(p, "nav-labs", &LABS_ICON, tr("Labs"), on).on_press_tx(
-        move |ui: &mut Ui, tx: &mut Tx| {
-            if on {
-                ui.select_pane(Pane::General, tx);
-            } else {
-                open(ui, tx);
-            }
-        },
-    )
+    nav_row(p, "nav-labs", &LABS_ICON, tr("Labs"), ui.labs_open).on_press_tx(press_nav)
+}
+
+/// What the Labs item does when pressed.
+pub(super) fn press_nav(ui: &mut Ui, tx: &mut Tx) {
+    if ui.labs_open {
+        ui.select_pane(Pane::General, tx);
+    } else {
+        open(ui, tx);
+    }
 }
 
 /// How long a link's row pulses.
@@ -389,6 +389,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
             ));
         }
     }
+    rows.push(row(
+        Feature::CollapsibleSidebar,
+        &super::sidebar::CLOSE_SIDEBAR_ICON,
+        tr("Collapsible sidebar"),
+        tr("A button beside the logo folds the sidebar into a narrow column of icons, so the pane gets the room"),
+    ));
     // Linux's X11 grabs and shortcuts portal take these keys alone.
     if caps.os == super::platform::Os::Linux {
         rows.push(row(
@@ -600,6 +606,7 @@ impl Group {
             Feature::VoiceFilter
             | Feature::PauseBrowser
             | Feature::HideMenuBarIcon
+            | Feature::CollapsibleSidebar
             | Feature::Playground => Self::SoundAndInterface,
         }
     }
@@ -659,6 +666,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::SubtitleExport => "lab-subtitle-export",
         Feature::SecondDictationShortcut => "lab-second-dictation-shortcut",
         Feature::StopShortcut => "lab-stop-shortcut",
+        Feature::CollapsibleSidebar => "lab-collapsible-sidebar",
         Feature::SmartSpacing => "lab-smart-spacing",
         Feature::SpokenSymbols => "lab-spoken-symbols",
         Feature::PickerSortFilter => "lab-picker-sort-filter",

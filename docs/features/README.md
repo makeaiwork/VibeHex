@@ -712,6 +712,8 @@ latency measurement.
 Sidebar                                  // settings.nav
 ├── General, Output, History, then each feature that is on: Meetings and
 │   Voice Filter (Labs toggles), Annotate, Playground (Labs, an item)
+├── Labs › Collapsible sidebar -> Close sidebar beside the logo folds it into icons with tooltips;
+│   Open sidebar, at the top, brings it back; labs.sidebar_collapsed keeps it (scenes sidebar-*)
 └── Labs -> one flat page of toggles, each off by default; hex://labs/<feature> opens it at a row (labs.md)
     // Command-1…9 follow the panes' order (labs::order)
 

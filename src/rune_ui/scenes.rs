@@ -600,6 +600,17 @@ pub(super) const SCENES: &[Scene] = &[
         ui.pane = Pane::Meetings;
     }),
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
+    ("sidebar-foldable", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.collapsible_sidebar = true;
+        ui.sidebar_tip = Some("sidebar-close");
+    }),
+    ("sidebar-folded", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.collapsible_sidebar = true;
+        ui.settings.labs.sidebar_collapsed = true;
+        ui.sidebar_tip = Some("nav-meetings");
+    }),
     ("files-working", |ui| {
         files_scene(ui, files::FilesPane::working_fixture())
     }),

@@ -684,13 +684,12 @@ pub(crate) struct Ui {
     mic_level: general::MicLevel,
     /// The panes whose Advanced fold is open.
     advanced: Vec<Pane>,
-    /// The Labs page shows in place of a pane.
-    labs_open: bool,
+    labs_open: bool, // The Labs page shows in place of a pane.
     /// The Labs row a link just opened, pulsing until it is cleared.
     lab_flash: Option<(crate::labs::Feature, Instant)>,
-    lab_search: TextEdit, // The Labs page's search field.
-    /// The Labs page lists only the starred features VibeHex added.
-    lab_vibehex_only: bool,
+    lab_search: TextEdit,              // The Labs page's search field.
+    lab_vibehex_only: bool, // The Labs page lists only the starred features VibeHex added.
+    sidebar_tip: Option<&'static str>, // The sidebar button whose tooltip shows.
     /// A scene previewing the badge of a build kind this binary is not.
     build_preview: Option<BuildKind>,
     capture: Capture,
@@ -804,6 +803,7 @@ impl Ui {
             lab_flash: None,
             lab_search: TextEdit::default(),
             lab_vibehex_only: false,
+            sidebar_tip: None,
             build_preview: None,
             capture: Capture::Idle,
             vocabulary,
@@ -1435,7 +1435,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .role("window")
         .fill(p.k.c.bg_deep)
         .hover_motion_within(Anim::INSTANT, Anim::INSTANT)
-        .child(sidebar(ui, p))
+        .child(sidebar(ui, p, &mut layer))
         .child(panel);
     let modals = [
         picker::modal(ui, p),
