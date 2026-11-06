@@ -51,6 +51,31 @@ impl MeetingNotesSettings {
     }
 }
 
+/// Questions about a finished meeting: whether its Requests tab and field
+/// show, and where a new session's questions run.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct MeetingQuestionsSettings {
+    pub enabled: bool,
+    /// The engine a new session starts on, in `files.request_engine`'s
+    /// form; `None` follows Files › Settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engine: Option<String>,
+    /// How hard a Codex model thinks; empty follows Files › Settings.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub effort: String,
+}
+
+impl Default for MeetingQuestionsSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            engine: None,
+            effort: String::new(),
+        }
+    }
+}
+
 fn table() -> &'static HashMap<String, String> {
     static TABLE: OnceLock<HashMap<String, String>> = OnceLock::new();
     TABLE.get_or_init(|| {

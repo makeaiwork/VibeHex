@@ -56,7 +56,10 @@ pub(in super::super) struct RequestsPane {
 /// Whether `meeting` has the tab: a finished meeting with a transcript,
 /// while Labs › AI cleanup server is on.
 pub(in super::super) fn available(ui: &Ui, meeting: &Meeting) -> bool {
-    ui.settings.labs.ai_cleanup_server && !meeting.status.is_active() && !meeting.turns().is_empty()
+    ui.settings.labs.ai_cleanup_server
+        && ui.settings.meetings.questions.enabled
+        && !meeting.status.is_active()
+        && !meeting.turns().is_empty()
 }
 
 /// How many sessions the shown meeting has.
@@ -416,12 +419,26 @@ fn chips(ui: &Ui, p: Paint) -> El {
     row().key("chips").gap(6.0).center_y().child(chip)
 }
 
+/// Where a new session starts: its pills' choice, else Meetings ›
+/// Settings › Questions run on, else (`None`) Files › Settings.
+fn next(ui: &Ui) -> (Option<String>, Option<String>) {
+    let pane = &ui.meetings.requests;
+    let questions = &ui.settings.meetings.questions;
+    let effort = Some(questions.effort.trim())
+        .filter(|effort| !effort.is_empty())
+        .map(str::to_owned);
+    (
+        pane.engine.clone().or_else(|| questions.engine.clone()),
+        pane.effort.clone().or(effort),
+    )
+}
+
 /// The engine `session` (or a new one) asks on, and its effort.
 fn chosen(ui: &Ui, session: Option<u32>) -> (Option<String>, Option<String>) {
     let pane = &ui.meetings.requests;
     match session.and_then(|id| pane.sessions.iter().find(|session| session.id == id)) {
         Some(session) => (session.engine.clone(), session.effort.clone()),
-        None => (pane.engine.clone(), pane.effort.clone()),
+        None => next(ui),
     }
 }
 
@@ -561,6 +578,7 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     }
     let id = meeting.id.clone();
     let transcript = transcript(meeting);
+    let (engine, effort) = next(ui);
     // The chip's label, also asked again or typed, cleans the turns.
     let tidy = (question.trim() == tr(TIDY)).then(|| lines(meeting));
     let pane = &mut ui.meetings.requests;
@@ -575,7 +593,7 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
             } else {
                 worker::request_name(&question)
             };
-            match store::start(&id, &name, pane.engine.clone(), pane.effort.clone()) {
+            match store::start(&id, &name, engine, effort) {
                 Ok(session) => session,
                 Err(error) => {
                     tracing::warn!("couldn't start a session: {error:#}");

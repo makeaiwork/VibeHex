@@ -206,6 +206,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Meetings/Settings, Written by open",
     ),
     (
+        "meetings-questions-menu",
+        "Window/Meetings/Settings, Questions run on open",
+    ),
+    (
         "meetings-notes-unavailable",
         "Window/Meetings/Settings, Apple Intelligence off",
     ),

@@ -1,14 +1,17 @@
 //! Meetings › Settings › Notes: who writes titles, notes, and live
 //! chapters, how hard Codex thinks, and the summary prompt, whose page
 //! opens from Edit…: the prompt for the speech model's language, Reset to
-//! default, and Save.
+//! default, and Save. And › Questions: whether a finished meeting has its
+//! chat, and the model a new session starts on.
 
 use rune::{El, TextEdit, col, row, text};
 use rune_kit::{
     Button, ButtonVariant, Menu as KitMenu, MenuItem, Placement, Select, SelectAppearance, TextArea,
 };
 
-use super::controls::{DESCRIPTION, Paint, PushSize, icon_row, section, segmented};
+use super::controls::{
+    DESCRIPTION, Paint, PushSize, icon_row, icon_toggle_row, section, segmented,
+};
 use super::icons;
 use super::lists::{Tone, tone_tag};
 use super::settings as s;
@@ -29,20 +32,31 @@ struct Writer {
     label: String,
 }
 
-/// What Written by offers, in groups, so a model's name shows whole in the
-/// narrow menu: Default, Codex, Built in, then Other.
-fn writers(ui: &Ui) -> Vec<Writer> {
-    let writer = |value: Option<String>, group: &str, label: String| Writer {
+fn writer(value: Option<String>, group: &str, label: String) -> Writer {
+    Writer {
         value,
         group: group.to_owned(),
         label,
-    };
+    }
+}
+
+/// What Written by offers, in groups, so a model's name shows whole in the
+/// narrow menu: Default, Codex, Built in, then Other.
+fn writers(ui: &Ui) -> Vec<Writer> {
     let before = if cfg!(target_os = "macos") {
         tr("Apple Intelligence")
     } else {
         tr("OpenCode, when turned on")
     };
     let mut writers = vec![writer(None, tr("Default"), before.to_owned())];
+    writers.extend(engines(ui));
+    writers
+}
+
+/// The engines AI cleanup set up, then OpenCode: Codex's models, Built in,
+/// Other.
+fn engines(ui: &Ui) -> Vec<Writer> {
+    let mut writers = Vec::new();
     let mut others = Vec::new();
     if ui.settings.labs.ai_cleanup_server {
         for model in &ui.files.codex_models {
@@ -77,39 +91,16 @@ pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         .iter()
         .position(|writer| writer.value == notes.writer)
         .unwrap_or_default();
-    let menu = Menu::Pick("meeting-notes-writer");
-    let open = ui.open == Some(menu);
-    // The select's own field, over a menu wide enough for a model's name.
-    let trigger = Select::new("meeting-notes-writer", &[] as &[&str])
-        .appearance(SelectAppearance::Inline)
-        .current(writers.get(current).map(|writer| writer.label.as_str()))
-        .open(open)
-        .on_toggle(move |ui: &mut Ui| s::toggle_menu(ui, menu))
-        .trigger(p.k);
-    let mut list = KitMenu::new("meeting-notes-writer-menu")
-        .placement(Placement::BottomEnd)
-        .gutter(2.0)
-        .min_width(MENU_WIDTH)
-        .open(open)
-        .on_close(|ui: &mut Ui| ui.open = None);
-    let mut group = None;
-    for (index, writer) in writers.into_iter().enumerate() {
-        if group.as_ref() != Some(&writer.group) {
-            list = list.group_label(writer.group.clone());
-            group = Some(writer.group);
-        }
-        let value = writer.value;
-        list = list.item(
-            MenuItem::new(writer.label)
-                .checked(index == current)
-                .on_select(move |ui: &mut Ui| {
-                    ui.open = None;
-                    let writer = value.clone();
-                    ui.update(|settings| settings.meetings.notes.writer = writer);
-                }),
-        );
-    }
-    let select = list.trigger(trigger).build(p.k, layer).mr(-8.0);
+    let shown = writers.get(current).map(|writer| writer.label.clone());
+    let list = choice_list(
+        "meeting-notes-writer",
+        writers,
+        current,
+        |ui: &mut Ui, writer: Option<String>| {
+            ui.update(|settings| settings.meetings.notes.writer = writer);
+        },
+    );
+    let select = choice_menu(ui, p, "meeting-notes-writer", shown, list, layer);
     // Left to an Apple Intelligence this Mac can't run: say why, and who
     // writes the notes instead.
     let unavailable =
@@ -170,6 +161,135 @@ pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         rows.push(prompt_row(ui, p));
     }
     section(p, "meeting-notes", tr("Notes"), rows)
+}
+
+/// A menu of `choices` in their groups, `current` checked; `pick` saves one.
+fn choice_list(
+    key: &str,
+    choices: Vec<Writer>,
+    current: usize,
+    pick: impl Fn(&mut Ui, Option<String>) + Clone + 'static,
+) -> KitMenu {
+    let mut list = KitMenu::new(format!("{key}-menu"))
+        .placement(Placement::BottomEnd)
+        .gutter(2.0)
+        .min_width(MENU_WIDTH)
+        .on_close(|ui: &mut Ui| ui.open = None);
+    let mut group = None;
+    for (index, choice) in choices.into_iter().enumerate() {
+        if group.as_ref() != Some(&choice.group) {
+            list = list.group_label(choice.group.clone());
+            group = Some(choice.group);
+        }
+        let value = choice.value;
+        let pick = pick.clone();
+        list = list.item(
+            MenuItem::new(choice.label)
+                .checked(index == current)
+                .on_select(move |ui: &mut Ui| {
+                    ui.open = None;
+                    pick(ui, value.clone());
+                }),
+        );
+    }
+    list
+}
+
+/// A select's own field showing `shown`, over `list`: a menu wide enough
+/// for a model's whole name.
+fn choice_menu(
+    ui: &Ui,
+    p: Paint,
+    key: &'static str,
+    shown: Option<String>,
+    list: KitMenu,
+    layer: &mut Vec<El>,
+) -> El {
+    let menu = Menu::Pick(key);
+    let open = ui.open == Some(menu);
+    let trigger = Select::new(key, &[] as &[&str])
+        .appearance(SelectAppearance::Inline)
+        .current(shown.as_deref())
+        .open(open)
+        .on_toggle(move |ui: &mut Ui| s::toggle_menu(ui, menu))
+        .trigger(p.k);
+    list.open(open).trigger(trigger).build(p.k, layer).mr(-8.0)
+}
+
+/// The Questions section: Ask about a meeting, and, while it is on,
+/// Questions run on (a model, and its reasoning on Codex).
+pub(super) fn questions_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+    let questions = &ui.settings.meetings.questions;
+    let mut rows = vec![icon_toggle_row(
+        p,
+        "meeting-questions",
+        &icons::MESSAGE,
+        tr("Ask about a meeting"),
+        tr("Adds a chat under each finished recording"),
+        questions.enabled,
+        |ui: &mut Ui| {
+            let on = !ui.settings.meetings.questions.enabled;
+            ui.update(|settings| settings.meetings.questions.enabled = on);
+        },
+    )];
+    if questions.enabled {
+        rows.push(icon_row(
+            p,
+            "meeting-questions-engine",
+            &icons::SPARKLES,
+            tr("Questions run on"),
+            Some(tr("Change it for one question from the chat field")),
+            questions_menu(ui, p, layer),
+        ));
+    }
+    section(p, "meeting-questions", tr("Questions"), rows)
+}
+
+/// Questions run on: Same as Files, then the engines, and Reasoning for a
+/// Codex model, as one menu whose field reads "GPT-6.1-Sol, Medium".
+fn questions_menu(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+    let questions = &ui.settings.meetings.questions;
+    let mut choices = vec![writer(None, tr("Default"), tr("Same as Files").to_owned())];
+    choices.extend(engines(ui));
+    let current = choices
+        .iter()
+        .position(|choice| choice.value == questions.engine)
+        .unwrap_or_default();
+    let mut shown = choices
+        .get(current)
+        .map(|choice| choice.label.clone())
+        .unwrap_or_default();
+    let codex = questions
+        .engine
+        .as_deref()
+        .is_some_and(|engine| engine.starts_with("codex"));
+    let mut list = choice_list(
+        "meeting-questions-engine",
+        choices,
+        current,
+        |ui: &mut Ui, engine: Option<String>| {
+            ui.update(|settings| settings.meetings.questions.engine = engine);
+        },
+    );
+    if codex {
+        let effort = match questions.effort.trim() {
+            "" => "medium",
+            effort => effort,
+        };
+        list = list.separator().group_label(tr("Reasoning"));
+        for (value, label) in EFFORTS.iter().zip([tr("Low"), tr("Medium"), tr("High")]) {
+            if *value == effort {
+                shown = format!("{shown}, {label}");
+            }
+            list = list.item(MenuItem::new(label).checked(*value == effort).on_select(
+                move |ui: &mut Ui| {
+                    ui.open = None;
+                    ui.update(|settings| settings.meetings.questions.effort = (*value).into());
+                },
+            ));
+        }
+    }
+    choice_menu(ui, p, "meeting-questions-engine", Some(shown), list, layer)
 }
 
 /// The prompts' language and why, and the speech model's name.

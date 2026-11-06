@@ -41,6 +41,12 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   │   (‹ Settings, the language as a tag with why, the prompt, Default prompt /
 │   │   Edited, Reset to default, Save; meetings.notes.prompts per language;
 │   │   Hex's prompts in app_settings/prompts/meeting.json, 11 languages)
+│   ├── Questions (Labs › AI cleanup server) -> Ask about a meeting
+│   │   (meetings.questions.enabled, on: the Requests tab, the chip and the
+│   │   field under a finished recording), Questions run on
+│   │   (meetings.questions.engine and .effort: Same as Files, Codex's
+│   │   models, Built in, Other, and Reasoning for Codex, in one menu whose
+│   │   field reads "GPT-6.1-Sol, Medium"); a session's pills still change it
 │   ├── Calendar -> Connect calendar; reminders before meetings // meetings.calendar
 │   └── Detected calls -> Ask / Always record / Never offer per provider // meetings.policy
 │       ├── Slack huddles, Zoom, Google Meet, Microsoft Teams, FaceTime, WhatsApp,
@@ -1032,7 +1038,8 @@ Send -> a new session, named by the model that answers its first question
      meeting); a first question that fails leaves no empty session
 ```
 
-The model starts from Files › Settings' request engine and reasoning; a
+The model starts from Settings › Questions run on, else Files › Settings'
+request engine and reasoning; a
 session keeps the one its pills chose. Sources:
 [meeting_tabs/requests.rs](../../src/rune_ui/meeting_tabs/requests.rs),
 [meeting/requests.rs](../../src/meeting/requests.rs), and `meeting` in

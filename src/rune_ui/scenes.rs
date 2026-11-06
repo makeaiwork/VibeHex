@@ -500,6 +500,14 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
     }),
+    ("meetings-questions-menu", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.settings.meetings.questions.engine = Some("codex:gpt-6.1-sol".into());
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        ui.open = Some(Menu::Pick("meeting-questions-engine"));
+    }),
     ("meetings-notes-unavailable", |ui| {
         *ui = mac_fixture();
         ui.settings.labs.ai_cleanup_server = true;

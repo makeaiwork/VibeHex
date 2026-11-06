@@ -1590,6 +1590,11 @@ mod tests {
                     effort: "medium".into(),
                     prompts: [("ru".to_string(), "Только задачи.".to_string())].into(),
                 },
+                questions: crate::app_settings::notes_settings::MeetingQuestionsSettings {
+                    enabled: true,
+                    engine: Some("codex:gpt-6.1-sol".into()),
+                    effort: "medium".into(),
+                },
                 ..Default::default()
             },
             files: crate::app_settings::FilesSettings {

@@ -156,6 +156,8 @@ pub struct MeetingSettings {
     pub opencode_model: Option<String>,
     /// Who writes notes and from what prompt (`meeting_notes`).
     pub notes: notes_settings::MeetingNotesSettings,
+    /// Questions about a finished meeting, and the model they start on.
+    pub questions: notes_settings::MeetingQuestionsSettings,
 }
 
 /// How long a finished meeting is kept, counted from when it ended.
@@ -311,6 +313,7 @@ impl Default for MeetingSettings {
             retention: None,
             opencode_model: None,
             notes: Default::default(),
+            questions: Default::default(),
         }
     }
 }
