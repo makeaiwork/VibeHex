@@ -1099,7 +1099,10 @@ origin the transcript's clocks count from, so a turn plays from its own
 time. Each transcript entry keeps its words' starts (`words` in
 `TranscriptEntry`, from the sentence's timed words, `meeting::sentence_entry`);
 a turn joins them while every entry it joins has them, else its words
-spread over its start and end. Checks: `turns_keep_their_word_times_only_while_every_entry_has_them`,
+spread over its start and end. Models that time words: Parakeet (word times) and
+GigaAM (token times, joined into words at their `▁` markers by
+`transcription::transcript::words_from_tokens`); Whisper and models without
+timestamps keep line times only. Checks: `turns_keep_their_word_times_only_while_every_entry_has_them`,
 `timed_words_become_sentences_at_punctuation_and_pauses`.
 Sources: [files/playback.rs](../../src/files/playback.rs) (`Audio::Meeting`),
 [rune_ui/playback/](../../src/rune_ui/playback/). Checks:
