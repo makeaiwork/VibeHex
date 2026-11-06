@@ -57,7 +57,7 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   "Title: <two to four words>", hidden from the draft and the answer,
 │   │   or the request's first words when it doesn't), "Made from <tab> by <model>,
 │   │   32K window" in the ⓘ; each request tab is a session, a chat: a typed request
-│   │   as a bubble (a chip's request shows no bubble), its answer, then each
+│   │   as a bubble (on the right, always 72 pt in from the left edge) (a chip's request shows no bubble), its answer, then each
 │   │   follow-up as a bubble with its answer. Every answer ends in one row:
 │   │   Copy and Ask again as quiet icons in the grey of the model and the
 │   │   time, the model, Stopped in amber when stopped (what came is kept),

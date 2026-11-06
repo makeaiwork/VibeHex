@@ -83,12 +83,16 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
     chat
 }
 
+/// Room a question's bubble always leaves on its left, so in a narrow
+/// window it still reads as the person's side of the chat.
+const BUBBLE_INDENT: f32 = 72.0;
+
 /// A question, right-aligned in a quiet bubble.
 pub(in super::super) fn bubble(p: Paint, key: &str, question: &str) -> El {
     let c = &p.k.c;
     row()
         .key(key.to_owned())
-        .child(rune::el().key("push").grow(1.0))
+        .child(rune::el().key("push").grow(1.0).min_w(BUBBLE_INDENT))
         .child(
             text(question.trim().to_owned())
                 .key("question")
