@@ -157,6 +157,7 @@ fn pane_meeting(meeting: &crate::meeting::query::Meeting, now_ms: u64) -> Meetin
             .as_ref()
             .map(|notes| notes.summary.clone())
             .filter(|summary| !summary.is_empty()),
+        notes_by: manifest.notes.as_ref().and_then(notes_by),
         notes_running: crate::meeting::notes_in_progress(&meeting.id),
         has_markdown: manifest
             .export_path
@@ -206,6 +207,23 @@ fn turns(entries: &[crate::meeting::TranscriptEntry]) -> Vec<Turn> {
             }
         })
         .collect()
+}
+
+/// "Written by GPT-6-Luna", with why the chosen writer didn't when another
+/// one wrote the notes; none for Apple Intelligence's two sentences.
+fn notes_by(notes: &crate::meeting::MeetingNotes) -> Option<String> {
+    use crate::desktop::i18n::{tr_fill, tr_named};
+    let model = notes.written_by.trim();
+    if model.is_empty() {
+        return None;
+    }
+    Some(match notes.fell_back.as_deref() {
+        Some(why) => tr_named(
+            "Written by {model}, because the chosen writer failed: {why}",
+            &[("model", model), ("why", why)],
+        ),
+        None => tr_fill("Written by {}", model),
+    })
 }
 
 #[cfg(test)]

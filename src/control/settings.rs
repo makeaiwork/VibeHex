@@ -34,6 +34,7 @@ fn available() -> bool {
 
 mod codex_keys;
 mod files_keys;
+mod meeting_notes_keys;
 
 #[derive(Clone, Copy, Debug)]
 enum Kind {
@@ -768,6 +769,7 @@ fn keys() -> impl Iterator<Item = &'static Key> {
     KEYS.iter()
         .chain(CAPTURE_KEYS)
         .chain(codex_keys::CODEX_KEYS)
+        .chain(meeting_notes_keys::MEETING_NOTES_KEYS)
         .chain(files_keys::FILES_KEYS)
 }
 
@@ -1583,6 +1585,11 @@ mod tests {
             meetings: crate::app_settings::MeetingSettings {
                 retention: Some(crate::app_settings::MeetingRetention::Day),
                 opencode_model: Some("openai/gpt-5".into()),
+                notes: crate::app_settings::meeting_notes::MeetingNotesSettings {
+                    writer: Some("codex:gpt-6.1-sol".into()),
+                    effort: "medium".into(),
+                    prompts: [("ru".to_string(), "Только задачи.".to_string())].into(),
+                },
                 ..Default::default()
             },
             files: crate::app_settings::FilesSettings {

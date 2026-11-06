@@ -193,6 +193,15 @@ const PATHS: &[(&str, &str)] = &[
     ("meetings-empty", "Window/Meetings/Empty"),
     ("meetings-off", "Window/Meetings/Off"),
     ("meetings-settings", "Window/Meetings/Settings"),
+    ("meetings-notes", "Window/Meetings/Settings, notes on Codex"),
+    (
+        "meetings-prompt",
+        "Window/Meetings/Settings, summary prompt",
+    ),
+    (
+        "meetings-codex-notes",
+        "Window/Meetings/Notes by a fallback writer",
+    ),
     ("meetings-allow", "Window/Meetings/Allow system audio"),
     ("meetings-calendar", "Window/Meetings/Calendar"),
     (

@@ -494,6 +494,43 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
     }),
+    ("meetings-notes", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-codex-notes", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        if let Some(meeting) = ui
+            .meetings
+            .meetings
+            .iter_mut()
+            .find(|meeting| meeting.id == "preview-notes")
+        {
+            meeting.summary = Some(
+                concat!(
+                    "**Summary:** one login for every Anomaly Arcade game; the build screen needs a proposal first.\n\n",
+                    "**Decisions:**\n- Ship the shared login before new games (00:12)\n\n",
+                    "**Action items:**\n- [ ] Draft the build screen proposal. Who: Them. By: Friday"
+                )
+                .into(),
+            );
+            meeting.notes_by = Some(
+                "Written by Qwen3 4B, because the chosen writer failed: GPT-6-Luna: your ChatGPT plan's Codex limit is reached".into(),
+            );
+        }
+        ui.meetings.select("preview-notes".into());
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-prompt", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        super::meeting_notes::open_prompt(ui);
+    }),
     // System Audio not yet allowed: tap Allow to wait, again to grant.
     ("meetings-allow", |ui| {
         *ui = mac_fixture();
@@ -945,4 +982,15 @@ pub(super) fn fixture(shortcuts: DesktopShortcuts) -> Ui {
         editing: false,
     });
     ui
+}
+
+/// Meeting notes on Codex, in Russian.
+fn meetings_on_codex(ui: &mut Ui) {
+    ui.settings.labs.ai_cleanup_server = true;
+    ui.settings.transcription = crate::transcription::models::TranscriptionSelection {
+        model: crate::transcription::models::TranscriptionModelId::WhisperLargeV3Turbo,
+        language: "ru".into(),
+    };
+    ui.files.codex_models = files::FilesPane::fixture_codex_models();
+    ui.settings.meetings.notes.writer = Some("codex:gpt-6-luna".into());
 }

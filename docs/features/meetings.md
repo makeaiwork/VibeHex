@@ -33,6 +33,13 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   │   then with Labs › Choose meeting summary model on, Summary model: the
 │   │   provider/model OpenCode notes use, no fallback; empty -> the ranked fast
 │   │   models (meetings.opencode_model; see labs.md, #1107)
+│   ├── Notes -> Written by (meetings.notes.writer: Apple Intelligence or OpenCode
+│   │   as before (none), Codex's models, the engines Output › AI cleanup set up,
+│   │   OpenCode), Reasoning Low / Medium / High on Codex (meetings.notes.effort,
+│   │   Low when unset), Summary prompt: Default or Edited, Edit… -> its page
+│   │   (‹ Settings, the language as a tag with why, the prompt, Default prompt /
+│   │   Edited, Reset to default, Save; meetings.notes.prompts per language;
+│   │   Hex's prompts in app_settings/prompts/meeting.json, 11 languages)
 │   ├── Calendar -> Connect calendar; reminders before meetings // meetings.calendar
 │   └── Detected calls -> Ask / Always record / Never offer per provider // meetings.policy
 │       ├── Slack huddles, Zoom, Google Meet, Microsoft Teams, FaceTime, WhatsApp,
@@ -1019,6 +1026,20 @@ Checks: `retention_expires_meetings_by_when_they_ended_and_skips_active_ones`,
 live run of an expiry pass against a real Trash has been observed.
 
 ### Titles And Summary (Apple Intelligence)
+
+A writer chosen in Settings › Notes (`generator::Writer::Engine`) writes the
+provisional title, the live chapters, and full notes instead: the summary
+prompt for the speech model's language plus "# Title, then the notes", over
+the whole meeting (the excerpt budget follows the engine's window: Codex
+250K tokens, OpenRouter and OpenCode 128K, a built-in model 32K, Your server
+8K), one call of up to 5 minutes. When it fails (Codex's plan limit, not
+signed in, too slow) the same call goes to dictation's AI cleanup engine,
+then OpenCode while it runs; the notes record `written_by` and `fell_back`,
+and the meeting shows "Written by <model>, because the chosen writer
+failed: <why>". OpenCode as before (Summarize with OpenCode) also writes full
+notes. Apple Intelligence keeps the two sentences below. The pane renders
+notes as Markdown; capsules show their first paragraph, two sentences at
+most.
 
 ```ts
 While recording, setting on, model available           // meetings.title.provisional

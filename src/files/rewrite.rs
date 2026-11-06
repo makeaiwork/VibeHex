@@ -204,6 +204,48 @@ impl Engine {
         }
     }
 
+    /// The window, in tokens, meeting notes judge a transcript against:
+    /// the built-in engine's wide one, else [`Self::assumed_window`].
+    pub fn notes_window(&self) -> usize {
+        match self.local() {
+            Some(_) => engine::WIDE_CONTEXT_TOKENS as usize,
+            None => self.assumed_window(),
+        }
+    }
+
+    /// One whole answer to `input` within `deadline`, for meeting notes,
+    /// titles, and chapters.
+    pub fn answer(
+        &self,
+        instructions: &str,
+        input: &str,
+        deadline: Duration,
+        cancelled: &AtomicBool,
+    ) -> Result<String> {
+        let text = match self {
+            Self::Server(server) => cleanup_server::generate_in_window(
+                server,
+                engine::WIDE_CONTEXT_TOKENS,
+                instructions,
+                input,
+                deadline,
+                cancelled,
+                None,
+            ),
+            Self::OpenCode(mode) => crate::dictation::processor::generate_for_mode(
+                &format!("{instructions}\n\n{input}"),
+                mode,
+                deadline,
+                cancelled,
+            ),
+        }?;
+        let text = text.trim();
+        if text.is_empty() {
+            return Err(eyre!("the model returned empty text"));
+        }
+        Ok(text.to_owned())
+    }
+
     fn generate(
         &self,
         context: u32,

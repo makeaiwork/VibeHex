@@ -1,8 +1,9 @@
-//! Meeting titles and short summaries from the notes writer (`generator`:
-//! Apple Intelligence, or OpenCode when turned on). A
+//! Meeting titles and notes from the notes writer (`generator`). A
 //! provisional title is written while the meeting records; after final
-//! publication one call over a bounded excerpt writes the final title and a
-//! summary of at most two sentences. Agents read the transcript for detail.
+//! publication one call writes the final title and the notes: full notes
+//! from the summary prompt over the whole meeting on a large engine, or a
+//! summary of at most two sentences over a bounded excerpt from Apple
+//! Intelligence. Agents read the transcript for detail.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -71,10 +72,17 @@ the main topic. Use only what the transcript says.";
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct MeetingNotes {
     pub title: String,
-    /// At most two sentences. Older manifests stored a list of points, and
+    /// Full notes in Markdown when `written_by` names a model, else at
+    /// most two sentences. Older manifests stored a list of points, and
     /// action items and decisions, which are read as joined text or ignored.
     #[serde(default, deserialize_with = "summary_text")]
     pub summary: String,
+    /// The model that wrote full notes; empty for a two-sentence summary.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub written_by: String,
+    /// Why the chosen writer didn't write them, when another one did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fell_back: Option<String>,
     #[serde(default)]
     pub generated_at_ms: u64,
     #[serde(default)]
@@ -90,6 +98,20 @@ pub struct MeetingNotes {
 impl MeetingNotes {
     pub fn excerpted(&self) -> bool {
         self.excerpt_chars < self.transcript_chars
+    }
+
+    /// At most two sentences: the summary, or full notes' first paragraph.
+    pub fn gist(&self) -> String {
+        if self.written_by.is_empty() {
+            return self.summary.clone();
+        }
+        let paragraph = self
+            .summary
+            .split("\n\n")
+            .map(str::trim)
+            .find(|paragraph| !paragraph.is_empty() && !paragraph.starts_with('#'))
+            .unwrap_or_default();
+        clean_summary(&paragraph.replace("**", ""))
     }
 }
 
@@ -241,13 +263,24 @@ pub(super) struct Summary {
 /// One call over a bounded excerpt. A prompt that still exceeds the context
 /// is retried once with half the excerpt; every call receives the time left
 /// before `deadline`.
+#[cfg(test)]
 pub(super) fn summarize_entries(
     entries: &[TranscriptEntry],
     max_chars: usize,
     deadline: Instant,
     generate: impl FnMut(&str, &str, Duration) -> Result<GeneratedNotes, GenerationError>,
 ) -> Result<Summary> {
-    summarize_with_calendar(entries, None, max_chars, deadline, generate)
+    let asking = Asking {
+        instructions: NOTES_INSTRUCTIONS,
+        call_timeout: CALL_TIMEOUT,
+    };
+    summarize_with_calendar(entries, None, max_chars, deadline, &asking, generate)
+}
+
+/// What a notes call asks and how long it may take.
+pub(super) struct Asking<'a> {
+    pub instructions: &'a str,
+    pub call_timeout: Duration,
 }
 
 /// The most attendee names a notes prompt lists.
@@ -287,6 +320,7 @@ pub(super) fn summarize_with_calendar(
     calendar: Option<&super::MeetingCalendar>,
     max_chars: usize,
     deadline: Instant,
+    asking: &Asking<'_>,
     mut generate: impl FnMut(&str, &str, Duration) -> Result<GeneratedNotes, GenerationError>,
 ) -> Result<Summary> {
     let preamble = calendar_preamble(calendar);
@@ -299,16 +333,26 @@ pub(super) fn summarize_with_calendar(
         }
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            return Err(eyre!("Apple Intelligence did not finish in time"));
+            return Err(eyre!("the notes writer did not finish in time"));
         }
         calls += 1;
         let prompt = format!("{preamble}Meeting transcript:\n\n{}", excerpt.text);
-        match generate(NOTES_INSTRUCTIONS, &prompt, remaining.min(CALL_TIMEOUT)) {
+        match generate(
+            asking.instructions,
+            &prompt,
+            remaining.min(asking.call_timeout),
+        ) {
             Ok(notes) => {
+                let summary = if notes.written_by.is_empty() {
+                    clean_summary(&notes.summary)
+                } else {
+                    notes.summary.trim().to_owned()
+                };
                 return Ok(Summary {
                     notes: GeneratedNotes {
                         title: clean_title(&notes.title),
-                        summary: clean_summary(&notes.summary),
+                        summary,
+                        ..notes
                     },
                     excerpt_chars: excerpt.text.len(),
                     transcript_chars: excerpt.transcript_chars,
@@ -373,6 +417,8 @@ impl MeetingNotes {
         Self {
             title: summary.notes.title,
             summary: summary.notes.summary,
+            written_by: summary.notes.written_by,
+            fell_back: summary.notes.fell_back,
             generated_at_ms: now_ms(),
             elapsed_ms: elapsed.as_millis() as u64,
             excerpt_chars: summary.excerpt_chars,
@@ -421,8 +467,13 @@ fn base_title(manifest: &MeetingManifest) -> String {
 
 pub(super) fn render_notes_block(notes: &MeetingNotes) -> String {
     let summary = notes.summary.trim();
+    let by = if notes.written_by.is_empty() {
+        "on this Mac by Apple Intelligence".to_owned()
+    } else {
+        format!("by {}", notes.written_by)
+    };
     format!(
-        "{NOTES_START}\n## Summary\n\n{}\n\n_Written on this Mac by Apple Intelligence; the transcript below has the details._\n{NOTES_END}\n",
+        "{NOTES_START}\n## Summary\n\n{}\n\n_Written {by}; the transcript below has the details._\n{NOTES_END}\n",
         if summary.is_empty() {
             "_Nothing to summarize._"
         } else {
@@ -811,11 +862,20 @@ fn summarize_claimed(id: &str, _claim: InProgress) -> Result<MeetingManifest> {
         super::chapters::refine_meeting(&directory, &entries, &never);
     }
     let started = Instant::now();
+    let instructions = generator::notes_instructions(NOTES_INSTRUCTIONS);
+    let asking = Asking {
+        instructions: &instructions,
+        call_timeout: generator::call_timeout(CALL_TIMEOUT),
+    };
     let result = summarize_with_calendar(
         &entries,
         manifest.calendar.as_ref(),
-        excerpt_budget(generator::context_tokens(), FINAL_EXCERPT_CHARS),
-        started + TOTAL_DEADLINE,
+        excerpt_budget(
+            generator::context_tokens(),
+            generator::excerpt_cap(FINAL_EXCERPT_CHARS),
+        ),
+        started + generator::call_timeout(TOTAL_DEADLINE),
+        &asking,
         |instructions, prompt, timeout| {
             wait_for_dictation(&never);
             generator::generate_notes(instructions, prompt, timeout)
@@ -956,12 +1016,20 @@ pub fn summarize_file(path: &Path, excerpt_chars: Option<usize>) -> Result<Strin
         started.elapsed().as_secs_f32()
     ));
 
-    let max_chars = excerpt_chars.unwrap_or_else(|| excerpt_budget(context, FINAL_EXCERPT_CHARS));
+    let max_chars = excerpt_chars
+        .unwrap_or_else(|| excerpt_budget(context, generator::excerpt_cap(FINAL_EXCERPT_CHARS)));
     let started = Instant::now();
-    let summary = summarize_entries(
+    let instructions = generator::notes_instructions(NOTES_INSTRUCTIONS);
+    let asking = Asking {
+        instructions: &instructions,
+        call_timeout: generator::call_timeout(CALL_TIMEOUT),
+    };
+    let summary = summarize_with_calendar(
         &entries,
+        None,
         max_chars,
-        started + TOTAL_DEADLINE,
+        started + generator::call_timeout(TOTAL_DEADLINE),
+        &asking,
         generator::generate_notes,
     )?;
     let elapsed = started.elapsed();
@@ -1032,6 +1100,7 @@ mod tests {
         GeneratedNotes {
             title: title.into(),
             summary: summary.into(),
+            ..Default::default()
         }
     }
 
@@ -1097,6 +1166,10 @@ mod tests {
             Some(&calendar),
             FINAL_EXCERPT_CHARS,
             Instant::now() + Duration::from_secs(60),
+            &Asking {
+                instructions: NOTES_INSTRUCTIONS,
+                call_timeout: CALL_TIMEOUT,
+            },
             |_, prompt, _| {
                 prompts.push(prompt.to_string());
                 Ok(generated("Launch", "They met."))

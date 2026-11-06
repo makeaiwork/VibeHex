@@ -20,6 +20,7 @@ mod files_settings;
 mod hotkeys;
 mod labs_settings;
 mod meeting_folder;
+pub mod meeting_notes;
 mod meeting_providers;
 mod persistence;
 pub mod prompt_defaults;
@@ -153,6 +154,8 @@ pub struct MeetingSettings {
     /// meeting notes use; left out of the file while unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opencode_model: Option<String>,
+    /// Who writes notes and from what prompt (`meeting_notes`).
+    pub notes: meeting_notes::MeetingNotesSettings,
 }
 
 /// How long a finished meeting is kept, counted from when it ended.
@@ -307,6 +310,7 @@ impl Default for MeetingSettings {
             calendar: CalendarSettings::default(),
             retention: None,
             opencode_model: None,
+            notes: Default::default(),
         }
     }
 }
@@ -1181,6 +1185,9 @@ impl AppSettings {
         );
         MEETING_NOTES_OPENCODE.store(self.meetings.summarize_with_opencode, Ordering::Release);
         crate::meeting::generator::set_summary_model(self.meetings.opencode_model.as_deref());
+        crate::meeting::generator::configure(
+            crate::meeting::generator::NotesConfig::from_settings(self),
+        );
         MEETING_INDICATOR_ENABLED.store(self.meetings.show_recording_indicator, Ordering::Release);
         MEETING_INDICATOR_CORNER.store(
             self.meetings.recording_indicator_corner as u8,

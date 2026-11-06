@@ -375,9 +375,8 @@ impl FilesPane {
 
     /// The Summary session on Codex with a follow-up answered and another
     /// answering.
-    pub(super) fn session_fixture() -> Self {
-        use crate::files::store::FollowUp;
-        let mut pane = Self::fixture();
+    /// Codex's models, as the scenes show them.
+    pub(super) fn fixture_codex_models() -> Vec<crate::dictation::cleanup_server::codex::Model> {
         let model = |id: &str, name: &str, description: &str| {
             crate::dictation::cleanup_server::codex::Model {
                 id: id.into(),
@@ -388,10 +387,16 @@ impl FilesPane {
                 default: id == "gpt-6.1-sol",
             }
         };
-        pane.codex_models = vec![
+        vec![
             model("gpt-6.1-sol", "GPT-6.1-Sol", "Latest workhorse model"),
             model("gpt-6-luna", "GPT-6-Luna", "Fast and affordable"),
-        ];
+        ]
+    }
+
+    pub(super) fn session_fixture() -> Self {
+        use crate::files::store::FollowUp;
+        let mut pane = Self::fixture();
+        pane.codex_models = Self::fixture_codex_models();
         if let Some(listed) = pane
             .records
             .iter_mut()

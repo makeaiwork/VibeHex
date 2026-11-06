@@ -89,6 +89,8 @@ pub(super) struct Meeting {
     pub(super) duration_ms: u64,
     pub(super) app: Option<String>,
     pub(super) summary: Option<String>,
+    /// Who wrote full notes, and why the chosen writer didn't.
+    pub(super) notes_by: Option<String>,
     pub(super) notes_running: bool,
     /// The exported Markdown still exists, so trashing takes it too.
     pub(super) has_markdown: bool,
@@ -169,6 +171,8 @@ pub(super) struct MeetingsPane {
     /// Labs › Choose meeting summary model's field while it holds typing
     /// not yet saved; `None` shows the saved model.
     pub(super) summary_model: Option<TextEdit>,
+    /// The summary prompt's page while it is open, with its typing.
+    pub(super) prompt: Option<TextEdit>,
     /// Where Linux and Windows perform meeting requests.
     #[cfg(not(target_os = "macos"))]
     pub(super) local: super::meetings_host::LocalMeetings,
@@ -325,6 +329,7 @@ impl MeetingsPane {
                 duration_ms: minutes * 60_000 + 20_000,
                 app: None,
                 summary: None,
+                notes_by: None,
                 notes_running: false,
                 has_markdown: false,
                 error: None,
@@ -538,8 +543,12 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
     }
     let action = recording_action(ui, p);
     if ui.meetings.view == View::Settings {
-        let content =
-            page("content").children(super::platform_settings::meetings_settings(ui, p, layer));
+        let content = match &ui.meetings.prompt {
+            Some(edit) => page("content").child(super::meeting_notes::prompt_page(ui, p, edit)),
+            None => {
+                page("content").children(super::platform_settings::meetings_settings(ui, p, layer))
+            }
+        };
         return (vec![action], super::scroll_body("settings-scroll", content));
     }
     recordings(ui, p, layer, action)
@@ -934,21 +943,28 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
                 .key("notes")
                 .gap(6.0)
                 .child(section_label(p, "summary-label", tr("Summary")))
-                .child(
-                    text(if summary.is_empty() {
-                        tr("Nothing to summarize.")
-                    } else {
-                        summary
-                    })
-                    .key("summary")
-                    .font(p.k.ty.body)
-                    .color(if summary.is_empty() {
-                        p.faint()
-                    } else {
-                        p.text()
-                    })
-                    .wrap(),
-                ),
+                .child(if summary.is_empty() {
+                    text(tr("Nothing to summarize."))
+                        .key("summary")
+                        .font(p.k.ty.body)
+                        .color(p.faint())
+                        .wrap()
+                } else {
+                    rune_kit::Markdown::new(summary.to_owned())
+                        .style(rune_kit::MarkdownStyle::from_kit(p.k).body_font(p.k.ty.body))
+                        .selectable(true)
+                        .tasks_read_only()
+                        .build(p.k)
+                        .key("summary")
+                })
+                .children(meeting.notes_by.as_deref().map(|by| {
+                    text(by.to_owned())
+                        .key("notes-by")
+                        .font(p.k.ty.small)
+                        .color(p.faint())
+                        .wrap()
+                        .mt(4.0)
+                })),
         );
     } else if meeting.notes_running {
         body = body.child(
