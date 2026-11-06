@@ -202,6 +202,10 @@ const PATHS: &[(&str, &str)] = &[
     ("meetings-settings", "Window/Meetings/Settings"),
     ("meetings-notes", "Window/Meetings/Settings, notes on Codex"),
     (
+        "meetings-notes-writer",
+        "Window/Meetings/Settings, Written by open",
+    ),
+    (
         "meetings-prompt",
         "Window/Meetings/Settings, summary prompt",
     ),
@@ -212,6 +216,10 @@ const PATHS: &[(&str, &str)] = &[
     (
         "meetings-requests",
         "Window/Meetings/Requests about a meeting",
+    ),
+    (
+        "meetings-transcript-ask",
+        "Window/Meetings/Transcript with the field",
     ),
     (
         "meetings-requests-sessions",

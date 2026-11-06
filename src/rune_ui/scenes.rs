@@ -500,6 +500,13 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
     }),
+    ("meetings-notes-writer", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        ui.open = Some(Menu::Pick("meeting-notes-writer"));
+    }),
     ("meetings-codex-notes", |ui| {
         *ui = mac_fixture();
         meetings_on_codex(ui);
@@ -529,6 +536,14 @@ pub(super) const SCENES: &[Scene] = &[
         meetings_on_codex(ui);
         ui.meetings.select("preview-notes".into());
         ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::requests::fixture(ui, "preview-notes");
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-transcript-ask", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Transcript);
         super::meeting_tabs::requests::fixture(ui, "preview-notes");
         ui.pane = Pane::Meetings;
     }),

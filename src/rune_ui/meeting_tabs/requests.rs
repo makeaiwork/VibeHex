@@ -15,6 +15,7 @@ use super::super::files::session::{self, Answered};
 use super::super::list_detail as ld;
 use super::super::meetings::{Meeting, Status, clock_offset, transcript_markdown};
 use super::super::{Menu, Pane, Ui};
+use super::MeetingTab;
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::files::tidy;
 use crate::files::worker::{self, Config, Job, Task};
@@ -339,7 +340,20 @@ pub(in super::super) fn chat(ui: &Ui, p: Paint) -> El {
 }
 
 /// The tab's text with the field floating over its bottom, as Files has it.
-pub(in super::super) fn stage(ui: &Ui, p: Paint, body: El, layer: &mut Vec<El>) -> El {
+/// On Transcript and Summary the field always starts a new session, as
+/// Files' field does on a version, and the tab moves to Requests.
+pub(in super::super) fn stage(
+    ui: &Ui,
+    p: Paint,
+    body: El,
+    tab: MeetingTab,
+    layer: &mut Vec<El>,
+) -> El {
+    let session = if tab == MeetingTab::Requests {
+        ui.meetings.requests.open
+    } else {
+        None
+    };
     let pane = &ui.meetings.requests;
     let field_h = if pane.composer_h > 0.0 {
         pane.composer_h
@@ -368,7 +382,7 @@ pub(in super::super) fn stage(ui: &Ui, p: Paint, body: El, layer: &mut Vec<El>) 
         .key("meeting-ask-area")
         .gap(8.0)
         .child(chips(ui, p))
-        .child(field(ui, p, layer))
+        .child(field(ui, p, session, layer))
         .pin(Some(0.0), None, Some(0.0), Some(FIELD_BOTTOM))
         .on_layout(|ui: &mut Ui, rect: [f32; 4]| {
             if (ui.meetings.requests.composer_h - rect[3]).abs() > 0.5 {
@@ -402,25 +416,22 @@ fn chips(ui: &Ui, p: Paint) -> El {
     row().key("chips").gap(6.0).center_y().child(chip)
 }
 
-/// The engine the open session (or a new one) asks on, and its effort.
-fn chosen(ui: &Ui) -> (Option<String>, Option<String>) {
+/// The engine `session` (or a new one) asks on, and its effort.
+fn chosen(ui: &Ui, session: Option<u32>) -> (Option<String>, Option<String>) {
     let pane = &ui.meetings.requests;
-    match pane
-        .open
-        .and_then(|id| pane.sessions.iter().find(|session| session.id == id))
-    {
+    match session.and_then(|id| pane.sessions.iter().find(|session| session.id == id)) {
         Some(session) => (session.engine.clone(), session.effort.clone()),
         None => (pane.engine.clone(), pane.effort.clone()),
     }
 }
 
 /// The field: the question, the model and reasoning pills, and Send, or
-/// Stop while the open session's answer comes.
-fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+/// Stop while `session`'s answer comes; with no session, a new one.
+fn field(ui: &Ui, p: Paint, session: Option<u32>, layer: &mut Vec<El>) -> El {
     let c = &p.k.c;
     let pane = &ui.meetings.requests;
     let edit = &pane.ask;
-    let task = pane.open.and_then(|id| running(ui, id)).map(|task| task.id);
+    let task = session.and_then(|id| running(ui, id)).map(|task| task.id);
     let placeholder = tr("Ask about this meeting");
     let input = rune::text_input(edit, p.k.ty.ui)
         .key("input")
@@ -429,12 +440,12 @@ fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         .placeholder(placeholder, p.placeholder())
         .caret(c.text_base, p.k.selection())
         .on_edit(|ui: &mut Ui| &mut ui.meetings.requests.ask)
-        .on_submit(|ui: &mut Ui, _| send(ui));
+        .on_submit(move |ui: &mut Ui, _| send(ui, session));
     let text_area = rune::auto_grow(input, 1, composer::MAX_LINES).max_h(120.0);
-    let (engine, effort) = chosen(ui);
+    let (engine, effort) = chosen(ui, session);
     let engine =
         Config::from_settings(&ui.settings).request_engine(engine.as_deref(), effort.as_deref());
-    let group = if pane.open.is_some() {
+    let group = if session.is_some() {
         tr("Model for this session")
     } else {
         tr("Model for the next session")
@@ -450,7 +461,7 @@ fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             group,
             &engine,
             layer,
-            |ui: &mut Ui, value: String| choose(ui, Some(value), None),
+            move |ui: &mut Ui, value: String| choose(ui, session, Some(value), None),
         ));
     if let Some(effort) = engine.effort() {
         pills = pills.child(composer::effort_menu(
@@ -459,7 +470,7 @@ fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             EFFORT_MENU,
             effort,
             layer,
-            |ui: &mut Ui, value: String| choose(ui, None, Some(value)),
+            move |ui: &mut Ui, value: String| choose(ui, session, None, Some(value)),
         ));
     }
     let action = match task {
@@ -477,7 +488,7 @@ fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             tr("Send"),
             &composer::SEND_ICON,
             !edit.text.trim().is_empty(),
-            send,
+            move |ui: &mut Ui| send(ui, session),
         ),
     };
     composer::shell(
@@ -491,11 +502,11 @@ fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     )
 }
 
-/// Saves a pill's choice: on the open session, or for the next new one.
-fn choose(ui: &mut Ui, engine: Option<String>, effort: Option<String>) {
+/// Saves a pill's choice: on `session`, or for the next new one.
+fn choose(ui: &mut Ui, session: Option<u32>, engine: Option<String>, effort: Option<String>) {
     ui.open = None;
     let pane = &mut ui.meetings.requests;
-    let (Some(id), Some(meeting)) = (pane.open, pane.meeting.clone()) else {
+    let (Some(id), Some(meeting)) = (session, pane.meeting.clone()) else {
         if engine.is_some() {
             pane.engine = engine;
         }
@@ -524,14 +535,13 @@ fn choose(ui: &mut Ui, engine: Option<String>, effort: Option<String>) {
     }
 }
 
-/// Sends the field's question.
-fn send(ui: &mut Ui) {
+/// Sends the field's question to `session`, or to a new one.
+fn send(ui: &mut Ui, session: Option<u32>) {
     let question = ui.meetings.requests.ask.text.trim().to_owned();
-    let open = ui.meetings.requests.open;
-    if question.is_empty() || open.is_some_and(|id| running(ui, id).is_some()) {
+    if question.is_empty() || session.is_some_and(|id| running(ui, id).is_some()) {
         return;
     }
-    if ask(ui, open, question) {
+    if ask(ui, session, question) {
         ui.meetings.requests.ask = TextEdit::default();
     }
 }
@@ -592,6 +602,7 @@ fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
     let pane = &mut ui.meetings.requests;
     pane.sessions = store::load(&id);
     pane.open = Some(session);
+    ui.meetings.tab = Some(MeetingTab::Requests);
     pane.tasks = worker::tasks()
         .into_iter()
         .filter(|task| store::meeting_of(&task.record).is_some())

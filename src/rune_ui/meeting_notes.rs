@@ -4,7 +4,9 @@
 //! default, and Save.
 
 use rune::{El, TextEdit, col, row, text};
-use rune_kit::{Button, ButtonVariant, Placement, Select, SelectAppearance, TextArea};
+use rune_kit::{
+    Button, ButtonVariant, Menu as KitMenu, MenuItem, Placement, Select, SelectAppearance, TextArea,
+};
 
 use super::controls::{DESCRIPTION, Paint, PushSize, icon_row, section, segmented};
 use super::icons;
@@ -16,36 +18,54 @@ use crate::app_settings::prompt_defaults::{self, Basis};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 
 const EFFORTS: [&str; 3] = ["low", "medium", "high"];
+/// Written by's menu, wide enough for a built-in model's whole name.
+const MENU_WIDTH: f32 = 260.0;
 
-/// What Written by offers: its saved value (`None` for Apple Intelligence
-/// or OpenCode as before) and its label.
-fn writers(ui: &Ui) -> Vec<(Option<String>, String)> {
+/// One choice in Written by: its saved value (`None` for Apple Intelligence
+/// or OpenCode as before), its group, and its label.
+struct Writer {
+    value: Option<String>,
+    group: String,
+    label: String,
+}
+
+/// What Written by offers, in groups, so a model's name shows whole in the
+/// narrow menu: Default, Codex, Built in, then Other.
+fn writers(ui: &Ui) -> Vec<Writer> {
+    let writer = |value: Option<String>, group: &str, label: String| Writer {
+        value,
+        group: group.to_owned(),
+        label,
+    };
     let before = if cfg!(target_os = "macos") {
         tr("Apple Intelligence")
     } else {
         tr("OpenCode, when turned on")
     };
-    let mut writers = vec![(None, before.to_owned())];
+    let mut writers = vec![writer(None, tr("Default"), before.to_owned())];
+    let mut others = Vec::new();
     if ui.settings.labs.ai_cleanup_server {
         for model in &ui.files.codex_models {
-            writers.push((
-                Some(format!("codex:{}", model.id)),
-                tr_fill("Codex: {}", &model.name),
-            ));
+            let value = Some(format!("codex:{}", model.id));
+            writers.push(writer(value, "Codex", model.name.clone()));
         }
         for engine in super::files::settings::engine_choices(ui) {
             if engine.value == "opencode" {
                 continue;
             }
-            let label = if engine.local {
-                tr_fill("Built in, {}", &engine.label)
+            if engine.local {
+                writers.push(writer(Some(engine.value), tr("Built in"), engine.label));
             } else {
-                engine.label
-            };
-            writers.push((Some(engine.value), label));
+                others.push(writer(Some(engine.value), tr("Other"), engine.label));
+            }
         }
     }
-    writers.push((Some("opencode".into()), "OpenCode".into()));
+    writers.extend(others);
+    writers.push(writer(
+        Some("opencode".into()),
+        tr("Other"),
+        "OpenCode".into(),
+    ));
     writers
 }
 
@@ -55,27 +75,41 @@ pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let writers = writers(ui);
     let current = writers
         .iter()
-        .position(|(value, _)| *value == notes.writer)
+        .position(|writer| writer.value == notes.writer)
         .unwrap_or_default();
-    let labels: Vec<String> = writers.iter().map(|(_, label)| label.clone()).collect();
-    let values: Vec<Option<String>> = writers.into_iter().map(|(value, _)| value).collect();
     let menu = Menu::Pick("meeting-notes-writer");
-    let select = Select::new("meeting-notes-writer", &labels)
+    let open = ui.open == Some(menu);
+    // The select's own field, over a menu wide enough for a model's name.
+    let trigger = Select::new("meeting-notes-writer", &[] as &[&str])
         .appearance(SelectAppearance::Inline)
-        .current(labels.get(current).map(String::as_str))
-        .open(ui.open == Some(menu))
-        .placement(Placement::BottomEnd)
+        .current(writers.get(current).map(|writer| writer.label.as_str()))
+        .open(open)
         .on_toggle(move |ui: &mut Ui| s::toggle_menu(ui, menu))
-        .on_close(|ui: &mut Ui| ui.open = None)
-        .on_choose(move |ui: &mut Ui, value: &str, _: &mut rune::Tx| {
-            ui.open = None;
-            if let Some(index) = labels.iter().position(|label| label == value) {
-                let writer = values[index].clone();
-                ui.update(|settings| settings.meetings.notes.writer = writer);
-            }
-        })
-        .build(p.k, layer)
-        .mr(-8.0);
+        .trigger(p.k);
+    let mut list = KitMenu::new("meeting-notes-writer-menu")
+        .placement(Placement::BottomEnd)
+        .gutter(2.0)
+        .min_width(MENU_WIDTH)
+        .open(open)
+        .on_close(|ui: &mut Ui| ui.open = None);
+    let mut group = None;
+    for (index, writer) in writers.into_iter().enumerate() {
+        if group.as_ref() != Some(&writer.group) {
+            list = list.group_label(writer.group.clone());
+            group = Some(writer.group);
+        }
+        let value = writer.value;
+        list = list.item(
+            MenuItem::new(writer.label)
+                .checked(index == current)
+                .on_select(move |ui: &mut Ui| {
+                    ui.open = None;
+                    let writer = value.clone();
+                    ui.update(|settings| settings.meetings.notes.writer = writer);
+                }),
+        );
+    }
+    let select = list.trigger(trigger).build(p.k, layer).mr(-8.0);
     let mut rows = vec![icon_row(
         p,
         "meeting-notes-writer",

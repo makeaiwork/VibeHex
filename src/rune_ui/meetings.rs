@@ -971,8 +971,8 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
         }
     }
     let stage = match tab {
-        super::meeting_tabs::MeetingTab::Requests => {
-            super::meeting_tabs::requests::stage(ui, p, body, layer)
+        _ if super::meeting_tabs::requests::available(ui, meeting) => {
+            super::meeting_tabs::requests::stage(ui, p, body, tab, layer)
         }
         _ => ld::card_scroll("meeting-transcript", body),
     };

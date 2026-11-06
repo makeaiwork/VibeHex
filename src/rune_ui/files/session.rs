@@ -149,7 +149,7 @@ fn answer_row(p: Paint, answered: &Answered<'_>, again: impl Fn(&mut Ui, String)
     row()
         .key("row")
         .gap(2.0)
-        .ml(-4.0)
+        // No pull to the left: the scroll would clip the hover fill.
         .center_y()
         .child(quiet_icon(
             p,

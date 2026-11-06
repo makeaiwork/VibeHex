@@ -35,7 +35,8 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   │   models (meetings.opencode_model; see labs.md, #1107)
 │   ├── Notes -> Written by (meetings.notes.writer: Apple Intelligence or OpenCode
 │   │   as before (none), Codex's models, the engines Output › AI cleanup set up,
-│   │   OpenCode), Reasoning Low / Medium / High on Codex (meetings.notes.effort,
+│   │   OpenCode; a 260 pt menu in groups Default, Codex, Built in, Other, so a
+│   │   model's name shows whole), Reasoning Low / Medium / High on Codex (meetings.notes.effort,
 │   │   Low when unset), Summary prompt: Default or Edited, Edit… -> its page
 │   │   (‹ Settings, the language as a tag with why, the prompt, Default prompt /
 │   │   Edited, Reset to default, Save; meetings.notes.prompts per language;
@@ -1015,6 +1016,9 @@ Requests tab (finished meeting, transcript, Labs › AI cleanup server on)
 │   turn the model leaves out keeps its words. "<model> is cleaning up"
 │   under the turns as they come; a stop keeps the turns done. Asking the
 │   label again (Ask again, or typed) cleans again. There is no Cleanup tab
+├── Transcript and Summary have the same chip and field (while Requests
+│   exists): they always start a new session and move to Requests, as
+│   Files' field does on a version
 └── Field floating at the bottom, as in Files: "Ask about this meeting",
     the model pill (Codex's models, then the AI cleanup engines), the
     reasoning pill on Codex, Send, or Stop while an answer comes
