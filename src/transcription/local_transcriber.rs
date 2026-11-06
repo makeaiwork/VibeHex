@@ -196,19 +196,7 @@ pub fn read_wav_for_parakeet(path: &Path) -> Result<Vec<f32>> {
     let mut reader = hound::WavReader::open(path)
         .wrap_err_with(|| format!("could not open {}", path.display()))?;
     let spec = reader.spec();
-    let samples = match spec.sample_format {
-        hound::SampleFormat::Float => reader
-            .samples::<f32>()
-            .collect::<std::result::Result<Vec<_>, _>>()?,
-        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => reader
-            .samples::<i16>()
-            .map(|sample| sample.map(|sample| sample as f32 / i16::MAX as f32))
-            .collect::<std::result::Result<Vec<_>, _>>()?,
-        hound::SampleFormat::Int => reader
-            .samples::<i32>()
-            .map(|sample| sample.map(|sample| sample as f32 / i32::MAX as f32))
-            .collect::<std::result::Result<Vec<_>, _>>()?,
-    };
+    let samples = super::float_samples(&mut reader).collect::<std::result::Result<Vec<_>, _>>()?;
     let channels = usize::from(spec.channels);
     let mono = samples
         .chunks(channels)

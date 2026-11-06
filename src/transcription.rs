@@ -245,6 +245,66 @@ impl WarmTranscriber {
     }
 }
 
+/// `reader`'s samples as `f32` in -1..1 whatever PCM the WAV holds: meeting
+/// tracks are 32-bit float, audio Files decodes is 16-bit integer.
+pub(crate) fn float_samples<R: std::io::Read>(
+    reader: &mut hound::WavReader<R>,
+) -> Box<dyn Iterator<Item = hound::Result<f32>> + '_> {
+    let spec = reader.spec();
+    match spec.sample_format {
+        hound::SampleFormat::Float => Box::new(reader.samples::<f32>()),
+        hound::SampleFormat::Int => {
+            let full_scale = (1_i64 << (spec.bits_per_sample.clamp(1, 32) - 1)) as f32;
+            Box::new(
+                reader
+                    .samples::<i32>()
+                    .map(move |sample| sample.map(|sample| sample as f32 / full_scale)),
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod wav_tests {
+    use super::float_samples;
+
+    #[test]
+    fn integer_and_float_wavs_read_as_the_same_samples() {
+        let directory = std::env::temp_dir().join(format!("hex-wav-format-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let expected = [0.0_f32, 0.5, -0.5, -1.0];
+        let read = |bits: u16, sample_format: hound::SampleFormat| {
+            let wav = directory.join(format!("{bits}.wav"));
+            let spec = hound::WavSpec {
+                channels: 1,
+                sample_rate: 16_000,
+                bits_per_sample: bits,
+                sample_format,
+            };
+            let mut writer = hound::WavWriter::create(&wav, spec).unwrap();
+            for sample in expected {
+                match sample_format {
+                    hound::SampleFormat::Float => writer.write_sample(sample).unwrap(),
+                    hound::SampleFormat::Int => {
+                        let full_scale = (1_i64 << (bits - 1)) as f32;
+                        writer.write_sample((sample * full_scale) as i32).unwrap();
+                    }
+                }
+            }
+            writer.finalize().unwrap();
+            let mut reader = hound::WavReader::open(&wav).unwrap();
+            float_samples(&mut reader)
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        // Meeting tracks are float; Files decodes every upload to 16-bit PCM.
+        assert_eq!(read(32, hound::SampleFormat::Float), expected);
+        assert_eq!(read(16, hound::SampleFormat::Int), expected);
+        assert_eq!(read(24, hound::SampleFormat::Int), expected);
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+}
+
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::{Transcript, UNIFIED_ENGLISH_TRAILING_SILENCE_SAMPLES, prepare_gguf_samples};
