@@ -31,6 +31,19 @@ fn logo_pixels() -> Option<&'static rune::Pixels> {
     .map(rune::Image::pixels)
 }
 
+/// The logo's mark alone, without the app icon's square: two hexagons and
+/// a dot, in the text's colour, for the sidebar on either theme.
+static MARK: rune::Icon = rune::Icon {
+    name: "hex-brand-mark",
+    view: 16.0,
+    body: r#"<path d="M8 1.2 13.9 4.6v6.8L8 14.8 2.1 11.4V4.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 4.1 11.4 6v4L8 11.9 4.6 10V6z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/>"#,
+};
+
+/// The mark, `size` points square.
+pub(super) fn mark(p: Paint, key: &str, size: f32) -> El {
+    rune::icon(&MARK, size).key(key.to_owned()).color(p.text())
+}
+
 /// The logo, `size` points square.
 pub(super) fn logo(key: &str, size: f32) -> El {
     let logo = rune::el().key(key).size(size, size);
@@ -51,7 +64,7 @@ pub(super) fn header(p: Paint) -> El {
         .px(4.0)
         .gap(8.0)
         .center_y()
-        .child(logo("logo", 22.0))
+        .child(mark(p, "logo", 22.0))
         .child(
             text(NAME)
                 .key("name")

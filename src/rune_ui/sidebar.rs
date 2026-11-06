@@ -376,7 +376,7 @@ fn open_button(p: Paint) -> El {
                 .fill(c.layer_02)
                 .group_opacity(0.0, 1.0),
         )
-        .child(super::brand::logo("logo", 22.0).group_opacity(1.0, 0.0))
+        .child(super::brand::mark(p, "logo", 22.0).group_opacity(1.0, 0.0))
         .child(
             row()
                 .key("open")
