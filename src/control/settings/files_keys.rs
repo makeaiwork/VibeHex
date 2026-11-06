@@ -36,12 +36,17 @@ pub(super) const FILES_KEYS: &[Key] = &[
     optional(
         "files.cleanup_engine",
         Kind::Text,
-        "Labs › Files: where cleanup runs: local:<model id>, openrouter, custom, or opencode; none follows dictation's AI cleanup",
+        "Labs › Files: where cleanup runs: local:<model id>, openrouter, custom, codex (dictation's Codex model) or codex:<model id>, or opencode; none follows dictation's AI cleanup",
     ),
     optional(
         "files.request_engine",
         Kind::Text,
         "Labs › Files: where requests (Summary, Action items, your own) run, in files.cleanup_engine's form; none follows cleanup's",
+    ),
+    key(
+        "files.request_effort",
+        Kind::Text,
+        "Labs › Files: how hard a Codex model thinks for requests: low, medium, or high; empty for medium",
     ),
     key(
         "files.use_default_prompt",

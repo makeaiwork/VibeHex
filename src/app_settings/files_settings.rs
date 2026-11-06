@@ -29,6 +29,10 @@ pub struct FilesSettings {
     /// cleanup's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_engine: Option<String>,
+    /// How hard a Codex model thinks for requests: `low`, `medium`, or
+    /// `high`; empty means medium.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub request_effort: String,
     /// Cleanup follows the Global mode's instructions; off, it follows
     /// `prompt`.
     pub use_default_prompt: bool,
@@ -64,6 +68,7 @@ impl Default for FilesSettings {
             cleanup_after: true,
             cleanup_engine: None,
             request_engine: None,
+            request_effort: String::new(),
             use_default_prompt: true,
             prompt: DEFAULT_FILES_PROMPT.into(),
             quick_prompts: default_quick_prompts(),

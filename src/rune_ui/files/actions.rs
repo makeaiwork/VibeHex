@@ -3,7 +3,7 @@
 
 use rune::{El, TextEdit, Tx, col, icon, row, text};
 use rune_kit::{
-    ButtonVariant, IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement, TextInput,
+    ButtonVariant, IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement,
 };
 
 use super::super::controls::Paint;
@@ -11,21 +11,15 @@ use super::super::list_detail as ld;
 use super::super::{Menu, Pane, Ui, icons};
 use super::detail::{current, tab_label, texts};
 use super::{Again, Armed, Tab, submit};
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::tr;
 use crate::files::store::{self, FileRecord, Version};
-use crate::files::worker::{self, Job};
+use crate::files::worker::Job;
 use crate::transcription::models::TranscriptionModelId;
 
 static MORE_ICON: rune::Icon = rune::Icon {
     name: "hex-files-more",
     view: 16.0,
     body: r#"<circle cx="3.5" cy="8" r="1.25" fill="currentColor"/><circle cx="8" cy="8" r="1.25" fill="currentColor"/><circle cx="12.5" cy="8" r="1.25" fill="currentColor"/>"#,
-};
-
-static SEND_ICON: rune::Icon = rune::Icon {
-    name: "hex-files-send",
-    view: 16.0,
-    body: r#"<path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>"#,
 };
 
 static SAVE_ICON: rune::Icon = rune::Icon {
@@ -593,34 +587,6 @@ pub(super) fn redo_menu(
     menu.trigger(trigger).build(p.k, layer)
 }
 
-/// Sends `prompt` to work on the open version, as a new request.
-fn send(ui: &mut Ui, prompt: String) {
-    let prompt = prompt.trim().to_string();
-    let Some(record) = ui.files.selected() else {
-        return;
-    };
-    let Some(Tab::Version(from)) = current(ui, record) else {
-        return;
-    };
-    if prompt.is_empty() {
-        return;
-    }
-    let quick = &ui.settings.files.quick_prompts;
-    let name = record.unique_name(&worker::request_name(&prompt, quick));
-    let typed = !quick.iter().any(|chip| chip.prompt.trim() == prompt);
-    let id = record.id.clone();
-    if typed && !ui.files.fixture {
-        if let Err(error) = store::remember(&prompt) {
-            tracing::warn!(%error, "couldn't remember the request");
-        }
-        ui.files.recent = store::recent();
-    }
-    if let Some(task) = submit(ui, &id, Job::Request { from, prompt, name }) {
-        ui.files.tab = Some(Tab::Task(task));
-    }
-    ui.files.ask = TextEdit::default();
-}
-
 /// The quick requests as outlined chips, Recent, and the request field,
 /// under a rule.
 ///
@@ -637,7 +603,14 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec
             &chip.label,
             None,
             live,
-            move |ui: &mut Ui| send(ui, prompt.clone()),
+            move |ui: &mut Ui| {
+                let Some(record) = ui.files.selected().cloned() else {
+                    return;
+                };
+                if let Some(Tab::Version(from)) = current(ui, &record) {
+                    super::composer::start(ui, &record, from, prompt.clone());
+                }
+            },
         ));
     }
     if !ui.files.recent.is_empty() && !live {
@@ -691,58 +664,27 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec
         );
         chips = chips.child(menu.trigger(trigger).build(p.k, layer));
     }
-    let c = &p.k.c;
-    let mut send_button = row()
-        .key("send")
-        .role("button")
-        .label(tr("Send"))
-        .size(26.0, 26.0)
-        .center()
-        .radius(6.0)
-        .fill(c.layer_02)
-        .child(icon(&SEND_ICON, 14.0).key("arrow").color(c.icon_muted));
-    if live {
-        send_button = send_button
-            .focusable(true)
-            .focus_ring(2.0, 0.0, c.border_focus)
-            .hover(c.hover)
-            .press(c.pressed)
-            .on_press(|ui: &mut Ui| {
-                let prompt = ui.files.ask.text.clone();
-                send(ui, prompt);
-            });
-    }
-    let placeholder = match waiting {
-        Some(name) => tr_fill("Wait for {}, or stop it", name),
-        None => tr("What should I do with this text?").to_string(),
-    };
-    let field = TextInput::new(&ui.files.ask)
-        .placeholder(placeholder)
-        .width(None)
-        .height(34.0)
-        .disabled(!live)
-        .trailing(send_button)
-        .on_edit(|ui: &mut Ui| &mut ui.files.ask)
-        .on_submit(|ui: &mut Ui, _| {
-            let prompt = ui.files.ask.text.clone();
-            send(ui, prompt);
-        })
-        .build(p.k)
-        .key("files-ask");
+    let field = super::composer::field(
+        ui,
+        p,
+        super::composer::Target::New,
+        tr("Ask about this text"),
+        None,
+        waiting,
+        layer,
+    );
     let area = col()
         .key("files-ask-area")
         .gap(8.0)
         .pb(16.0)
-        .child(
-            rune::el()
-                .key("rule")
-                .h(p.hair)
-                .fill(p.k.c.border_weak)
-                .mb(4.0),
-        )
         .child(chips)
         .child(field);
     if live { area } else { area.dim(0.55) }
+}
+
+/// The field alone, for a session.
+pub(super) fn composer_area(field: El) -> El {
+    col().key("files-ask-area").gap(8.0).pb(16.0).child(field)
 }
 
 #[cfg(test)]

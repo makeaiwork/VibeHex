@@ -1590,6 +1590,7 @@ mod tests {
                 language: Some("ru".into()),
                 cleanup_engine: Some("opencode".into()),
                 request_engine: Some("openrouter".into()),
+                request_effort: "high".into(),
                 last_folder: Some("/tmp".into()),
                 ..Default::default()
             },

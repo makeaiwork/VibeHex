@@ -47,7 +47,14 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │   │   downloaded / Set up in Output › AI cleanup / More models in Output ›
 │   │   AI cleanup)
 │   ├── Requests: the request's name as a tag, "Made from <tab> by <model>,
-│   │   32K window"
+│   │   32K window"; each request tab is a session, a chat: a typed request
+│   │   as a bubble (a chip's request shows no bubble), its answer, then each
+│   │   follow-up as a bubble with its answer. Every answer ends in one row:
+│   │   Copy and Ask again as icons, the model in grey, Stopped in amber when
+│   │   stopped (what came is kept), and the day and time. A follow-up reads
+│   │   the same source tab with the conversation so far (earlier answers cut
+│   │   at 6,000 characters); while it runs, "<model> is answering" under the
+│   │   streaming draft. Saved in the version: engine, effort, follow_ups
 │   ├── A three-step version: a note with × (closed for that version for good)
 │   └── A running job's tab turns a ring before its name and shows "Made from
 │       Cleanup by Qwen3 4B, 32K window", then a card: title and percent,
@@ -68,10 +75,18 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
 │            then where the file is, "…/<folder>/<name>" with a long name cut
 │            in its middle, or "File not found" with the first two off), each
 │            delete confirmed under the tabs; the file on disk is never touched
-├── Ask      FILES-ASK: under a rule, quick chips (files.quick_prompts) and
-│            Recent ▾ (last 10 typed requests, <support>/files/recent.json)
-│            as pills, then "What should I do with this text?" -> works on
-│            the open version and adds the result to Requests
+├── Ask      FILES-ASK: floats over the bottom of the text, which scrolls on
+│            under it and fades out above it; once text is under it the
+│            field lifts off with the floating shadow. On an Original or
+│            Cleanup tab: quick chips (files.quick_prompts) and Recent ▾
+│            (last 10 typed requests, <support>/files/recent.json) as pills,
+│            then "Ask about this text" -> starts a session in Requests. On a
+│            session: "Ask a follow-up". The field: Return sends, Shift+Return
+│            a new line; under the text a model pill ("Model for the next
+│            session" / "for this session": Codex's models, read from Codex
+│            when it opens, then the engines Settings offers) and, on Codex,
+│            a Low / Medium / High pill; the round button turns Stop while an
+│            answer comes
 └── Settings Rows lead with icons; each choice is borderless and shows what it
              resolves to in grey ("Same as dictation  Parakeet v3"). Model
              (Same as dictation or a downloaded one), Language (files.language,
@@ -82,7 +97,8 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
              Output › AI cleanup chose it / OpenCode),
              Use the Default mode's prompt (its start in italics while on;
              off, Files' own prompt); Requests › Runs on (files.request_engine:
-             Same as cleanup or any of those); Quick requests as a list (name,
+             Same as cleanup or any of those), Reasoning (files.request_effort,
+             only while requests run on Codex; Medium when unset); Quick requests as a list (name,
              what it asks, ✎ edits in place with Save and Cancel, 🗑 removes),
              Add request, and a note that the chips follow the list
 ```
@@ -99,7 +115,8 @@ How much a model reads                          // files::rewrite
              └── neither -> 3 steps over ~2,500-word parts: summaries -> outline
                  -> each part with the outline -> joined
              Other servers estimate tokens (3 characters each): OpenRouter and
-             OpenCode read 128K, Your server 8K (1,000-word parts)
+             OpenCode read 128K, Codex 250K (a long file whole), Your server 8K
+             (1,000-word parts)
 ```
 
 Records: `<support>/files/<id>.json`, owner-only, one per file (name, path,
@@ -111,7 +128,9 @@ Checks: `files::store`, `files::text`, `files::rewrite`
 (`requests_take_the_usual_window_then_the_wide_one_then_three_steps`, the
 three-step fake generator and its drafts, a draft's tail),
 `dictation::cleanup_server` (a streamed answer's text so far),
-`files::worker` (tab names); scenes `files`,
+`files::worker` (tab names), `files::requests` (a stop keeps what came, a
+follow-up carries the session); scenes `files`, `files-session` (a session on
+Codex with a follow-up streaming),
 `files-working`, `files-original`, `files-summary`, `files-versions` (the
 open tab's list), `files-more` (the … menu), `files-again` (Transcribe
 again's language), `files-empty`, `files-settings`, `files-settings-prompt`

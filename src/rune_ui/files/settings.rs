@@ -9,7 +9,7 @@ use rune_kit::{
 
 use super::super::controls::{
     ButtonKind, DESCRIPTION, METRICS, Paint, button, icon_row, icon_toggle_row, section,
-    section_with,
+    section_with, segmented,
 };
 use super::super::list_detail as ld;
 use super::super::{Menu, Ui, icons};
@@ -402,31 +402,62 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
     }
     let cleanup = section(p, "files-cleanup", tr("Cleanup"), cleanup_rows);
 
-    let requests = section(
+    let mut request_rows = vec![icon_row(
         p,
-        "files-requests",
-        tr("Requests"),
-        vec![icon_row(
+        "files-request-engine",
+        &icons::MONITOR,
+        tr("Runs on"),
+        Some(tr(
+            "Summary, Action items and your own requests. A model with a large window reads a long file whole, without 3 steps",
+        )),
+        engine_select(
+            ui,
             p,
             "files-request-engine",
-            &icons::MONITOR,
-            tr("Runs on"),
-            Some(tr(
-                "Summary, Action items and your own requests. A model with a large window reads a long file whole, without 3 steps",
-            )),
-            engine_select(
-                ui,
-                p,
-                "files-request-engine",
-                files.request_engine.as_deref(),
-                tr("Same as cleanup"),
-                engine_label(&config.engine(None)),
-                |files, value| files.request_engine = value,
-                layer,
-            ),
-        )],
-    );
+            files.request_engine.as_deref(),
+            tr("Same as cleanup"),
+            engine_label(&config.engine(None)),
+            |files, value| files.request_engine = value,
+            layer,
+        ),
+    )];
+    if config.request_engine(None, None).effort().is_some() {
+        request_rows.push(effort_row(ui, p));
+    }
+    let requests = section(p, "files-requests", tr("Requests"), request_rows);
     vec![transcription, cleanup, requests, quick_section(ui, p)]
+}
+
+/// Codex's reasoning for requests, while they run on Codex. A session's
+/// field can still choose its own.
+fn effort_row(ui: &Ui, p: Paint) -> El {
+    const EFFORTS: [&str; 3] = ["low", "medium", "high"];
+    let saved = match ui.settings.files.request_effort.trim() {
+        "" => "medium",
+        effort => effort,
+    };
+    let selected = EFFORTS.iter().position(|e| *e == saved).unwrap_or(1);
+    icon_row(
+        p,
+        "files-request-effort",
+        &icons::SPARKLES,
+        tr("Reasoning"),
+        Some(tr(
+            "Low answers soonest. Higher levels think longer before they answer",
+        )),
+        segmented(
+            p,
+            "files-request-effort-picker",
+            &[tr("Low"), tr("Medium"), tr("High")],
+            selected,
+            |ui: &mut Ui, index| {
+                let effort = EFFORTS[index.min(EFFORTS.len() - 1)];
+                if ui.settings.files.request_effort != effort {
+                    ui.update(|settings| settings.files.request_effort = effort.into());
+                }
+            },
+        ),
+    )
 }
 
 /// Where cleanup or requests run: `inherit` (saved as none, resolving to

@@ -23,7 +23,9 @@ use crate::files::{decode, text as file_text};
 use crate::transcription::models::TranscriptionModelId;
 
 mod actions;
+mod composer;
 mod detail;
+mod session;
 pub(super) mod settings;
 mod tabs;
 
@@ -89,6 +91,17 @@ pub(super) struct FilesPane {
     pub(super) editing: Option<u32>,
     pub(super) edit: TextEdit,
     pub(super) ask: TextEdit,
+    /// The engine and effort the next new session runs on, chosen with the
+    /// field's pills; `None` follows Settings.
+    pub(super) ask_engine: Option<String>,
+    pub(super) ask_effort: Option<String>,
+    /// Codex's models for the field's model pill, read when it opens.
+    pub(super) codex_models: Vec<crate::dictation::cleanup_server::codex::Model>,
+    /// How tall the floating field is, so the text can scroll clear of it.
+    pub(super) composer_h: f32,
+    /// Whether text is scrolled under the floating field, which then lifts
+    /// off it with a shadow.
+    pub(super) text_under: bool,
     drop_over: bool,
     drop_rejected: bool,
     pub(super) armed: Option<Armed>,
@@ -332,6 +345,8 @@ impl FilesPane {
             model: None,
             window_k: None,
             draft: None,
+            session: None,
+            question: None,
         };
         Self {
             records: vec![
@@ -355,6 +370,74 @@ impl FilesPane {
             fixture: true,
             ..Self::default()
         }
+    }
+
+    /// The Summary session on Codex with a follow-up answered and another
+    /// answering.
+    pub(super) fn session_fixture() -> Self {
+        use crate::files::store::FollowUp;
+        let mut pane = Self::fixture();
+        let model = |id: &str, name: &str, description: &str| {
+            crate::dictation::cleanup_server::codex::Model {
+                id: id.into(),
+                name: name.into(),
+                description: description.into(),
+                efforts: vec!["low".into(), "medium".into(), "high".into()],
+                default_effort: "medium".into(),
+                default: id == "gpt-6.1-sol",
+            }
+        };
+        pane.codex_models = vec![
+            model("gpt-6.1-sol", "GPT-6.1-Sol", "Latest workhorse model"),
+            model("gpt-6-luna", "GPT-6-Luna", "Fast and affordable"),
+        ];
+        if let Some(listed) = pane
+            .records
+            .iter_mut()
+            .find(|listed| listed.record.id == "preview-interview")
+            && let Some(version) = listed.record.version_mut(3)
+        {
+            version.model = "GPT-6-Luna".into();
+            version.parts = None;
+            version.engine = Some("codex:gpt-6.1-sol".into());
+            version.effort = Some("medium".into());
+            version.follow_ups.push(FollowUp {
+                question: "What did the client promise, and by when?".into(),
+                answer: concat!(
+                    "- Send the updated price list **by Friday** (00:14:32)\n",
+                    "- Agree the launch date with design after Tuesday's call (00:41:08)\n",
+                    "- Check the new contract clause with legal, no date (01:12:50)",
+                )
+                .into(),
+                model: "GPT-6.1-Sol".into(),
+                seconds: 14,
+                created_ms: FIXTURE_NOW_MS - 20 * 60_000,
+                stopped: false,
+            });
+        }
+        pane.tasks.insert(
+            0,
+            Task {
+                id: 4,
+                record: "preview-interview".into(),
+                stage: Stage::Working,
+                fraction: 0.3,
+                parts: None,
+                name: None,
+                kind: crate::files::store::VersionKind::Request,
+                from: None,
+                model: Some("GPT-6.1-Sol".into()),
+                window_k: None,
+                draft: Some(crate::files::worker::Draft {
+                    kind: crate::files::rewrite::DraftKind::Result,
+                    text: "The price per seat: the client said 12 euros, and".into(),
+                    cut: false,
+                }),
+                session: Some(3),
+                question: Some("Which numbers did they disagree on?".into()),
+            },
+        );
+        pane
     }
 
     /// No files yet.
@@ -388,6 +471,8 @@ impl FilesPane {
                         .into(),
                     cut: false,
                 }),
+                session: None,
+                question: None,
             },
         );
         pane.tab = Some(Tab::Task(3));
@@ -407,12 +492,13 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         worker::set_waker(move || waker());
         ui.files.woken = true;
     }
+    let models = composer::poll(ui);
     let tasks = worker::tasks();
     let shape: Vec<(u64, String, Stage)> = tasks
         .iter()
         .map(|task| (task.id, task.record.clone(), task.stage))
         .collect();
-    let mut changed = tasks != ui.files.tasks;
+    let mut changed = models || tasks != ui.files.tasks;
     ui.files.tasks = tasks;
     if ui.files.stale || ui.files.seen.as_ref() != Some(&shape) {
         ui.files.seen = Some(shape);

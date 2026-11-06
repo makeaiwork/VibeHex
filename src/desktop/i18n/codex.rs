@@ -33,4 +33,11 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("30 s", ["30 s", "30 秒", "30 秒", "30 s", "30 s", "30 с"]),
     ("Wait for Codex", ["Czekaj na Codex", "等待 Codex", "Codex を待つ時間", "Auf Codex warten", "Esperar a Codex", "Чекати на Codex"]),
     ("How long a dictation waits for Codex before it pastes as heard", ["Jak długo dyktowanie czeka na Codex, zanim zostanie wklejone tak, jak je usłyszano", "听写在按识别原文粘贴前等待 Codex 的时长", "聞き取ったまま貼り付ける前に、音声入力が Codex を待つ時間", "Wie lange ein Diktat auf Codex wartet, bevor es wie gehört eingefügt wird", "Cuánto espera un dictado a Codex antes de pegarse tal como se oyó", "Скільки диктування чекає на Codex, перш ніж вставитися як почуте"]),
+    ("Ask a follow-up", ["Zadaj kolejne pytanie", "继续提问", "続けて質問", "Folgefrage stellen", "Haz otra pregunta", "Поставте наступне запитання"]),
+    ("Ask about this text", ["Zapytaj o ten tekst", "就这段文字提问", "このテキストについて質問", "Frag etwas zu diesem Text", "Pregunta sobre este texto", "Запитайте про цей текст"]),
+    ("Ask again", ["Zapytaj ponownie", "重新提问", "もう一度質問", "Erneut fragen", "Preguntar de nuevo", "Запитати знову"]),
+    ("Loading Codex models…", ["Wczytuję modele Codex…", "正在加载 Codex 模型…", "Codex のモデルを読み込み中…", "Codex-Modelle werden geladen…", "Cargando modelos de Codex…", "Завантажуємо моделі Codex…"]),
+    ("Model for the next session", ["Model dla następnej sesji", "下一个会话的模型", "次のセッションのモデル", "Modell für die nächste Sitzung", "Modelo para la próxima sesión", "Модель для наступного сеансу"]),
+    ("Model for this session", ["Model dla tej sesji", "此会话的模型", "このセッションのモデル", "Modell für diese Sitzung", "Modelo para esta sesión", "Модель для цього сеансу"]),
+    ("{} is answering", ["{} odpowiada", "{} 正在回答", "{} が回答中", "{} antwortet", "{} está respondiendo", "{} відповідає"]),
 ];

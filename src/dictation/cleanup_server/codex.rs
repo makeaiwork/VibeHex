@@ -187,6 +187,33 @@ fn child_path(executable: &Path) -> std::ffi::OsString {
     std::env::join_paths(paths).unwrap_or_default()
 }
 
+/// The models the last [`status`] listed, for pickers outside Output.
+static MODELS: Mutex<Vec<Model>> = Mutex::new(Vec::new());
+
+/// The models Codex listed last, empty until [`status`] has run.
+pub fn models() -> Vec<Model> {
+    MODELS
+        .lock()
+        .map(|models| models.clone())
+        .unwrap_or_default()
+}
+
+/// A model's name as Codex shows it (GPT-6-Luna), else its id; Codex's
+/// default model when `id` is empty.
+pub fn model_name(id: &str) -> String {
+    let models = models();
+    let found = if id.trim().is_empty() {
+        models.iter().find(|model| model.default)
+    } else {
+        models.iter().find(|model| model.id == id.trim())
+    };
+    match (found, id.trim()) {
+        (Some(model), _) => model.name.clone(),
+        (None, "") => "Codex".into(),
+        (None, id) => id.into(),
+    }
+}
+
 /// Account, models, and plan usage, starting Codex if it isn't running.
 pub fn status(cancelled: &AtomicBool) -> Result<Status> {
     let until = Instant::now() + STATUS_DEADLINE;
@@ -211,6 +238,11 @@ pub fn status(cancelled: &AtomicBool) -> Result<Status> {
         {
             (limits, limited) = read_limits(&usage);
         }
+    }
+    if !models.is_empty()
+        && let Ok(mut listed) = MODELS.lock()
+    {
+        *listed = models.clone();
     }
     Ok(Status {
         executable: process.executable.clone(),

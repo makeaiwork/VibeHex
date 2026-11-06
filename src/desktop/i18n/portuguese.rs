@@ -1201,7 +1201,7 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("The file is gone", "O arquivo sumiu"),
     ("The other tabs stay.", "As outras abas ficam."),
     ("The text is longer than the model's window, so it goes in {} parts.", "O texto é maior que a janela do modelo, então vai em {} partes."),
-    ("The text is longer than the model's window, so it went in 3 steps over {} parts. A model with a large window reads it whole: OpenRouter or OpenCode.", "O texto era maior que a janela do modelo, então foi processado em 3 etapas em {} partes. Um modelo com janela grande o lê inteiro: OpenRouter ou OpenCode."),
+    ("The text is longer than the model's window, so it went in 3 steps over {} parts. A model with a large window reads it whole: Codex, OpenRouter or OpenCode.", "O texto era maior que a janela do modelo, então foi processado em 3 etapas em {} partes. Um modelo com janela grande o lê inteiro: Codex, OpenRouter ou OpenCode."),
     ("This file couldn't be transcribed.", "Não foi possível transcrever este arquivo."),
     ("This version is empty.", "Esta versão está vazia."),
     ("Use Hex's prompt", "Usar a instrução do Hex"),
@@ -1247,6 +1247,13 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("{} hours", "{} horas"),
     ("30 s", "30 s"),
     ("Wait for Codex", "Esperar o Codex"),
+    ("Ask a follow-up", "Faça outra pergunta"),
+    ("Ask about this text", "Pergunte sobre este texto"),
+    ("Ask again", "Perguntar de novo"),
+    ("Loading Codex models…", "Carregando modelos do Codex…"),
+    ("Model for the next session", "Modelo para a próxima sessão"),
+    ("Model for this session", "Modelo para esta sessão"),
+    ("{} is answering", "{} está respondendo"),
     ("How long a dictation waits for Codex before it pastes as heard", "Quanto tempo um ditado espera o Codex antes de ser colado como foi ouvido"),
 ];
 

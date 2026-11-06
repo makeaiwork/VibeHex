@@ -54,7 +54,7 @@ pub(super) fn current(ui: &Ui, record: &FileRecord) -> Option<Tab> {
 }
 
 /// Applies `change` to the shown record and, outside scenes, the stored one.
-fn change(ui: &mut Ui, id: &str, change: impl Fn(&mut FileRecord)) {
+pub(super) fn change(ui: &mut Ui, id: &str, change: impl Fn(&mut FileRecord)) {
     if let Some(listed) = ui.files.records.iter_mut().find(|l| l.record.id == id) {
         change(&mut listed.record);
     }
@@ -233,6 +233,20 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
             }
             if editing.is_some() {
                 body = body.child(editor(p, ui, record, version.id));
+            } else if version.kind == VersionKind::Request {
+                let typed = tabs::typed_prompt(ui, version).is_some();
+                body = body.child(super::session::chat(ui, p, record, version, typed));
+                let target = super::composer::Target::Session(version.id);
+                let running = super::composer::running(ui, target);
+                ask = Some(actions::composer_area(super::composer::field(
+                    ui,
+                    p,
+                    target,
+                    tr("Ask a follow-up"),
+                    running,
+                    None,
+                    layer,
+                )));
             } else {
                 body = body.child(content(ui, p, version));
                 ask = Some(actions::ask_area(ui, p, None, layer));
@@ -250,13 +264,60 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
             }
         }
     }
+    let detail = col().key("file-detail").grow(1.0).shrink().child(header);
+    match ask {
+        Some(ask) => detail.child(floating(p, pane, body, ask)),
+        None => detail.child(ld::card_scroll("file-text", body)),
+    }
+}
+
+/// Room left under the text for the field, past its own height.
+const FIELD_CLEARANCE: f32 = 12.0;
+/// Before the field is first measured.
+const FIELD_GUESS: f32 = 110.0;
+
+/// The text with the field floating over its bottom: the text scrolls on
+/// under it, fading out as it nears the field, and once text is under it the
+/// field lifts off with a shadow.
+fn floating(p: Paint, pane: &super::FilesPane, body: El, ask: El) -> El {
+    let field_h = if pane.composer_h > 0.0 {
+        pane.composer_h
+    } else {
+        FIELD_GUESS
+    };
+    let room = field_h + FIELD_CLEARANCE;
+    let bg = p.k.c.bg_base;
+    let body = body.child(rune::el().key("field-room").h(room));
+    let text = ld::card_scroll("file-text", body)
+        .on_at_bottom(|ui: &mut Ui, at: bool| ui.files.text_under = !at);
+    let veil = rune::el()
+        .key("field-veil")
+        .pin(Some(0.0), None, Some(0.0), Some(0.0))
+        .h(room + 32.0)
+        .linear_gradient(
+            std::f32::consts::PI,
+            [
+                (0.0, bg.alpha(0.0)),
+                (0.3, bg.alpha(0.7)),
+                (0.55, bg.alpha(0.85)),
+                (1.0, bg.alpha(0.95)),
+            ],
+        );
+    let ask =
+        ask.pin(Some(0.0), None, Some(0.0), Some(0.0))
+            .on_layout(|ui: &mut Ui, rect: [f32; 4]| {
+                if (ui.files.composer_h - rect[3]).abs() > 0.5 {
+                    ui.files.composer_h = rect[3];
+                }
+            });
     col()
-        .key("file-detail")
+        .key("file-stage")
         .grow(1.0)
         .shrink()
-        .child(header)
-        .child(ld::card_scroll("file-text", body))
-        .children(ask)
+        .min_h(0.0)
+        .child(text)
+        .child(veil)
+        .child(ask)
 }
 
 /// The open version's line: where it came from, and what it can do again.
@@ -391,7 +452,7 @@ fn steps_note(p: Paint, record: &FileRecord, version: u32, parts: usize) -> El {
         .fill(p.k.c.layer_02)
         .child(
             text(tr_fill(
-                "The text is longer than the model's window, so it went in 3 steps over {} parts. A model with a large window reads it whole: OpenRouter or OpenCode.",
+                "The text is longer than the model's window, so it went in 3 steps over {} parts. A model with a large window reads it whole: Codex, OpenRouter or OpenCode.",
                 &parts.to_string(),
             ))
             .key("words")

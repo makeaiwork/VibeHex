@@ -111,7 +111,7 @@ pub(super) fn position(ui: &Ui, record: &FileRecord, version: &Version) -> Optio
 }
 
 /// A typed request: what was asked, as no quick request asks it.
-fn typed_prompt<'a>(ui: &Ui, version: &'a Version) -> Option<&'a str> {
+pub(super) fn typed_prompt<'a>(ui: &Ui, version: &'a Version) -> Option<&'a str> {
     let prompt = version.prompt.as_deref()?.trim();
     let quick = ui
         .settings
