@@ -54,8 +54,11 @@ pub struct ActiveMicrophoneApplication {
 }
 
 impl ActiveMicrophoneApplication {
-    pub fn is_supported_meeting_app(&self) -> bool {
-        self.canonical_bundle_id().is_some()
+    /// Whether this is a call app detection may offer. `more_call_apps` is
+    /// Labs › More call apps; off, the apps it adds are not meeting apps.
+    pub fn is_supported_meeting_app(&self, more_call_apps: bool) -> bool {
+        self.canonical_bundle_id()
+            .is_some_and(|canonical| more_call_apps || !is_more_call_app(canonical))
     }
 
     pub fn is_browser(&self) -> bool {
@@ -97,6 +100,21 @@ fn is_browser_id(canonical_bundle_id: Option<&str>) -> bool {
                 | "company.thebrowser.Browser"
                 | "com.vivaldi.Vivaldi"
         )
+    )
+}
+
+/// The call apps Labs › More call apps adds. With that off they are not
+/// meeting apps, so detection behaves exactly as before.
+fn is_more_call_app(canonical_bundle_id: &str) -> bool {
+    matches!(
+        canonical_bundle_id,
+        "org.whispersystems.signal-desktop"
+            | "ru.keepcoder.Telegram"
+            | "com.tencent.xinWeChat"
+            | "jp.naver.line.mac"
+            | "com.webex.meetingmanager"
+            | "im.riot.app"
+            | "com.apple.mobilephone"
     )
 }
 
@@ -260,7 +278,15 @@ fn audio_process_is_of(object: AudioObjectID, bundle: &str, canonical: &str) -> 
 
 /// Linux and Windows executables (lowercase, without `.exe`) by the bundle
 /// identifier of the same app on macOS.
-const EXECUTABLES: [(&str, &str); 27] = [
+const EXECUTABLES: [(&str, &str); 44] = [
+    // Discord and its Canary and PTB builds, on Windows and Linux (the
+    // Flatpak runs the same binary).
+    ("discord", "com.hnc.Discord"),
+    ("discordcanary", "com.hnc.Discord"),
+    ("discordptb", "com.hnc.Discord"),
+    ("discord-canary", "com.hnc.Discord"),
+    ("discord-ptb", "com.hnc.Discord"),
+    ("com.discordapp.discord", "com.hnc.Discord"),
     ("yandextelemost", TELEMOST_APP),
     // Gather for Windows.
     ("gather", "com.gather.GatherV2"),
@@ -268,6 +294,19 @@ const EXECUTABLES: [(&str, &str); 27] = [
     // WhatsApp for Windows, before and after its WinUI rewrite.
     ("whatsapp", "net.whatsapp.WhatsApp"),
     ("whatsapp.root", "net.whatsapp.WhatsApp"),
+    // The apps Labs › More call apps adds.
+    ("signal", "org.whispersystems.signal-desktop"),
+    ("signal-desktop", "org.whispersystems.signal-desktop"),
+    ("telegram", "ru.keepcoder.Telegram"),
+    ("telegram-desktop", "ru.keepcoder.Telegram"),
+    ("element", "im.riot.app"),
+    ("element-desktop", "im.riot.app"),
+    ("webex", "com.webex.meetingmanager"),
+    // The Webex app's multiprocess host on Windows (Cisco's executable list).
+    ("ciscocollabhost", "com.webex.meetingmanager"),
+    ("wechat", "com.tencent.xinWeChat"),
+    ("weixin", "com.tencent.xinWeChat"),
+    ("line", "jp.naver.line.mac"),
     ("zoom", "us.zoom.xos"),
     ("ms-teams", "com.microsoft.teams2"),
     ("teams", "com.microsoft.teams2"),
@@ -324,6 +363,27 @@ fn canonical_bundle_id_for(bundle_id: &str, name: Option<&str>) -> Option<&'stat
         // Gather V2 and its Electron helpers, and Gather V1.
         ("com.gather.gatherv2", "com.gather.GatherV2"),
         ("com.gather.gather", "com.gather.GatherV2"),
+        // Discord and its helpers, and its Canary and PTB builds.
+        ("com.hnc.discord", "com.hnc.Discord"),
+        ("com.hnc.discordcanary", "com.hnc.Discord"),
+        ("com.hnc.discordptb", "com.hnc.Discord"),
+        // The apps Labs › More call apps adds, their Electron helpers and
+        // alternative bundle IDs included.
+        (
+            "org.whispersystems.signal-desktop",
+            "org.whispersystems.signal-desktop",
+        ),
+        ("ru.keepcoder.telegram", "ru.keepcoder.Telegram"),
+        ("com.tdesktop.telegram", "ru.keepcoder.Telegram"),
+        ("org.telegram.desktop", "ru.keepcoder.Telegram"),
+        ("com.tencent.xinwechat", "com.tencent.xinWeChat"),
+        ("jp.naver.line.mac", "jp.naver.line.mac"),
+        ("com.webex.meetingmanager", "com.webex.meetingmanager"),
+        ("com.cisco.webexmeetingsapp", "com.webex.meetingmanager"),
+        // The current Webex app uses Spark's bundle id, helpers included.
+        ("cisco-systems.spark", "com.webex.meetingmanager"),
+        ("im.riot.app", "im.riot.app"),
+        ("com.apple.mobilephone", "com.apple.mobilephone"),
         ("com.google.chrome", "com.google.Chrome"),
         ("com.brave.browser", "com.brave.Browser"),
         ("com.apple.safari", "com.apple.Safari"),
@@ -351,6 +411,14 @@ pub(crate) fn canonical_application_name(canonical_bundle_id: &str) -> Option<&'
         "com.apple.FaceTime" => Some("FaceTime"),
         "net.whatsapp.WhatsApp" => Some("WhatsApp"),
         "com.gather.GatherV2" => Some("Gather"),
+        "com.hnc.Discord" => Some("Discord"),
+        "org.whispersystems.signal-desktop" => Some("Signal"),
+        "ru.keepcoder.Telegram" => Some("Telegram"),
+        "com.tencent.xinWeChat" => Some("WeChat"),
+        "jp.naver.line.mac" => Some("LINE"),
+        "com.webex.meetingmanager" => Some("Webex"),
+        "im.riot.app" => Some("Element"),
+        "com.apple.mobilephone" => Some("Phone"),
         "com.google.Chrome" => Some("Google Chrome"),
         "com.brave.Browser" => Some("Brave Browser"),
         "com.apple.Safari" => Some("Safari"),
@@ -766,7 +834,7 @@ mod tests {
                 name: "Brave Browser".into(),
             }
         );
-        assert!(brave.is_supported_meeting_app());
+        assert!(brave.is_supported_meeting_app(false));
         assert!(brave.is_browser());
         assert_eq!(brave.canonical_bundle_id(), Some("com.brave.Browser"));
 
@@ -790,7 +858,7 @@ mod tests {
                 name: "Slack".into(),
             }
         );
-        assert!(slack.is_supported_meeting_app());
+        assert!(slack.is_supported_meeting_app(false));
         assert!(!slack.is_browser());
         assert_eq!(
             slack.canonical_bundle_id(),
@@ -870,7 +938,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(non_safari_webkit.canonical_bundle_id(), None);
-        assert!(!non_safari_webkit.is_supported_meeting_app());
+        assert!(!non_safari_webkit.is_supported_meeting_app(false));
 
         let facetime = resolve_application_with(
             8100,
@@ -1108,5 +1176,73 @@ mod tests {
         )
         .unwrap();
         assert_eq!(orphan.canonical_bundle_id(), None);
+    }
+
+    #[test]
+    fn more_call_app_bundle_variants_and_executables_canonicalize() {
+        for (bundle_id, expected) in [
+            (
+                "org.whispersystems.signal-desktop",
+                "org.whispersystems.signal-desktop",
+            ),
+            (
+                "org.whispersystems.signal-desktop.helper.Renderer",
+                "org.whispersystems.signal-desktop",
+            ),
+            ("ru.keepcoder.Telegram", "ru.keepcoder.Telegram"),
+            ("com.tdesktop.Telegram", "ru.keepcoder.Telegram"),
+            ("com.tdesktop.Telegram.helper", "ru.keepcoder.Telegram"),
+            ("org.telegram.desktop", "ru.keepcoder.Telegram"),
+            ("com.tencent.xinWeChat", "com.tencent.xinWeChat"),
+            ("jp.naver.line.mac", "jp.naver.line.mac"),
+            ("com.webex.meetingmanager", "com.webex.meetingmanager"),
+            ("com.cisco.webexmeetingsapp", "com.webex.meetingmanager"),
+            ("Cisco-Systems.Spark", "com.webex.meetingmanager"),
+            ("Cisco-Systems.Spark.helper", "com.webex.meetingmanager"),
+            ("im.riot.app", "im.riot.app"),
+            ("com.apple.mobilephone", "com.apple.mobilephone"),
+            ("Signal.exe", "org.whispersystems.signal-desktop"),
+            ("signal-desktop", "org.whispersystems.signal-desktop"),
+            ("Telegram.exe", "ru.keepcoder.Telegram"),
+            ("telegram-desktop", "ru.keepcoder.Telegram"),
+            ("Element.exe", "im.riot.app"),
+            ("element-desktop", "im.riot.app"),
+            ("webex", "com.webex.meetingmanager"),
+            ("CiscoCollabHost.exe", "com.webex.meetingmanager"),
+            ("ciscocollabhost", "com.webex.meetingmanager"),
+            ("WeChat.exe", "com.tencent.xinWeChat"),
+            ("Weixin.exe", "com.tencent.xinWeChat"),
+            ("LINE.exe", "jp.naver.line.mac"),
+        ] {
+            assert_eq!(
+                canonical_bundle_id_for(bundle_id, None),
+                Some(expected),
+                "{bundle_id}"
+            );
+            assert!(is_more_call_app(expected), "{expected}");
+        }
+        assert!(!is_more_call_app("us.zoom.xos"));
+        assert_eq!(
+            canonical_application_name("ru.keepcoder.Telegram"),
+            Some("Telegram")
+        );
+        assert_eq!(
+            canonical_application_name("jp.naver.line.mac"),
+            Some("LINE")
+        );
+        // Off, the lab's apps are not meeting apps at all; on, they are.
+        let signal = ActiveMicrophoneApplication {
+            pid: 7,
+            bundle_id: "org.whispersystems.signal-desktop".into(),
+            name: "Signal".into(),
+        };
+        assert!(!signal.is_supported_meeting_app(false));
+        assert!(signal.is_supported_meeting_app(true));
+        let chrome = ActiveMicrophoneApplication {
+            pid: 8,
+            bundle_id: "com.google.Chrome".into(),
+            name: "Google Chrome".into(),
+        };
+        assert!(chrome.is_supported_meeting_app(false));
     }
 }

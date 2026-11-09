@@ -25,15 +25,19 @@ fn main() {
         if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
             // transcribe-cpp's Vulkan backend links the vulkan-1 import
             // library by name without its search path. The DLL itself ships
-            // with the GPU driver.
+            // with the GPU driver, so it is delay-loaded: a missing or
+            // Vulkan 1.0 loader must not stop Hex at launch (#1240;
+            // `windows::vulkan` keeps ggml off it then).
             println!("cargo:rerun-if-env-changed=VULKAN_SDK");
-            if std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("x86_64")
-                && let Some(sdk) = std::env::var_os("VULKAN_SDK")
-            {
-                println!(
-                    "cargo:rustc-link-search=native={}",
-                    PathBuf::from(sdk).join("Lib").display()
-                );
+            if std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("x86_64") {
+                if let Some(sdk) = std::env::var_os("VULKAN_SDK") {
+                    println!(
+                        "cargo:rustc-link-search=native={}",
+                        PathBuf::from(sdk).join("Lib").display()
+                    );
+                }
+                println!("cargo:rustc-link-arg=/DELAYLOAD:vulkan-1.dll");
+                println!("cargo:rustc-link-lib=delayimp");
             }
             #[cfg(windows)]
             embed_windows_resources();
@@ -49,6 +53,9 @@ fn main() {
     compile_swift_bridge("apple_speech", "HEXAppleSpeechBridge", &[]);
     println!("cargo:rustc-link-lib=framework=AVFAudio");
     println!("cargo:rustc-link-lib=framework=Speech");
+    // AVFoundation decodes an imported meeting's audio into a 16 kHz WAV.
+    compile_swift_bridge("meeting_import", "HEXMeetingImportBridge", &[]);
+    println!("cargo:rustc-link-lib=framework=AudioToolbox");
     // FoundationModels exists only on macOS 26 and later. Weak-link it, and
     // drop the object's strong autolink entry, so Hex still launches on older
     // systems and reports Apple Intelligence as unavailable.

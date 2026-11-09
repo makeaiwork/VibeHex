@@ -123,10 +123,12 @@ pub(crate) struct Receipt {
     bytes: u64,
     pub(crate) sha256: String,
     modified_ns: u64,
-    /// The file's identity on its volume (`found_models::file_id`), where
-    /// the OS reports one.
+    /// The file's inode (`found_models::inode`), where the OS reports one.
+    /// Older receipts saved a `file_id` that mixed in the volume's device
+    /// number, which macOS can renumber at a restart; it is ignored, so
+    /// those receipts hold on size and modification time alone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    file_id: Option<u64>,
+    inode: Option<u64>,
 }
 
 impl Receipt {
@@ -137,7 +139,7 @@ impl Receipt {
             sha256,
             modified_ns: super::models::modified_ns(&metadata)
                 .ok_or_else(|| eyre!("the file's modification time is unavailable"))?,
-            file_id: super::found_models::file_id(&metadata),
+            inode: super::found_models::inode(&metadata),
         })
     }
 
@@ -145,7 +147,7 @@ impl Receipt {
     pub(crate) fn holds(&self, metadata: &fs::Metadata) -> bool {
         self.bytes == metadata.len()
             && super::models::modified_ns(metadata) == Some(self.modified_ns)
-            && (self.file_id.is_none() || self.file_id == super::found_models::file_id(metadata))
+            && (self.inode.is_none() || self.inode == super::found_models::inode(metadata))
     }
 }
 
@@ -340,7 +342,10 @@ fn build(id: CustomModelId, manifest: &Manifest) -> &'static ModelDefinition {
         runtime: ModelRuntime::Gguf(artifact),
         languages,
         accepts_language_hint: takes_language_hint(architecture),
-        supports_language_detection: manifest.detects_language && takes_language_hint(architecture),
+        // The header's lang_detect decides Auto. A no-hint family (Parakeet,
+        // GigaAM) hears the language itself without a hint, the way the
+        // catalog's v3-type entries do.
+        supports_language_detection: manifest.detects_language,
     }))
 }
 
@@ -502,8 +507,10 @@ fn profile(header: &GgufHeader, file_name: &str) -> Result<Profile> {
     };
     if !ARCHITECTURES.iter().any(|(name, _)| *name == architecture) {
         bail!(
-            "its architecture is {architecture}; Hex runs Parakeet, Whisper, Qwen3-ASR, \
-             Cohere Transcribe, SenseVoice, and GigaAM models"
+            "its architecture is {architecture}, so it was made for another program. Hex runs \
+             only GGUF files converted with transcribe.cpp (Parakeet, Whisper, Qwen3-ASR, \
+             Cohere Transcribe, SenseVoice, or GigaAM); for a model in Hex's list, download \
+             it from the list instead"
         );
     }
     let Some(variant) = header.string("stt.variant") else {
@@ -1090,6 +1097,38 @@ mod tests {
     }
 
     #[test]
+    fn a_receipt_survives_a_renumbered_volume_but_not_another_file() {
+        let models = temporary_models_dir();
+        let file = models.join("model.gguf");
+        fs::write(&file, b"weights").unwrap();
+        let metadata = fs::metadata(&file).unwrap();
+        let receipt = Receipt::of(&file, "ab".repeat(32)).unwrap();
+        assert!(receipt.holds(&metadata));
+        // An older receipt's `file_id` mixed in the volume's device number,
+        // which macOS renumbers at a restart; size and time still prove it.
+        let modified_ns = super::super::models::modified_ns(&metadata).unwrap();
+        let legacy = format!(
+            r#"{{"bytes":{},"sha256":"","modified_ns":{modified_ns},"file_id":12345}}"#,
+            metadata.len()
+        );
+        assert!(
+            serde_json::from_str::<Receipt>(&legacy)
+                .unwrap()
+                .holds(&metadata)
+        );
+        #[cfg(unix)]
+        {
+            let other = Receipt {
+                inode: receipt.inode.map(|inode| inode ^ 1),
+                ..receipt
+            };
+            assert!(!other.holds(&metadata));
+        }
+        super::super::models::set_test_models_dir(None);
+        fs::remove_dir_all(models).unwrap();
+    }
+
+    #[test]
     fn a_refused_or_canceled_import_leaves_nothing_behind() {
         let models = temporary_models_dir();
         let source = models.join("llama.gguf");
@@ -1192,9 +1231,25 @@ mod tests {
         };
         let definition = build(CustomModelId::from_sha256(&manifest.sha256), &manifest);
         assert!(!definition.accepts_language_hint);
-        assert!(!definition.supports_language_detection);
+        assert!(
+            definition.supports_language_detection,
+            "a no-hint import whose header detects the language offers Auto"
+        );
         assert!(takes_language_hint("whisper"));
         assert!(!takes_language_hint("parakeet"));
+        // A hint-taking family still needs the header's detection.
+        let whisper = build(
+            CustomModelId::from_sha256(&manifest.sha256),
+            &Manifest {
+                architecture: "whisper".into(),
+                variant: "whisper-large-v3-turbo".into(),
+                languages: vec!["en".into()],
+                detects_language: false,
+                ..manifest
+            },
+        );
+        assert!(whisper.accepts_language_hint);
+        assert!(!whisper.supports_language_detection);
     }
 
     #[test]
@@ -1213,6 +1268,16 @@ mod tests {
             ))
             .contains("its architecture is llama")
         );
+        // A SenseVoice file made for another program names that, not a
+        // family Hex says it runs (#1299).
+        let other_runtime = reason(gguf(
+            &[("general.architecture", "sensevoice-small")],
+            &[],
+            &[],
+            &[("a", 0, 4)],
+        ));
+        assert!(other_runtime.contains("made for another program"));
+        assert!(other_runtime.contains("converted with transcribe.cpp"));
         assert!(reason(gguf(&[], &[], &[], &[("a", 0, 4)])).contains("no general.architecture"));
         assert!(
             reason(gguf(

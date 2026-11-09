@@ -19,3 +19,4 @@ __pycache__/
 
 # Local copies of the design canvases (sync-designs), not published.
 /docs/design/
+/perf/seeds/.generated/

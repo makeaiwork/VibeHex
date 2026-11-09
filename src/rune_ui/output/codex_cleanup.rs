@@ -240,6 +240,7 @@ fn model_row(ui: &Ui, p: Paint, status: &Status, layer: &mut Vec<El>) -> El {
     let select = select_sized(
         p,
         "ai-cleanup-codex-model",
+        tr("Model"),
         label,
         None,
         ui.open == Some(MODEL_MENU),

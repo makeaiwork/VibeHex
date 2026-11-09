@@ -161,13 +161,35 @@ impl AppSettings {
             self.vocabulary_add_hotkey = HotkeyBinding::vocabulary_add_default();
             reset = true;
         }
+        if self.typed_text_hotkey.as_ref().is_some_and(&matches) {
+            self.typed_text_hotkey = None;
+            reset = true;
+        }
         if self.second_dictation_hotkey.as_ref().is_some_and(&matches) {
             self.second_dictation_hotkey = None;
+            reset = true;
+        }
+        if self.terminal_paste_hotkey.as_ref().is_some_and(&matches) {
+            self.terminal_paste_hotkey = None;
             reset = true;
         }
         #[cfg(hex_capture)]
         if matches(&self.capture.hotkey) {
             self.capture.hotkey = HotkeyBinding::capture_default();
+            reset = true;
+        }
+        #[cfg(hex_capture)]
+        if self.capture.replay_hotkey.as_ref().is_some_and(&matches) {
+            self.capture.replay_hotkey = None;
+            reset = true;
+        }
+        if self
+            .screenshots
+            .record_hotkey
+            .as_ref()
+            .is_some_and(&matches)
+        {
+            self.screenshots.record_hotkey = None;
             reset = true;
         }
         reset

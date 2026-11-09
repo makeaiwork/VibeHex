@@ -158,7 +158,8 @@ pub(super) fn strip(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -
 }
 
 /// The Summary tab: the notes, who wrote them, and the chapters.
-pub(super) fn summary(p: Paint, meeting: &Meeting, chapters: Option<El>) -> El {
+/// `running` names what writes the notes while they are being written.
+pub(super) fn summary(p: Paint, meeting: &Meeting, chapters: Option<El>, running: &str) -> El {
     let mut body = col().key("summary-tab").gap(24.0);
     if let Some(summary) = &meeting.summary {
         let summary = summary.trim();
@@ -195,7 +196,7 @@ pub(super) fn summary(p: Paint, meeting: &Meeting, chapters: Option<El>) -> El {
         );
     } else if meeting.notes_running {
         body = body.child(
-            text(tr("Writing a title and summary…"))
+            text(running)
                 .key("notes-running")
                 .font(DESCRIPTION)
                 .color(p.faint()),

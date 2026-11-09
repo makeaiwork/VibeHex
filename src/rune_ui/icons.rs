@@ -32,6 +32,14 @@ line_icon!(
     ]
 );
 line_icon!(
+    CAMERA,
+    "hex-row-camera",
+    [
+        "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z",
+        "M15 13a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
+    ]
+);
+line_icon!(
     BLUETOOTH,
     "hex-row-bluetooth",
     ["m7 7 10 10-5 5V2l5 5L7 17"]
@@ -108,11 +116,6 @@ line_icon!(
         "m8 13 4-7 4 7",
         "M9.1 11h5.7",
     ]
-);
-line_icon!(
-    HINTS,
-    "hex-row-hints",
-    ["M4 7V4h16v3", "M9 20h6", "M12 4v16"]
 );
 line_icon!(
     PASTE,
@@ -253,6 +256,14 @@ line_icon!(
     ]
 );
 line_icon!(
+    CALL,
+    "hex-row-call",
+    [
+        "m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5",
+        "M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+    ]
+);
+line_icon!(
     CIRCLE_X,
     "hex-row-circle-x",
     [
@@ -308,4 +319,25 @@ line_icon!(
         "M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4",
         "M9 18c-4.51 2-5-2-7-2",
     ]
+);
+
+line_icon!(
+    PEN,
+    "hex-row-pen",
+    [
+        "M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4.5 1.5L5 15z",
+        "m13.5 6.5 3 3",
+    ]
+);
+line_icon!(
+    ARROW_TOOL,
+    "hex-row-arrow-tool",
+    ["M5 19 19 5", "M10 5h9v9"]
+);
+line_icon!(BOX_TOOL, "hex-row-box", ["M4 5h16v14H4z"]);
+line_icon!(TEXT_TOOL, "hex-row-text-tool", ["M5 5h14", "M12 5v15"]);
+line_icon!(
+    CROP_TOOL,
+    "hex-row-crop",
+    ["M7 2.5V17h14.5", "M2.5 7H17v14.5"]
 );

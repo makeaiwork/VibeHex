@@ -375,7 +375,7 @@ pub(in super::super) fn stage(
     let room = field_h + FIELD_CLEARANCE + FIELD_BOTTOM;
     let bg = p.k.c.bg_base;
     let body = body.child(el().key("field-room").h(room));
-    let text = ld::card_scroll("meeting-requests", body)
+    let text = ld::card_scroll(p, "meeting-requests", body)
         .on_at_bottom(|ui: &mut Ui, at: bool| ui.meetings.requests.text_under = !at);
     let veil = el()
         .key("field-veil")
@@ -444,6 +444,7 @@ fn field(ui: &Ui, p: Paint, session: Option<u32>, layer: &mut Vec<El>) -> El {
     let placeholder = tr("Ask about this meeting");
     let input = rune::text_input(edit, p.k.ty.ui)
         .key("input")
+        .label(placeholder)
         .w_full()
         .color(c.text_base)
         .placeholder(placeholder, p.placeholder())
@@ -650,7 +651,7 @@ fn transcript(meeting: &Meeting) -> String {
         meeting.title,
         meeting.day,
         meeting.clock,
-        transcript_markdown(meeting.turns())
+        transcript_markdown(meeting.turns(), meeting.imported)
     )
 }
 

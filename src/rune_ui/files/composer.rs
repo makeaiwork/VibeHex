@@ -92,6 +92,7 @@ pub(super) fn field(
     };
     let mut input = rune::text_input(edit, style)
         .key("input")
+        .label(&placeholder)
         .w_full()
         .color(c.text_base)
         .placeholder(placeholder.clone(), p.placeholder())

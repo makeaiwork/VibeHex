@@ -588,6 +588,7 @@ fn prompt_row(ui: &Ui, p: Paint) -> El {
             let saved = ui.settings.files.prompt.clone();
             ui.files.prompt.get_or_insert_with(|| TextEdit::new(saved))
         })
+        .label(tr("Instructions"))
         .build(p.k)
         .key("files-prompt");
     let mut buttons = row().key("buttons").gap(8.0);

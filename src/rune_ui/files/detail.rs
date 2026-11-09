@@ -296,7 +296,7 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
                 })
                 .child(body.h_full().min_h(0.0).pt(EDITOR_TOP).pb(16.0)),
         ),
-        None => detail.child(ld::card_scroll("file-text", body)),
+        None => detail.child(ld::card_scroll(p, "file-text", body)),
     }
 }
 
@@ -317,7 +317,7 @@ fn floating(p: Paint, pane: &super::FilesPane, body: El, ask: El) -> El {
     let room = field_h + FIELD_CLEARANCE;
     let bg = p.k.c.bg_base;
     let body = body.child(rune::el().key("field-room").h(room));
-    let text = ld::card_scroll("file-text", body)
+    let text = ld::card_scroll(p, "file-text", body)
         .on_at_bottom(|ui: &mut Ui, at: bool| ui.files.text_under = !at);
     let veil = rune::el()
         .key("field-veil")
@@ -650,6 +650,7 @@ fn editor(p: Paint, ui: &Ui, record: &FileRecord, version: u32) -> El {
                 .max_height(10_000.0)
                 .width(None)
                 .on_edit(|ui: &mut Ui| &mut ui.files.edit)
+                .label(tr("Text"))
                 .build(p.k)
                 .key("file-edit-text")
                 .grow(1.0)

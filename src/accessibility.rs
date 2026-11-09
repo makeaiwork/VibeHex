@@ -95,8 +95,7 @@ unsafe extern "C" {
 const CF_NUMBER_SINT64: isize = 4;
 
 pub fn focused_window_title(pid: i32) -> Option<String> {
-    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
-    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    let application = foreign_application(pid)?;
     let window = copy_element(&application, c"AXFocusedWindow")?;
     copy_string(&window, c"AXTitle").filter(|title| !title.is_empty())
 }
@@ -107,8 +106,7 @@ pub fn focused_window_title(pid: i32) -> Option<String> {
 /// the page itself.
 pub fn focused_web_url(pid: i32) -> Option<String> {
     const MAX_DEPTH: usize = 64;
-    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
-    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    let application = foreign_application(pid)?;
     let mut element = copy_element(&application, c"AXFocusedUIElement")?;
     let mut url = None;
     for _ in 0..MAX_DEPTH {
@@ -130,8 +128,7 @@ pub fn focused_web_url(pid: i32) -> Option<String> {
 /// process; without it a browser behind another app shows windows but no
 /// web areas.
 pub fn browser_pages(pid: i32) -> crate::dictation::browser_page::BrowserPages {
-    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
-    let Some(application) = bounded_element(unsafe { AXUIElementCreateApplication(pid) }) else {
+    let Some(application) = foreign_application(pid) else {
         return Default::default();
     };
     request_web_accessibility(pid, &application);
@@ -238,8 +235,7 @@ fn copy_elements(element: &CfObject, name: &CStr) -> Vec<CfObject> {
 /// focused text element, for Labs › Smart spacing. `None` when text is
 /// selected, the cursor is at the start, or the app doesn't say.
 pub fn char_before_caret(pid: i32) -> Option<char> {
-    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
-    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    let application = foreign_application(pid)?;
     let focused = copy_element(&application, c"AXFocusedUIElement")?;
     let selection = copy_range(&focused, c"AXSelectedTextRange")?;
     if selection.length != 0 || selection.location <= 0 {
@@ -284,9 +280,7 @@ impl Selection {
     /// Whether the same element still has the same text selected, so a
     /// paste replaces exactly it.
     pub fn still_selected(&self) -> bool {
-        // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
-        let Some(application) = bounded_element(unsafe { AXUIElementCreateApplication(self.pid) })
-        else {
+        let Some(application) = foreign_application(self.pid) else {
             return false;
         };
         let Some(focused) = copy_element(&application, c"AXFocusedUIElement") else {
@@ -306,8 +300,7 @@ const TEXT_ROLES: [&str; 4] = ["AXTextField", "AXTextArea", "AXComboBox", "AXSea
 /// editors, browsers) build that tree only once asked, as `browser_pages`
 /// does. `None` when nothing is selected or the app doesn't say.
 pub fn selection(pid: i32) -> Option<Selection> {
-    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
-    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    let application = foreign_application(pid)?;
     request_web_accessibility(pid, &application);
     let element = copy_element(&application, c"AXFocusedUIElement")?;
     let text = copy_string(&element, c"AXSelectedText")?;
@@ -381,8 +374,7 @@ fn settable(element: &CfObject, name: &CStr) -> bool {
 /// shortcut so any language matches, is enabled: what is selected there
 /// can be edited. `None` when the app has no such item or doesn't say.
 pub fn can_cut(pid: i32) -> Option<bool> {
-    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
-    let application = bounded_element(unsafe { AXUIElementCreateApplication(pid) })?;
+    let application = foreign_application(pid)?;
     let bar = copy_element(&application, c"AXMenuBar")?;
     copy_elements(&bar, c"AXChildren")
         .iter()
@@ -488,6 +480,18 @@ impl Drop for CfObject {
     }
 }
 
+/// The Accessibility application element for another process, never for
+/// Hex's own: its window serves that tree from the same runtime its main
+/// thread updates, so a read from the foreground-context thread (or Smart
+/// spacing) while an update runs can panic and take Hex down (#1402).
+fn foreign_application(pid: i32) -> Option<CfObject> {
+    if pid == std::process::id() as i32 {
+        return None;
+    }
+    // SAFETY: AXUIElementCreateApplication returns a retained Core Foundation object.
+    bounded_element(unsafe { AXUIElementCreateApplication(pid) })
+}
+
 fn bounded_element(element: AxUiElementRef) -> Option<CfObject> {
     if element.is_null() {
         return None;
@@ -569,5 +573,18 @@ mod tests {
         assert_eq!(focused_web_url(i32::MAX), None);
         assert_eq!(char_before_caret(i32::MAX), None);
         assert!(selection(i32::MAX).is_none());
+    }
+
+    /// Hex's own tree belongs to the main thread that updates it: the
+    /// foreground-context poller and Smart spacing must never ask for it
+    /// (#1402).
+    #[test]
+    fn hex_never_reads_its_own_accessibility_tree() {
+        let own_pid = std::process::id() as i32;
+        assert!(foreign_application(own_pid).is_none());
+        assert_eq!(focused_window_title(own_pid), None);
+        assert_eq!(focused_web_url(own_pid), None);
+        assert_eq!(char_before_caret(own_pid), None);
+        assert!(browser_pages(own_pid).urls.is_empty());
     }
 }

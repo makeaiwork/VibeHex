@@ -21,6 +21,20 @@ pub const LEFT_OPTION_MASK: u64 = 0x0000_0020;
 pub const RIGHT_OPTION_MASK: u64 = 0x0000_0040;
 pub const RIGHT_CONTROL_MASK: u64 = 0x0000_2000;
 
+/// Keyboard-page (0x07) usages of the physical keys the macOS raw HID
+/// tracker follows. macOS's HID keyboard filter can rewrite Caps Lock
+/// (0x39) to Right Control (0xE4) before CoreGraphics sees it, so these are
+/// the only evidence of what the keyboard actually holds.
+pub const CAPS_LOCK_USAGE: u16 = 0x39;
+pub const LEFT_CONTROL_USAGE: u16 = 0xE0;
+pub const LEFT_SHIFT_USAGE: u16 = 0xE1;
+pub const LEFT_OPTION_USAGE: u16 = 0xE2;
+pub const LEFT_COMMAND_USAGE: u16 = 0xE3;
+pub const RIGHT_CONTROL_USAGE: u16 = 0xE4;
+pub const RIGHT_SHIFT_USAGE: u16 = 0xE5;
+pub const RIGHT_OPTION_USAGE: u16 = 0xE6;
+pub const RIGHT_COMMAND_USAGE: u16 = 0xE7;
+
 /// Which of a modifier's keys a shortcut holds. `Either` is one key on either side (or both,
 /// as before chords); `Both` is the left and the right key together, such as both Options.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -399,6 +413,18 @@ impl HotkeyKey {
         self.label.clone()
     }
 
+    /// The lowercase ASCII letter a keyboard key's keycap shows, if any.
+    #[cfg(target_os = "macos")]
+    fn letter(&self) -> Option<char> {
+        let mut characters = self.label.chars();
+        match (characters.next(), characters.next()) {
+            (Some(letter), None) if letter.is_ascii_alphabetic() => {
+                Some(letter.to_ascii_lowercase())
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn same_key(&self, other: &Self) -> bool {
         if cfg!(target_os = "macos") {
             self.code == other.code
@@ -734,6 +760,33 @@ impl HotkeyBinding {
         binding
     }
 
+    /// Command-Shift-4, macOS's own area screenshot (Labs › Screenshots):
+    /// the "4" key's ANSI position, as macOS binds it on every layout.
+    pub fn screenshot_default() -> Self {
+        #[cfg(target_os = "macos")]
+        let binding = Self {
+            modifiers: HotkeyModifiers {
+                command: Some(ModifierSide::Either),
+                shift: Some(ModifierSide::Either),
+                ..Default::default()
+            },
+            key: Some(HotkeyKey {
+                code: 21,
+                label: "4".into(),
+            }),
+        };
+        #[cfg(not(target_os = "macos"))]
+        let binding = Self::chord(
+            HotkeyModifiers {
+                control: Some(ModifierSide::Either),
+                shift: Some(ModifierSide::Either),
+                ..Default::default()
+            },
+            "4",
+        );
+        binding
+    }
+
     /// Escape, with no modifier.
     pub fn cancel_default() -> Self {
         #[cfg(target_os = "macos")]
@@ -804,23 +857,58 @@ pub(super) fn scrawl_shortcut(bytes: &[u8]) -> Option<HotkeyBinding> {
 
 #[cfg(target_os = "macos")]
 pub(super) fn paste_key_code() -> u16 {
-    *PASTE_KEY_CODE.get_or_init(|| layout_key_code('v').unwrap_or(9))
+    layout_key_code('v').unwrap_or(9)
 }
 
-/// The active layout's key for `character`. GUI startup snapshots the layout
-/// on the main thread; unit tests run on worker threads, where reaching TIS is
-/// unsupported, so they resolve against the ANSI layout instead.
+/// The active layout's key for `character`.
 #[cfg(target_os = "macos")]
 pub(super) fn layout_key_code(character: char) -> Option<u16> {
-    if cfg!(test) {
-        return match character {
-            'e' => Some(14),
-            's' => Some(1),
-            'v' => Some(9),
-            _ => None,
-        };
+    shortcut_layout_key_code(character, false)
+}
+
+/// The active layout's key for `character` in a shortcut, on the Command
+/// layer when it holds Command. The main thread publishes the layout at
+/// launch and again when the input source changes; unit tests run on worker
+/// threads, where reaching TIS is unsupported, so they resolve against
+/// [`test_layout`] instead.
+#[cfg(target_os = "macos")]
+fn shortcut_layout_key_code(character: char, command: bool) -> Option<u16> {
+    #[cfg(test)]
+    {
+        let _ = command;
+        test_layout::key_code(character)
     }
-    crate::keyboard::key_code_for(character).ok()
+    #[cfg(not(test))]
+    crate::keyboard::shortcut_key_code(character, command).ok()
+}
+
+/// The ANSI layout's letter keys the tests resolve against, or another
+/// layout one test sets on its own thread.
+#[cfg(all(test, target_os = "macos"))]
+pub(crate) mod test_layout {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    thread_local! {
+        static LAYOUT: RefCell<Option<HashMap<char, u16>>> = const { RefCell::new(None) };
+    }
+
+    pub(crate) fn key_code(character: char) -> Option<u16> {
+        LAYOUT.with(|layout| match layout.borrow().as_ref() {
+            Some(layout) => layout.get(&character).copied(),
+            None => match character {
+                'e' => Some(14),
+                's' => Some(1),
+                'v' => Some(9),
+                _ => None,
+            },
+        })
+    }
+
+    /// Resolves letters on `layout` on this thread until it is set again.
+    pub(crate) fn set(layout: impl IntoIterator<Item = (char, u16)>) {
+        LAYOUT.with(|current| *current.borrow_mut() = Some(layout.into_iter().collect()));
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -861,10 +949,23 @@ impl HotkeyBinding {
             })
     }
 
+    /// What the input layers match. On macOS a letter key follows its
+    /// letter: its keycap shows the letter, so it matches the key that types
+    /// it on the layout published now, and keeps its recorded key when the
+    /// layout has none.
     pub fn runtime(&self) -> RuntimeHotkey {
         RuntimeHotkey {
             modifiers: self.modifiers,
-            key_code: self.key.as_ref().map(|key| key.code),
+            key_code: self.key.as_ref().map(|key| {
+                #[cfg(target_os = "macos")]
+                if let Some(letter) = key.letter()
+                    && let Some(code) =
+                        shortcut_layout_key_code(letter, self.modifiers.command.is_some())
+                {
+                    return code;
+                }
+                key.code
+            }),
         }
     }
 
@@ -1078,6 +1179,92 @@ pub(super) fn side_from_flags(
     }
 }
 
+/// The bit [`PhysicalModifierKeys`] keeps for a tracked keyboard-page usage.
+pub const fn physical_key_bit(usage: u16) -> Option<u8> {
+    match usage {
+        CAPS_LOCK_USAGE => Some(0),
+        LEFT_CONTROL_USAGE => Some(1),
+        LEFT_SHIFT_USAGE => Some(2),
+        LEFT_OPTION_USAGE => Some(3),
+        LEFT_COMMAND_USAGE => Some(4),
+        RIGHT_CONTROL_USAGE => Some(5),
+        RIGHT_SHIFT_USAGE => Some(6),
+        RIGHT_OPTION_USAGE => Some(7),
+        RIGHT_COMMAND_USAGE => Some(8),
+        _ => None,
+    }
+}
+
+/// The physical keys held right now, by HID keyboard-page usage, as the
+/// macOS raw HID tracker reads them. A bit per tracked usage keeps the
+/// snapshot `Copy` and cheap for the event tap.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PhysicalModifierKeys(u16);
+
+impl PhysicalModifierKeys {
+    const TRACKED_MASK: u16 = (1 << 9) - 1;
+
+    pub const fn from_bits(bits: u16) -> Self {
+        Self(bits & Self::TRACKED_MASK)
+    }
+
+    #[cfg(test)]
+    pub fn from_usages(usages: impl IntoIterator<Item = u16>) -> Self {
+        let mut bits = 0;
+        for usage in usages {
+            if let Some(bit) = physical_key_bit(usage) {
+                bits |= 1 << bit;
+            }
+        }
+        Self(bits)
+    }
+
+    pub const fn is_held(self, usage: u16) -> bool {
+        match physical_key_bit(usage) {
+            Some(bit) => self.0 & (1 << bit) != 0,
+            None => false,
+        }
+    }
+}
+
+/// The CoreGraphics flags with the side bits macOS's HID keyboard filter
+/// invents removed.
+///
+/// A Caps Lock remapped to Control arrives as Right Control, so a Right
+/// Control shortcut would also start from Caps Lock. The raw HID tracker
+/// still sees the physical key: when Caps Lock is held and a modifier's
+/// side-specific bit is set without that side's physical key held, its side
+/// bit is cleared and the general flag kept, which matches as either side.
+/// A release, a side press the tracker already sees held, or an inactive
+/// tracker (`None`) leaves `flags` untouched. Two lags limit correctness: if
+/// Caps Lock's own flags event reaches the tap before the raw callback marks
+/// Caps Lock held, the flags pass unchanged and a Right Control shortcut still
+/// starts; if the callback for a real side key lags while Caps Lock is held,
+/// that one event can lose the side until the next event. Without a held Caps
+/// Lock nothing is dropped.
+pub fn normalized_modifier_flags(flags: u64, physical: Option<PhysicalModifierKeys>) -> u64 {
+    let Some(physical) = physical.filter(|keys| keys.is_held(CAPS_LOCK_USAGE)) else {
+        return flags;
+    };
+    const SIDES: [(u64, u16, u64); 8] = [
+        (LEFT_CONTROL_MASK, LEFT_CONTROL_USAGE, CONTROL_KEY_MASK),
+        (RIGHT_CONTROL_MASK, RIGHT_CONTROL_USAGE, CONTROL_KEY_MASK),
+        (LEFT_SHIFT_MASK, LEFT_SHIFT_USAGE, SHIFT_KEY_MASK),
+        (RIGHT_SHIFT_MASK, RIGHT_SHIFT_USAGE, SHIFT_KEY_MASK),
+        (LEFT_OPTION_MASK, LEFT_OPTION_USAGE, OPTION_KEY_MASK),
+        (RIGHT_OPTION_MASK, RIGHT_OPTION_USAGE, OPTION_KEY_MASK),
+        (LEFT_COMMAND_MASK, LEFT_COMMAND_USAGE, COMMAND_KEY_MASK),
+        (RIGHT_COMMAND_MASK, RIGHT_COMMAND_USAGE, COMMAND_KEY_MASK),
+    ];
+    SIDES.iter().fold(flags, |flags, &(side, usage, general)| {
+        if flags & side != 0 && !physical.is_held(usage) {
+            (flags & !side) | general
+        } else {
+            flags
+        }
+    })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeHotkeys {
     pub dictation: RuntimeHotkey,
@@ -1085,8 +1272,12 @@ pub struct RuntimeHotkeys {
     pub paste_meeting: Option<RuntimeHotkey>,
     /// The capture shortcut, while captures are on (`cfg(hex_capture)`).
     pub capture: Option<RuntimeHotkey>,
+    /// Labs › Annotate 15 s replay shortcut (macOS 27+), while on and bound.
+    pub capture_replay: Option<RuntimeHotkey>,
     /// Dictate without processing, while it is bound.
     pub raw_dictation: Option<RuntimeHotkey>,
+    /// Labs › Transform typed text (Linux), while it is on and bound.
+    pub typed_text: Option<RuntimeHotkey>,
     /// Labs › Second dictation shortcut (macOS), while it is on and bound.
     pub second_dictation: Option<RuntimeHotkey>,
     /// Labs › Add to vocabulary from a selection (macOS), while it is on
@@ -1102,13 +1293,15 @@ pub struct RuntimeHotkeys {
 
 impl RuntimeHotkeys {
     /// Every shortcut Hex matches, for suppression and chord evidence.
-    pub fn all(self) -> [Option<RuntimeHotkey>; 7] {
+    pub fn all(self) -> [Option<RuntimeHotkey>; 9] {
         [
             Some(self.dictation),
             self.paste_last,
             self.paste_meeting,
             self.capture,
+            self.capture_replay,
             self.raw_dictation,
+            self.typed_text,
             self.second_dictation,
             self.vocabulary_add,
         ]
@@ -1138,11 +1331,88 @@ impl Default for RuntimeHotkeys {
             paste_meeting: crate::DEVELOPER_FEATURES_ENABLED
                 .then(|| HotkeyBinding::paste_meeting_default().runtime()),
             capture: None,
+            capture_replay: None,
             raw_dictation: None,
+            typed_text: None,
             second_dictation: None,
             vocabulary_add: None,
             cancel: None,
             stop: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn caps_lock_and(usages: impl IntoIterator<Item = u16>) -> PhysicalModifierKeys {
+        PhysicalModifierKeys::from_usages([CAPS_LOCK_USAGE].into_iter().chain(usages))
+    }
+
+    #[test]
+    fn a_remapped_caps_lock_loses_the_right_control_side() {
+        let remapped = normalized_modifier_flags(
+            CONTROL_KEY_MASK | RIGHT_CONTROL_MASK,
+            Some(caps_lock_and([])),
+        );
+        assert_eq!(remapped, CONTROL_KEY_MASK);
+        assert_eq!(
+            modifiers_from_flags(remapped).control,
+            Some(ModifierSide::Either)
+        );
+    }
+
+    #[test]
+    fn a_real_right_control_press_is_untouched() {
+        let flags = CONTROL_KEY_MASK | RIGHT_CONTROL_MASK;
+        assert_eq!(
+            normalized_modifier_flags(flags, Some(caps_lock_and([RIGHT_CONTROL_USAGE]))),
+            flags
+        );
+    }
+
+    #[test]
+    fn flags_are_untouched_without_caps_lock() {
+        let flags = CONTROL_KEY_MASK | RIGHT_CONTROL_MASK;
+        assert_eq!(
+            normalized_modifier_flags(
+                flags,
+                Some(PhysicalModifierKeys::from_usages([RIGHT_SHIFT_USAGE]))
+            ),
+            flags
+        );
+    }
+
+    #[test]
+    fn an_inactive_tracker_leaves_flags_untouched() {
+        let flags = CONTROL_KEY_MASK | RIGHT_CONTROL_MASK;
+        assert_eq!(normalized_modifier_flags(flags, None), flags);
+    }
+
+    #[test]
+    fn every_side_is_normalized_and_keeps_its_general_flag() {
+        let flags = OPTION_KEY_MASK
+            | RIGHT_OPTION_MASK
+            | COMMAND_KEY_MASK
+            | RIGHT_COMMAND_MASK
+            | SHIFT_KEY_MASK
+            | LEFT_SHIFT_MASK;
+        let normalized = normalized_modifier_flags(flags, Some(caps_lock_and([LEFT_SHIFT_USAGE])));
+        assert_eq!(
+            normalized,
+            OPTION_KEY_MASK | COMMAND_KEY_MASK | SHIFT_KEY_MASK | LEFT_SHIFT_MASK
+        );
+        let held = modifiers_from_flags(normalized);
+        assert_eq!(held.shift, Some(ModifierSide::Left));
+        assert_eq!(held.option, Some(ModifierSide::Either));
+        assert_eq!(held.command, Some(ModifierSide::Either));
+    }
+
+    #[test]
+    fn untracked_usages_are_ignored() {
+        let keys = PhysicalModifierKeys::from_usages([0x04, CAPS_LOCK_USAGE]);
+        assert!(keys.is_held(CAPS_LOCK_USAGE));
+        assert!(!keys.is_held(0x04));
     }
 }
