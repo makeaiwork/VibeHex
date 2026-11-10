@@ -1369,6 +1369,7 @@ pub fn files() -> bool {
 
 /// Labs › Lower every app: Mute and Lower audio turn every other app down
 /// through a system audio tap when the output has no volume (macOS).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn lower_every_app() -> bool {
     on(LOWER_EVERY_APP)
 }
