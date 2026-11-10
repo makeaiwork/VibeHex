@@ -20,14 +20,29 @@ fn on(ui: &Ui) -> bool {
 
 /// Switch on pointer down, as the sidebar does; the press keeps keyboard
 /// activation.
+/// A press squishes the face.
 fn select_on_down(ui: &mut Ui, drag: &mut rune::Drag, tx: &mut Tx) {
     if drag.phase == rune::Phase::Down {
+        ui.assistant.face.squish(tx);
         ui.select_pane(Pane::Assistant, tx);
     }
 }
 
+/// The face as the sidebar shows it: reading while an answer comes.
+fn glyph(ui: &Ui, p: Paint, on: bool, still: bool) -> El {
+    let c = &p.k.c;
+    let pane = &ui.assistant;
+    face(
+        "face",
+        16.0,
+        if on { c.icon_base } else { c.icon_muted },
+        c.icon_base,
+        pane.face.mood(pane.answering.is_some(), still),
+    )
+}
+
 /// The sidebar row, in its slot: Assistant and its face.
-pub(in super::super) fn item(ui: &Ui, p: Paint) -> Option<El> {
+pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
     if !Pane::Assistant.shown(ui) {
         return None;
     }
@@ -55,12 +70,7 @@ pub(in super::super) fn item(ui: &Ui, p: Paint) -> Option<El> {
                 .fill(c.hover)
                 .group_opacity(0.0, 1.0),
         )
-        .child(face(
-            "face",
-            16.0,
-            if on { c.icon_base } else { c.icon_muted },
-            c.icon_base,
-        ))
+        .child(glyph(ui, p, on, still))
         .child(
             text(tr("Assistant"))
                 .key("label")
@@ -77,6 +87,12 @@ pub(in super::super) fn item(ui: &Ui, p: Paint) -> Option<El> {
             .pt(NAV_ROW_GAP / 2.0)
             .pb(NAV_ROW_GAP / 2.0)
             .hover_group()
+            // Pointing at the row blinks the face once.
+            .on_hover_change(|ui: &mut Ui, inside, tx: &mut Tx| {
+                if inside {
+                    ui.assistant.face.blink(tx);
+                }
+            })
             .on_drag(select_on_down)
             .on_press_tx(|ui: &mut Ui, tx: &mut Tx| ui.select_pane(Pane::Assistant, tx))
             .child(item),
@@ -84,7 +100,12 @@ pub(in super::super) fn item(ui: &Ui, p: Paint) -> Option<El> {
 }
 
 /// The folded rail's button: the face, its name as a tooltip.
-pub(in super::super) fn rail_item(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
+pub(in super::super) fn rail_item(
+    ui: &Ui,
+    p: Paint,
+    still: bool,
+    layer: &mut Vec<El>,
+) -> Option<El> {
     if !Pane::Assistant.shown(ui) {
         return None;
     }
@@ -103,19 +124,15 @@ pub(in super::super) fn rail_item(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Opt
         .focus_ring(2.0, -2.0, c.border_focus)
         .on_drag(select_on_down)
         .on_press_tx(|ui: &mut Ui, tx: &mut Tx| ui.select_pane(Pane::Assistant, tx))
-        .on_hover_change(|ui: &mut Ui, inside, _| {
+        .on_hover_change(|ui: &mut Ui, inside, tx: &mut Tx| {
             if inside {
+                ui.assistant.face.blink(tx);
                 ui.sidebar_tip = Some(KEY);
             } else if ui.sidebar_tip == Some(KEY) {
                 ui.sidebar_tip = None;
             }
         })
-        .child(face(
-            "face",
-            16.0,
-            if on { c.icon_base } else { c.icon_muted },
-            c.icon_base,
-        ));
+        .child(glyph(ui, p, on, still));
     if on {
         button = button.fill(c.layer_02);
     }

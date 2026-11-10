@@ -1287,7 +1287,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
     changed |= files::poll(ui) | meeting_tabs::requests::poll(ui) | playback::poll(ui);
     #[cfg(hex_capture)]
     let mut changed = ui.captures.poll(ui.pane == Pane::Captures && !ui.labs_open) | changed;
-    changed |= assistant::poll(ui);
+    changed |= assistant::poll(ui, tx);
     if ui.pane == Pane::Output && !ui.labs_open {
         changed |= output::poll(ui, clock, tx);
     }
@@ -1420,7 +1420,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         Pane::HudLab => hud_lab::pane(ui, p),
         Pane::Activity => activity::pane(ui, p),
         Pane::About => (Vec::new(), about::pane(ui, p)),
-        Pane::Assistant => assistant::pane(ui, p, &mut layer),
+        Pane::Assistant => assistant::pane(ui, p, cx.is_reduced_motion(), &mut layer),
     };
     let panel = col()
         .key("panel")
@@ -1460,7 +1460,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .role("none")
         .fill(p.k.c.bg_deep)
         .hover_motion_within(Anim::INSTANT, Anim::INSTANT)
-        .child(sidebar(ui, p, &mut layer))
+        .child(sidebar(ui, p, cx.is_reduced_motion(), &mut layer))
         .child(panel);
     let modals = [
         picker::modal(ui, p),

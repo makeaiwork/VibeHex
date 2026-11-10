@@ -12,7 +12,7 @@ use super::super::files::session::{self, Answered};
 use super::super::icons;
 use super::super::lists::small_button;
 use super::composer::ask;
-use super::face::face;
+use super::face::{Mood, face};
 use crate::assistant::guide;
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Answering;
@@ -30,7 +30,7 @@ const EXAMPLES: [&str; 4] = [
 const FACE: f32 = 20.0;
 
 /// The open conversation, or the start of a new one (`greet`).
-pub(super) fn feed(ui: &Ui, p: Paint, greet: bool) -> El {
+pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     let pane = &ui.assistant;
     let mut feed = col().key("assistant-feed").gap(18.0);
     if let Some(error) = &pane.error {
@@ -51,7 +51,8 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool) -> El {
             .child(reply(p, index, turn));
     }
     if let Some(answering) = pane.answering_in(pane.open) {
-        feed = feed.children(coming(p, answering));
+        let mood = pane.face.mood(true, still);
+        feed = feed.children(coming(p, answering, mood));
     }
     feed
 }
@@ -193,17 +194,17 @@ fn reply(p: Paint, index: usize, turn: &Turn) -> El {
             },
         ));
     }
-    beside_face(p, &format!("answer{index}"), words)
+    beside_face(p, &format!("answer{index}"), Mood::default(), words)
 }
 
 /// `words` with the face at their left, which says who wrote them.
-fn beside_face(p: Paint, key: &str, words: El) -> El {
+fn beside_face(p: Paint, key: &str, mood: Mood, words: El) -> El {
     let c = &p.k.c;
     row()
         .key(key.to_owned())
         .gap(10.0)
         .items_start()
-        .child(face("face", FACE, c.icon_muted, c.icon_base).mt(1.0))
+        .child(face("face", FACE, c.icon_muted, c.icon_base, mood).mt(1.0))
         .child(words)
 }
 
@@ -254,7 +255,7 @@ fn sources(p: Paint, ids: &[String]) -> Option<El> {
 }
 
 /// The question being answered and what came so far, the face reading.
-fn coming(p: Paint, answering: &Answering) -> Vec<El> {
+fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
     let words = if answering.draft.trim().is_empty() {
         text(tr("Looking in the guide…"))
             .key("looking")
@@ -271,6 +272,7 @@ fn coming(p: Paint, answering: &Answering) -> Vec<El> {
         beside_face(
             p,
             "answering",
+            mood,
             col()
                 .key("words")
                 .grow(1.0)

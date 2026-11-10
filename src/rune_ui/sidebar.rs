@@ -255,9 +255,10 @@ pub(super) fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Ve
         .children(actions)
 }
 
-pub(super) fn sidebar(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+/// `still`: Reduce Motion is on, so Assistant's face holds still.
+pub(super) fn sidebar(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     if folded(ui) {
-        return rail(ui, p, layer);
+        return rail(ui, p, still, layer);
     }
     let mut nav = lists::source_list(col().key("nav"));
     for pane in labs::main_panes(ui) {
@@ -297,7 +298,7 @@ pub(super) fn sidebar(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         )
         .child(nav)
         .child(el().key("spacer").grow(1.0))
-        .children(super::assistant::nav::item(ui, p))
+        .children(super::assistant::nav::item(ui, p, still))
         .children(sidebar_update::control(ui, p))
         .children(sidebar_update::notes(ui, p))
         .children(sidebar_update::blocked(ui, p))
@@ -443,7 +444,7 @@ fn open_button(p: Paint) -> El {
 
 /// The folded sidebar: Open sidebar, every pane, Labs, and About as icons,
 /// and the update check at the bottom.
-fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+fn rail(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     let right = rune_kit::Placement::Right;
     let mut rail = title_bar(col())
         .key("sidebar")
@@ -483,7 +484,7 @@ fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         rail = rail.child(tip(ui, p, pane.key(), pane.title(), right, item, layer));
     }
     rail = rail.child(el().key("spacer").grow(1.0));
-    rail = rail.children(super::assistant::nav::rail_item(ui, p, layer));
+    rail = rail.children(super::assistant::nav::rail_item(ui, p, still, layer));
     rail.children(update_item(ui, p, layer))
 }
 

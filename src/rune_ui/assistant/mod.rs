@@ -61,6 +61,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) reach: connect::Reach,
     /// Clear conversations… was pressed once.
     pub(super) clear_armed: bool,
+    /// The face's blink, squish, and reading eyes.
+    pub(super) face: face::FaceState,
     loaded: bool,
     /// Whether the store keeps conversations, as last applied.
     kept: bool,
@@ -139,7 +141,8 @@ pub(super) fn view_switch(ui: &Ui, p: Paint) -> Option<El> {
 }
 
 /// The pane: its header actions and its body.
-pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
+/// `still`: Reduce Motion is on, so the face holds still.
+pub(super) fn pane(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> (Vec<El>, El) {
     match ui.assistant.view {
         View::Settings => (
             Vec::new(),
@@ -149,16 +152,16 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
                 settings::view(ui, p, layer),
             ),
         ),
-        View::Chat => (picker::actions(ui, p, layer), chat(ui, p, layer)),
+        View::Chat => (picker::actions(ui, p, layer), chat(ui, p, still, layer)),
     }
 }
 
 /// The feed over the field, both centred.
-fn chat(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     // With no model to ask, the panel stands in for the field (and for the
     // greeting of a new conversation).
     let connect = connect::needed(ui);
-    let mut feed = feed::feed(ui, p, !connect);
+    let mut feed = feed::feed(ui, p, !connect, still);
     if connect {
         feed = feed.child(connect::panel(ui, p));
     }
@@ -198,16 +201,24 @@ fn chat(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
 /// Follows the worker: a finished answer lands in its conversation, and a
 /// draft as it streams. The conversations load when the pane first shows.
 /// True when what shows changed.
-pub(super) fn poll(ui: &mut Ui) -> bool {
+pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
+    // The face ends its blink or squish wherever it shows, scenes included;
+    // a scene's reading eyes rest where a line starts, off the clock.
+    let reading = ui
+        .assistant
+        .answering
+        .as_ref()
+        .filter(|_| !ui.is_fixture())
+        .map(|answering| answering.started);
+    let mut changed = ui.assistant.face.poll(reading, tx);
     if ui.is_fixture() || ui.assistant.fixture {
-        return false;
+        return changed;
     }
-    let mut changed = false;
     let keep = ui.settings.assistant.keep_conversations;
     let pane = &mut ui.assistant;
     if !pane.loaded {
         if ui.pane != Pane::Assistant {
-            return false;
+            return changed;
         }
         pane.store = Store::open(keep);
         pane.open = newest(&pane.store);
