@@ -97,6 +97,7 @@ use crate::desktop::i18n::{tr, tr_fill};
 use crate::transcription::models::TranscriptionModelId;
 use controls::{METRICS, Paint};
 use host::{Backend, Request, ShortcutTarget};
+use lists::{faded_body, scroll_body};
 use onboarding_kit::live::Page;
 use scenes::{SCENES, Scene, fixture, mac_fixture, portal_fixture};
 use settings::Capture;
@@ -1482,23 +1483,6 @@ fn window_focused(ui: &mut Ui, focused: bool, tx: &mut Tx) {
             platform::ScrawlRequest::Refresh,
         ));
     }
-}
-
-/// How far a scroll body's top and bottom edges fade out.
-const SCROLL_FADE: (f32, f32) = (4.0, 24.0);
-
-/// A vertically scrolling body whose edges fade out. At rest its content
-/// sits clear of the fades, so the first and last borders, rings, and fills
-/// are never cut; content needing room beside the edges (bordered cards)
-/// pads itself horizontally.
-fn scroll_body(k: &rune_kit::Kit, key: &str, content: El) -> El {
-    faded_body(k, key, content, SCROLL_FADE)
-}
-
-/// A [`scroll_body`] with its own top and bottom fades, and a scroll bar to
-/// drag while it overflows (#1209).
-fn faded_body(k: &rune_kit::Kit, key: &str, content: El, fades: (f32, f32)) -> El {
-    list_detail::faded_body_sticky(k, key, content, fades, false)
 }
 
 #[cfg(all(test, target_os = "linux"))]
