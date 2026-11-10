@@ -92,3 +92,13 @@ pub(in super::super) fn settings(ui: &mut Ui) {
     conversation(ui);
     ui.assistant.view = View::Settings;
 }
+
+/// No model connected: nothing chosen for Assistant, AI cleanup on
+/// OpenCode, and OpenCode not running. Codex is installed.
+pub(in super::super) fn connect(ui: &mut Ui) {
+    open(ui);
+    ui.settings.assistant.engine = None;
+    ui.settings.labs.ai_cleanup_server = false;
+    ui.assistant.reach.codex = Some(true);
+    ui.assistant.reach.opencode = Some(false);
+}

@@ -10,11 +10,13 @@
 //! dictation's AI cleanup runs on.
 
 mod composer;
+mod connect;
 pub(super) mod face;
 mod feed;
 pub(super) mod fixture;
 pub(super) mod nav;
 mod picker;
+mod settings;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
 
@@ -55,6 +57,10 @@ pub(in super::super) struct AssistantPane {
     pub(super) answering: Option<Answering>,
     /// Why a question couldn't be asked.
     pub(super) error: Option<String>,
+    /// Whether Codex is installed and OpenCode runs.
+    pub(super) reach: connect::Reach,
+    /// Clear conversations… was pressed once.
+    pub(super) clear_armed: bool,
     loaded: bool,
     /// Whether the store keeps conversations, as last applied.
     kept: bool,
@@ -137,7 +143,11 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
     match ui.assistant.view {
         View::Settings => (
             Vec::new(),
-            lists::scroll_body("assistant-settings-scroll", col().key("content")),
+            lists::scroll_body(
+                p.k,
+                "assistant-settings-scroll",
+                settings::view(ui, p, layer),
+            ),
         ),
         View::Chat => (picker::actions(ui, p, layer), chat(ui, p, layer)),
     }
@@ -145,7 +155,14 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
 
 /// The feed over the field, both centred.
 fn chat(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
-    let feed = feed::feed(ui, p).w_full().max_w(COLUMN);
+    // With no model to ask, the panel stands in for the field (and for the
+    // greeting of a new conversation).
+    let connect = connect::needed(ui);
+    let mut feed = feed::feed(ui, p, !connect);
+    if connect {
+        feed = feed.child(connect::panel(ui, p));
+    }
+    let feed = feed.w_full().max_w(COLUMN);
     let scroll = col()
         .key("assistant-scroll")
         .grow(1.0)
@@ -168,14 +185,14 @@ fn chat(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         .shrink()
         .min_h(0.0)
         .child(scroll)
-        .child(
+        .children((!connect).then(|| {
             col()
                 .key("assistant-ask")
                 .items_center()
                 .px(METRICS.gutter)
                 .pb(16.0)
-                .child(composer::field(ui, p, layer).w_full().max_w(COLUMN)),
-        )
+                .child(composer::field(ui, p, layer).w_full().max_w(COLUMN))
+        }))
 }
 
 /// Follows the worker: a finished answer lands in its conversation, and a
@@ -227,7 +244,7 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         pane.answering = answering;
         changed = true;
     }
-    changed | composer::poll(ui)
+    changed | composer::poll(ui) | connect::poll(ui)
 }
 
 /// The most recently used conversation.

@@ -142,7 +142,6 @@ impl Store {
         }
     }
 
-    #[allow(dead_code)]
     pub fn remove(&mut self, id: u32) {
         self.conversations
             .retain(|conversation| conversation.id != id);

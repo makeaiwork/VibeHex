@@ -693,6 +693,7 @@ pub(super) const SCENES: &[Scene] = &[
     ("assistant", assistant::fixture::conversation),
     ("assistant-answering", assistant::fixture::answering),
     ("assistant-start", assistant::fixture::start),
+    ("assistant-connect", assistant::fixture::connect),
     ("assistant-settings", assistant::fixture::settings),
     ("files-playback", |ui| files_playback(ui, true)),
     ("files-playback-folded", |ui| files_playback(ui, false)),

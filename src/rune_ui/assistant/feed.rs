@@ -29,8 +29,8 @@ const EXAMPLES: [&str; 4] = [
 /// The face beside a reply.
 const FACE: f32 = 20.0;
 
-/// The open conversation, or the start of a new one.
-pub(super) fn feed(ui: &Ui, p: Paint) -> El {
+/// The open conversation, or the start of a new one (`greet`).
+pub(super) fn feed(ui: &Ui, p: Paint, greet: bool) -> El {
     let pane = &ui.assistant;
     let mut feed = col().key("assistant-feed").gap(18.0);
     if let Some(error) = &pane.error {
@@ -43,7 +43,7 @@ pub(super) fn feed(ui: &Ui, p: Paint) -> El {
         );
     }
     let Some(conversation) = pane.conversation() else {
-        return feed.child(start(p));
+        return if greet { feed.child(start(p)) } else { feed };
     };
     for (index, turn) in conversation.turns.iter().enumerate() {
         feed = feed
