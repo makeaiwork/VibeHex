@@ -9,3 +9,4 @@
 pub mod guide;
 pub mod prompt;
 pub mod retrieve;
+pub mod store;

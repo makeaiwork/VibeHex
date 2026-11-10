@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::dictation::vocabulary::{VocabularyEntry, serialize_saved};
 use crate::transcription::models::{TranscriptionModelId, TranscriptionSelection};
 
+mod assistant_settings;
 #[cfg(hex_capture)]
 mod capture;
 mod dictation_processing;
@@ -32,6 +33,7 @@ pub(crate) use persistence::LaunchLoad;
 pub(crate) use persistence::LaunchNote;
 mod shortcut_repair;
 
+pub use assistant_settings::AssistantSettings;
 #[cfg(hex_capture)]
 pub use capture::*;
 pub use dictation_processing::*;
@@ -331,6 +333,8 @@ pub struct AppSettings {
     pub files: FilesSettings,
     /// Labs › Screenshots' shortcut and folder (macOS).
     pub screenshots: ScreenshotSettings,
+    /// Assistant: answers questions about VibeHex (on by default).
+    pub assistant: AssistantSettings,
     /// Start listening when Hex opens (Windows and Linux, where the
     /// listener can be off).
     pub enable_on_launch: bool,
@@ -461,6 +465,7 @@ impl Default for AppSettings {
             labs: LabsSettings::default(),
             files: FilesSettings::default(),
             screenshots: ScreenshotSettings::default(),
+            assistant: AssistantSettings::default(),
             enable_on_launch: true,
             paste_with_shift: false,
             gnome_keyboard_shortcuts: false,

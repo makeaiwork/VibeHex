@@ -36,6 +36,7 @@ fn available() -> bool {
     true
 }
 
+mod assistant_keys;
 mod codex_keys;
 mod files_keys;
 mod meeting_notes_keys;
@@ -980,6 +981,7 @@ fn keys() -> impl Iterator<Item = &'static Key> {
         .chain(codex_keys::CODEX_KEYS)
         .chain(meeting_notes_keys::MEETING_NOTES_KEYS)
         .chain(files_keys::FILES_KEYS)
+        .chain(assistant_keys::ASSISTANT_KEYS)
         .chain(sidebar_keys::SIDEBAR_KEYS)
 }
 
@@ -1740,6 +1742,11 @@ mod tests {
                 request_engine: Some("openrouter".into()),
                 request_effort: "high".into(),
                 last_folder: Some("/tmp".into()),
+                ..Default::default()
+            },
+            assistant: crate::app_settings::AssistantSettings {
+                engine: Some("codex".into()),
+                effort: "high".into(),
                 ..Default::default()
             },
             ..Default::default()
