@@ -579,6 +579,11 @@ const KEYS: &[Key] = &[
         "Labs: stop_hotkey finishes and pastes a recording a shortcut started (macOS)",
     ),
     key(
+        "labs.lower_every_app",
+        Kind::Bool,
+        "Labs: with recording_audio_behavior mute or duck and an output macOS can't set the volume of (a DisplayPort or HDMI display), every other app is turned down through a muting system audio tap (macOS 14.2+, needs system audio access)",
+    ),
+    key(
         "labs.meeting_notes_vocabulary",
         Kind::Bool,
         "Labs: final meeting titles and summaries read the vocabulary, so names are spelled the way you wrote them",

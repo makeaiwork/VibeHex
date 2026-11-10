@@ -57,6 +57,7 @@ impl Feature {
             | Self::NotchIndicator
             | Self::VocabularyBiasing
             | Self::PauseBrowser
+            | Self::LowerEveryApp
             | Self::SkipPauses
             | Self::VoiceFilter
             | Self::HideMenuBarIcon

@@ -692,7 +692,8 @@ or HDMI display, many USB interfaces) left both doing nothing, with nothing
 logged; only Pause media worked. On such an output both now set the playing
 Music's or Spotify's own volume over AppleScript, ramped and restored like an
 output's channels (Mute ramps to zero); other apps and the browser stay as
-loud. Checks: `volumes_parse_as_fractions_and_a_quit_player_fails_the_read`
+loud. With Labs › Lower every app on, every other app is turned down through
+a system audio tap first (labs.md). Checks: `volumes_parse_as_fractions_and_a_quit_player_fails_the_read`
 and `scripts_tell_only_the_named_players_and_never_launch_one` in
 [audio/recording_environment/players.rs](../../src/audio/recording_environment/players.rs)
 (constructed replies; the script was run against Music, not the ramp on a

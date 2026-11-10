@@ -19,6 +19,7 @@ use crate::app_settings::{self, RecordingAudioBehavior};
 use crate::audio::browser_media::{self, NativeBrowserAudio, PausedBrowser};
 
 mod ducking;
+mod every_app;
 mod players;
 
 const VIRTUAL_MAIN_VOLUME: u32 = u32::from_be_bytes(*b"vmvc");
@@ -395,8 +396,9 @@ impl AudioBehaviorGuard {
                     tracing::info!(previous, "muted system output while recording");
                     Self::Muted { device, previous }
                 }
-                // An output without a volume (a display's) mutes the players.
-                None => ducking::start_players(0.0).map_or(Self::None, Self::Ducked),
+                // An output without a volume (a display's) mutes every other
+                // app, or the players.
+                None => ducking::start_without_output(0.0).map_or(Self::None, Self::Ducked),
             },
             RecordingAudioBehavior::PauseMedia => {
                 let players = pause_media();

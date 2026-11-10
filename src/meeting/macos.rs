@@ -320,7 +320,7 @@ fn check(status: i32, context: &str) -> Result<()> {
     }
 }
 
-fn own_process_object() -> Option<AudioObjectID> {
+pub(crate) fn own_process_object() -> Option<AudioObjectID> {
     let pid = std::process::id() as i32;
     let mut object: AudioObjectID = 0;
     let mut size = size_of::<AudioObjectID>() as u32;
