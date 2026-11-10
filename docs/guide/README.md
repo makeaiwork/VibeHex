@@ -30,8 +30,21 @@ without its article.
 Someone who installed VibeHex, speaks Russian or English, may not know what
 a "speech model" or an "OpenAI-compatible server" is, and asks Assistant
 things like "can it record my Zoom calls?" or "why does it write Кубер instead
-of Kubernetes?". Assistant reads the Guide and answers in the person's
-language; the Guide itself is in English, the language of the app's UI.
+of Kubernetes?". The Guide is in English, the language of the app's UI;
+Assistant answers in whatever language it is asked.
+
+## Which language Assistant answers in
+
+- The language of the person's latest message, not the system's or the
+  window's: someone whose Mac is in English may well ask in Russian.
+- A message with no clear language ("ok", a setting's name) keeps the
+  conversation's language.
+- Before the person has written anything (the first-launch tip, an empty
+  conversation), Assistant speaks the VibeHex window's language.
+- Names of panes, buttons, and settings stay as the window shows them
+  (**Labs › Meetings**, **Always record**), so they can be found on screen.
+  That is why "Asked as" lines carry Russian phrasings while the rest of
+  each article stays in English.
 
 ## Rules
 
