@@ -445,39 +445,61 @@ fn marked(answer: &str) -> String {
     let mut rest = answer;
     while let Some(open) = rest.find('[') {
         out.push_str(&rest[..open]);
-        let after = &rest[open + 1..];
-        let numbers = after
-            .find(']')
-            .map(|close| &after[..close])
-            .filter(|inside| {
-                !inside.is_empty()
-                    && inside
-                        .chars()
-                        .all(|c| c.is_ascii_digit() || c == ',' || c == ' ')
-                    && !after[inside.len() + 1..].starts_with('(')
-            });
-        match numbers {
-            Some(inside) => {
-                // Kept on the line of the word it follows, a little apart.
-                if out.ends_with(' ') {
-                    out.pop();
-                }
-                if !out.is_empty() && !out.ends_with(char::is_whitespace) {
-                    out.push('\u{a0}');
-                }
-                for n in inside.split(',').map(str::trim).filter(|n| !n.is_empty()) {
-                    out.push_str(&format!("[{n}]({REF}{n})"));
-                }
-                rest = &after[inside.len() + 1..];
+        rest = &rest[open..];
+        // `[2][3]`, `[2] [3]` and `[1, 4]` make one run of marks.
+        let mut numbers: Vec<&str> = Vec::new();
+        while let Some((inside, len)) = group(rest.trim_start_matches(' ')) {
+            numbers.extend(inside.split(',').map(str::trim).filter(|n| !n.is_empty()));
+            rest = &rest.trim_start_matches(' ')[len..];
+        }
+        if numbers.is_empty() {
+            out.push('[');
+            rest = &rest[1..];
+            continue;
+        }
+        // The sentence's own stop comes first, so a mark never sits in it:
+        // "маркетингу.[1]".
+        let stop = rest
+            .char_indices()
+            .take_while(|(_, c)| PUNCTUATION.contains(*c))
+            .last()
+            .map_or(0, |(at, c)| at + c.len_utf8());
+        while out.ends_with(' ') {
+            out.pop();
+        }
+        out.push_str(&rest[..stop]);
+        rest = &rest[stop..];
+        for n in numbers {
+            // Kept on the line of what it follows, a little apart.
+            if !out.is_empty() && !out.ends_with(char::is_whitespace) {
+                out.push_str(GAP);
             }
-            None => {
-                out.push('[');
-                rest = after;
-            }
+            out.push_str(&format!("[{n}]({REF}{n})"));
+        }
+        // The badge's own padding takes up a plain space after it.
+        if rest.starts_with(' ') {
+            out.push('\u{202f}');
         }
     }
     out.push_str(rest);
     out
+}
+
+/// Before a mark: two narrow no-break spaces, about 2 pt clear of its badge.
+const GAP: &str = "\u{202f}\u{202f}";
+/// What a mark moves behind.
+const PUNCTUATION: &str = ".,;:!?…";
+
+/// `[2]` or `[1, 4]` at the start of `text`, not a Markdown link's text:
+/// what's inside and its length with the brackets.
+fn group(text: &str) -> Option<(&str, usize)> {
+    let after = text.strip_prefix('[')?;
+    let inside = &after[..after.find(']')?];
+    let numbers = !inside.is_empty()
+        && inside
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == ',' || c == ' ');
+    (numbers && !after[inside.len() + 1..].starts_with('(')).then_some((inside, inside.len() + 2))
 }
 
 /// "From your recordings" and the places cited, each opening its place.
@@ -563,13 +585,20 @@ pub(super) fn chips(
 
 #[cfg(test)]
 mod tests {
-    use super::marked;
+    use super::{GAP, marked};
 
     #[test]
     fn citations_become_links_and_the_rest_stays() {
+        let gap = GAP;
         assert_eq!(
             marked("Cut by 15 % [2][3]. See [1, 4]."),
-            "Cut by 15 %\u{a0}[2](hex-ref:2)\u{a0}[3](hex-ref:3). See\u{a0}[1](hex-ref:1)[4](hex-ref:4)."
+            format!(
+                "Cut by 15 %.{gap}[2](hex-ref:2){gap}[3](hex-ref:3)\u{202f} See.{gap}[1](hex-ref:1){gap}[4](hex-ref:4)"
+            )
+        );
+        assert_eq!(
+            marked("маркетингу [1], и бюджет [2]"),
+            format!("маркетингу,{gap}[1](hex-ref:1)\u{202f} и бюджет{gap}[2](hex-ref:2)")
         );
         assert_eq!(
             marked("A [link](https://x) and [b]"),
