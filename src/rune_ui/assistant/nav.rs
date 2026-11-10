@@ -1,7 +1,10 @@
 //! Assistant in the sidebar: one row at the bottom, above the version and
-//! the update check, behaving like the items above it (plain at rest, the
-//! hover fill, the selected fill while its pane shows), and an icon in the
-//! folded rail. The face stands where the other items have an icon.
+//! the update check, and an icon in the folded rail. The face stands where
+//! the other items have an icon. It hovers and presses like the items
+//! above it, but its open pane shows without a fill (variant B of the
+//! Selected board): the face and the word turn bright, the word medium, and
+//! the pane's title says the rest. A fill there read as a separate bar
+//! beside the version; the items at the top keep theirs.
 
 use rune::{El, Tx, col, el, row, text};
 
@@ -12,6 +15,9 @@ use super::face::face;
 use crate::desktop::i18n::tr;
 
 const KEY: &str = "nav-assistant";
+/// The face is larger than the 16 pt icons above it, and centred where
+/// theirs are, so the word still lines up with their labels.
+const FACE: f32 = 20.0;
 
 /// Whether its pane shows now.
 fn on(ui: &Ui) -> bool {
@@ -34,7 +40,7 @@ fn glyph(ui: &Ui, p: Paint, on: bool, still: bool) -> El {
     let pane = &ui.assistant;
     face(
         "face",
-        16.0,
+        FACE,
         if on { c.icon_base } else { c.icon_muted },
         c.icon_base,
         pane.face.mood(pane.answering.is_some(), still),
@@ -48,13 +54,14 @@ pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
     }
     let c = &p.k.c;
     let on = on(ui);
-    let mut item = row()
+    let item = row()
         .key(KEY)
         .role("button")
         .label(tr("Assistant"))
         .h(NAV_ROW_HEIGHT)
-        .px(6.0)
-        .gap(8.0)
+        // The other items: 6 + a 16 pt icon + 8 to the word.
+        .px(4.0)
+        .gap(6.0)
         .center_y()
         .radius(p.k.radius.sm)
         .press(c.pressed)
@@ -74,13 +81,10 @@ pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
         .child(
             text(tr("Assistant"))
                 .key("label")
-                .font(p.k.ty.ui)
+                .font(if on { p.k.ty.ui_medium } else { p.k.ty.ui })
                 .color(if on { c.text_base } else { c.text_muted })
                 .truncate(),
         );
-    if on {
-        item = item.fill(c.layer_02);
-    }
     Some(
         col()
             .key(format!("{KEY}-slot"))
@@ -111,7 +115,7 @@ pub(in super::super) fn rail_item(
     }
     let c = &p.k.c;
     let on = on(ui);
-    let mut button = row()
+    let button = row()
         .key(KEY)
         .role("button")
         .label(tr("Assistant"))
@@ -133,9 +137,6 @@ pub(in super::super) fn rail_item(
             }
         })
         .child(glyph(ui, p, on, still));
-    if on {
-        button = button.fill(c.layer_02);
-    }
     Some(
         rune_kit::Tooltip::new(format!("{KEY}-tip"))
             .trigger(button)

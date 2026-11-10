@@ -219,6 +219,8 @@ const SIDEBAR_TOP: f32 = if cfg!(target_os = "macos") {
 /// with a 4 pt gap, so each row's highlight stays its own.
 pub(super) const NAV_ROW_HEIGHT: f32 = 28.0;
 pub(super) const NAV_ROW_GAP: f32 = 4.0;
+/// Between groups: the brand and the items, Assistant and Quit.
+const GROUP_GAP: f32 = 10.0;
 
 /// On macOS the sidebar and the pane header stand in for the title bar the
 /// window draws none of: pressing their background moves the window.
@@ -291,7 +293,7 @@ pub(super) fn sidebar(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El
         .child(
             row()
                 .key("brand-row")
-                .mb(10.0)
+                .mb(GROUP_GAP)
                 .center_y()
                 .child(super::brand::header(p).grow(1.0).shrink())
                 .children(foldable(ui).then(|| close_button(ui, p, layer))),
@@ -856,7 +858,8 @@ fn quit_item(p: Paint) -> El {
         .label(tr("Quit Hex"))
         .h(NAV_ROW_HEIGHT)
         .px(6.0)
-        .mt(NAV_ROW_GAP)
+        // Apart from Assistant's row above, so the bottom isn't one block.
+        .mt(GROUP_GAP)
         .center_y()
         .radius(p.k.radius.sm)
         .hover(c.hover)
