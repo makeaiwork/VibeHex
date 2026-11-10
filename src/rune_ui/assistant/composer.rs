@@ -19,7 +19,7 @@ pub(super) fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let c = &p.k.c;
     let pane = &ui.assistant;
     let edit = &pane.ask;
-    let placeholder = tr("Ask about VibeHex");
+    let placeholder = tr("Ask about VibeHex or your recordings");
     let input = rune::text_input(edit, p.k.ty.ui)
         .key("input")
         .w_full()
@@ -115,18 +115,31 @@ fn send(ui: &mut Ui) {
 
 /// Asks `question` in the open conversation, or in a new one named by it.
 /// False when it wasn't asked: another answer is coming, or this is a
-/// scene.
+/// scene. A question about the person's recordings that may not read them
+/// yet waits for the consent card (and counts as asked).
 pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     if ui.is_fixture() || ui.assistant.fixture || worker::answering().is_some() {
         return false;
     }
     let pane = &mut ui.assistant;
+    pane.consent = None;
     let id = match pane.conversation() {
         Some(conversation) => conversation.id,
         None => pane
             .store
             .start(&question, pane.engine.take(), pane.effort.take()),
     };
+    pane.open = Some(id);
+    pane.error = None;
+    match super::recall::recall(ui, id, &question) {
+        Some(recall) => ask_with(ui, id, question, recall),
+        None => true,
+    }
+}
+
+/// Asks `question` in conversation `id`, reading what `recall` allows.
+pub(super) fn ask_with(ui: &mut Ui, id: u32, question: String, recall: Recall) -> bool {
+    let pane = &mut ui.assistant;
     let Some(conversation) = pane.store.get(id) else {
         return false;
     };
@@ -149,7 +162,7 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
             conversation: id,
             question,
             earlier,
-            recall: Recall::Guide,
+            recall,
         },
         engine,
     );

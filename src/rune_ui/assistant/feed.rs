@@ -45,14 +45,23 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     let Some(conversation) = pane.conversation() else {
         return if greet { feed.child(start(p)) } else { feed };
     };
+    if conversation.turns.is_empty() && pane.consent.is_none() && pane.answering.is_none() {
+        return if greet { feed.child(start(p)) } else { feed };
+    }
     for (index, turn) in conversation.turns.iter().enumerate() {
         feed = feed
             .child(session::bubble(p, &format!("asked{index}"), &turn.question))
-            .child(reply(p, index, turn, pane.now_ms()));
+            .child(reply(ui, p, conversation.id, index, turn));
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
         feed = feed.children(coming(p, answering, mood));
+    } else if let Some(pending) = pane
+        .consent
+        .as_ref()
+        .filter(|pending| Some(pending.conversation) == pane.open)
+    {
+        feed = feed.children(super::recall::consent(ui, p, pending));
     }
     feed
 }
@@ -152,10 +161,18 @@ fn example(p: Paint, index: usize, question: &'static str) -> El {
 
 /// A reply beside the face: its words, then what stopped or failed it, the
 /// guide articles it names, and its row.
-fn reply(p: Paint, index: usize, turn: &Turn, now_ms: u64) -> El {
+fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El {
+    let now_ms = ui.assistant.now_ms();
     let mut words = col().key("words").grow(1.0).shrink().min_w(0.0).gap(8.0);
+    words = words.children(super::recall::folded(ui, p, conversation, index, turn));
     if !turn.answer.trim().is_empty() {
-        words = words.child(session::markdown(p, turn.answer.clone(), false, false));
+        words = words.child(super::recall::answer(
+            p,
+            &turn.answer,
+            &turn.refs,
+            false,
+            false,
+        ));
     }
     if let Some(error) = &turn.error {
         let question = turn.question.clone();
@@ -177,6 +194,7 @@ fn reply(p: Paint, index: usize, turn: &Turn, now_ms: u64) -> El {
                 })),
         );
     }
+    words = words.children(super::recall::chips(p, &turn.refs, now_ms));
     words = words.children(sources(p, &turn.sources));
     if turn.error.is_none() {
         words = words.child(session::answer_row(
@@ -199,7 +217,7 @@ fn reply(p: Paint, index: usize, turn: &Turn, now_ms: u64) -> El {
 }
 
 /// `words` with the face at their left, which says who wrote them.
-fn beside_face(p: Paint, key: &str, mood: Mood, words: El) -> El {
+pub(super) fn beside_face(p: Paint, key: &str, mood: Mood, words: El) -> El {
     let c = &p.k.c;
     row()
         .key(key.to_owned())
@@ -257,16 +275,21 @@ fn sources(p: Paint, ids: &[String]) -> Option<El> {
 
 /// The question being answered and what came so far, the face reading.
 fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
-    let words = if answering.draft.trim().is_empty() {
-        text(tr("Looking in the guide…"))
-            .key("looking")
-            .font(DESCRIPTION)
-            .color(p.faint())
-            .mt(2.0)
-    } else {
+    let steps = super::recall::live(p, answering);
+    let words = if !answering.draft.trim().is_empty() {
         let mut draft = answering.draft.trim_end().to_owned();
         draft.push('▌');
-        session::markdown(p, draft, true, true)
+        Some(super::recall::answer(p, &draft, &[], true, true))
+    } else if steps.is_none() {
+        Some(
+            text(tr("Looking in the guide…"))
+                .key("looking")
+                .font(DESCRIPTION)
+                .color(p.faint())
+                .mt(2.0),
+        )
+    } else {
+        None
     };
     vec![
         session::bubble(p, "asking", &answering.question),
@@ -279,7 +302,9 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
                 .grow(1.0)
                 .shrink()
                 .min_w(0.0)
-                .child(words),
+                .gap(10.0)
+                .children(steps)
+                .children(words),
         ),
     ]
 }

@@ -16,6 +16,7 @@ mod feed;
 pub(super) mod fixture;
 pub(super) mod nav;
 mod picker;
+mod recall;
 mod settings;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
@@ -59,6 +60,10 @@ pub(in super::super) struct AssistantPane {
     pub(super) error: Option<String>,
     /// Whether Codex is installed and OpenCode runs.
     pub(super) reach: connect::Reach,
+    /// A question about recordings waiting for the person's leave.
+    pub(super) consent: Option<recall::Pending>,
+    /// Answers whose search steps are open, by conversation and turn.
+    pub(super) unfolded: Vec<(u32, usize)>,
     /// Clear conversations… was pressed once.
     pub(super) clear_armed: bool,
     /// The face's blink, squish, and reading eyes.
