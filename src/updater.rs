@@ -44,7 +44,7 @@ const ARTIFACT: &str = "desktop";
 /// `updates` release of the fork's GitHub repository, rewritten by
 /// `scripts/publish-vibehex.sh`; its targets are files on the version's own
 /// release there, so every download stays on github.com.
-const ORIGIN: &str = "https://github.com/makeaiwork/hex/releases/download/updates";
+const ORIGIN: &str = "https://github.com/makeaiwork/VibeHex/releases/download/updates";
 const STARTUP_DELAY: Duration = Duration::from_secs(10);
 const CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
 /// Dev builds land on every push to dev, so the Dev channel checks often.
@@ -1227,7 +1227,7 @@ mod tests {
     fn the_manifest_url_names_app_artifact_and_channel() {
         assert_eq!(
             manifest_url("stable"),
-            "https://github.com/makeaiwork/hex/releases/download/updates/stable.json"
+            "https://github.com/makeaiwork/VibeHex/releases/download/updates/stable.json"
         );
     }
 }
