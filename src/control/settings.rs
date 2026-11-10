@@ -1584,6 +1584,49 @@ mod tests {
     use super::*;
     use crate::app_settings::ModifierSide;
 
+    /// Assistant proposes changes by the keys docs/guide names, so every
+    /// key in an article's front matter is one `hex settings` knows.
+    #[test]
+    fn every_key_the_guide_names_is_a_setting() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/guide");
+        let known: Vec<&str> = keys()
+            .map(|key| key.key)
+            .chain(OWN_COMMAND.iter().copied())
+            .collect();
+        let mut unknown = Vec::new();
+        for folder in ["labs", "topics"] {
+            for entry in std::fs::read_dir(root.join(folder)).unwrap() {
+                let path = entry.unwrap().path();
+                let text = std::fs::read_to_string(&path).unwrap();
+                let named = text
+                    .lines()
+                    .take_while(|line| !line.starts_with("# "))
+                    .flat_map(|line| {
+                        let list = line
+                            .strip_prefix("key:")
+                            .or_else(|| line.strip_prefix("keys:"))
+                            .unwrap_or("");
+                        list.trim_matches(|c: char| c.is_whitespace() || c == '[' || c == ']')
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|key| !key.is_empty())
+                            .map(str::to_owned)
+                            .collect::<Vec<_>>()
+                    });
+                for key in named {
+                    if !known.contains(&key.as_str()) {
+                        unknown.push(format!("{}: {key}", path.display()));
+                    }
+                }
+            }
+        }
+        assert!(
+            unknown.is_empty(),
+            "not `hex settings` keys:\n{}",
+            unknown.join("\n")
+        );
+    }
+
     #[test]
     fn a_managed_setting_is_refused() {
         use crate::policy::{Lock, Policy};
