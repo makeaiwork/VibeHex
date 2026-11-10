@@ -7,6 +7,7 @@
 //! and guide text: never transcripts, history, meetings, or keys.
 
 pub mod guide;
+pub mod intent;
 pub mod prompt;
 pub mod retrieve;
 pub mod store;
