@@ -10,14 +10,17 @@ use rune::{El, Tx, col, el, row, text};
 
 use super::super::Ui;
 use super::super::controls::Paint;
-use super::super::sidebar::{NAV_ROW_GAP, NAV_ROW_HEIGHT, Pane};
+use super::super::sidebar::{NAV_ROW_GAP, Pane};
 use super::face::face;
 use crate::desktop::i18n::tr;
 
 const KEY: &str = "nav-assistant";
-/// The face is larger than the 16 pt icons above it, and centred where
-/// theirs are, so the word still lines up with their labels.
-const FACE: f32 = 20.0;
+/// The face is larger than the 16 pt icons above it (the Face board's
+/// `.asst`), in a taller row; its outline starts where their icons do and
+/// the word lands 2 pt right of their labels, the nearest a 24 pt face
+/// allows with room around it.
+const FACE: f32 = 24.0;
+const ROW_HEIGHT: f32 = 32.0;
 
 /// Whether its pane shows now.
 fn on(ui: &Ui) -> bool {
@@ -58,12 +61,13 @@ pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
         .key(KEY)
         .role("button")
         .label(tr("Assistant"))
-        .h(NAV_ROW_HEIGHT)
-        // The other items: 6 + a 16 pt icon + 8 to the word.
-        .px(4.0)
-        .gap(6.0)
+        .h(ROW_HEIGHT)
+        .radius(7.0)
+        // The other items: 6 + a 16 pt icon + 8 to the word, 30. Here the
+        // hexagon draws 3 pt inside its box: 3 + 24 + 5, 32.
+        .px(3.0)
+        .gap(5.0)
         .center_y()
-        .radius(p.k.radius.sm)
         .press(c.pressed)
         .focusable(true)
         .focus_ring(2.0, -2.0, c.border_focus)
@@ -73,7 +77,7 @@ pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
         .child(
             el().key("hover")
                 .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
-                .radius(p.k.radius.sm)
+                .radius(7.0)
                 .fill(c.hover)
                 .group_opacity(0.0, 1.0),
         )
