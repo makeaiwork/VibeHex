@@ -19,6 +19,7 @@ use crate::app_settings::{self, RecordingAudioBehavior};
 use crate::audio::browser_media::{self, NativeBrowserAudio, PausedBrowser};
 
 mod ducking;
+mod players;
 
 const VIRTUAL_MAIN_VOLUME: u32 = u32::from_be_bytes(*b"vmvc");
 
@@ -52,6 +53,12 @@ impl MediaPlayer {
             "org.videolan.vlc" => Some(Self::Vlc),
             _ => None,
         }
+    }
+
+    /// Whether "Mute" and "Lower audio" can set the player's own volume
+    /// (AppleScript's 0 to 100 `sound volume`), for an output without one.
+    fn has_volume(self) -> bool {
+        matches!(self, Self::Music | Self::Spotify)
     }
 
     /// The AppleScript condition that is true while the player is playing.
@@ -383,12 +390,14 @@ fn paused_guard(players: Vec<MediaPlayer>, browser: Option<PausedBrowser>) -> Au
 impl AudioBehaviorGuard {
     fn start(behavior: RecordingAudioBehavior) -> Self {
         match behavior {
-            RecordingAudioBehavior::Mute => {
-                mute_output().map_or(Self::None, |(device, previous)| {
+            RecordingAudioBehavior::Mute => match mute_output() {
+                Some((device, previous)) => {
                     tracing::info!(previous, "muted system output while recording");
                     Self::Muted { device, previous }
-                })
-            }
+                }
+                // An output without a volume (a display's) mutes the players.
+                None => ducking::start_players(0.0).map_or(Self::None, Self::Ducked),
+            },
             RecordingAudioBehavior::PauseMedia => {
                 let players = pause_media();
                 if !players.is_empty() {

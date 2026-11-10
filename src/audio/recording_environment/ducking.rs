@@ -1,5 +1,7 @@
 //! The CoreAudio adapter for "Lower audio": the default output's channel
 //! volumes, or its master volume when channels cannot be set separately.
+//! An output with neither (a DisplayPort or HDMI display's) lowers the
+//! playing players' own volume instead (`players`).
 use std::mem::{offset_of, size_of};
 use std::ptr::NonNull;
 
@@ -9,10 +11,57 @@ use objc2_core_audio::{
 };
 use objc2_core_audio_types::{AudioBuffer, AudioBufferList};
 
+use super::players::Players;
 use crate::audio::output_ducking::{Guard, Volume};
 
 pub(super) fn start(factor: f32) -> Option<Guard> {
-    Guard::start(factor, Output::current)
+    Guard::start(factor, move || {
+        if let Some(output) = Output::current() {
+            tracing::info!(factor, "lowered system output while recording");
+            return Some(Lowered::Output(output));
+        }
+        playing_players(factor).map(Lowered::Players)
+    })
+}
+
+/// Lowers only the playing players, for "Mute" on an output without a volume.
+pub(super) fn start_players(factor: f32) -> Option<Guard> {
+    Guard::start(factor, move || playing_players(factor))
+}
+
+fn playing_players(factor: f32) -> Option<Players> {
+    let players = Players::playing();
+    if players.is_some() {
+        tracing::info!(
+            factor,
+            "the output has no volume to set; lowered the players instead"
+        );
+    } else {
+        tracing::info!("the output has no volume to set, and no player with one is playing");
+    }
+    players
+}
+
+/// What lowering holds: the output's channels, or the players' volumes.
+enum Lowered {
+    Output(Output),
+    Players(Players),
+}
+
+impl Volume for Lowered {
+    fn read(&self) -> Option<Vec<f32>> {
+        match self {
+            Self::Output(output) => output.read(),
+            Self::Players(players) => players.read(),
+        }
+    }
+
+    fn write(&mut self, values: &[f32]) -> bool {
+        match self {
+            Self::Output(output) => output.write(values),
+            Self::Players(players) => players.write(values),
+        }
+    }
 }
 
 struct Output {
