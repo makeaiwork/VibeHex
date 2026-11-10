@@ -1339,6 +1339,7 @@ pub fn opencode_in_wsl() -> bool {
 
 /// Labs › Add to vocabulary from a selection: the shortcut that adds a
 /// selected misheard word to Vocabulary (macOS).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn vocabulary_quick_add() -> bool {
     on(VOCABULARY_QUICK_ADD)
 }

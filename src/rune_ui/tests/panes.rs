@@ -1378,7 +1378,7 @@ fn telemost_settings_show_web_only_where_the_watcher_reads_sites() {
             shown.iter().any(|text| text == "Yandex Telemost (web)"),
             caps.meeting_websites
         );
-        pick(&mut rt, "call7-policy", 2);
+        pick(&mut rt, "call8-policy", 2);
         assert!(
             rt.state
                 .settings
@@ -1389,7 +1389,7 @@ fn telemost_settings_show_web_only_where_the_watcher_reads_sites() {
                     && choice.policy == MeetingPolicy::NeverOffer)
         );
         if caps.meeting_websites {
-            pick(&mut rt, "call8-policy", 1);
+            pick(&mut rt, "call9-policy", 1);
             assert!(
                 rt.state
                     .settings
@@ -2093,12 +2093,12 @@ fn labs_lists_every_toggle_off_by_default() {
     }
     open_labs(&mut rt);
     assert!(rt.find("send-feedback").is_some());
-    for section in ["labs-vocabulary", "labs-meetings", "labs-speech-models"] {
-        assert!(
-            rt.find(section).is_some(),
-            "Labs lacks its {section} section"
-        );
-    }
+    // VibeHex: a chip keeps only VibeHex's labs, whose cards carry a star.
+    assert!(
+        rt.find("chip-vibehex").is_some(),
+        "Labs lacks the VibeHex chip"
+    );
+    assert!(rt.find("vibehex").is_some(), "no VibeHex card has its star");
     assert!(rt.find("restart-onboarding").is_some());
     let settings = &rt.state.settings;
     for (row, on) in [
@@ -2726,6 +2726,9 @@ fn fun_driver_installed(rt: &rune::Runtime<Ui>) -> bool {
 #[test]
 fn a_long_transcript_scrolls_by_dragging_its_scroll_bar() {
     let mut rt = runtime("meetings", true, PANE_SIZE);
+    // VibeHex: a meeting with notes opens on its Summary tab.
+    rt.state.meetings.tab = Some(super::super::meeting_tabs::MeetingTab::Transcript);
+    refresh(&mut rt);
     settle(&mut rt);
     let at = |rt: &Runtime<Ui>, path: &str| {
         rt.elements()
@@ -2801,6 +2804,9 @@ fn a_long_labs_store_scrolls_by_dragging_its_scroll_bar() {
 fn a_finger_pans_the_transcript_and_taps_the_sidebar() {
     use rune::TouchPhase::{Ended, Moved, Started};
     let mut rt = runtime("meetings", true, PANE_SIZE);
+    // VibeHex: a meeting with notes opens on its Summary tab.
+    rt.state.meetings.tab = Some(super::super::meeting_tabs::MeetingTab::Transcript);
+    refresh(&mut rt);
     settle(&mut rt);
     let inset = |rt: &Runtime<Ui>| {
         rt.elements()

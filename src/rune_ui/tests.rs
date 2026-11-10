@@ -2354,8 +2354,14 @@ fn the_sidebar_moves_with_arrows_and_command_numbers() {
         "focus follows to the Labs item: {}",
         focused(&rt)
     );
+    // VibeHex: About follows Labs, and Down stops there.
     key(&mut rt, Key::Down, Mods::default());
-    assert!(rt.state.labs_open, "a second Down keeps Labs open");
+    assert_eq!(rt.state.pane, Pane::About, "About follows Labs");
+    assert!(!rt.state.labs_open);
+    key(&mut rt, Key::Down, Mods::default());
+    assert_eq!(rt.state.pane, Pane::About, "Down stops at the last pane");
+    key(&mut rt, Key::Up, Mods::default());
+    assert!(rt.state.labs_open, "Up from About returns to Labs");
     key(&mut rt, Key::Up, Mods::default());
     assert_eq!(rt.state.pane, last, "Up returns to the last pane");
     assert!(!rt.state.labs_open);

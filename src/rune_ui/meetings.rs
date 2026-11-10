@@ -1338,7 +1338,9 @@ mod tests {
         let turn = |mine| Turn {
             mine,
             start_ms: 1_000,
+            end_ms: 2_000,
             text: "Hi.".into(),
+            words: Vec::new(),
             pause_before_ms: None,
         };
         assert!(transcript_markdown(&[turn(false)], true).contains("**Speaker** · 00:01"));

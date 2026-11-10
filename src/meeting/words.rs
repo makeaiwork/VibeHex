@@ -13,9 +13,10 @@ pub fn word_starts<'a>(text: &str, words: &'a [u64]) -> Option<&'a [u64]> {
 /// each word's start kept (a word the model spaced inside, once per piece).
 pub(super) fn sentence_entry(
     source: MeetingSource,
-    group: &[crate::transcription::TranscriptSegment],
+    group: &[crate::transcription::transcript::TranscriptSegment],
 ) -> TranscriptEntry {
-    let start = |word: &crate::transcription::TranscriptSegment| word.start_ms.max(0) as u64;
+    let start =
+        |word: &crate::transcription::transcript::TranscriptSegment| word.start_ms.max(0) as u64;
     TranscriptEntry {
         source,
         start_ms: group.first().map_or(0, start),

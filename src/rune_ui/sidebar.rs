@@ -639,9 +639,9 @@ fn release_notes_link(ui: &Ui, p: Paint) -> Option<El> {
     if ui.build_preview.unwrap_or_else(build_kind) != BuildKind::Release {
         return None;
     }
-    // Goldens pin the version, as the version label does.
+    // Tests pin a VibeHex release, whose notes the fork publishes.
     let version = if cfg!(test) {
-        "0.0.0-dev-12"
+        "0.0.0-vibe.1"
     } else {
         crate::VERSION
     };
