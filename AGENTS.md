@@ -2,7 +2,7 @@
 
 ## Fork scope and precedence
 
-This checkout is the `makeaiwork/hex` fork of `anomalyco/hex`, stored in
+This checkout is the `makeaiwork/VibeHex` fork of `anomalyco/hex`, stored in
 `58. VibeHex`. `origin` points to the fork; `upstream` points to the original.
 The default development branch is `dev`. VibeHex is the workspace name;
 the executable, package, and existing product copy remain `hex` / Hex until
