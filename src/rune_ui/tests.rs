@@ -1012,9 +1012,11 @@ fn element(rt: &Runtime<Ui>, key: &str) -> rune::ElementInfo {
 
 /// The sidebar's items, top to bottom, with their drawn rects.
 fn nav_items(rt: &Runtime<Ui>) -> Vec<(Pane, [f32; 4])> {
+    // Assistant's row sits apart at the sidebar's bottom, past the spacer.
     let mut items: Vec<_> = Pane::ALL
         .iter()
         .copied()
+        .filter(|pane| *pane != Pane::Assistant)
         .filter_map(|pane| rt.presented(pane.key()).map(|(rect, _)| (pane, rect)))
         .collect();
     items.sort_by(|a, b| a.1[1].total_cmp(&b.1[1]));
@@ -2885,6 +2887,16 @@ fn goldens() {
     check_golden("windows-labs", false, PANE_SIZE);
     check_golden("linux-labs", false, PANE_SIZE);
     check_golden("history-menu", true, PANE_SIZE);
+    // Assistant: a conversation in both themes, then one of each view.
+    check_golden("assistant", false, PANE_SIZE);
+    for scene in [
+        "assistant-answering",
+        "assistant-start",
+        "assistant-connect",
+        "assistant-settings",
+    ] {
+        check_golden(scene, true, PANE_SIZE);
+    }
 }
 
 mod onboarding_check;

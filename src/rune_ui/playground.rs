@@ -175,6 +175,11 @@ const PATHS: &[(&str, &str)] = &[
         "mac-input-source-models",
         "Window/General/Input source models",
     ),
+    ("assistant", "Window/Assistant/Conversation"),
+    ("assistant-answering", "Window/Assistant/Answering"),
+    ("assistant-start", "Window/Assistant/New conversation"),
+    ("assistant-connect", "Window/Assistant/Connect a model"),
+    ("assistant-settings", "Window/Assistant/Settings"),
     ("files", "Window/Files/Files"),
     (
         "files-engine-menu",
