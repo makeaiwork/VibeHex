@@ -690,6 +690,7 @@ pub(super) const SCENES: &[Scene] = &[
         ui.pane = Pane::Meetings;
     }),
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
+    ("assistant", assistant::fixture::conversation),
     ("files-playback", |ui| files_playback(ui, true)),
     ("files-playback-folded", |ui| files_playback(ui, false)),
     ("files-playback-cleanup", |ui| {

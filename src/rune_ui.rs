@@ -11,6 +11,7 @@
 
 mod about;
 mod activity;
+mod assistant;
 mod brand;
 #[cfg(hex_capture)]
 pub(crate) mod capture_capsule;
@@ -696,6 +697,7 @@ pub(crate) struct Ui {
     playback: playback::Playback,
     fun: fun::FunPane,
     activity: activity::ActivityPane,
+    assistant: assistant::AssistantPane,
     hud_copied: bool, // HUD Lab's preset was copied since it last changed.
     hud_saved: bool,  // HUD Lab saved Dot scope's tuning, until the next change.
     saved: usize,     // Settings saves and Quit Hex a fixture recorded.
@@ -812,6 +814,7 @@ impl Ui {
             playback: playback::Playback::default(),
             fun: fun::FunPane::default(),
             activity: activity::ActivityPane::default(),
+            assistant: assistant::AssistantPane::default(),
             hud_copied: false,
             hud_saved: false,
             saved: 0,
@@ -1416,6 +1419,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         Pane::HudLab => hud_lab::pane(ui, p),
         Pane::Activity => activity::pane(ui, p),
         Pane::About => (Vec::new(), about::pane(ui, p)),
+        Pane::Assistant => assistant::pane(ui, p, &mut layer),
     };
     let panel = col()
         .key("panel")
@@ -1442,6 +1446,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
                 _ if ui.labs_open => Some(labs::search_field(ui, p)),
                 Pane::Meetings => meetings::view_switch(ui, p),
                 Pane::Files => files::view_switch(ui, p),
+                Pane::Assistant => assistant::view_switch(ui, p),
                 _ => None,
             },
             actions,

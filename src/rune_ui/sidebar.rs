@@ -103,6 +103,9 @@ pub(super) enum Pane {
     Activity,
     /// VibeHex, its source, and its developer: after Labs.
     About,
+    /// Questions about VibeHex, answered from its guide: at the bottom,
+    /// apart from the navigation (on by default, not in Labs).
+    Assistant,
 }
 
 impl Pane {
@@ -122,6 +125,7 @@ impl Pane {
         Pane::HudLab,
         Pane::Activity,
         Pane::About,
+        Pane::Assistant,
     ];
 
     pub(super) fn shown(self, ui: &Ui) -> bool {
@@ -137,6 +141,7 @@ impl Pane {
             // The Lab turns on only on macOS.
             #[cfg(hex_capture)]
             Pane::Captures => ui.settings.labs.screenshots,
+            Pane::Assistant => ui.settings.assistant.enabled,
             _ => true,
         }
     }
@@ -157,6 +162,7 @@ impl Pane {
             Pane::HudLab => "HUD Lab",
             Pane::Activity => tr("Activity"),
             Pane::About => tr("About"),
+            Pane::Assistant => tr("Assistant"),
         }
     }
 
@@ -176,6 +182,7 @@ impl Pane {
             Pane::HudLab => "nav-hud-lab",
             Pane::Activity => "nav-activity",
             Pane::About => "nav-about",
+            Pane::Assistant => "nav-assistant",
         }
     }
 
@@ -195,6 +202,7 @@ impl Pane {
             Pane::HudLab => &HUD_LAB_ICON,
             Pane::Activity => &ACTIVITY_ICON,
             Pane::About => &super::icons::INFO,
+            Pane::Assistant => &super::assistant::face::FACE,
         }
     }
 }
@@ -289,6 +297,7 @@ pub(super) fn sidebar(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         )
         .child(nav)
         .child(el().key("spacer").grow(1.0))
+        .children(super::assistant::nav::item(ui, p))
         .children(sidebar_update::control(ui, p))
         .children(sidebar_update::notes(ui, p))
         .children(sidebar_update::blocked(ui, p))
@@ -474,6 +483,7 @@ fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         rail = rail.child(tip(ui, p, pane.key(), pane.title(), right, item, layer));
     }
     rail = rail.child(el().key("spacer").grow(1.0));
+    rail = rail.children(super::assistant::nav::rail_item(ui, p, layer));
     rail.children(update_item(ui, p, layer))
 }
 
