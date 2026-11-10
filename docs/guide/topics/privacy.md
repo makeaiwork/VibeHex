@@ -1,7 +1,7 @@
 ---
 topic: privacy
 title: Privacy and your data
-keys: [history_retention, labs.keep_recordings, labs.ai_cleanup_server, dictation_processing.server.runs_on, dictation_processing.default_mode, meetings.retention]
+keys: [history_retention, assistant.read_recordings, labs.keep_recordings, labs.ai_cleanup_server, dictation_processing.server.runs_on, dictation_processing.default_mode, meetings.retention]
 os: every OS
 ---
 
@@ -44,6 +44,12 @@ on Windows, and `~/.local/share/hex` on Linux.
   "Built in" (Mac) never leaves.
 - **Meeting notes:** Apple Intelligence keeps the transcript on the Mac; any
   other writer in Meetings › Notes › Written by receives it.
+- **Assistant** sends your question, the conversation, and guide text to
+  the model in Assistant › Settings › Runs on. Only after you allow it on
+  the first question about your recordings does it also send passages it
+  found on this computer in your meetings, Files texts, and dictations; the
+  recordings themselves never go. Assistant › Settings › What it reads takes
+  that back.
 - Your own scripts in Output ask first to use the network.
 
 ## Where API keys are kept
@@ -59,6 +65,7 @@ Codex keeps its own sign-in. Output › AI cleanup › API key has Remove.
 - Stop saving: History's Keep menu to Off (entries already there stay until
   deleted), and Labs › Keep recordings off.
 - Meetings: delete a recording, or shorten Keep meetings.
+- Assistant: Settings › Clear conversations…, or Keep on this computer off.
 - The log: quit VibeHex, then delete the `logs` folder.
 
 **Asked as.** "Does my voice go to the cloud?"; "How do I delete my history?";

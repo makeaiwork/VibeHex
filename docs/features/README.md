@@ -60,7 +60,8 @@ models another app already downloaded.
 [About](about.md) names the fork (VibeHex) in the sidebar and links its
 source and developer.
 [Assistant](assistant.md) (every OS, on by default and not in Labs) answers
-questions about VibeHex from its guide, in a chat at the sidebar's bottom.
+questions about VibeHex from its guide, in a chat at the sidebar's bottom,
+and, once allowed, about the person's meetings, Files texts, and dictations.
 [Annotate](capture.md) (macOS, Linux,
 and Windows) records the screen while you draw and talk and sends it to an agent.
 [Screenshots](labs.md) (Labs, macOS) takes CleanShot-style ⌘⇧4 area and

@@ -642,7 +642,11 @@ substitute for source inspection or a second roadmap.
 - `assistant`: Assistant's guide (`docs/guide` in the binary), search,
   prompt, conversations store, and its own answer thread; the pane is
   `rune_ui::assistant`. What reaches a model is the question, the
-  conversation so far, and guide text, nothing else.
+  conversation so far, and guide text; `assistant::intent` reads from words
+  alone whether a question is about recordings, and only
+  `assistant::recordings`, through `recordings::Allowed` (the person's yes,
+  `assistant.read_recordings`), reads meetings, Files texts, and History and
+  adds the passages found (a test holds the rest of both folders to that).
 - `labs`: the Labs feature registry (`labs::Feature`: name, settings key,
   description, audience, group), the runtime gates (`labs::live_text`, `live_chapters`,
   `playground`, `vocabulary_biasing`, `mouse_shortcuts`), and

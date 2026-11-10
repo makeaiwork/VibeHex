@@ -2,14 +2,17 @@
 
 A chat at the bottom of the sidebar that answers questions about VibeHex from
 its guide (`docs/guide`, carried in the binary): whether it can do something,
-how to set it up, which model to use. It is on by default and not in Labs, an
+how to set it up, which model to use. Once the person allows it, it also
+answers questions about their own meetings, Files texts, and dictations,
+citing the places it read. It is on by default and not in Labs, an
 exception the owner chose; `assistant.enabled` hides the row.
 
 ```ts
 Sidebar                                          // rune_ui::sidebar, rune_ui::assistant::nav
-└── Assistant   below the spacer, above the version footer (nav-assistant);
-                its face is VibeHex's hexagon with two eyes; on the rail it
-                is the last icon with its own tooltip
+└── Assistant   below the spacer, above the version footer (nav-assistant):
+                a 32 pt row with a 24 pt face (VibeHex's hexagon with two
+                eyes); open, the face and word brighten, no fill. On the rail
+                the last button, 36 by 32, with its own tooltip
 Assistant                                        // rune_ui::assistant
 ├── Header      Chat | Settings; in Chat, the conversation picker and +
 ├── Chat
@@ -18,10 +21,18 @@ Assistant                                        // rune_ui::assistant
 │   ├── Feed    the person's bubble; the answer as Markdown beside the face,
 │   │           then "From the guide" chips naming the articles it drew on,
 │   │           then Copy, Ask again, the model, Stopped, the time.
-│   │           A failed answer says why and offers Try again
+│   │           A failed answer says why and offers Try again.
+│   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
+│   │           the answer (a click lists the steps), [n] marks inline, and
+│   │           "From your recordings" chips (title, date, time)
+│   ├── Consent the first question about recordings, before anything is
+│   │           read: "Read your meetings, files, and dictations?", the model
+│   │           the passages go to, Allow or Answer without recordings
+│   ├── Steps   while it searches: one line per step, a check when done,
+│   │           three dots on the current one, the face reading
 │   ├── Coming  "Looking in the guide…", then the draft as it streams;
 │   │           the face reads (eyes drift along a line) until it lands
-│   ├── Field   "Ask about VibeHex", the model and reasoning menus (for this
+│   ├── Field   "Ask about VibeHex or your recordings", the model and reasoning menus (for this
 │   │           conversation only), Send, or Stop while answering
 │   └── Connect with no model to ask, stands in for the field:
 │               Codex (Sign in with ChatGPT, or its install command),
@@ -31,8 +42,15 @@ Assistant                                        // rune_ui::assistant
 └── Settings
     ├── Model           Runs on (default "Same as AI cleanup"); Reasoning
     │                   while it runs on Codex
-    └── Conversations   Keep on this computer; Clear conversations… then
-                        Really clear all?
+    ├── Conversations   Keep on this computer; Clear conversations… then
+    │                   Really clear all?
+    └── What it reads   Your meetings, files, and dictations (toggle)
+Opened from an answer                            // rune_ui::assistant::jump
+├── Header      Back to Assistant (chevron, face, words) before the title
+├── Bar         an item cited more than once: "From the answer: <question>",
+│               "1 of 2", up and down between places, a cross to clear
+└── Place       tinted in the accent, round corners, the answer's [n] by the
+                speaker, the searched words lit; others cited fainter
 ```
 
 ## Behaviour
@@ -56,6 +74,44 @@ Assistant                                        // rune_ui::assistant
   springs back (0.46 s); while an answer comes its eyes read. Under Reduce
   Motion nothing moves and reading eyes rest to one side.
 
+## Questions about recordings
+
+- `assistant::intent` reads from the question's words alone, against a
+  `now` passed in, whether it is about recordings: kinds named (meetings,
+  calls, dictations, files, in English and Russian), a time (yesterday, last
+  week, in November, on the 24th, the last five meetings), and what was said
+  or decided. "How do I…", "можно ли…" without a time stay with the guide, so
+  the consent card never comes up for them. A question that only may be
+  about recordings searches them (once allowed) and goes to the guide when
+  nothing matches.
+- While `assistant.read_recordings` is not `true` such a question shows the
+  consent card first; nothing is read. Allow sets it and asks; Answer
+  without recordings answers from the guide, telling the model it may not
+  read them.
+- `assistant::recordings` is the only module under `assistant` and
+  `rune_ui::assistant` that reads personal data, through
+  `recordings::Allowed`, which exists only while the setting is on (a test
+  holds every other file to it). It reads meetings through `hex mcp`'s
+  `meeting::query::Library` (notes, and the best passages by the meeting
+  search), Files records, and the History snapshot, in the time asked about,
+  within a budget: 3 meetings, 2 passages each, 5,000 characters for a
+  built-in model; 6, 4, and 24,000 otherwise.
+- The prompt carries them as a numbered `<recordings>` block; the model
+  cites `[n]` inline, and says plainly, in the question's language, when the
+  recordings don't hold the answer. The streaming draft never shows a half
+  written `[n`. A turn keeps its steps, seconds, and the places it cited.
+- A mark or chip opens its place (`jump`): a meeting on Transcript, the
+  passage near the top, tinted, its words lit until the person leaves the
+  pane; a Files text on its Original, the paragraph lit the same way; a
+  dictation selected in History (History can't scroll to or light a range
+  yet). Back to Assistant, Cmd+[ (Ctrl+[), and the mouse's back button
+  return to the conversation where it was scrolled; choosing another pane
+  drops them.
+- Eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
+  texts, five dictations), 26 questions with expected recordings (recall
+  must stay at 90% or more, now 100%) and 11 guide questions that must not
+  route (`scripts/check assistant::recordings`).
+
 ## Settings keys
 
 | Key | Default | Meaning |
@@ -64,16 +120,21 @@ Assistant                                        // rune_ui::assistant
 | `assistant.engine` | none | Where answers run, in `files.request_engine`'s form; none follows AI cleanup |
 | `assistant.effort` | empty (medium) | Codex reasoning: low, medium, high |
 | `assistant.keep_conversations` | `true` | Keep conversations on this computer |
+| `assistant.read_recordings` | none | May search meetings, Files texts, and dictations for questions about them; none until first asked |
 
 ## Privacy
 
 What reaches a model is the question, the conversation so far, and guide
-text; never transcripts, history, meetings, files, or keys. Kept
+text; never history, meetings, Files texts, or keys, except the passages
+`recordings` found once the person allowed it. Keys never. Kept
 conversations live in `<support>/assistant/conversations.json`, readable only
 by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.
 
-Checks: `scripts/check assistant` (store, worker, retrieve, prompt, settings
-keys); scenes `assistant`, `assistant-answering`, `assistant-start`,
-`assistant-connect`, `assistant-settings` and their goldens. Not yet verified
+Checks: `scripts/check assistant` (store, worker, retrieve, prompt, intent,
+recordings and its eval, jump, settings keys); scenes `assistant`,
+`assistant-answering`, `assistant-start`, `assistant-connect`,
+`assistant-settings`, `assistant-consent`, `assistant-steps`,
+`assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
+`files-cited` and their goldens. Not yet verified
 end to end by asking a real model from a running app.
