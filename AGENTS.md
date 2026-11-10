@@ -639,6 +639,10 @@ substitute for source inspection or a second roadmap.
   "Choose a file…", the macOS meetings folder) through `rune::FileDialogs` on
   its own thread. Answers on a channel; cancel and a dialog that never opened
   read as nothing chosen.
+- `assistant`: Assistant's guide (`docs/guide` in the binary), search,
+  prompt, conversations store, and its own answer thread; the pane is
+  `rune_ui::assistant`. What reaches a model is the question, the
+  conversation so far, and guide text, nothing else.
 - `labs`: the Labs feature registry (`labs::Feature`: name, settings key,
   description, audience, group), the runtime gates (`labs::live_text`, `live_chapters`,
   `playground`, `vocabulary_biasing`, `mouse_shortcuts`), and
@@ -1040,7 +1044,10 @@ CoreAudio formats, AppleScript details, or event serialization.
 - Codex (Labs › AI cleanup › Runs on Codex) is the one agent CLI Hex starts:
   `codex app-server`, found on `PATH` or in the usual install folders, only
   when a request set to Codex runs or Output shows Codex
-  (`dictation/cleanup_server/codex`). Hex keeps no key or password for it,
+  (`dictation/cleanup_server/codex`). Assistant starts it only when a
+  question set to Codex is asked, Sign in with ChatGPT is pressed, or its
+  field's model menu opens to list models; it asks whether OpenCode runs only
+  while it would use OpenCode and its Chat view shows. Hex keeps no key or password for it,
   overrides the person's Codex config with `-c` so no tool, hook, MCP server,
   memory, plugin, web search, project instruction, or `notify` command runs,
   uses ephemeral read-only threads in an empty folder, refuses every server
@@ -1613,6 +1620,9 @@ its settings key, description, and group (`Feature::group`), a card on the Labs 
 `hex settings` key; gate where the feature's work starts (worker, thread,
 capture), not just its UI. Never add a master switch or ship such a feature
 on by default. Remove it from Labs when it graduates or is dropped.
+Assistant (`assistant`, `rune_ui/assistant`, [docs/features/assistant.md](docs/features/assistant.md))
+is the one exception by the owner's decision: on by default, not in Labs,
+hidden only by `assistant.enabled`.
 
 Use `scripts/check [filter]` for the local loop, not raw `cargo test`. It runs
 tests through cargo-nextest (`brew install cargo-nextest`) with
