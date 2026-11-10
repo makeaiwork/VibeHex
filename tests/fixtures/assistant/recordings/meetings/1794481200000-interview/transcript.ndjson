@@ -1,0 +1,4 @@
+{"source": "system", "start_ms": 0, "end_ms": 5500, "text": "Расскажите про опыт с Go."}
+{"source": "microphone", "start_ms": 20500, "end_ms": 28040, "text": "Пять лет пишу на Go, в основном сервисы с Postgres и Kafka."}
+{"source": "system", "start_ms": 43040, "end_ms": 49200, "text": "Зарплатные ожидания и формат работы?"}
+{"source": "microphone", "start_ms": 64200, "end_ms": 70900, "text": "Хотел бы удалённо, ожидания обсудим с Олегом."}

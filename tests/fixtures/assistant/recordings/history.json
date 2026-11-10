@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "next_id": 6,
+  "entries": [
+    {
+      "id": 1,
+      "timestamp_ms": 1795684500000,
+      "kind": "dictation",
+      "raw_text": "Release notes: payment flow fixed, Windows crash still open, release on December 3.",
+      "final_text": "Release notes: payment flow fixed, Windows crash still open, release on December 3.",
+      "application": "Slack"
+    },
+    {
+      "id": 2,
+      "timestamp_ms": 1795714800000,
+      "kind": "dictation",
+      "raw_text": "Hi Oleg, the release checklist is attached, please review the migration steps.",
+      "final_text": "Hi Oleg, the release checklist is attached, please review the migration steps.",
+      "application": "Mail"
+    },
+    {
+      "id": 3,
+      "timestamp_ms": 1795431600000,
+      "kind": "dictation",
+      "raw_text": "Аня, пришли, пожалуйста, расчёт по OpenRouter до первого декабря.",
+      "final_text": "Аня, пришли, пожалуйста, расчёт по OpenRouter до первого декабря.",
+      "application": "Telegram"
+    },
+    {
+      "id": 4,
+      "timestamp_ms": 1794312000000,
+      "kind": "dictation",
+      "raw_text": "Идеи для онбординга: сначала разрешение микрофона, потом выбор модели.",
+      "final_text": "Идеи для онбординга: сначала разрешение микрофона, потом выбор модели.",
+      "application": "Notes"
+    },
+    {
+      "id": 5,
+      "timestamp_ms": 1793350800000,
+      "kind": "dictation",
+      "raw_text": "Reminder to renew the Okta contract before the Acme deal.",
+      "final_text": "Reminder to renew the Okta contract before the Acme deal.",
+      "application": "Slack"
+    }
+  ]
+}

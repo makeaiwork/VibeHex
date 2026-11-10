@@ -9,7 +9,9 @@ use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
 
-use super::prompt::{self, Room};
+use super::intent::Intent;
+use super::prompt::{self, Reach, Room};
+use super::recordings::{self, Allowed, Budget, Found, Sources, Step};
 use super::store::Turn;
 use crate::dictation::cleanup_pieces::Streamed;
 use crate::dictation::cleanup_server::engine;
@@ -28,6 +30,28 @@ pub struct Question {
     pub question: String,
     /// Earlier (question, answer) pairs, oldest first.
     pub earlier: Vec<(String, String)>,
+    /// What it may read besides the guide.
+    pub recall: Recall,
+}
+
+/// What a question may read besides the guide.
+#[derive(Clone, Debug, Default)]
+pub enum Recall {
+    #[default]
+    Guide,
+    /// About the person's recordings, which Assistant may not read.
+    Declined,
+    /// About the person's recordings, which it may search.
+    Search(Search),
+}
+
+/// A search of the person's recordings, possible only with their leave.
+#[derive(Clone, Debug)]
+pub struct Search {
+    pub allowed: Allowed,
+    pub sources: Sources,
+    pub intent: Intent,
+    pub now_ms: u64,
 }
 
 /// The question being answered and what has come so far.
@@ -38,6 +62,10 @@ pub struct Answering {
     /// The reply so far, without a half-written `Sources:` line.
     pub draft: String,
     pub started: Instant,
+    /// The recordings search's steps so far.
+    pub steps: Vec<Step>,
+    /// Still searching the recordings.
+    pub searching: bool,
 }
 
 #[derive(Default)]
@@ -107,6 +135,8 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
         question: question.question.clone(),
         draft: String::new(),
         started,
+        steps: Vec::new(),
+        searching: matches!(question.recall, Recall::Search(_)),
     });
     held.cancel = Some(cancel.clone());
     changed(held);
@@ -121,9 +151,18 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
                     answer: answered,
                 })
                 .collect();
-            let prompt = prompt::build(&question.question, &earlier, room);
+            let found = match &question.recall {
+                Recall::Search(search) => read(search, room),
+                _ => None,
+            };
+            let reach = match (&question.recall, &found) {
+                (Recall::Declined, _) => Reach::Declined,
+                (Recall::Search(search), Some(found)) => Reach::Recordings(found, search.now_ms),
+                _ => Reach::Guide,
+            };
+            let prompt = prompt::build(&question.question, &earlier, room, reach);
             let result = generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts()));
-            finish(&question, &model, started, result, &cancel);
+            finish(&question, &model, started, result, &cancel, found.as_ref());
             if local {
                 engine::narrow();
             }
@@ -143,6 +182,39 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
         return false;
     }
     true
+}
+
+/// Searches the recordings, each step reaching the pane as it lands. A
+/// question that only may be about them, and matched nothing, is a guide
+/// question after all.
+fn read(search: &Search, room: Room) -> Option<Found> {
+    let budget = match room {
+        Room::Small => Budget::SMALL,
+        Room::Large => Budget::LARGE,
+    };
+    let found = recordings::search(
+        &search.allowed,
+        &search.sources,
+        &search.intent,
+        budget,
+        search.now_ms,
+        &mut |step| {
+            let mut state = state();
+            if let Some(answering) = &mut state.answering {
+                answering.steps.push(step.clone());
+            }
+            changed(state);
+        },
+    );
+    let mut state = state();
+    if let Some(answering) = &mut state.answering {
+        answering.searching = false;
+        if !search.intent.sure && found.excerpts.is_empty() {
+            answering.steps.clear();
+        }
+    }
+    changed(state);
+    (search.intent.sure || !found.excerpts.is_empty()).then_some(found)
 }
 
 /// The streamed reply into the draft, at most once each [`DRAFT_EVERY`].
@@ -171,6 +243,7 @@ fn finish(
     started: Instant,
     result: Result<String>,
     cancel: &AtomicBool,
+    found: Option<&Found>,
 ) {
     let mut state = state();
     let draft = state
@@ -184,6 +257,7 @@ fn finish(
         model: model.to_owned(),
         seconds: started.elapsed().as_secs_f32(),
         created_ms: now_ms(),
+        steps: found.map(|found| found.steps.clone()).unwrap_or_default(),
         ..Turn::default()
     };
     match result {
@@ -191,6 +265,9 @@ fn finish(
             let (body, sources) = prompt::split_sources(&reply);
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
+            if let Some(found) = found {
+                turn.refs = found.cited(body);
+            }
         }
         Err(_) if cancel.load(Ordering::Acquire) => {
             turn.answer = draft;
@@ -242,6 +319,7 @@ mod tests {
             conversation: 7,
             question: text.into(),
             earlier: vec![("before".into(), "earlier answer".into())],
+            recall: Recall::Guide,
         }
     }
 

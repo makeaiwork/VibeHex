@@ -81,7 +81,8 @@ impl AssistantPane {
 
     /// The time dates are told against: the clock, or a scene's.
     pub(super) fn now_ms(&self) -> u64 {
-        self.fixed_now.unwrap_or_else(crate::files::store::now_ms)
+        self.fixed_now
+            .unwrap_or_else(crate::desktop::events::now_ms)
     }
 
     /// The answer coming in conversation `id`.

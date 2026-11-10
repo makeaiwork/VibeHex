@@ -5,6 +5,7 @@
 //! which the pane turns into "From the guide" chips and never shows.
 
 use super::guide::{self, Article};
+use super::recordings::{Excerpt, Found, Kind};
 use super::retrieve;
 
 /// How many articles a model reads: a small local one has a short window.
@@ -76,8 +77,38 @@ it. Never invent settings, keys, buttons, or menus.
 - End with one last line: `Sources:` and the ids of the articles you used, comma-separated \
 (for example `Sources: labs/meetings, topics/codex`), or `Sources: none`.";
 
+/// What a question may read besides the guide.
+#[derive(Clone, Copy, Debug)]
+pub enum Reach<'a> {
+    /// The guide alone.
+    Guide,
+    /// The question is about the person's recordings, which Assistant may
+    /// not read: the answer says so and where to allow it.
+    Declined,
+    /// What a search of the person's recordings found, with their `now`.
+    Recordings(&'a Found, u64),
+}
+
+const RECORDINGS: &str = "
+
+The person also asked about their own recordings. The <recordings> block holds numbered \
+excerpts from their meetings (notes and passages, Me is the person, Them the others), their \
+Files texts, and their dictations, found on their computer for this question.
+- Answer from the excerpts. Bring several together: sum up, say how they connect (the same \
+topic coming back, a decision that changed, one thing leading to another), and name when.
+- Cite every fact from them right after it with its number in square brackets, like [2] or \
+[1][3]. Cite only numbers in the block. No Sources line entry for them.
+- When the excerpts don't hold the answer, say so plainly. Never guess what was said.
+- Times are the person's local time; the block says when now is.";
+
+const DECLINED: &str = "
+
+This question seems to be about the person's own meetings, files, or dictations, which you \
+cannot read: they haven't allowed it. Say so in one sentence, and that Assistant › Settings › \
+Your meetings, files, and dictations allows it; then answer what the guide covers, if anything.";
+
 /// The prompt for `question` after `earlier` turns, oldest first.
-pub fn build(question: &str, earlier: &[Turn], room: Room) -> Prompt {
+pub fn build(question: &str, earlier: &[Turn], room: Room, reach: Reach) -> Prompt {
     // A follow-up ("and on Windows?") is about what the last question was.
     let query = match earlier.last() {
         Some(last) => format!("{} {}", last.question, question),
@@ -95,6 +126,15 @@ pub fn build(question: &str, earlier: &[Turn], room: Room) -> Prompt {
     for article in &found {
         input.push_str(&excerpt(article));
     }
+    let mut instructions = INSTRUCTIONS.to_owned();
+    match reach {
+        Reach::Guide => {}
+        Reach::Declined => instructions.push_str(DECLINED),
+        Reach::Recordings(recordings, now_ms) => {
+            instructions.push_str(RECORDINGS);
+            input.push_str(&recordings_block(recordings, now_ms));
+        }
+    }
     let kept = earlier.len().saturating_sub(room.earlier_turns());
     for turn in &earlier[kept..] {
         input.push_str(&format!(
@@ -105,7 +145,7 @@ pub fn build(question: &str, earlier: &[Turn], room: Room) -> Prompt {
     }
     input.push_str(&format!("\n<question>\n{}\n</question>\n", question.trim()));
     Prompt {
-        instructions: INSTRUCTIONS.to_owned(),
+        instructions,
         input,
         articles: found.iter().map(|article| article.id).collect(),
     }
@@ -116,6 +156,44 @@ fn excerpt(article: &Article) -> String {
         "\n<guide_article id=\"{}\">\n{}\n</guide_article>\n",
         article.id, article.body
     )
+}
+
+/// The excerpts as the model reads them: `[n]`, what and when, the text.
+fn recordings_block(found: &Found, now_ms: u64) -> String {
+    let mut block = format!("\n<recordings now=\"{}\">\n", stamp(now_ms));
+    if found.excerpts.is_empty() {
+        block.push_str("Nothing in the recordings matches this question.\n");
+    }
+    for excerpt in &found.excerpts {
+        block.push_str(&format!(
+            "[{}] {}\n{}\n\n",
+            excerpt.n,
+            heading(excerpt),
+            excerpt.text
+        ));
+    }
+    block.push_str("</recordings>\n");
+    block
+}
+
+fn heading(excerpt: &Excerpt) -> String {
+    let what = match excerpt.kind {
+        Kind::Meeting => format!("Meeting \"{}\"", excerpt.title),
+        Kind::File => format!("File \"{}\"", excerpt.title),
+        Kind::Dictation if excerpt.title.is_empty() => "Dictation".to_owned(),
+        Kind::Dictation => format!("Dictation in {}", excerpt.title),
+    };
+    let label = match excerpt.label.as_str() {
+        "" => String::new(),
+        label => format!(", {label}"),
+    };
+    format!("{what}, {}{label}", stamp(excerpt.at_ms))
+}
+
+/// `2026-11-04 10:12`, local.
+fn stamp(ms: u64) -> String {
+    let iso = crate::meeting::query::iso_local(ms);
+    iso.get(..16).unwrap_or(&iso).replace('T', " ")
 }
 
 fn shortened(text: &str, chars: usize) -> String {
@@ -155,6 +233,7 @@ pub fn split_sources(reply: &str) -> (&str, Vec<&'static str>) {
 /// While a reply streams, the part to show: never a half-written
 /// `Sources:` line.
 pub fn draft(reply: &str) -> &str {
+    let reply = without_open_citation(reply);
     let (body, last) = reply.rsplit_once('\n').unwrap_or(("", reply));
     let head: String = last
         .trim_start_matches(['*', '`', '_', ' '])
@@ -169,13 +248,32 @@ pub fn draft(reply: &str) -> &str {
     }
 }
 
+/// `reply` without a `[1` still being written at its end.
+fn without_open_citation(reply: &str) -> &str {
+    match reply.rfind('[') {
+        Some(open)
+            if reply[open + 1..]
+                .chars()
+                .all(|c| c.is_ascii_digit() || c == ',' || c == ' ') =>
+        {
+            &reply[..open]
+        }
+        _ => reply,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn a_question_carries_the_contents_and_the_articles_search_found() {
-        let prompt = build("Can VibeHex record my Zoom calls?", &[], Room::Large);
+        let prompt = build(
+            "Can VibeHex record my Zoom calls?",
+            &[],
+            Room::Large,
+            Reach::Guide,
+        );
         assert!(prompt.input.contains("<guide_contents>"));
         assert!(prompt.input.contains("topics/privacy: Privacy"));
         assert!(prompt.articles.len() <= 6);
@@ -206,7 +304,7 @@ mod tests {
             question: "first",
             answer: &long,
         }];
-        let prompt = build("и на Windows?", &earlier, Room::Small);
+        let prompt = build("и на Windows?", &earlier, Room::Small, Reach::Guide);
         assert!(prompt.articles.len() <= 3);
         assert!(prompt.input.contains(&format!("{}…", "x".repeat(600))));
         assert!(!prompt.input.contains(&"x".repeat(601)));
@@ -220,7 +318,7 @@ mod tests {
                 answer: "a",
             })
             .collect();
-        let prompt = build("next", &earlier, Room::Large);
+        let prompt = build("next", &earlier, Room::Large, Reach::Guide);
         assert_eq!(prompt.input.matches("<earlier_question>").count(), 8);
     }
 
@@ -232,7 +330,7 @@ mod tests {
             question: "earlier question",
             answer: "earlier answer",
         }];
-        let prompt = build("new question", &earlier, Room::Large);
+        let prompt = build("new question", &earlier, Room::Large, Reach::Guide);
         let mut rest = prompt.input.clone();
         let contents_end = rest.find("</guide_contents>\n").unwrap() + "</guide_contents>\n".len();
         rest.replace_range(..contents_end, "");
@@ -250,10 +348,11 @@ mod tests {
         assert_eq!(rest.trim(), "");
     }
 
-    /// assistant::* never reaches for what a person said or keeps.
+    /// Only `assistant::recordings` reads what a person said or keeps:
+    /// nothing else in `assistant` or in its pane names it.
     #[test]
     fn assistant_code_names_no_personal_data() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/assistant");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let forbidden = [
             "crate::history",
             "meeting::requests",
@@ -261,14 +360,29 @@ mod tests {
             "files::store",
             "keys::get",
         ];
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
-            let text = std::fs::read_to_string(&path).unwrap();
-            let code = text.split("#[cfg(test)]").next().unwrap();
-            for name in forbidden {
-                assert!(!code.contains(name), "{} names {name}", path.display());
+        let mut folders = vec![
+            root.join("src/assistant"),
+            root.join("src/rune_ui/assistant"),
+        ];
+        let mut checked = 0;
+        while let Some(folder) = folders.pop() {
+            for entry in std::fs::read_dir(folder).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    if !path.ends_with("src/assistant/recordings") {
+                        folders.push(path);
+                    }
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).unwrap();
+                let code = text.split("#[cfg(test)]").next().unwrap();
+                for name in forbidden {
+                    assert!(!code.contains(name), "{} names {name}", path.display());
+                }
+                checked += 1;
             }
         }
+        assert!(checked > 10, "only {checked} files checked");
     }
 
     #[test]
@@ -280,6 +394,14 @@ mod tests {
         assert_eq!(ids, ["labs/meetings", "topics/meetings"]);
         assert_eq!(split_sources("No line here").1, Vec::<&str>::new());
         assert_eq!(split_sources("A.\n**Sources:** none"), ("A.", vec![]));
+    }
+
+    #[test]
+    fn a_half_written_citation_never_shows() {
+        assert_eq!(draft("Cut by 15 % [2"), "Cut by 15 % ");
+        assert_eq!(draft("Cut [2][3"), "Cut [2]");
+        assert_eq!(draft("Cut [2]"), "Cut [2]");
+        assert_eq!(draft("A [link"), "A [link");
     }
 
     #[test]

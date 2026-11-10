@@ -215,10 +215,15 @@ fn record_path(dir: &Path, id: &str) -> Result<PathBuf> {
 
 /// Every record, newest first. Unreadable records are skipped and logged.
 pub fn list() -> Vec<FileRecord> {
-    let Ok(dir) = dir() else {
-        return Vec::new();
-    };
-    let Ok(entries) = fs::read_dir(&dir) else {
+    match dir() {
+        Ok(dir) => list_in(&dir),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Every record in `dir`, newest first, read without creating anything.
+pub fn list_in(dir: &Path) -> Vec<FileRecord> {
+    let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
     let mut records: Vec<FileRecord> = entries

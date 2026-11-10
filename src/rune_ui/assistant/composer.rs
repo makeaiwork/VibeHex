@@ -8,7 +8,7 @@ use rune::{El, TextEdit, row};
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::super::files::composer::{self as files, MAX_LINES, SEND_ICON, STOP_ICON};
-use crate::assistant::worker::{self, Question};
+use crate::assistant::worker::{self, Question, Recall};
 use crate::desktop::i18n::tr;
 
 pub(super) const MODEL_MENU: &str = "assistant-model";
@@ -149,6 +149,7 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
             conversation: id,
             question,
             earlier,
+            recall: Recall::Guide,
         },
         engine,
     );

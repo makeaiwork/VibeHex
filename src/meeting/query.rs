@@ -1562,6 +1562,39 @@ fn score(
     hits
 }
 
+/// One passage [`search_passages`] found: a turn's text or a meeting's notes.
+pub struct PassageHit {
+    pub meeting: Arc<Meeting>,
+    /// Into the meeting; 0 for its notes.
+    pub start_ms: u64,
+    pub notes: bool,
+    /// `Me`, `Them`, or `Notes`.
+    pub speaker: &'static str,
+    pub text: String,
+}
+
+/// The passages of `meetings` that match `query`, best first, with the
+/// meeting search's ranking (for Assistant, which builds its own view).
+pub fn search_passages(meetings: &[Arc<Meeting>], query: &str) -> Vec<PassageHit> {
+    let parsed = ParsedQuery::parse(query);
+    if parsed.is_empty() {
+        return Vec::new();
+    }
+    rank(meetings, &parsed, true, &[])
+        .into_iter()
+        .map(|hit| {
+            let passage = &hit.meeting.passages[hit.passage];
+            PassageHit {
+                start_ms: passage.start_ms,
+                notes: passage.kind == PassageKind::Notes,
+                speaker: passage.speaker(),
+                text: passage.text.clone(),
+                meeting: hit.meeting.clone(),
+            }
+        })
+        .collect()
+}
+
 /// One ranked document from [`search_texts`], through its best text.
 #[derive(Debug)]
 pub struct TextHit {

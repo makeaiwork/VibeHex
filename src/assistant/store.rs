@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use color_eyre::eyre::{Result, WrapErr};
 use serde::{Deserialize, Serialize};
 
+use super::recordings::{Ref, Step};
+
 /// The most conversations kept; the least recently used go first.
 const MAX_CONVERSATIONS: usize = 50;
 
@@ -34,6 +36,12 @@ pub struct Turn {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     pub created_ms: u64,
+    /// How it searched the person's recordings; empty for a guide answer.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub steps: Vec<Step>,
+    /// The places in the recordings its `[n]` cite.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refs: Vec<Ref>,
 }
 
 /// One conversation.

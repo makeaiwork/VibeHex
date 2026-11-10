@@ -80,6 +80,8 @@ pub(in super::super) fn answering(ui: &mut Ui) {
         question: "Who writes the notes? Are they good in Russian?".into(),
         draft: "Notes are written by the model set in **Meetings › Settings › Notes**. Apple Intelligence works offline, but".into(),
         started: Instant::now(),
+        steps: Vec::new(),
+        searching: false,
     });
 }
 
