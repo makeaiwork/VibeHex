@@ -12,7 +12,7 @@ pub(super) const ASSISTANT_KEYS: &[Key] = &[
     optional(
         "assistant.engine",
         Kind::Text,
-        "Assistant: where answers run, in files.request_engine's form; none takes the first one connected. Never changes dictation's AI cleanup",
+        "Assistant: where answers run, in files.request_engine's form; none asks the engine dictation's AI cleanup uses. Choosing one never changes dictation's",
     ),
     key(
         "assistant.effort",

@@ -12,7 +12,7 @@ pub struct AssistantSettings {
     pub enabled: bool,
     /// Where answers run, in `files.request_engine`'s form (`codex`,
     /// `codex:<id>`, `local:<id>`, `openrouter`, `custom`, `opencode`);
-    /// `None` takes the first one connected.
+    /// `None` asks the engine dictation's AI cleanup uses.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine: Option<String>,
     /// How hard a Codex model thinks: low, medium, or high; empty for

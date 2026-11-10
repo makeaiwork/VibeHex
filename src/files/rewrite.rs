@@ -183,6 +183,12 @@ impl Engine {
         }
     }
 
+    /// Built in: a model on this Mac with a small window, so Assistant
+    /// gives it fewer guide articles and widens the window while it asks.
+    pub fn is_local(&self) -> bool {
+        self.local().is_some()
+    }
+
     fn local(&self) -> Option<&'static LocalModel> {
         match self {
             Self::Server(server) if server.provider == Provider::Local => {
@@ -246,7 +252,8 @@ impl Engine {
         Ok(text.to_owned())
     }
 
-    pub(super) fn generate(
+    /// One streamed answer, within Files' deadline; Assistant asks with it too.
+    pub(crate) fn generate(
         &self,
         context: u32,
         instructions: &str,
