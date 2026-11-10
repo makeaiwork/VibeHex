@@ -17,16 +17,19 @@ pub(crate) mod dot_scope;
 pub(crate) mod hud_placement;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "macos")]
+pub(crate) use macos::pointer_screen;
 pub(crate) mod spring;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use rune::compose::{Compositor, Frame};
-use rune::{Cx, El, OverlayHandle, OverlayOptions, OverlaySpec, ScreenEdge, el};
+use rune::{Cx, El, LiveRegion, OverlayHandle, OverlayOptions, OverlaySpec, ScreenEdge, el};
 
 use crate::app_settings::IndicatorPosition;
+use crate::desktop::i18n::tr;
 use crate::dictation::indicator::{DictationIndicatorEvent, DotFrame, IndicatorModel};
 use crate::rune_hud::dot_scope::MAX_DOTS;
 #[cfg(not(target_os = "macos"))]
@@ -52,6 +55,8 @@ pub(crate) const WINDOW: (f32, f32) = (304.0, 80.0);
 const NOTCH_RADIUS: f32 = 8.0;
 /// The open island's bottom corner radius.
 const ISLAND_RADIUS: f32 = 18.0;
+/// The notch indicator's bottom corner radius once its ears are out.
+const EARS_RADIUS: f32 = 14.0;
 
 /// The live text's gap from the HUD's plate.
 const LIVE_TEXT_GAP: f32 = 6.0;
@@ -120,8 +125,16 @@ fn set_live_text(spot: Spot) {
 #[derive(Clone)]
 pub(crate) struct HudSender {
     overlay: OverlayHandle<Hud>,
+    /// Whether a capture is active, so an older job's failure never covers
+    /// a newer recording's live notice.
+    recording: Arc<AtomicBool>,
     #[cfg(target_os = "macos")]
     animating: Arc<AtomicBool>,
+    /// `Hud::shown`, so the pump can check the panel's Space without reading
+    /// the overlay's state. It flips when a show or hide is requested, before
+    /// Rune applies the queued one.
+    #[cfg(target_os = "macos")]
+    shown: Arc<AtomicBool>,
     #[cfg(target_os = "windows")]
     watch: Arc<Mutex<Watch>>,
 }
@@ -148,8 +161,35 @@ const FIRST_FRAME: std::time::Duration = std::time::Duration::from_millis(1500);
 
 impl HudSender {
     pub(crate) fn send(&self, event: HudEvent) {
+        if matches!(&event, HudEvent::Started) {
+            self.recording.store(true, Ordering::Release);
+        } else if matches!(
+            &event,
+            HudEvent::Submitted { .. }
+                | HudEvent::Discarded
+                | HudEvent::Cancelled
+                | HudEvent::Failed { .. }
+                | HudEvent::Reset
+        ) {
+            self.recording.store(false, Ordering::Release);
+        }
+        match &event {
+            HudEvent::Started => {
+                crate::rune_ui::live_text::capture_started();
+            }
+            HudEvent::Failed {
+                message: Some(message),
+            } => crate::rune_ui::live_text::show_failure(message),
+            HudEvent::JobFailed {
+                message: Some(message),
+                ..
+            } if !self.recording.load(Ordering::Acquire) => {
+                crate::rune_ui::live_text::show_failure(message)
+            }
+            _ => {}
+        }
         #[cfg(target_os = "windows")]
-        if matches!(event, HudEvent::Started) {
+        if matches!(&event, HudEvent::Started) {
             let presents = self.overlay.surface_stats().totals.presents;
             let mut watch = self.watch.lock().unwrap_or_else(|error| error.into_inner());
             if watch.position != IndicatorPosition::Hidden && watch.pending.is_none() {
@@ -177,12 +217,6 @@ impl HudSender {
         }
         self.overlay
             .update(move |hud, _| hud.set_position(position));
-    }
-
-    /// Whether the HUD ever presented a frame.
-    #[cfg(target_os = "windows")]
-    pub(crate) fn presented(&self) -> bool {
-        self.overlay.surface_stats().totals.presents > 0
     }
 
     /// Why Windows could not show the HUD, for Settings: Rune's reason, or a
@@ -246,7 +280,10 @@ pub(crate) struct Hud {
     position: IndicatorPosition,
     /// The overlay itself, to show and hide it.
     this: Option<OverlayHandle<Hud>>,
-    shown: bool,
+    /// Whether a show is requested. It flips before Rune applies the queued
+    /// show or hide, so the pump's macOS Space check guards on the panel's
+    /// `isVisible` for that gap.
+    shown: Arc<AtomicBool>,
     /// Rune's Reduce Motion, as of the last frame.
     reduce: bool,
     /// Whether the compositor wants the display's frames.
@@ -257,6 +294,10 @@ pub(crate) struct Hud {
     /// display; a capture's start or a hide picks the display again.
     #[cfg(not(target_os = "macos"))]
     edge_placed: Option<IndicatorPosition>,
+    /// The compositor's painter, so a hide that Rune never draws again still
+    /// lets go of it (`release_painter`).
+    #[cfg(not(target_os = "macos"))]
+    gpu: Arc<Mutex<GpuSlot>>,
     /// When the HUD last checked which display the pointer is on.
     #[cfg(not(target_os = "macos"))]
     followed: Option<Instant>,
@@ -270,10 +311,13 @@ impl Hud {
     /// While shown, every `FOLLOW_EVERY`: the HUD and the live text move to
     /// the display under the pointer when it moved to another, at once and
     /// without focus. Windows and X11; a layer-shell surface stays on the
-    /// compositor's focused output, and GNOME and KDE on the primary.
+    /// compositor's focused output, and GNOME and KDE on Wayland on the
+    /// primary.
     #[cfg(not(target_os = "macos"))]
     fn follow_pointer(&mut self, now: Instant) {
-        if !self.shown || self.followed.is_some_and(|at| now < at + FOLLOW_EVERY) {
+        if !self.shown.load(Ordering::Acquire)
+            || self.followed.is_some_and(|at| now < at + FOLLOW_EVERY)
+        {
             return;
         }
         self.followed = Some(now);
@@ -288,17 +332,18 @@ impl Hud {
         // so a placement Rune resolved wrong on another screen (#873)
         // doesn't stick.
         #[cfg(target_os = "macos")]
-        if let HudEvent::ConfigureDotScope(_) | HudEvent::Started = event {
+        if matches!(&event, HudEvent::ConfigureDotScope(_) | HudEvent::Started) {
             self.placed = None;
         }
         #[cfg(not(target_os = "macos"))]
-        if let HudEvent::Started = event {
+        if matches!(&event, HudEvent::Started) {
             self.edge_placed = None;
         }
+        let starts = matches!(&event, HudEvent::Started);
+        let meter = matches!(&event, HudEvent::Meter { .. });
         self.model.handle(event, Instant::now(), self.reduce);
         self.animating.store(true, Ordering::Release);
-        let starts = matches!(event, HudEvent::Started);
-        if starts || (self.shown && !matches!(event, HudEvent::Meter { .. })) {
+        if starts || (self.shown.load(Ordering::Acquire) && !meter) {
             self.show();
         }
     }
@@ -306,7 +351,7 @@ impl Hud {
     #[cfg(not(target_os = "macos"))]
     fn set_position(&mut self, position: IndicatorPosition) {
         self.position = position;
-        if self.shown {
+        if self.shown.load(Ordering::Acquire) {
             self.show();
         }
     }
@@ -355,15 +400,49 @@ impl Hud {
             let past_plate = margin + (WINDOW.1 + PLATE_HEIGHT) / 2.0 + LIVE_TEXT_GAP;
             set_live_text(Spot::Edge(edge, past_plate));
         }
-        if !self.shown {
+        if !self.shown.load(Ordering::Acquire) {
             overlay.show();
-            self.shown = true;
+            self.shown.store(true, Ordering::Release);
         }
         #[cfg(target_os = "macos")]
         HUD_SHOWN.store(true, Ordering::Release);
     }
 
+    /// Hides the overlay once its exit has settled, fading the window out
+    /// on Windows (macOS hides at once, as before) so frames still queued
+    /// for the screen reach it before the window and its GPU surface go
+    /// (#1359).
+    fn fade_out(&mut self) {
+        self.unplace();
+        if self.shown.swap(false, Ordering::AcqRel) {
+            if let Some(overlay) = &self.this {
+                #[cfg(target_os = "windows")]
+                overlay.fade_out(EXIT_FADE);
+                #[cfg(not(target_os = "windows"))]
+                overlay.hide();
+            }
+            #[cfg(not(target_os = "macos"))]
+            release_painter(&self.gpu);
+        }
+        #[cfg(target_os = "macos")]
+        HUD_SHOWN.store(false, Ordering::Release);
+    }
+
     fn hide(&mut self) {
+        self.unplace();
+        if self.shown.swap(false, Ordering::AcqRel) {
+            if let Some(overlay) = &self.this {
+                overlay.hide();
+            }
+            #[cfg(not(target_os = "macos"))]
+            release_painter(&self.gpu);
+        }
+        #[cfg(target_os = "macos")]
+        HUD_SHOWN.store(false, Ordering::Release);
+    }
+
+    /// The next show places the overlay again.
+    fn unplace(&mut self) {
         #[cfg(not(target_os = "macos"))]
         {
             self.edge_placed = None;
@@ -372,22 +451,86 @@ impl Hud {
         {
             self.placed = None;
         }
-        #[cfg(target_os = "macos")]
-        HUD_SHOWN.store(false, Ordering::Release);
-        if std::mem::take(&mut self.shown)
-            && let Some(overlay) = &self.this
-        {
-            overlay.hide();
-        }
     }
+}
+
+/// How long the Windows HUD's window fades after its exit settles.
+#[cfg(target_os = "windows")]
+const EXIT_FADE: Duration = Duration::from_millis(120);
+
+/// How long the hidden HUD keeps its GPU surface: the device it holds costs
+/// about 150 MB and the GPU driver's threads waking some 65 times a second.
+/// Windows gives it back, window included, once the HUD's exit fade ends: a hidden
+/// topmost window that presented with DXGI let NVIDIA's Instant Replay take
+/// Hex for the running game (#1308). The device itself waits five minutes for
+/// the next show either way, so dictations reuse one device (#1268). The
+/// painter goes once Rune's parked device would also have gone, which is this
+/// plus the five minutes Rune parks a device (`PAINTER_IDLE`, #1431); macOS
+/// keeps it.
+#[cfg(not(target_os = "windows"))]
+const GPU_IDLE: Duration = Duration::from_secs(5 * 60);
+#[cfg(target_os = "windows")]
+const GPU_IDLE: Duration = Duration::ZERO;
+
+/// How long the hidden HUD keeps its painter on Windows and Linux, and with it
+/// its own hold on the GPU device: Rune holds the surface for `GPU_IDLE` and
+/// then parks the device for five more minutes, so the painter goes once that
+/// parked device would also have gone and the device actually frees. A burst
+/// of dictations within that time reuses one painter (#1431).
+#[cfg(not(target_os = "macos"))]
+const PAINTER_IDLE: Duration = Duration::from_secs(GPU_IDLE.as_secs() + 5 * 60);
+
+/// The format the HUD draws in on Windows and Linux (Rune drops the
+/// surface's sRGB suffix for `srgb_blend`).
+const HUD_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
+
+/// A painter made ahead of the HUD's first frame on a device `prepare_gpu`
+/// was given.
+static PREBUILT: Mutex<Option<(wgpu::Device, Painter)>> = Mutex::new(None);
+
+/// Makes the HUD's pipeline on `device` off the UI thread, for the HUD's next
+/// first frame: compiling it there takes 75 to 115 ms on Windows. Unclaimed,
+/// it goes after a while, since it keeps the device alive.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub(crate) fn prepare_gpu(device: &wgpu::Device) {
+    let lock = || PREBUILT.lock().unwrap_or_else(|error| error.into_inner());
+    if lock().as_ref().is_some_and(|(made, _)| made == device) {
+        return;
+    }
+    let painter = Painter::new(device, HUD_FORMAT);
+    *lock() = Some((device.clone(), painter));
+    let device = device.clone();
+    let _ = std::thread::Builder::new()
+        .name("hud-prepared".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_secs(70));
+            let mut slot = lock();
+            if slot.as_ref().is_some_and(|(made, _)| *made == device) {
+                slot.take();
+            }
+        });
+}
+
+/// `prepare_gpu`'s painter, when it was made on `device` for `format`.
+fn prebuilt(device: &wgpu::Device, format: wgpu::TextureFormat) -> Option<Painter> {
+    let mut slot = PREBUILT.lock().unwrap_or_else(|error| error.into_inner());
+    slot.as_ref()
+        .is_some_and(|(made, painter)| made == device && painter.format == format)
+        .then(|| slot.take().map(|(_, painter)| painter))
+        .flatten()
 }
 
 /// Adds the HUD's overlay to the app; send its events through the returned
 /// sender.
 pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) -> HudSender {
     let animating = Arc::new(AtomicBool::new(false));
+    let shown = Arc::new(AtomicBool::new(false));
     let now = Instant::now();
     let model = IndicatorModel::new(dot_scope::lab(), now);
+    // The painter the compositor draws with and the HUD lets go of when it
+    // hides.
+    #[cfg(not(target_os = "macos"))]
+    let gpu: Arc<Mutex<GpuSlot>> = Arc::default();
     let overlay = app.overlay(
         OverlaySpec {
             name: "hex-hud",
@@ -400,15 +543,23 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) -> HudSender {
             view,
         }
         .options(OverlayOptions {
-            // The first press never waits on the panel or its pipeline.
-            prewarm: cfg!(target_os = "macos"),
+            // The first press never waits on the window: macOS keeps the
+            // panel drawn at alpha zero; elsewhere only the window waits,
+            // and its GPU surface comes with the show (`release_gpu_after`).
+            prewarm: true,
             #[cfg(not(target_os = "macos"))]
             display: display(),
             ..OverlayOptions::default()
         })
         // The shaders write display (sRGB-encoded) values.
         .srgb_blend(true)
+        // On Linux a burst of dictations keeps the GPU surface, so each HUD
+        // shows at once; a Hex at rest gives the GPU device back.
+        .release_gpu_after(GPU_IDLE)
         .compositor(HudCompositor {
+            #[cfg(not(target_os = "macos"))]
+            gpu: gpu.clone(),
+            #[cfg(target_os = "macos")]
             gpu: None,
             animating: animating.clone(),
         }),
@@ -418,7 +569,7 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) -> HudSender {
             layout: Layout::default(),
             position: IndicatorPosition::Top,
             this: None,
-            shown: false,
+            shown: shown.clone(),
             reduce: false,
             animating: animating.clone(),
             #[cfg(target_os = "macos")]
@@ -427,6 +578,8 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) -> HudSender {
             edge_placed: None,
             #[cfg(not(target_os = "macos"))]
             followed: None,
+            #[cfg(not(target_os = "macos"))]
+            gpu,
         },
     );
     let this = overlay.clone();
@@ -435,8 +588,11 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) -> HudSender {
     let _ = HUD.set(overlay.clone());
     HudSender {
         overlay,
+        recording: Arc::default(),
         #[cfg(target_os = "macos")]
         animating,
+        #[cfg(target_os = "macos")]
+        shown,
         #[cfg(target_os = "windows")]
         watch: Arc::default(),
     }
@@ -447,24 +603,45 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) -> HudSender {
 /// the pointer and pick its monitor; a layer-shell surface pins no output, so
 /// the compositor puts it on the focused one. GNOME (whose HUD runs on
 /// XWayland, blind to the pointer over Wayland windows) and KDE keep the
-/// primary display.
+/// primary display on Wayland; their X11 sessions follow the pointer (#1200).
 #[cfg(not(target_os = "macos"))]
 pub(crate) fn display() -> rune::DisplayTarget {
     #[cfg(target_os = "linux")]
-    if std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|desktops| {
-        desktops.split(':').any(|desktop| {
-            ["GNOME", "KDE"]
-                .iter()
-                .any(|d| desktop.eq_ignore_ascii_case(d))
-        })
-    }) {
+    if keeps_primary_display(
+        std::env::var("XDG_CURRENT_DESKTOP").ok().as_deref(),
+        crate::linux::session::LinuxSession::detect().is_wayland(),
+    ) {
         return rune::DisplayTarget::Primary;
     }
     rune::DisplayTarget::UnderPointer
 }
 
-fn view(_: &Hud, _: &mut Cx<Hud>) -> El {
-    el().key("hud").w_full().h_full()
+/// Whether the HUD stays on the primary display: GNOME and KDE on Wayland
+/// only. On X11 the pointer is readable on every desktop.
+#[cfg(any(target_os = "linux", test))]
+fn keeps_primary_display(desktops: Option<&str>, wayland: bool) -> bool {
+    wayland
+        && desktops.is_some_and(|desktops| {
+            desktops.split(':').any(|desktop| {
+                ["GNOME", "KDE"]
+                    .iter()
+                    .any(|d| desktop.eq_ignore_ascii_case(d))
+            })
+        })
+}
+
+/// The HUD's one element, which the compositor draws over. Screen readers
+/// read it as a status that announces Recording and Transcribing as they
+/// begin; it takes no input, as the overlay is click-through.
+fn view(hud: &Hud, _: &mut Cx<Hud>) -> El {
+    let status = hud.model.status().map_or("", tr);
+    el().key("hud")
+        .w_full()
+        .h_full()
+        .role("status")
+        .label(status)
+        .description(tr("Dictation"))
+        .live_region(LiveRegion::Polite)
 }
 
 /// `DotUniforms` in `rune_hud.wgsl`.
@@ -494,9 +671,11 @@ pub(crate) struct DotUniforms {
     plate_layout: [f32; 4],
     island: [f32; 4],
     field: [f32; 4],
+    /// The notch indicator's done and failed, 0 to 1.
+    ears: [f32; 4],
 }
 
-const _: () = assert!(std::mem::size_of::<DotUniforms>() == 192);
+const _: () = assert!(std::mem::size_of::<DotUniforms>() == 208);
 const DOT_UNIFORM_BYTES: u32 = std::mem::size_of::<DotUniforms>() as u32;
 const DOT_BYTES: u64 = (MAX_DOTS * 4) as u64;
 /// How `rune_hud.wgsl` declares `u` as a uniform buffer; with immediates it
@@ -549,7 +728,13 @@ impl DotUniforms {
             island: layout
                 .island
                 .map_or([0.0; 4], |island| island_shape(island, pose)),
-            field: [field_radius(layout, pose), 0.0, 0.0, 0.0],
+            // The ears draw glyphs, not the field: the notch's half width,
+            // the mode, the voice, and the stage's clock.
+            field: match layout.island {
+                Some(island) if island.ears => [island.notch[0] / 2.0, 1.0, pose.level, pose.clock],
+                _ => [field_radius(layout, pose), 0.0, 0.0, 0.0],
+            },
+            ears: [pose.done, pose.fail, 0.0, 0.0],
         }
     }
 }
@@ -558,6 +743,17 @@ impl DotUniforms {
 /// the plate as it shows, bouncing with it.
 fn island_shape(island: Island, pose: &dot_scope::Pose) -> [f32; 4] {
     let [notch_width, notch_height] = island.notch;
+    if island.ears {
+        // The notch's height throughout, widening to the island's width.
+        let half_width = notch_width / 2.0;
+        let grow = pose.reveal;
+        return [
+            half_width + (island.width / 2.0 - half_width) * grow,
+            notch_height,
+            island.top,
+            (NOTCH_RADIUS + (EARS_RADIUS - NOTCH_RADIUS) * grow.min(1.0)).min(notch_height / 2.0),
+        ];
+    }
     let pad = ISLAND_PAD as f32;
     let grow = pose.reveal;
     let half_width = notch_width / 2.0;
@@ -627,8 +823,101 @@ struct HudCompositor {
     /// The painter and the device its buffers live on: an overlay shown
     /// again can draw on another device (#982). Keyed by Rune's device key,
     /// since wgpu compares a new Rune GPU's device equal to the old one.
+    ///
+    /// Windows and Linux let go of it once the HUD has been hidden for
+    /// `PAINTER_IDLE`, and with it the GPU device its buffers hold; macOS
+    /// keeps it (#1431).
+    #[cfg(not(target_os = "macos"))]
+    gpu: Arc<Mutex<GpuSlot>>,
+    #[cfg(target_os = "macos")]
     gpu: Option<(rune::compose::DeviceKey, Painter)>,
     animating: Arc<AtomicBool>,
+}
+
+/// What the HUD draws with, shared so it can be let go of while the HUD is
+/// hidden (#1431).
+#[cfg(not(target_os = "macos"))]
+#[derive(Default)]
+struct GpuSlot {
+    painter: Option<(rune::compose::DeviceKey, Painter)>,
+    /// Bumped by every frame the painter draws, so a release thread drops it
+    /// only when the HUD drew nothing since it started.
+    generation: u64,
+    /// The generation a release thread already waits on.
+    releasing: Option<u64>,
+}
+
+/// The painter that draws `f`, made on its device and format when `gpu` has
+/// none for them.
+fn painter<'a>(
+    gpu: &'a mut Option<(rune::compose::DeviceKey, Painter)>,
+    f: &Frame<'_, Hud>,
+) -> &'a Painter {
+    if gpu
+        .as_ref()
+        .is_none_or(|(device, painter)| *device != f.device_key() || painter.format != f.format)
+    {
+        tracing::info!(gpu = %rune::describe_gpu(f.device), "HUD draws");
+        let painter =
+            prebuilt(f.device, f.format).unwrap_or_else(|| Painter::new(f.device, f.format));
+        *gpu = Some((f.device_key(), painter));
+    }
+    &gpu.as_ref().expect("created above").1
+}
+
+impl HudCompositor {
+    /// Writes and draws the frame's dots; the lock keeps a pending release
+    /// from dropping the painter mid-frame.
+    #[cfg(not(target_os = "macos"))]
+    fn draw(&self, f: &mut Frame<'_, Hud>, drawn: &DotFrame, layout: Layout, target: Target) {
+        let mut gpu = self.gpu.lock().unwrap_or_else(|error| error.into_inner());
+        gpu.generation = gpu.generation.wrapping_add(1);
+        let painter = painter(&mut gpu.painter, f);
+        paint(painter, f, drawn, layout, target);
+    }
+}
+
+/// Lets go of the painter, and with its buffers, bind group and pipeline the
+/// GPU device they hold (#1431): Windows and Linux keep it for `PAINTER_IDLE`
+/// hidden, so the device frees once Rune's parked device also goes and a burst
+/// of dictations within that time reuses one painter. Both the compositor when
+/// the HUD stops drawing and a hide Rune never draws again call it.
+#[cfg(not(target_os = "macos"))]
+fn release_painter(gpu: &Arc<Mutex<GpuSlot>>) {
+    let mut slot = gpu.lock().unwrap_or_else(|error| error.into_inner());
+    let generation = slot.generation;
+    if slot.painter.is_none() || slot.releasing == Some(generation) {
+        return;
+    }
+    slot.releasing = Some(generation);
+    drop(slot);
+    let slot = gpu.clone();
+    let _ = std::thread::Builder::new()
+        .name("hud-release".into())
+        .spawn(move || {
+            std::thread::sleep(PAINTER_IDLE);
+            let mut slot = slot.lock().unwrap_or_else(|error| error.into_inner());
+            if slot.generation == generation {
+                slot.painter = None;
+            }
+            if slot.releasing == Some(generation) {
+                slot.releasing = None;
+            }
+        });
+}
+
+/// Writes the frame's dots through `painter` and draws them.
+fn paint(
+    painter: &Painter,
+    f: &mut Frame<'_, Hud>,
+    drawn: &DotFrame,
+    layout: Layout,
+    target: Target,
+) {
+    let uniforms = painter.write(drawn, layout, target, |buffer, data| {
+        f.write_buffer(buffer, 0, data)
+    });
+    painter.draw(f.encoder, f.target, &uniforms);
 }
 
 impl Compositor<Hud> for HudCompositor {
@@ -657,7 +946,7 @@ impl Compositor<Hud> for HudCompositor {
             hud.follow_pointer(Instant::now());
         }
         if !active {
-            hud.hide();
+            hud.fade_out();
             drop(clear_pass(f.encoder, f.target));
             return;
         }
@@ -665,18 +954,10 @@ impl Compositor<Hud> for HudCompositor {
             drop(clear_pass(f.encoder, f.target));
             return;
         };
-        if self
-            .gpu
-            .as_ref()
-            .is_none_or(|(device, gpu)| *device != f.device_key() || gpu.format != f.format)
-        {
-            self.gpu = Some((f.device_key(), Painter::new(f.device, f.format)));
-        }
-        let (_, gpu) = self.gpu.as_ref().expect("created above");
-        let uniforms = gpu.write(&drawn, layout, target, |buffer, data| {
-            f.write_buffer(buffer, 0, data)
-        });
-        gpu.draw(f.encoder, f.target, &uniforms);
+        #[cfg(target_os = "macos")]
+        paint(painter(&mut self.gpu, f), f, &drawn, layout, target);
+        #[cfg(not(target_os = "macos"))]
+        self.draw(f, &drawn, layout, target);
         f.rt.state.drawn = Some(drawn);
     }
 }

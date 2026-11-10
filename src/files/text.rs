@@ -79,12 +79,19 @@ pub fn clock(ms: u64) -> String {
 
 /// A length for the list: `42 min`, `1 h 12 min`, `40 s`.
 pub fn length(ms: u64) -> String {
+    use crate::desktop::i18n::{tr_fill, tr_named};
     let minutes = (ms + 30_000) / 60_000;
     match minutes {
-        0 => format!("{} s", ms / 1_000),
-        1..=59 => format!("{minutes} min"),
-        _ if minutes.is_multiple_of(60) => format!("{} h", minutes / 60),
-        _ => format!("{} h {} min", minutes / 60, minutes % 60),
+        0 => tr_fill("{} s", &(ms / 1_000).to_string()),
+        1..=59 => tr_fill("{} min", &minutes.to_string()),
+        _ if minutes.is_multiple_of(60) => tr_fill("{} h", &(minutes / 60).to_string()),
+        _ => tr_named(
+            "{hours} h {minutes} min",
+            &[
+                ("hours", &(minutes / 60).to_string()),
+                ("minutes", &(minutes % 60).to_string()),
+            ],
+        ),
     }
 }
 

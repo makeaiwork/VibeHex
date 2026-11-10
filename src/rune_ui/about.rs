@@ -30,7 +30,7 @@ pub(super) fn pane(_ui: &Ui, p: Paint) -> El {
         .child(app_card(p))
         .child(fork_card(p))
         .child(developer(p));
-    super::scroll_body("scroll", content)
+    super::scroll_body(p.k, "scroll", content)
 }
 
 /// The logo, the name, and the version.

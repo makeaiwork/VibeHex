@@ -73,7 +73,8 @@ pub fn missing(screen: bool) -> Option<(CaptureNeed, NeedState)> {
 }
 
 /// How `need` stands now: `None` once a capture can use it. Never blocks
-/// unless `fresh`: Screen Recording then reads through a new helper.
+/// unless `fresh`: Screen Recording then reads through a new helper, else it
+/// follows the watched cache a visible permission surface polls.
 #[cfg(target_os = "macos")]
 pub fn state_of(need: CaptureNeed, fresh: bool) -> Option<NeedState> {
     use super::ScreenAccess;
@@ -85,7 +86,7 @@ pub fn state_of(need: CaptureNeed, fresh: bool) -> Option<NeedState> {
             let access = if fresh {
                 super::screen_access_now()
             } else {
-                super::screen_access()
+                super::screen_access_watched()
             };
             match access {
                 ScreenAccess::Allowed => None,
@@ -158,8 +159,8 @@ pub fn on_missing(show: impl Fn(CaptureNeed) + Send + Sync + 'static) {
     let _ = HELPER.set(Box::new(show));
 }
 
-/// A capture was refused for `need`.
-pub(super) fn report(need: CaptureNeed) {
+/// A capture (or a screenshot) was refused for `need`.
+pub fn report(need: CaptureNeed) {
     #[cfg(target_os = "macos")]
     crate::desktop::permission_guide::clear_legacy_entries_async(need.kind());
     if let Some(show) = HELPER.get() {

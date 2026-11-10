@@ -15,6 +15,8 @@ use crate::desktop::host::{ReleaseNotes, UpdateNotes};
 
 /// Where What's new goes when a release names no page of its own.
 const PAGE: &str = "https://github.com/makeaiwork/hex/releases";
+/// A release's own notes, as `scripts/publish-vibehex.sh` tags it.
+const RELEASES: &str = "https://github.com/makeaiwork/hex/releases/tag";
 const TIMEOUT: Duration = Duration::from_secs(30);
 /// Releases listed, newest first; an install further behind sees the latest.
 const MAX_RELEASES: usize = 20;
@@ -81,6 +83,33 @@ fn date(build: &Value) -> Option<String> {
         _ => byte.is_ascii_digit(),
     });
     shaped.then(|| day.to_string())
+}
+
+/// A plain `major.minor.patch`, with no suffix.
+fn is_stable_version(version: &str) -> bool {
+    fn digits(part: Option<&str>) -> bool {
+        part.is_some_and(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+    }
+    let mut parts = version.split('.');
+    digits(parts.next()) && digits(parts.next()) && digits(parts.next()) && parts.next().is_none()
+}
+
+/// A VibeHex release's version: `major.minor.patch-vibe.N`.
+fn is_vibe_version(version: &str) -> bool {
+    version.split_once("-vibe.").is_some_and(|(stable, build)| {
+        is_stable_version(stable)
+            && !build.is_empty()
+            && build.bytes().all(|byte| byte.is_ascii_digit())
+    })
+}
+
+/// Where the release notes for a running version are: the fork's GitHub
+/// release for a VibeHex or plain release, and nothing for any other
+/// version. The sidebar asks only on a release build, so a local or test
+/// build with a plain version still shows no link.
+pub fn release_notes_url(running: &str) -> Option<String> {
+    (is_vibe_version(running) || is_stable_version(running))
+        .then(|| format!("{RELEASES}/v{running}"))
 }
 
 /// The releases from `offered` (newest first) back to, not including,
@@ -189,5 +218,36 @@ mod tests {
             url("https://github.com/makeaiwork/hex/releases/download/updates/stable.json"),
             "https://github.com/makeaiwork/hex/releases/download/updates/stable-notes.json"
         );
+    }
+
+    #[test]
+    fn a_vibehex_release_opens_its_github_release() {
+        assert_eq!(
+            release_notes_url("3.3.0-vibe.6").as_deref(),
+            Some("https://github.com/makeaiwork/hex/releases/tag/v3.3.0-vibe.6")
+        );
+        assert_eq!(
+            release_notes_url("3.3.0").as_deref(),
+            Some("https://github.com/makeaiwork/hex/releases/tag/v3.3.0")
+        );
+    }
+
+    #[test]
+    fn an_odd_version_has_no_release_notes() {
+        for version in [
+            "0.0.0-dev-local-abc1234",
+            "0.0.0-local-abc1234-dirty",
+            "3.3",
+            "3.3.0.1",
+            "3.3.0-beta.1",
+            "3.3.0-dev-4",
+            "0.0.0-dev-12",
+            "3.3.0-vibe.",
+            "3.3.0-vibe.x",
+            "v3.3.0",
+            "",
+        ] {
+            assert_eq!(release_notes_url(version), None, "{version}");
+        }
     }
 }

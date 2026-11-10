@@ -43,6 +43,53 @@ use crate::audio::recording_environment::{
 
 const TIMELINE_BUFFER_DURATION: Duration = Duration::from_secs(10);
 const PRE_ROLL_DURATION: Duration = Duration::from_millis(450);
+
+/// How much audio a shortcut capture keeps from before its press. Muting,
+/// pausing, or lowering other audio while dictating takes effect only after
+/// the press, so the audio before it holds whatever was playing (#1309,
+/// #1468): those captures keep none. Doing nothing keeps
+/// [`PRE_ROLL_DURATION`].
+pub fn hotkey_pre_roll(behavior: crate::app_settings::RecordingAudioBehavior) -> Duration {
+    use crate::app_settings::RecordingAudioBehavior::{DoNothing, Duck, Mute, PauseMedia};
+    match behavior {
+        Mute | PauseMedia | Duck => Duration::ZERO,
+        DoNothing => PRE_ROLL_DURATION,
+    }
+}
+/// What started a dictation, and so how its transcript is handled: the
+/// dictation shortcut and a local API client dictate normally, Dictate
+/// without processing skips Output, and Labs › Terminal paste always pastes
+/// with Ctrl+Shift+V. Only the Windows and Linux listeners use it.
+#[cfg_attr(not(any(target_os = "windows", target_os = "linux")), allow(dead_code))]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum DictationFlavour {
+    #[default]
+    Normal,
+    /// Dictate without processing: the transcript is pasted as heard.
+    Raw,
+    /// Labs › Terminal paste shortcut: processed like a normal dictation,
+    /// but pasted with Ctrl+Shift+V whatever Terminal paste says.
+    TerminalPaste,
+}
+
+#[cfg_attr(not(any(target_os = "windows", target_os = "linux")), allow(dead_code))]
+impl DictationFlavour {
+    /// Whether Output's steps are skipped and History says Raw.
+    pub fn raw(self) -> bool {
+        self == Self::Raw
+    }
+
+    /// Whether this paste always sends Ctrl+Shift+V.
+    pub fn terminal_paste(self) -> bool {
+        self == Self::TerminalPaste
+    }
+
+    /// Whether the plain dictation shortcut owns the capture.
+    pub fn normal(self) -> bool {
+        self == Self::Normal
+    }
+}
+
 pub const MINIMUM_HOLD_DURATION: Duration = Duration::from_millis(300);
 /// Audio kept after a shortcut release that finishes a capture, because a
 /// release often lands while the last word is still sounding.
@@ -50,6 +97,14 @@ pub const POST_RELEASE_TAIL: Duration = Duration::from_millis(200);
 /// The longest a release tail grows while speech carries on past
 /// [`POST_RELEASE_TAIL`] (a word still being said as the shortcut goes up).
 pub const MAX_RELEASE_TAIL: Duration = Duration::from_millis(600);
+/// A step in the microphone timeline larger than this is a gap.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+pub(crate) const CHUNK_GAP_TOLERANCE: Duration = Duration::from_millis(50);
+/// On macOS, gaps up to this long (a Bluetooth stream's startup hiccup is
+/// ~140 ms) are filled with silence so the capture keeps going; longer ones
+/// fail it.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub(crate) const MAX_PADDED_GAP: Duration = Duration::from_millis(250);
 /// Speech frames in a row (20 ms each) that count as still talking: a key
 /// click is far shorter.
 const TAIL_SPEECH_FRAMES: usize = 5;
@@ -399,6 +454,15 @@ impl DictationClip {
         }
     }
 
+    /// Whether every sample through the release is exactly zero. A real
+    /// microphone always carries some noise, so this is a stream still
+    /// running but delivering digital silence (#1122), not a quiet room.
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    pub fn is_digital_silence(&self) -> bool {
+        let released = self.released();
+        !released.is_empty() && released.iter().all(|&sample| sample == 0.0)
+    }
+
     /// Whether the capture holds no speech worth transcribing: its level
     /// stays below the silence threshold or, once the speech detector is
     /// installed, the detector finds no speech in it (a key click, the start
@@ -608,11 +672,18 @@ struct Recording {
     recorded_through: Option<CaptureInstant>,
     /// How much of the recording precedes the press.
     pre_press: Duration,
+    /// Source samples still to arrive that precede the pre-roll, dropped as
+    /// they come (a press ahead of the newest audio).
+    skip_samples: usize,
     press_lead_ms: Option<i64>,
     max_chunk_gap: Duration,
     input_buffer: Vec<f32>,
     resampler: Option<Fft<f32>>,
     stream: Option<LiveStream>,
+    /// Whether this recording's stream should show the live text plate,
+    /// decided once when the stream opens so toggling Labs › Live text
+    /// mid-capture changes nothing.
+    show_live_text: bool,
     voice: VoiceTrack,
     /// This recording's hold on the HUDs' live text, from its first text;
     /// dropping the recording clears it.
@@ -680,11 +751,13 @@ impl Recording {
             source_rate,
             recorded_through: None,
             pre_press: Duration::ZERO,
+            skip_samples: 0,
             press_lead_ms: None,
             max_chunk_gap: Duration::ZERO,
             input_buffer: Vec::with_capacity(Self::CHUNK_SIZE),
             resampler,
             stream: None,
+            show_live_text: false,
             voice: VoiceTrack::default(),
             live_text: None,
             #[cfg(target_os = "macos")]
@@ -724,7 +797,9 @@ impl Recording {
                 .max_chunk_gap
                 .max(captured_from.duration_since(previous));
         }
-        self.push(samples);
+        let skip = self.skip_samples.min(samples.len());
+        self.skip_samples -= skip;
+        self.push(&samples[skip..]);
         self.track_voice();
         self.recorded_through = Some(captured_through);
     }
@@ -860,8 +935,38 @@ impl DictationCapture {
         self.start_with_pre_roll(now, PRE_ROLL_DURATION, false);
     }
 
+    #[cfg(test)]
     pub fn start_at(&mut self, occurred_at: CaptureInstant) {
-        self.start_from_timeline(occurred_at, PRE_ROLL_DURATION, false)
+        self.start_hotkey_at(occurred_at, PRE_ROLL_DURATION)
+    }
+
+    /// Starts a shortcut recording at `occurred_at`, keeping `pre_roll` of
+    /// the audio before it (see [`hotkey_pre_roll`]).
+    pub fn start_hotkey_at(&mut self, occurred_at: CaptureInstant, pre_roll: Duration) {
+        self.start_from_timeline(occurred_at, pre_roll, false)
+    }
+
+    /// Starts a shortcut recording at `pressed_at`, which may lie past the
+    /// newest audio: a microphone that delivers large chunks has not yet
+    /// handed over what it captured before the press (#1309). Exactly
+    /// `pre_roll` before the press is kept, however large the chunks; what
+    /// precedes it in audio still to arrive is dropped as it comes.
+    #[cfg(any(test, target_os = "linux"))]
+    pub fn start_at_press(&mut self, pressed_at: CaptureInstant, pre_roll: Duration) {
+        let Some(through) = self.ring_captured_through else {
+            return self.start(pressed_at);
+        };
+        let Some(ahead) = pressed_at.checked_duration_since(through) else {
+            return self.start_hotkey_at(pressed_at, pre_roll);
+        };
+        self.start_with_pre_roll(pressed_at, pre_roll.saturating_sub(ahead), false);
+        let skip = samples_for(ahead.saturating_sub(pre_roll), self.sample_rate);
+        if let Some(recording) = &mut self.recording {
+            recording.pre_press += ahead.min(pre_roll);
+            recording.skip_samples = skip;
+            recording.recorded_through = Some(through);
+            recording.press_lead_ms = Some(signed_ms(through, pressed_at));
+        }
     }
 
     pub fn start_programmatic_at(&mut self, occurred_at: CaptureInstant) {
@@ -1070,18 +1175,16 @@ impl DictationCapture {
         self.recording.as_mut()?.stream.as_mut()?.take_partial()
     }
 
-    /// Shows the live text on the HUDs when it changed, and logs at debug
-    /// how far it has got: word counts against the audio fed, never the
-    /// words (the engine logs each stream's count of changes). Every OS's
-    /// capture loop calls it after ingesting audio; it does nothing without
-    /// live text.
-    pub fn report_live_text(&mut self) {
-        let Some(partial) = self.take_partial() else {
-            return;
-        };
-        let Some(recording) = &mut self.recording else {
-            return;
-        };
+    /// Shows the live text on the HUDs when it changed and Labs › Live text
+    /// (or the first run's practice) wants it, and logs at debug how far it
+    /// has got: word counts against the audio fed, never the words (the
+    /// engine logs each stream's count of changes). Every OS's capture loop
+    /// calls it after ingesting audio; it does nothing without live text. The
+    /// change is also returned, so a host can send it to Live typing's input
+    /// method or a `/dictations` client without showing the plate.
+    pub fn report_live_text(&mut self) -> Option<Partial> {
+        let partial = self.take_partial()?;
+        let recording = self.recording.as_mut()?;
         tracing::debug!(
             fed_ms = recording
                 .stream
@@ -1091,10 +1194,13 @@ impl DictationCapture {
             tentative_words = partial.tentative.split_whitespace().count(),
             "live text"
         );
-        recording
-            .live_text
-            .get_or_insert_with(crate::dictation::live_text::Publisher::new)
-            .show(&partial);
+        if recording.show_live_text {
+            recording
+                .live_text
+                .get_or_insert_with(crate::dictation::live_text::Publisher::new)
+                .show(&partial);
+        }
+        Some(partial)
     }
 
     /// Opens a live stream for the active recording when the engine's model
@@ -1107,6 +1213,8 @@ impl DictationCapture {
         };
         if recording.stream.is_none() {
             recording.stream = engine.begin();
+            recording.show_live_text = recording.stream.is_some()
+                && (crate::labs::live_text() || crate::dictation::live_text::board_demanded());
             recording.feed_stream();
         }
     }
@@ -1426,6 +1534,110 @@ mod tests {
         };
         assert_eq!(clip.duration_ms(), 1_250);
         assert_eq!(clip.samples.first(), Some(&6.0));
+    }
+
+    /// Ingests `count` chunks of `chunk` length after `from`, chunk `n`
+    /// filled with `first + n`; returns the end of the last.
+    fn ingest_chunks(
+        capture: &mut DictationCapture,
+        from: CaptureInstant,
+        chunk: Duration,
+        first: usize,
+        count: usize,
+    ) -> CaptureInstant {
+        let mut through = from;
+        for index in 0..count {
+            through = through + chunk;
+            let samples = samples_for(chunk, 16_000);
+            capture.ingest(&vec![(first + index) as f32; samples], through);
+        }
+        through
+    }
+
+    #[test]
+    fn a_press_inside_a_large_chunk_keeps_exactly_the_pre_roll() {
+        // 500 ms chunks: the press is 300 ms past the newest audio, so 150 ms
+        // of it is kept and the rest of the pre-roll arrives next.
+        let chunk = Duration::from_millis(500);
+        let mut capture = DictationCapture::new(16_000);
+        let through = ingest_chunks(&mut capture, capture_time(), chunk, 1, 2);
+        let pressed = through + Duration::from_millis(300);
+        capture.start_at_press(pressed, PRE_ROLL_DURATION);
+        assert_eq!(capture.recorded_from(0), [2.0; 2_400]);
+        let through = ingest_chunks(&mut capture, through, chunk, 3, 2);
+        let Finish::Transcribe(clip) = capture.finish(through) else {
+            panic!("expected transcription")
+        };
+        assert_eq!(clip.duration_ms(), 450 + 700);
+        assert_eq!(clip.press_samples, 7_200);
+        assert_eq!(clip.samples.iter().filter(|&&s| s == 2.0).count(), 2_400);
+
+        // 1 s chunks: the press is 800 ms past the newest audio, so nothing
+        // buffered is kept and the next chunk loses its first 350 ms.
+        let chunk = Duration::from_secs(1);
+        let mut capture = DictationCapture::new(16_000);
+        let through = ingest_chunks(&mut capture, capture_time(), chunk, 1, 1);
+        let pressed = through + Duration::from_millis(800);
+        capture.start_at_press(pressed, PRE_ROLL_DURATION);
+        assert!(capture.recorded_from(0).is_empty());
+        ingest_chunks(&mut capture, through, chunk, 2, 2);
+        let Finish::Transcribe(clip) = capture.finish(pressed + Duration::from_secs(1)) else {
+            panic!("expected transcription")
+        };
+        assert_eq!(clip.duration_ms(), 450 + 1_000);
+        assert_eq!(clip.samples.first(), Some(&2.0));
+        assert_eq!(clip.samples.iter().filter(|&&s| s == 2.0).count(), 10_400);
+    }
+
+    #[test]
+    fn a_press_ahead_of_large_chunks_measures_the_hold_from_the_press() {
+        let chunk = Duration::from_secs(1);
+        let mut tap = DictationCapture::new(16_000);
+        let through = ingest_chunks(&mut tap, capture_time(), chunk, 1, 1);
+        let pressed = through + Duration::from_millis(800);
+        tap.start_at_press(pressed, PRE_ROLL_DURATION);
+        // The next chunk ends 200 ms after the press: not yet a hold.
+        let through = ingest_chunks(&mut tap, through, chunk, 2, 1);
+        assert!(!tap.become_intentional(through));
+        assert!(matches!(
+            tap.finish(pressed + Duration::from_millis(299)),
+            Finish::Discard
+        ));
+
+        let mut held = DictationCapture::new(16_000);
+        let through = ingest_chunks(&mut held, capture_time(), chunk, 1, 1);
+        held.start_at_press(pressed, PRE_ROLL_DURATION);
+        // Released before the next chunk arrives, yet held long enough.
+        assert!(held.would_transcribe(pressed + MINIMUM_HOLD_DURATION));
+        let through = ingest_chunks(&mut held, through, chunk, 2, 1);
+        assert!(!held.become_intentional(through));
+        assert!(held.become_intentional(pressed + MINIMUM_HOLD_DURATION));
+    }
+
+    #[test]
+    fn suppressing_audio_while_dictating_keeps_no_pre_roll() {
+        use crate::app_settings::RecordingAudioBehavior::{DoNothing, Duck, Mute, PauseMedia};
+        for (behavior, kept) in [(Mute, 0), (PauseMedia, 0), (Duck, 0), (DoNothing, 7_200)] {
+            let pre_roll = hotkey_pre_roll(behavior);
+            let origin = capture_time();
+            let mut warm = DictationCapture::new(16_000);
+            warm.ingest(&[0.25; 16_000], origin);
+            warm.start_hotkey_at(origin, pre_roll);
+            assert_eq!(warm.recorded_from(0).len(), kept, "{behavior:?}");
+
+            // A press 200 ms past the newest audio: with no pre-roll, the
+            // audio still to arrive before the press is dropped too.
+            let mut ahead = DictationCapture::new(16_000);
+            ahead.ingest(&[0.25; 16_000], origin);
+            let pressed = origin + Duration::from_millis(200);
+            ahead.start_at_press(pressed, pre_roll);
+            ahead.ingest(&[0.5; 8_000], origin + Duration::from_millis(500));
+            let Finish::Transcribe(clip) = ahead.finish(origin + Duration::from_millis(500)) else {
+                panic!("expected transcription")
+            };
+            assert_eq!(clip.press_samples, kept, "{behavior:?}");
+            assert_eq!(clip.samples.len(), kept + 4_800, "{behavior:?}");
+        }
     }
 
     #[test]
@@ -1922,6 +2134,50 @@ mod tests {
                 tentative: " is".into(),
             }
         }
+    }
+
+    #[test]
+    fn the_plate_follows_the_decision_made_when_the_stream_opened() {
+        use crate::transcription::engine::Command;
+        let (engine, commands) = TranscriptionEngine::for_test();
+        let engine = engine.with_live_text();
+        let start = capture_time();
+        let mut capture = DictationCapture::new(16_000);
+        capture.start(start);
+        assert!(capture.become_intentional(start + MINIMUM_HOLD_DURATION));
+        capture.begin_stream(&engine);
+        let partials = commands
+            .try_iter()
+            .find_map(|command| match command {
+                Command::Begin { partials, .. } => partials,
+                _ => None,
+            })
+            .expect("a stream");
+        capture.ingest(&[0.5; 16_000], start + Duration::from_secs(1));
+        // The decision is the recording's, captured when the stream opened;
+        // a later toggle never re-decides it.
+        capture
+            .recording
+            .as_mut()
+            .expect("recording")
+            .show_live_text = false;
+        partials.publish(Partial {
+            stable: "hello".into(),
+            tentative: String::new(),
+        });
+        assert_eq!(
+            capture.report_live_text().map(|partial| partial.stable),
+            Some("hello".into())
+        );
+        assert!(
+            capture
+                .recording
+                .as_ref()
+                .expect("recording")
+                .live_text
+                .is_none(),
+            "the plate needs the decision made when the stream opened"
+        );
     }
 
     #[test]

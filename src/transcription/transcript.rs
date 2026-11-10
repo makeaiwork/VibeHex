@@ -24,6 +24,7 @@ pub struct Transcript {
 /// tokens but not its words (GigaAM): a token starting with `▁` or a space
 /// starts a word, any other (a word's next piece, punctuation) joins the
 /// word before it. Each token is its start, end, and text.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn words_from_tokens<'a>(
     tokens: impl IntoIterator<Item = (i64, i64, &'a str)>,
 ) -> Vec<TranscriptSegment> {

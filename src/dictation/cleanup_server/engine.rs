@@ -16,7 +16,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, MutexGuard, OnceLock, TryLockError};
+use std::sync::{Mutex, MutexGuard, TryLockError};
 use std::time::{Duration, Instant};
 
 use color_eyre::eyre::{Result, WrapErr, bail, eyre};
@@ -248,7 +248,7 @@ pub fn stop_model(model: &str) {
 /// Started once by the app.
 #[cfg(target_os = "macos")]
 pub fn start_watcher() {
-    static STARTED: OnceLock<()> = OnceLock::new();
+    static STARTED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
     if STARTED.set(()).is_err() {
         return;
     }

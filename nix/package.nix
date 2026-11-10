@@ -70,6 +70,23 @@ let
     # Annotate runs ffmpeg and ffprobe; the headless build includes libx264.
     ffmpeg-headless
   ];
+  # Every Git dependency Cargo.lock pins, with the revision its output hash was
+  # computed from. scripts/check-nix-git-pins.py fails a pull request that bumps
+  # one without the other, before Nix reports a hash mismatch.
+  cargoGitDependencies = {
+    "transcribe-rs-0.3.11" = {
+      rev = "e37c66b6df43af51fde8dec34f98a07aaf09564c";
+      hash = "sha256-MJJiug3LfbKsuHcL2+LJk95+j5kk/MWzb5ihdBlHLmE=";
+    };
+    "rune-0.0.1" = {
+      rev = "39301f6793266450a057f270da06b048a689be96";
+      hash = "sha256-tZv7aKrF05EugtRNaCVYl5+33gFbiHqnbKGWCfOpNeo=";
+    };
+    "transcribe-cpp-sys-0.4.1" = {
+      rev = "bcb639faa4c74a2300ba19e30360cb2355b1663a";
+      hash = "sha256-1VztJ0VhPTjAuk4J0NT9KapDOqplegpHOqHsTpfHXWc=";
+    };
+  };
 in
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "hex";
@@ -97,11 +114,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   cargoLock = {
     lockFile = ../Cargo.lock;
-    outputHashes = {
-      "transcribe-rs-0.3.11" = "sha256-MJJiug3LfbKsuHcL2+LJk95+j5kk/MWzb5ihdBlHLmE=";
-      "rune-0.0.1" = "sha256-V4z8nWvZjj3p4dZZOaFTengYIYqwOQu8aktCJvtNxwA=";
-      "transcribe-cpp-sys-0.4.1" = "sha256-AP8+t4baAzjOVJo76vodPoWv8lrFLR2tsXvsrbMFeSk=";
-    };
+    outputHashes = builtins.mapAttrs (_: dependency: dependency.hash) cargoGitDependencies;
   };
 
   nativeBuildInputs = [

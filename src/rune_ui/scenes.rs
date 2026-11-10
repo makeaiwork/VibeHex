@@ -80,6 +80,44 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = mac_fixture();
         ui.pane = Pane::About;
     }),
+    ("history-menu", |ui| {
+        *ui = portal_fixture();
+        ui.history = history::HistoryPane::fixture();
+        ui.pane = Pane::History;
+        ui.open = Some(Menu::HistoryRetention);
+    }),
+    ("history-clear", |ui| {
+        *ui = portal_fixture();
+        ui.history = history::HistoryPane::fixture();
+        ui.history.clear_armed = true;
+        ui.pane = Pane::History;
+    }),
+    // Labs › Dictation stats: the Stats button with its dialog open.
+    ("history-stats", |ui| {
+        *ui = portal_fixture();
+        ui.history = history::HistoryPane::fixture();
+        ui.history.stats = Some(history::HistoryPane::fixture_stats());
+        ui.history.stats_open = true;
+        ui.settings.labs.history_stats = true;
+        crate::labs::apply(&ui.settings.labs);
+        ui.pane = Pane::History;
+    }),
+    // Labs › Screenshots' Captures: a shot, a recording with its words, and
+    // an older shot; and before any.
+    #[cfg(hex_capture)]
+    ("captures", |ui| {
+        *ui = portal_fixture();
+        ui.settings.labs.screenshots = true;
+        ui.captures = captures::CapturesPane::fixture();
+        ui.pane = Pane::Captures;
+    }),
+    #[cfg(hex_capture)]
+    ("captures-empty", |ui| {
+        *ui = portal_fixture();
+        ui.settings.labs.screenshots = true;
+        ui.captures = captures::CapturesPane::fixture_empty();
+        ui.pane = Pane::Captures;
+    }),
     ("history-empty", |ui| {
         *ui = portal_fixture();
         ui.history = history::HistoryPane::fixture_empty();
@@ -411,6 +449,21 @@ pub(super) const SCENES: &[Scene] = &[
         ui.picker.installed = Some(vec![TranscriptionModelId::CohereTranscribe]);
         vocabulary::fixture(ui, true);
     }),
+    // Whisper reads only the terms that fit its prompt: the sheet says how many.
+    ("vocabulary-budget", |ui| {
+        *ui = portal_fixture();
+        ui.settings.transcription.model = TranscriptionModelId::WhisperLargeV3Turbo;
+        ui.picker.installed = Some(vec![TranscriptionModelId::WhisperLargeV3Turbo]);
+        vocabulary::fixture(ui, true);
+        let entries: Vec<_> = (1..=52)
+            .map(|n| crate::dictation::vocabulary::VocabularyEntry {
+                term: format!("Project codename {n}"),
+                sounds_like: Vec::new(),
+            })
+            .collect();
+        ui.settings.vocabulary = entries;
+        ui.vocabulary.reload(&ui.settings.vocabulary);
+    }),
     ("mac-settings-recording", |ui| {
         *ui = mac_fixture();
         let held = crate::app_settings::HotkeyModifiers {
@@ -590,6 +643,30 @@ pub(super) const SCENES: &[Scene] = &[
         ui.meetings.view = meetings::View::Settings;
         ui.pane = Pane::Meetings;
         super::meeting_notes::open_prompt(ui);
+    }),
+    // Summaries' picker open: Off, On this Mac, OpenCode, each saying what
+    // it does; then with Apple Intelligence off, On this Mac kept, disabled,
+    // with the fix.
+    ("meetings-summaries", |ui| {
+        *ui = mac_fixture();
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        ui.open = Some(Menu::Pick("meeting-summaries"));
+    }),
+    ("meetings-summaries-unavailable", |ui| {
+        *ui = mac_fixture();
+        ui.platform.notes = platform::NotesAvailability::NotEnabled;
+        ui.meetings.view = meetings::View::Settings;
+        ui.pane = Pane::Meetings;
+        ui.open = Some(Menu::Pick("meeting-summaries"));
+    }),
+    // Summaries set to OpenCode: its model nested under it, then with
+    // OpenCode not running, the saved model kept.
+    ("meetings-summary-model", |ui| {
+        summary_model_scene(ui, models::Models::fixture())
+    }),
+    ("meetings-summary-model-not-running", |ui| {
+        summary_model_scene(ui, models::Models::fixture_not_running())
     }),
     // System Audio not yet allowed: tap Allow to wait, again to grant.
     ("meetings-allow", |ui| {
@@ -853,22 +930,53 @@ pub(super) const SCENES: &[Scene] = &[
         ui.platform.developer = true;
         ui.pane = Pane::HudLab;
     }),
-    ("mac-labs", |ui| {
-        *ui = mac_fixture();
-        #[cfg(hex_capture)]
-        {
-            ui.platform.scrawl = Some(platform::ScrawlView::preview());
-        }
-        ui.labs_open = true;
-    }),
+    ("mac-labs", labs_with_some_on),
+    // Where hex://labs/vocabulary-biasing lands: its group's chip.
     ("mac-labs-link", |ui| {
         *ui = mac_fixture();
         ui.labs_open = true;
-        // Far ahead, so the pulse holds for the render.
-        ui.lab_flash = Some((
-            crate::labs::Feature::VocabularyBiasing,
-            Instant::now() + Duration::from_secs(3600),
-        ));
+        ui.lab_store.group = Some(crate::labs::Feature::VocabularyBiasing.group());
+    }),
+    ("mac-labs-on", |ui| {
+        labs_with_some_on(ui);
+        ui.lab_store.tab = labs::Tab::On;
+    }),
+    ("mac-labs-category", |ui| {
+        labs_with_some_on(ui);
+        ui.lab_store.group = Some(crate::labs::Group::Shortcuts);
+    }),
+    ("mac-labs-search", |ui| {
+        labs_with_some_on(ui);
+        ui.lab_store.search = rune::TextEdit::new("paste".to_string());
+    }),
+    // A lab's own settings on its card while it's on.
+    ("mac-labs-settings", |ui| {
+        labs_with_some_on(ui);
+        ui.settings.labs.unload_idle = true;
+        ui.lab_store.group = Some(crate::labs::Feature::UnloadIdle.group());
+    }),
+    // Labs › Screenshots' card while on (macOS only: elsewhere the lab has
+    // no row).
+    ("mac-labs-screenshots", |ui| {
+        labs_with_some_on(ui);
+        ui.settings.labs.screenshots = true;
+        ui.lab_store.group = Some(crate::labs::Feature::Screenshots.group());
+    }),
+    // Labs on Windows and Linux: only their OS's labs, groups holding a
+    // lab that's on open.
+    ("windows-labs", |ui| {
+        *ui = fixture(DesktopShortcuts::Registered);
+        ui.platform = platform::PlatformState::preview(platform::Capabilities::WINDOWS);
+        ui.host = platform::PlatformHost::Fixture(Vec::new());
+        ui.settings.paste_with_shift = true;
+        ui.labs_open = true;
+    }),
+    ("linux-labs", |ui| {
+        *ui = portal_fixture();
+        ui.platform.caps = platform::Capabilities::LINUX;
+        ui.settings.labs.skip_pauses = true;
+        ui.settings.labs.typed_text = true;
+        ui.labs_open = true;
     }),
     ("mac-production", |ui| {
         *ui = mac_fixture();
@@ -997,6 +1105,7 @@ pub(super) fn mac_fixture() -> Ui {
     ui.settings.dictation_hotkey = AppSettings::default().dictation_hotkey;
     ui.settings.paste_with_shift = false;
     ui.settings.meetings.enabled = true;
+    ui.settings.meetings.summaries = crate::app_settings::MeetingSummaries::Mac;
     ui.settings.meetings.providers = vec![
         crate::app_settings::MeetingProviderChoice {
             key: "com.tinyspeck.slackmacgap".into(),
@@ -1030,6 +1139,17 @@ fn files_scene(ui: &mut Ui, pane: files::FilesPane) {
     ui.settings.labs.files = true;
     ui.files = pane;
     ui.pane = Pane::Files;
+}
+
+/// Meetings › Settings with Summaries set to OpenCode, a model saved, and
+/// `models` as the OpenCode catalog.
+fn summary_model_scene(ui: &mut Ui, models: models::Models) {
+    *ui = mac_fixture();
+    ui.settings.meetings.summaries = crate::app_settings::MeetingSummaries::OpenCode;
+    ui.settings.meetings.opencode_model = Some("anthropic/claude-sonnet-4-5".into());
+    ui.models = models;
+    ui.meetings.view = meetings::View::Settings;
+    ui.pane = Pane::Meetings;
 }
 
 fn shortcut_row(ui: &mut Ui, capture: Capture) {
@@ -1084,13 +1204,17 @@ pub(super) fn fixture(shortcuts: DesktopShortcuts) -> Ui {
         ..AppSettings::default()
     };
     let mut ui = Ui::with(settings, Service::Fixture(Vec::new()));
+    ui.platform.wayland = true;
     ui.models = models::Models::fixture();
     ui.picker.installed = Some(vec![TranscriptionModelId::ParakeetUnifiedEnglish]);
     ui.view = Some(ServiceView {
         listener: DesktopListenerSnapshot {
             running: true,
+            warming: false,
             status: "Enabled".into(),
             warning: None,
+            notice: None,
+            last_failure: None,
             shortcuts,
             shortcuts_configurable: false,
         },
@@ -1104,6 +1228,7 @@ pub(super) fn fixture(shortcuts: DesktopShortcuts) -> Ui {
         },
         update_status: DesktopUpdateStatus::Current,
         update_notes: None,
+        update_blocked: None,
         editing: false,
     });
     ui
@@ -1142,4 +1267,22 @@ fn meetings_on_codex(ui: &mut Ui) {
     };
     ui.files.codex_models = files::FilesPane::fixture_codex_models();
     ui.settings.meetings.notes.writer = Some("codex:gpt-6-luna".into());
+}
+
+/// Labs with a few labs on: every store scene's fixture, so a lab reads
+/// the same in each.
+fn labs_with_some_on(ui: &mut Ui) {
+    *ui = mac_fixture();
+    for feature in [
+        crate::labs::Feature::LiveText,
+        crate::labs::Feature::SmartSpacing,
+        crate::labs::Feature::TapOrHold,
+    ] {
+        feature.set(&mut ui.settings, true);
+    }
+    #[cfg(hex_capture)]
+    {
+        ui.platform.scrawl = Some(platform::ScrawlView::preview());
+    }
+    ui.labs_open = true;
 }

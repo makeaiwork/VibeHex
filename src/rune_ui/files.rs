@@ -14,7 +14,7 @@ use rune_kit::TextInput;
 
 use super::controls::{ButtonKind, DESCRIPTION, Paint, button, segmented_tx};
 use super::list_detail::{self as ld, Item};
-use super::lists::{dismissible_error_panel, error_panel};
+use super::lists::{Tone, dismissible_error_panel, error_panel};
 use super::{Pane, Ui};
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::files::store::{self, FileRecord};
@@ -640,7 +640,7 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
         let content = super::controls::page("content").children(settings::view(ui, p, layer));
         return (
             Vec::new(),
-            super::scroll_body("files-settings-scroll", content),
+            super::scroll_body(p.k, "files-settings-scroll", content),
         );
     }
     let pane = &ui.files;
@@ -702,7 +702,7 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
         .gap(10.0)
         .child(drop_zone(ui, p))
         .child(search(ui, p));
-    let column = ld::list_column(top, "files-scroll", list);
+    let column = ld::list_column(p, top, "files-scroll", list);
     let body = col()
         .key("files-pane")
         .grow(1.0)
@@ -925,6 +925,7 @@ pub(super) fn failure(p: Paint, record: &FileRecord, error: &str) -> El {
             "file-error",
             tr("This file couldn't be transcribed."),
             error,
+            Tone::Danger,
         ))
         .child(button(
             p,

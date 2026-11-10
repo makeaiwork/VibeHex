@@ -11,7 +11,7 @@ use crate::audio::recording_environment::RecordingEnvironmentController;
 use crate::control::{CaptureAction, CaptureKind, CaptureSnapshot, ControlReply, PrintReply};
 use crate::desktop::events::{DictationPhase, EventLog, VoiceEvent, VoiceState, now_ms};
 use crate::dictation::audio::{DictationAudio, DictationAudioEvent, LostCapture};
-use crate::dictation::context::{ContextMonitor, ContextSnapshot};
+use crate::dictation::context::ContextSnapshot;
 use crate::dictation::indicator::{DictationIndicatorEvent, DictationIndicatorSender};
 use crate::dictation::service::{
     Completion, DictationAudioChunk, DictationControl, DictationLevel, LEASE, MICROPHONE_LOST,
@@ -25,11 +25,49 @@ use crate::parakeet::{
 };
 use crate::suppression::{DictationHotkey, DiscardCause, HotkeyAction, InputEvent, InputMonitor};
 
+mod context_watch;
+mod vocabulary_add;
+
+use context_watch::ContextWatch;
+
 enum FinishResult {
     Discarded,
     Silent,
     Submitted,
     Rejected(String),
+}
+
+/// The HUD and the Caps Lock light see the same dictation events. The HUD
+/// channel has one consumer; the light's model is fed beside each send
+/// instead of taking that channel over.
+#[derive(Clone, Copy)]
+struct DictationSink<'a> {
+    hud: Option<&'a DictationIndicatorSender>,
+    caps_lock: &'a crate::caps_lock_dictation::CapsLockDictation,
+}
+
+impl DictationSink<'_> {
+    fn send(&self, event: DictationIndicatorEvent) {
+        if let Some(hud) = self.hud {
+            hud.send(event.clone());
+        }
+        self.caps_lock.observe(event);
+    }
+
+    /// One chunk's loudness reaches both consumers: the light even when no
+    /// HUD listens, and the HUD exactly as it would have received it.
+    fn meter(&self, samples: &[f32]) {
+        if let Some(event) = DictationIndicatorEvent::meter(samples) {
+            self.send(event);
+        }
+    }
+
+    /// A non-dictation capture (Annotate) moves only the Caps Lock light, not
+    /// the dictation HUD.
+    #[cfg(hex_capture)]
+    fn caps_only(&self, event: DictationIndicatorEvent) {
+        self.caps_lock.observe(event);
+    }
 }
 
 #[derive(Debug)]
@@ -130,10 +168,12 @@ enum Shortcut {
     Second,
     /// Dictate without processing.
     Raw,
+    /// Labs › Caps Lock dictation: a press toggles a hands-free capture.
+    CapsLock,
 }
 
 impl Shortcut {
-    const ALL: [Self; 3] = [Self::Dictation, Self::Second, Self::Raw];
+    const ALL: [Self; 4] = [Self::Dictation, Self::Second, Self::Raw, Self::CapsLock];
 }
 
 /// The dictation shortcut machines: dictation, Labs › Second dictation
@@ -144,11 +184,12 @@ struct Hotkeys {
     dictation: DictationHotkey,
     second: Option<DictationHotkey>,
     raw: Option<DictationHotkey>,
+    /// Labs › Caps Lock dictation's hands-free toggle. Its binding is empty:
+    /// presses arrive from the caps-lock worker, not the shortcut matcher.
+    caps_lock: DictationHotkey,
     /// The recording (or the last) skips processing: the raw shortcut or
     /// `hex dictation start --raw` started it.
     raw_capture: bool,
-    /// Labs › Add to vocabulary from a selection bound to modifiers alone
-    /// (Right Control): a tap of them.
     vocabulary_tap: crate::suppression::ModifierTap,
 }
 
@@ -157,6 +198,7 @@ impl Hotkeys {
         std::iter::once(&mut self.dictation)
             .chain(self.second.as_mut())
             .chain(self.raw.as_mut())
+            .chain(Some(&mut self.caps_lock))
     }
 
     fn machine(&self, shortcut: Shortcut) -> Option<&DictationHotkey> {
@@ -164,6 +206,7 @@ impl Hotkeys {
             Shortcut::Dictation => Some(&self.dictation),
             Shortcut::Second => self.second.as_ref(),
             Shortcut::Raw => self.raw.as_ref(),
+            Shortcut::CapsLock => Some(&self.caps_lock),
         }
     }
 
@@ -172,6 +215,7 @@ impl Hotkeys {
             Shortcut::Dictation => Some(&mut self.dictation),
             Shortcut::Second => self.second.as_mut(),
             Shortcut::Raw => self.raw.as_mut(),
+            Shortcut::CapsLock => Some(&mut self.caps_lock),
         }
     }
 
@@ -182,6 +226,16 @@ impl Hotkeys {
             .filter(|other| *other != shortcut)
             .filter_map(|other| self.machine(other))
             .any(DictationHotkey::is_recording)
+    }
+
+    /// Whether a machine other than `shortcut`'s has a double-tap gesture
+    /// waiting to become a recording.
+    fn pending_gesture_besides(&self, shortcut: Shortcut) -> bool {
+        Shortcut::ALL
+            .into_iter()
+            .filter(|other| *other != shortcut)
+            .filter_map(|other| self.machine(other))
+            .any(DictationHotkey::has_pending_gesture)
     }
 
     fn any_recording(&self) -> bool {
@@ -249,7 +303,44 @@ impl Hotkeys {
             machine.set_cancel(hotkeys.cancel);
             machine.set_stop(hotkeys.stop);
         }
+        // Caps Lock is hands-free by definition: its own machine always
+        // treats a press as Toggle, and Escape cancels it in every mode.
+        self.caps_lock
+            .set_binding(crate::app_settings::RuntimeHotkey::default());
+        self.caps_lock.set_double_tap_enabled(false);
+        self.caps_lock.set_double_tap_only(false);
+        self.caps_lock.set_toggle(true);
+        self.caps_lock.set_cancel(Some(
+            crate::app_settings::HotkeyBinding::cancel_default().runtime(),
+        ));
         raw_cancelled || second_cancelled
+    }
+
+    /// A Caps Lock press, if the lab's machine should act on it. A hold
+    /// capture, another shortcut recording, or a pending double-tap gesture
+    /// is left undisturbed.
+    fn caps_lock_press(&mut self) -> Option<HotkeyAction> {
+        if self.recording_besides(Shortcut::CapsLock)
+            || self.pending_gesture_besides(Shortcut::CapsLock)
+        {
+            return None;
+        }
+        let action = self.caps_lock.caps_lock_toggle()?;
+        if action == HotkeyAction::Start {
+            self.raw_capture = false;
+        }
+        Some(action)
+    }
+
+    /// Stands a Caps Lock capture down when its lab turns off. Returns
+    /// whether one was recording so the caller can cancel it.
+    fn stop_caps_lock(&mut self) -> bool {
+        if self.caps_lock.is_recording() {
+            self.caps_lock.suspend();
+            true
+        } else {
+            false
+        }
     }
 
     /// Feeds one input to every machine, and returns what each did with
@@ -267,19 +358,14 @@ impl Hotkeys {
                 Some(HotkeyAction::Start) if others_recording => {
                     machine.suspend();
                 }
-                Some(
-                    HotkeyAction::PasteLast
-                    | HotkeyAction::PasteMeeting
-                    | HotkeyAction::VocabularyAdd,
-                ) if shortcut != Shortcut::Dictation => {}
+                Some(HotkeyAction::PasteLast | HotkeyAction::PasteMeeting)
+                    if shortcut != Shortcut::Dictation => {}
+                Some(HotkeyAction::VocabularyAdd) if shortcut != Shortcut::Dictation => {}
                 Some(action) => actions.push((shortcut, action)),
                 None => {}
             }
         }
-        let vocabulary = crate::app_settings::runtime_hotkeys().vocabulary_add;
-        if self.vocabulary_tap.process(event, at, vocabulary) {
-            actions.push((Shortcut::Dictation, HotkeyAction::VocabularyAdd));
-        }
+        actions.extend(vocabulary_add::tapped(&mut self.vocabulary_tap, event, at));
         actions
     }
 
@@ -325,8 +411,8 @@ pub fn listen(
     indicator: Option<DictationIndicatorSender>,
     history: Option<crate::history::History>,
     controls: Option<Receiver<RecognitionControl>>,
+    transformations: Arc<crate::personal_commands::TransformationClient>,
 ) -> Result<()> {
-    let transformations = Arc::new(crate::personal_commands::TransformationClient::default());
     shutdown.store(false, Ordering::Relaxed);
     // Feedback admission is advisory: a cold audio stack can exceed the
     // preload timeout, and missing tones must not stop desktop recognition.
@@ -336,8 +422,7 @@ pub fn listen(
     let mut microphone_policy = crate::app_settings::microphone_policy();
     let mut events = events;
     let input_monitor = InputMonitor::start()?;
-    let context_monitor = ContextMonitor::start();
-    let mut context = ContextSnapshot::default();
+    let mut context = ContextWatch::start(input_monitor.activity.clone());
     let mut hotkeys = Hotkeys {
         dictation: DictationHotkey::new(
             CaptureInstant::now(),
@@ -346,10 +431,21 @@ pub fn listen(
         ),
         second: None,
         raw: None,
+        caps_lock: DictationHotkey::new(
+            CaptureInstant::now(),
+            false,
+            crate::app_settings::RuntimeHotkey::default(),
+        ),
         raw_capture: false,
         vocabulary_tap: Default::default(),
     };
     hotkeys.configure(CaptureInstant::now());
+    let hud = indicator;
+    let caps_lock = crate::caps_lock_dictation::CapsLockDictation::new();
+    let indicator = DictationSink {
+        hud: hud.as_ref(),
+        caps_lock: &caps_lock,
+    };
     let recording_environment = RecordingEnvironmentController::start();
     #[cfg(hex_capture)]
     let capture_environment = recording_environment.clone();
@@ -398,15 +494,16 @@ pub fn listen(
         ))?;
         if accepted {
             events.dictation(DictationPhase::Started, "")?;
-            if let Some(indicator) = &indicator {
-                indicator.send(DictationIndicatorEvent::Started);
-            }
+            indicator.send(DictationIndicatorEvent::Started);
         } else {
             hotkeys.dictation.suspend();
         }
     }
     emit_state(&mut events, hotkeys.any_recording(), &input.device_name())?;
     tracing::info!(device = %input.device_name(), "dictation listener started");
+
+    #[cfg(hex_capture)]
+    let mut capture_was_recording = false;
 
     while !shutdown.load(Ordering::Relaxed) {
         #[cfg(hex_capture)]
@@ -416,6 +513,38 @@ pub fn listen(
             &capture_environment,
             &input,
         );
+        #[cfg(hex_capture)]
+        {
+            let capture_recording = capture_host
+                .as_mut()
+                .is_some_and(|host| host.recording_since(&input).is_some());
+            if capture_recording != capture_was_recording {
+                capture_was_recording = capture_recording;
+                indicator.caps_only(if capture_recording {
+                    DictationIndicatorEvent::Started
+                } else {
+                    DictationIndicatorEvent::Cancelled
+                });
+            }
+        }
+        let caps_lock_on = crate::labs::caps_lock_dictation();
+        caps_lock.set_enabled(caps_lock_on);
+        // Turning the lab off mid-capture cancels it, as unbinding the
+        // second shortcut does.
+        if !caps_lock_on && hotkeys.stop_caps_lock() {
+            handle_hotkey_action(
+                HotkeyAction::Cancel,
+                false,
+                input.captured_through(),
+                &input,
+                &dictation_worker,
+                &mut context,
+                &input.device_name(),
+                &mut events,
+                indicator,
+                microphone_policy.release_while_idle,
+            )?;
+        }
         if let Some(controls) = &controls {
             while let Ok(control) = controls.try_recv() {
                 match control {
@@ -486,9 +615,9 @@ pub fn listen(
                             &mut hotkeys,
                             &input,
                             &dictation_worker,
-                            &context,
+                            &mut context,
                             &mut events,
-                            indicator.as_ref(),
+                            indicator,
                             release_while_idle,
                         )?;
                         let _ = reply.send(outcome);
@@ -497,8 +626,12 @@ pub fn listen(
                         source,
                         owner_token,
                         levels,
+                        partials,
                         reply,
                     }) => {
+                        // A programmatic capture doesn't stream here, so it
+                        // has no live text: a client's partials end at once.
+                        drop(partials);
                         if programmatic.is_some() || input.is_recording() || hotkeys.any_recording()
                         {
                             let _ = reply.send(Err("dictation-busy".into()));
@@ -786,17 +919,7 @@ pub fn listen(
                 },
             );
         }
-        while let Ok(next_context) = context_monitor.updates.try_recv() {
-            if context != next_context {
-                input_monitor.activity.invalidate();
-            }
-            context = next_context;
-            crate::dictation::vocabulary::focus(&context);
-            events.emit(&VoiceEvent::Context {
-                timestamp_ms: now_ms(),
-                application: context.application.clone(),
-            })?;
-        }
+        context.drain(&mut events)?;
         let next_microphone_policy = crate::app_settings::microphone_policy();
         if next_microphone_policy.release_while_idle != microphone_policy.release_while_idle {
             input.set_release_while_idle(next_microphone_policy.release_while_idle);
@@ -816,10 +939,10 @@ pub fn listen(
                 input.captured_through(),
                 &input,
                 &dictation_worker,
-                &context,
+                &mut context,
                 &input.device_name(),
                 &mut events,
-                indicator.as_ref(),
+                indicator,
                 microphone_policy.release_while_idle,
             )?;
         }
@@ -841,12 +964,49 @@ pub fn listen(
                 input.captured_through(),
                 &input,
                 &dictation_worker,
-                &context,
+                &mut context,
                 &input.device_name(),
                 &mut events,
-                indicator.as_ref(),
+                indicator,
                 microphone_policy.release_while_idle,
             )?;
+        }
+        // Caps Lock presses arrive from the tap, off the audio and input
+        // threads, with the physical press's own timestamp. Never start one
+        // while a shortcut is recorded or a programmatic dictation owns the
+        // microphone.
+        while let Some(at) = caps_lock.try_recv_press() {
+            if hotkey_capture_suspended || programmatic.is_some() {
+                continue;
+            }
+            let caps_recording = hotkeys.caps_lock.is_recording();
+            #[cfg(hex_capture)]
+            let annotate_recording = capture_host
+                .as_mut()
+                .is_some_and(|host| host.recording_since(&input).is_some());
+            #[cfg(not(hex_capture))]
+            let annotate_recording = false;
+            if !caps_lock_can_press(caps_recording, annotate_recording) {
+                continue;
+            }
+            let Some(action) = hotkeys.caps_lock_press() else {
+                continue;
+            };
+            let accepted = handle_hotkey_action(
+                action,
+                hotkeys.raw_capture,
+                at,
+                &input,
+                &dictation_worker,
+                &mut context,
+                &input.device_name(),
+                &mut events,
+                indicator,
+                microphone_policy.release_while_idle,
+            )?;
+            if !accepted {
+                hotkeys.suspend(Shortcut::CapsLock);
+            }
         }
         // The capture shortcut ignores keys while shortcuts are suspended or
         // a programmatic dictation holds them, so their releases go unseen.
@@ -879,12 +1039,17 @@ pub fn listen(
                     crate::app_settings::runtime_hotkeys(),
                     activity,
                 );
-                if action == crate::capture_host::ShortcutAction::Cancel {
-                    // Escape before the shortcut's keys came up: nothing else
-                    // hears it.
+                let swallow = matches!(
+                    action,
+                    crate::capture_host::ShortcutAction::Cancel
+                        | crate::capture_host::ShortcutAction::ReplayCancel
+                );
+                host.shortcut_at(action, capture_at, &input);
+                if swallow {
+                    // Escape before the shortcut's keys came up (or while
+                    // narrating a replay): nothing else hears it.
                     continue;
                 }
-                host.shortcut(action, &input);
             }
             // Escape closes the capsule's picker or open list (never an
             // Undo: that is a click). It never ends a dictation or a
@@ -917,10 +1082,10 @@ pub fn listen(
                     capture_at,
                     &input,
                     &dictation_worker,
-                    &context,
+                    &mut context,
                     &input.device_name(),
                     &mut events,
-                    indicator.as_ref(),
+                    indicator,
                     microphone_policy.release_while_idle,
                 )?;
                 if !accepted {
@@ -939,9 +1104,14 @@ pub fn listen(
                 &input,
                 microphone_policy.release_while_idle,
             ))?
-            && microphone_policy.release_while_idle
         {
-            feedback::play(Tone::DictationStart);
+            // The press is a real capture now: read its page once, here
+            // rather than on every provisional press. A tap this loop never
+            // sees that way asks when it finishes instead.
+            context.intend();
+            if microphone_policy.release_while_idle {
+                feedback::play(Tone::DictationStart);
+            }
         }
         // Only once every queued edge is handled, so a release already seen
         // ends the press first.
@@ -1005,11 +1175,11 @@ pub fn listen(
                     handle_dictation_event(
                         WorkerEvent::Cancelled { job_id },
                         &mut events,
-                        indicator.as_ref(),
+                        indicator,
                     )?;
                     continue;
                 }
-                event => handle_dictation_event(event, &mut events, indicator.as_ref())?,
+                event => handle_dictation_event(event, &mut events, indicator)?,
             }
         }
         // A recording capture takes Escape only while it draws (Escape stops
@@ -1020,10 +1190,13 @@ pub fn listen(
         #[cfg(not(hex_capture))]
         let capture_escape = false;
         input_monitor.set_takes_escape(claims_escape(programmatic.is_some(), capture_escape));
-        // Toggle's cancel key and Labs' stop key are Hex's only while one of
-        // its shortcuts' recordings runs; the listener ignores keys during a
-        // programmatic one.
+        // Toggle's cancel and Labs' stop keys are Hex's only while a shortcut's
+        // recording runs; the listener ignores keys during a programmatic one.
         input_monitor.set_takes_cancel(programmatic.is_none() && hotkeys.any_recording());
+        // A Caps Lock capture is hands-free in Hold mode too, so Escape
+        // keeps its Toggle-mode cancel meaning while it records.
+        input_monitor
+            .set_caps_lock_cancel(programmatic.is_none() && hotkeys.caps_lock.is_recording());
         if received_worker_event {
             emit_engine_state(
                 &mut events,
@@ -1036,6 +1209,9 @@ pub fn listen(
         while let Some(audio_event) = input.try_recv_event() {
             match audio_event {
                 DictationAudioEvent::ReadyIntentional { .. } => {
+                    // A released microphone opened after the press already
+                    // counted as intentional: read this capture's page now.
+                    context.intend();
                     if input.is_recording() {
                         feedback::play(Tone::DictationStart);
                     }
@@ -1054,7 +1230,7 @@ pub fn listen(
                         &dictation_worker,
                         &input.device_name(),
                         &mut events,
-                        indicator.as_ref(),
+                        indicator,
                     )?;
                 }
                 DictationAudioEvent::CaptureDiscontinuity {
@@ -1077,7 +1253,7 @@ pub fn listen(
                             &dictation_worker,
                             &input.device_name(),
                             &mut events,
-                            indicator.as_ref(),
+                            indicator,
                         )?;
                     }
                 }
@@ -1107,7 +1283,7 @@ pub fn listen(
                             &dictation_worker,
                             &input.device_name(),
                             &mut events,
-                            indicator.as_ref(),
+                            indicator,
                         )?;
                     }
                 }
@@ -1134,9 +1310,18 @@ pub fn listen(
             }
             if audio.is_current(input.recognition_generation())
                 && (programmatic.is_some() || hotkeys.suppresses_recognition())
-                && let Some(indicator) = &indicator
             {
                 indicator.meter(&audio.samples);
+            }
+            // Annotate's narration feeds only the Caps Lock light, never the
+            // dictation HUD; without this its recording light never leaves
+            // Waiting.
+            #[cfg(hex_capture)]
+            if capture_was_recording
+                && audio.is_current(input.recognition_generation())
+                && let Some(event) = DictationIndicatorEvent::meter(&audio.samples)
+            {
+                indicator.caps_only(event);
             }
         }
     }
@@ -1152,9 +1337,7 @@ pub fn listen(
         device: input.device_name(),
     })?;
     events.flush()?;
-    if let Some(indicator) = &indicator {
-        indicator.send(DictationIndicatorEvent::Discarded);
-    }
+    indicator.send(DictationIndicatorEvent::Discarded);
     Ok(())
 }
 
@@ -1252,10 +1435,10 @@ fn handle_hotkey_action(
     action_at: CaptureInstant,
     dictation: &DictationAudio,
     worker: &DictationWorker,
-    context: &ContextSnapshot,
+    context: &mut ContextWatch,
     device: &str,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
     release_while_idle: bool,
 ) -> Result<bool> {
     match action {
@@ -1263,6 +1446,9 @@ fn handle_hotkey_action(
             if !dictation.start(action_at)? {
                 return Ok(false);
             }
+            // The press started a capture, but it may still be provisional:
+            // no page is read until the capture is held past its threshold.
+            context.begin();
             // The tone confirms the press at once; a chord or short tap
             // retracts it. A released microphone confirms only once it opens.
             if release_while_idle {
@@ -1271,27 +1457,35 @@ fn handle_hotkey_action(
                 feedback::play_provisional_start();
             }
             worker.prepare_paste();
+            #[cfg(hex_capture)]
+            crate::screenshots::narration::started();
             events.dictation(DictationPhase::Started, "")?;
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::Started);
-            }
+            indicator.send(DictationIndicatorEvent::Started);
             emit_state(events, true, device)
         }
-        HotkeyAction::Finish => finish_hotkey_dictation(
-            action_at,
-            dictation,
-            worker,
-            context,
-            device,
-            events,
-            indicator,
-            release_while_idle,
-            None,
-            raw,
-        )
-        .map(drop),
+        HotkeyAction::Finish => {
+            // The capture's own page, or none rather than the last
+            // dictation's.
+            let context = context.finish(events)?;
+            finish_hotkey_dictation(
+                action_at,
+                dictation,
+                worker,
+                &context,
+                device,
+                events,
+                indicator,
+                release_while_idle,
+                None,
+                raw,
+            )
+            .map(drop)
+        }
         HotkeyAction::Discard(_) | HotkeyAction::Cancel | HotkeyAction::CancelShortcut => {
+            context.cancel();
             feedback::retract_start();
+            #[cfg(hex_capture)]
+            crate::screenshots::narration::ended();
             if action == HotkeyAction::CancelShortcut {
                 feedback::play(Tone::Cancel);
             }
@@ -1309,6 +1503,7 @@ fn handle_hotkey_action(
         }
         HotkeyAction::PasteLast | HotkeyAction::PasteMeeting => {
             // The paste chord's modifier press started a provisional capture.
+            context.cancel();
             feedback::retract_start();
             dictation.cancel()?;
             let paste_result = match action {
@@ -1322,15 +1517,7 @@ fn handle_hotkey_action(
             }
             emit_engine_state(events, false, worker, device)
         }
-        HotkeyAction::VocabularyAdd => {
-            // Its chord's modifier press started a provisional capture.
-            feedback::retract_start();
-            dictation.cancel()?;
-            if crate::labs::vocabulary_quick_add() {
-                crate::rune_ui::vocabulary_card::open_for_selection();
-            }
-            Ok(())
-        }
+        HotkeyAction::VocabularyAdd => vocabulary_add::open(dictation),
     }?;
     Ok(true)
 }
@@ -1344,7 +1531,7 @@ fn finish_hotkey_dictation(
     context: &ContextSnapshot,
     device: &str,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
     release_while_idle: bool,
     print: Option<PrintReply>,
     raw: bool,
@@ -1352,6 +1539,9 @@ fn finish_hotkey_dictation(
     if dictation.become_intentional(action_at)? && release_while_idle {
         feedback::play(Tone::DictationStart);
     }
+    // A dictation over a screenshot lands its words there, never pasted.
+    #[cfg(hex_capture)]
+    let print = print.or_else(crate::screenshots::narration::claim);
     let finished = match print {
         None => finish_dictation(
             dictation,
@@ -1391,6 +1581,13 @@ fn finish_hotkey_dictation(
 /// then, so Escape stays with its owner app rather than being swallowed.
 fn claims_escape(programmatic: bool, capture_escape: bool) -> bool {
     !programmatic && capture_escape
+}
+
+/// Whether a Caps Lock press may act. An Annotate capture records the
+/// narration itself, so a Caps Lock press must not start a dictation over it;
+/// a press that finishes an already-running Caps Lock capture still works.
+fn caps_lock_can_press(caps_recording: bool, annotate_recording: bool) -> bool {
+    caps_recording || !annotate_recording
 }
 
 /// Why a control can't start a capture now, if it can't.
@@ -1453,9 +1650,9 @@ fn control_dictation(
     hotkeys: &mut Hotkeys,
     input: &DictationAudio,
     worker: &DictationWorker,
-    context: &ContextSnapshot,
+    context: &mut ContextWatch,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
     release_while_idle: bool,
 ) -> Result<ControlReply> {
     let recording = hotkeys.any_recording();
@@ -1508,7 +1705,10 @@ fn control_dictation(
                 release_while_idle,
             )?;
             if accepted {
-                // A warm start already queued its provisional tone.
+                // A warm start already queued its provisional tone. A control
+                // start has no hold threshold to wait for, so its capture is
+                // real now and reads its page at once.
+                context.intend();
                 make_control_capture_intentional(input, release_while_idle)?;
                 ControlReply::done("Recording; `hex dictation stop` or the shortcut finishes")
             } else {
@@ -1524,11 +1724,14 @@ fn control_dictation(
         false => {
             hotkeys.suspend_recording();
             let printing = print.is_some();
+            // A control capture asked for its page when it started; this
+            // waits for that read if it is still in flight.
+            let context = context.finish(events)?;
             let finished = finish_hotkey_dictation(
                 capture_boundary(input, release_while_idle),
                 input,
                 worker,
-                context,
+                &context,
                 &device,
                 events,
                 indicator,
@@ -1598,13 +1801,13 @@ fn fail_capture(
     worker: &DictationWorker,
     device: &str,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
 ) -> Result<()> {
     feedback::play(Tone::Error);
-    events.dictation(DictationPhase::Failed(message), "")?;
-    if let Some(indicator) = indicator {
-        indicator.send(DictationIndicatorEvent::Failed);
-    }
+    events.dictation(DictationPhase::Failed(message.clone()), "")?;
+    indicator.send(DictationIndicatorEvent::Failed {
+        message: Some(message),
+    });
     emit_engine_state(events, false, worker, device)
 }
 
@@ -1623,7 +1826,7 @@ fn end_capture(
     dictation: &DictationAudio,
     device: &str,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
 ) -> Result<()> {
     dictation.cancel()?;
     let indicator_event = match end {
@@ -1636,9 +1839,7 @@ fn end_capture(
             DictationIndicatorEvent::Cancelled
         }
     };
-    if let Some(indicator) = indicator {
-        indicator.send(indicator_event);
-    }
+    indicator.send(indicator_event);
     emit_state(events, false, device)
 }
 
@@ -1685,7 +1886,7 @@ fn finish_dictation(
     context: &ContextSnapshot,
     device: &str,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
 ) -> Result<FinishResult> {
     finish_dictation_with(
         capture,
@@ -1706,15 +1907,13 @@ fn finish_dictation_with(
     submit: impl FnOnce(DictationClip) -> Result<DictationJobId, &'static str>,
     device: &str,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
 ) -> Result<FinishResult> {
     let clip = match capture.finish_with_tail(ended_at, tail)? {
         Finish::Transcribe(clip) if !clip.is_near_silent() => clip,
         finish => {
             events.dictation(DictationPhase::Discarded, "")?;
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::Discarded);
-            }
+            indicator.send(DictationIndicatorEvent::Discarded);
             return Ok(match finish {
                 Finish::Discard => FinishResult::Discarded,
                 Finish::Transcribe(clip) => {
@@ -1738,19 +1937,17 @@ fn finish_dictation_with(
     events.dictation(DictationPhase::Transcribing, "")?;
     match submit(clip) {
         Ok(job_id) => {
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::Submitted {
-                    job_id: job_id.value(),
-                });
-            }
+            indicator.send(DictationIndicatorEvent::Submitted {
+                job_id: job_id.value(),
+            });
             Ok(FinishResult::Submitted)
         }
         Err(error) => {
             feedback::play(Tone::Error);
             events.dictation(DictationPhase::Failed(error.into()), "")?;
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::Failed);
-            }
+            indicator.send(DictationIndicatorEvent::Failed {
+                message: Some(error.into()),
+            });
             Ok(FinishResult::Rejected(error.into()))
         }
     }
@@ -1759,7 +1956,7 @@ fn finish_dictation_with(
 fn handle_dictation_event(
     event: WorkerEvent,
     events: &mut EventLog,
-    indicator: Option<&DictationIndicatorSender>,
+    indicator: DictationSink<'_>,
 ) -> Result<()> {
     match event {
         WorkerEvent::Completed {
@@ -1768,11 +1965,9 @@ fn handle_dictation_event(
             ..
         } if text.trim().is_empty() => {
             events.dictation(DictationPhase::Discarded, "")?;
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::JobCompleted {
-                    job_id: job_id.value(),
-                });
-            }
+            indicator.send(DictationIndicatorEvent::JobCompleted {
+                job_id: job_id.value(),
+            });
         }
         WorkerEvent::Completed {
             job_id,
@@ -1791,11 +1986,9 @@ fn handle_dictation_event(
             };
             feedback::play(Tone::DictationDone);
             events.processed_dictation(phase, text, processing)?;
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::JobCompleted {
-                    job_id: job_id.value(),
-                });
-            }
+            indicator.send(DictationIndicatorEvent::JobCompleted {
+                job_id: job_id.value(),
+            });
         }
         WorkerEvent::Completed {
             job_id,
@@ -1804,33 +1997,36 @@ fn handle_dictation_event(
         } => {
             tracing::error!(%error, "dictation failed");
             feedback::play(Tone::Error);
-            events.dictation(DictationPhase::Failed(error), "")?;
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::JobFailed {
-                    job_id: job_id.value(),
-                });
-            }
+            events.dictation(DictationPhase::Failed(error.clone()), "")?;
+            indicator.send(DictationIndicatorEvent::JobFailed {
+                job_id: job_id.value(),
+                message: Some(error),
+            });
         }
         WorkerEvent::Stage { job_id, stage } => {
-            if let Some(indicator) = indicator {
-                indicator.send(match stage {
-                    DictationJobStage::Transcribing => DictationIndicatorEvent::Transcribing {
-                        job_id: job_id.value(),
-                    },
-                    DictationJobStage::Processing => DictationIndicatorEvent::Processing {
-                        job_id: job_id.value(),
-                    },
-                });
-            }
+            indicator.send(match stage {
+                DictationJobStage::Transcribing => DictationIndicatorEvent::Transcribing {
+                    job_id: job_id.value(),
+                },
+                DictationJobStage::Processing => DictationIndicatorEvent::Processing {
+                    job_id: job_id.value(),
+                },
+            });
         }
-        WorkerEvent::Cancelled { .. } => {}
+        WorkerEvent::Cancelled { job_id } => {
+            // A submitted job left the HUD's job set only when it completed
+            // or failed; tell both the HUD and the light that it is gone.
+            indicator.send(DictationIndicatorEvent::JobCancelled {
+                job_id: job_id.value(),
+            });
+        }
         WorkerEvent::ModelFailed(error) => {
             tracing::error!(%error, "dictation failed");
             feedback::play(Tone::Error);
-            events.dictation(DictationPhase::Failed(error), "")?;
-            if let Some(indicator) = indicator {
-                indicator.send(DictationIndicatorEvent::Failed);
-            }
+            events.dictation(DictationPhase::Failed(error.clone()), "")?;
+            indicator.send(DictationIndicatorEvent::Failed {
+                message: Some(error),
+            });
         }
         WorkerEvent::Pasted {
             kind,
@@ -1881,6 +2077,7 @@ mod tests {
             dictation: DictationHotkey::new(base, true, option),
             second: Some(DictationHotkey::new(base, true, control)),
             raw: None,
+            caps_lock: DictationHotkey::new(base, false, RuntimeHotkey::default()),
             raw_capture: false,
             vocabulary_tap: Default::default(),
         };
@@ -1912,6 +2109,129 @@ mod tests {
         assert_eq!(press(OPTION_KEY_MASK, 7_000), [(DICTATION, FINISH)]);
         assert!(press(0, 7_100).is_empty());
         assert!(!hotkeys.any_recording());
+    }
+
+    fn caps_lock_hotkeys(
+        base: CaptureInstant,
+        dictation: crate::app_settings::RuntimeHotkey,
+    ) -> Hotkeys {
+        let mut caps_lock =
+            DictationHotkey::new(base, false, crate::app_settings::RuntimeHotkey::default());
+        caps_lock.set_toggle(true);
+        caps_lock.set_cancel(Some(
+            crate::app_settings::HotkeyBinding::cancel_default().runtime(),
+        ));
+        Hotkeys {
+            dictation: DictationHotkey::new(base, false, dictation),
+            second: None,
+            raw: None,
+            caps_lock,
+            vocabulary_tap: Default::default(),
+            raw_capture: false,
+        }
+    }
+
+    fn option_binding() -> crate::app_settings::RuntimeHotkey {
+        crate::app_settings::RuntimeHotkey {
+            modifiers: crate::app_settings::HotkeyModifiers::option(),
+            key_code: None,
+        }
+    }
+
+    #[test]
+    fn caps_lock_does_not_start_over_an_annotate_recording() {
+        assert!(
+            !caps_lock_can_press(false, true),
+            "a Caps Lock start waits while Annotate records"
+        );
+        assert!(caps_lock_can_press(false, false));
+        assert!(
+            caps_lock_can_press(true, true),
+            "a Caps Lock capture still finishes while Annotate records"
+        );
+    }
+
+    #[test]
+    fn escape_cancels_a_caps_lock_capture_in_hold_mode() {
+        let base = CaptureInstant::from_nanos(70_000_000_000);
+        let mut hotkeys = caps_lock_hotkeys(base, option_binding());
+        assert_eq!(hotkeys.caps_lock_press(), Some(HotkeyAction::Start));
+        assert!(hotkeys.caps_lock.is_recording());
+
+        let actions = hotkeys.process(
+            InputEvent::Key {
+                code: 53,
+                down: true,
+                flags: 0,
+            },
+            base + Duration::from_millis(500),
+        );
+        assert!(
+            actions.contains(&(Shortcut::CapsLock, HotkeyAction::CancelShortcut)),
+            "Hold mode still cancels a Caps Lock capture on Escape: {actions:?}"
+        );
+        assert!(!hotkeys.caps_lock.is_recording());
+    }
+
+    #[test]
+    fn the_dictation_shortcut_stands_down_while_caps_lock_records() {
+        let base = CaptureInstant::from_nanos(80_000_000_000);
+        let mut hotkeys = caps_lock_hotkeys(base, option_binding());
+        assert_eq!(hotkeys.caps_lock_press(), Some(HotkeyAction::Start));
+
+        assert!(
+            hotkeys
+                .process(
+                    InputEvent::Flags(crate::app_settings::OPTION_KEY_MASK),
+                    base + Duration::from_millis(100),
+                )
+                .is_empty(),
+            "the normal shortcut does not start or finish a Caps Lock capture"
+        );
+        assert!(hotkeys.caps_lock.is_recording());
+        assert!(!hotkeys.dictation.is_recording());
+    }
+
+    #[test]
+    fn turning_the_caps_lock_lab_off_stops_its_capture() {
+        let base = CaptureInstant::from_nanos(90_000_000_000);
+        let mut hotkeys = caps_lock_hotkeys(base, option_binding());
+        assert_eq!(hotkeys.caps_lock_press(), Some(HotkeyAction::Start));
+        assert!(hotkeys.stop_caps_lock());
+        assert!(!hotkeys.caps_lock.is_recording());
+        assert!(!hotkeys.stop_caps_lock(), "nothing is left to cancel");
+    }
+
+    #[test]
+    fn caps_lock_never_starts_over_a_pending_double_tap() {
+        use crate::app_settings::{HotkeyModifiers, OPTION_KEY_MASK, RuntimeHotkey};
+        let base = CaptureInstant::from_nanos(100_000_000_000);
+        let space = RuntimeHotkey {
+            modifiers: HotkeyModifiers::option(),
+            key_code: Some(49),
+        };
+        let mut hotkeys = caps_lock_hotkeys(base, space);
+        hotkeys.dictation.set_double_tap_enabled(true);
+        hotkeys.dictation.set_double_tap_only(true);
+        assert!(
+            hotkeys
+                .process(
+                    InputEvent::Key {
+                        code: 49,
+                        down: true,
+                        flags: OPTION_KEY_MASK,
+                    },
+                    base,
+                )
+                .is_empty()
+        );
+        assert!(hotkeys.dictation.has_pending_gesture());
+        assert_eq!(
+            hotkeys.caps_lock_press(),
+            None,
+            "a Caps Lock start leaves the pending double tap alone"
+        );
+        assert!(!hotkeys.caps_lock.is_recording());
     }
 
     #[test]
@@ -2013,5 +2333,39 @@ mod tests {
         // Nothing was recording programmatically: nothing changes.
         programmatic_microphone_lost(None, None, "mic-gap", &mut lost, &mut completions);
         assert_eq!(completions.len(), 2);
+    }
+
+    /// The light follows the microphone even when no HUD listens: a chunk's
+    /// meter reaches the Caps Lock model through the sink, and a silent
+    /// chunk leaves it waiting.
+    #[test]
+    fn a_meter_reaches_the_light_without_a_hud() {
+        use crate::caps_lock_dictation::LedPattern;
+
+        let caps_lock = crate::caps_lock_dictation::CapsLockDictation::for_test();
+        let indicator = DictationSink {
+            hud: None,
+            caps_lock: &caps_lock,
+        };
+        indicator.send(DictationIndicatorEvent::Started);
+        assert_eq!(
+            caps_lock.pattern_for_test(),
+            LedPattern::Off,
+            "the light waits for the capture's first audio"
+        );
+
+        indicator.meter(&[0.5, -0.5]);
+        assert_ne!(
+            caps_lock.pattern_for_test(),
+            LedPattern::Off,
+            "the light takes the meter even with no HUD listening"
+        );
+
+        indicator.meter(&[]);
+        assert_ne!(
+            caps_lock.pattern_for_test(),
+            LedPattern::Off,
+            "a silent chunk turns nothing off"
+        );
     }
 }

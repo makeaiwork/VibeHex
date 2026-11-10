@@ -19,6 +19,7 @@ use x11rb::rust_connection::RustConnection;
 
 use crate::app_settings::{HotkeyBinding, HotkeyKey, HotkeyModifiers, ModifierSide};
 use crate::desktop::host::{DesktopGrantedShortcut, DesktopShortcut, DesktopShortcuts};
+use crate::dictation::DictationFlavour;
 use crate::linux::session::LinuxSession;
 
 #[path = "input/x11.rs"]
@@ -246,18 +247,31 @@ pub(crate) const KEY_PRESS: u8 = 2;
 pub(crate) const KEY_RELEASE: u8 = 3;
 const RELEASE_GRACE: Duration = Duration::from_millis(50);
 pub(crate) const DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(300);
+/// Labs › Tap or hold: a Toggle press held this long is a hold, as macOS's
+/// hold threshold.
+const TAP_OR_HOLD_THRESHOLD: Duration = Duration::from_millis(300);
 /// Desktops that repeat a held shortcut's press (KWin) repeat it sooner
 /// than this, so a press after a longer gap is a new press.
 const KEY_REPEAT_GAP: Duration = Duration::from_secs(1);
+/// How often an X11 monitor checks timed shortcut state while a key is down
+/// or a release is settling.
 const POLL_INTERVAL: Duration = Duration::from_millis(5);
+/// How long a listening portal waits for the desktop's next signal: a press
+/// wakes it at once, and this only bounds how long a queued `hex` command
+/// waits behind it.
+const PORTAL_WAIT: Duration = Duration::from_millis(50);
+/// How long a monitor without a portal sleeps: a `hex` command wakes it, and
+/// its next portal check is due much later than this.
+const COMMAND_WAIT: Duration = Duration::from_millis(250);
 /// Binding through the portal can wait for the user to approve a dialog.
 const PORTAL_READY_TIMEOUT: Duration = Duration::from_secs(65);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HotkeyEvent {
-    /// `raw`: Dictate without processing started it.
+    /// `flavour` is the shortcut that started the capture: dictation,
+    /// Dictate without processing, or Labs › Terminal paste.
     Start {
-        raw: bool,
+        flavour: DictationFlavour,
     },
     Finish,
     /// `hex dictation stop --print` finished the dictation: its transcript
@@ -265,6 +279,9 @@ pub(crate) enum HotkeyEvent {
     FinishPrinting(crate::control::PrintReply),
     Cancel,
     PasteLast,
+    /// Labs › Transform typed text: the focused field's text is processed
+    /// and replaced, while nothing records.
+    TypedText,
     /// The Annotate key went down: nothing recording, a capture starts;
     /// recording, the capture host waits to tell a tap from a hold.
     Capture,
@@ -282,6 +299,8 @@ pub(crate) enum ShortcutCommand {
     /// `hex dictation cancel`: discards whatever records, in any mode.
     DictationCancel,
     PasteLast,
+    /// `hex typed-text`: the typed-text shortcut's one job.
+    TypedText,
     /// `hex dictation start --raw` and `toggle --raw`.
     DictationStartRaw,
     DictationToggleRaw,
@@ -309,9 +328,16 @@ pub(crate) struct HotkeyOptions {
     /// Only a double-tap starts recording, which then stays locked.
     pub(crate) double_tap_only: bool,
     pub(crate) toggle: bool,
+    /// Labs › Tap or hold, in Toggle mode: a press held at least
+    /// [`TAP_OR_HOLD_THRESHOLD`] finishes its capture when it lifts.
+    pub(crate) tap_or_hold: bool,
     pub(crate) paste_last: Option<LinuxHotkey>,
     /// Dictate without processing, while it is bound.
     pub(crate) raw_dictation: Option<LinuxHotkey>,
+    /// Labs › Transform typed text, while its lab is on and it is bound.
+    pub(crate) typed_text: Option<LinuxHotkey>,
+    /// Labs › Terminal paste shortcut, while the lab is on and it is bound.
+    pub(crate) terminal_paste: Option<LinuxHotkey>,
     /// Annotate's one key, while Annotate is on: tap to start and stop,
     /// hold to draw.
     pub(crate) capture: Option<LinuxHotkey>,
@@ -486,7 +512,15 @@ fn trigger_has_modifiers(granted: Option<&str>, requested: &LinuxHotkey) -> bool
 /// (GNOME, KDE), so a shortcut changed in Hex gets a new id, which the
 /// desktop binds to the new trigger (#575). An unchanged shortcut keeps its
 /// id, and with it any trigger the user assigned in the desktop.
-fn portal_shortcut_id(base: &str, trigger: &str) -> String {
+///
+/// With `desktop_assigns` (Hyprland), the desktop ignores the trigger and
+/// the user binds the id by name in its config, so the id is the bare
+/// `base`: recording another key in Hex must not leave that bind pointing
+/// at a name Hex no longer listens to (#1376).
+fn portal_shortcut_id(base: &str, trigger: &str, desktop_assigns: bool) -> String {
+    if desktop_assigns {
+        return base.to_string();
+    }
     format!("{base}-{}", trigger.replace('+', "-"))
 }
 
@@ -531,20 +565,44 @@ fn project_grants(
 enum Shortcut {
     Dictation,
     PasteLast,
+    TypedText,
     Capture,
     RawDictation,
+    TerminalPaste,
 }
 
 impl Shortcut {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 6] = [
         Self::Dictation,
         Self::PasteLast,
+        Self::TypedText,
         Self::Capture,
         Self::RawDictation,
+        Self::TerminalPaste,
     ];
 
     fn index(self) -> usize {
         self as usize
+    }
+
+    /// The dictation flavour a shortcut starts captures with; `None` for
+    /// the shortcuts that start no dictation.
+    fn flavour(self) -> Option<DictationFlavour> {
+        match self {
+            Self::Dictation => Some(DictationFlavour::Normal),
+            Self::RawDictation => Some(DictationFlavour::Raw),
+            Self::TerminalPaste => Some(DictationFlavour::TerminalPaste),
+            Self::PasteLast | Self::TypedText | Self::Capture => None,
+        }
+    }
+
+    /// The dictation shortcut that starts captures with `flavour`.
+    fn for_flavour(flavour: DictationFlavour) -> Self {
+        match flavour {
+            DictationFlavour::Normal => Self::Dictation,
+            DictationFlavour::Raw => Self::RawDictation,
+            DictationFlavour::TerminalPaste => Self::TerminalPaste,
+        }
     }
 
     /// The portal's stable id and the description desktops show.
@@ -552,8 +610,10 @@ impl Shortcut {
         match self {
             Self::Dictation => ("dictation", "Dictation"),
             Self::PasteLast => ("paste-last", "Paste last dictation"),
+            Self::TypedText => ("typed-text", "Transform typed text"),
             Self::Capture => ("capture", "Annotate"),
             Self::RawDictation => ("raw-dictation", "Dictate without processing"),
+            Self::TerminalPaste => ("terminal-paste", "Terminal paste shortcut"),
         }
     }
 }
@@ -589,16 +649,24 @@ struct ShortcutState {
     double_tap_only: bool,
     /// Every press acts as the second tap of a double-tap: releasing locks.
     toggle: bool,
+    /// Labs › Tap or hold in Toggle mode: a long press finishes on release.
+    tap_or_hold: bool,
     /// Toggle mode has a cancel shortcut.
     cancels: bool,
     capture: Capture,
     last_release: Option<Instant>,
     last_press: Option<Instant>,
+    /// When the press that started the held capture went down (its
+    /// repeats don't move it).
+    held_since: Option<Instant>,
     /// The dictation shortcut was pressed and its release hasn't arrived.
     down: bool,
-    /// Dictate without processing, not the dictation shortcut, owns the
-    /// capture (or the last one).
-    raw: bool,
+    /// The desktop repeated the held press (GNOME, KWin), so repeats that
+    /// stop mean its keys came up.
+    repeating: bool,
+    /// The shortcut that owns the capture (or the last one): dictation,
+    /// Dictate without processing, or Labs › Terminal paste.
+    flavour: DictationFlavour,
 }
 
 impl ShortcutState {
@@ -607,12 +675,15 @@ impl ShortcutState {
             double_tap: options.double_tap,
             double_tap_only: options.double_tap_only,
             toggle: options.toggle,
+            tap_or_hold: options.toggle && options.tap_or_hold,
             cancels: options.toggle && options.cancel.is_some(),
             capture: Capture::Idle,
             last_release: None,
             last_press: None,
+            held_since: None,
             down: false,
-            raw: false,
+            repeating: false,
+            flavour: DictationFlavour::Normal,
         }
     }
 
@@ -636,33 +707,54 @@ impl ShortcutState {
         active.then_some(HotkeyEvent::Cancel)
     }
 
-    fn start_dictation(&mut self, raw: bool) -> Option<HotkeyEvent> {
+    fn start_dictation(&mut self, flavour: DictationFlavour) -> Option<HotkeyEvent> {
         if !self.idle() {
             return None;
         }
         // Like a locked capture: a shortcut press or `stop` finishes it.
-        self.raw = raw;
+        self.flavour = flavour;
         self.capture = Capture::Locked;
         self.last_release = None;
-        Some(HotkeyEvent::Start { raw })
+        Some(HotkeyEvent::Start { flavour })
     }
 
     /// Hands an idle state to the shortcut pressed, or reports that the
     /// other shortcut's capture owns its keys. A tap of one never counts
     /// toward the other's double tap.
-    fn claim(&mut self, raw: bool) -> bool {
-        if self.raw == raw {
+    fn claim(&mut self, flavour: DictationFlavour) -> bool {
+        if self.flavour == flavour {
             return true;
         }
         if !self.idle() {
             return false;
         }
-        self.raw = raw;
+        self.flavour = flavour;
         self.capture = Capture::Idle;
         self.last_release = None;
         self.last_press = None;
         self.down = false;
+        self.repeating = false;
         true
+    }
+
+    /// A held press the desktop was repeating whose repeats stopped for
+    /// longer than any repeat interval, with no release: GNOME's portal sends
+    /// no deactivation when a modifier comes up before the key, so the keys
+    /// are up and this counts as the release. Never the first tap of a
+    /// double tap, since the release itself wasn't seen.
+    fn expire(&mut self, now: Instant) -> Option<HotkeyEvent> {
+        let stopped = self.down
+            && self.repeating
+            && self
+                .last_press
+                .is_some_and(|pressed| now.saturating_duration_since(pressed) >= KEY_REPEAT_GAP);
+        if !stopped {
+            return None;
+        }
+        let shortcut = Shortcut::for_flavour(self.flavour);
+        let event = self.update(Input::Released(shortcut), now);
+        self.last_release = None;
+        event
     }
 
     fn stop_dictation(&mut self) -> Option<HotkeyEvent> {
@@ -685,12 +777,18 @@ impl ShortcutState {
             }
             Input::Lost => {
                 self.down = false;
+                self.repeating = false;
                 self.cancel()
             }
             Input::Cancel if self.wants_cancel() => self.cancel(),
             Input::Cancel => None,
-            Input::Pressed(shortcut @ (Shortcut::Dictation | Shortcut::RawDictation)) => {
-                if !self.claim(shortcut == Shortcut::RawDictation) {
+            Input::Pressed(
+                shortcut @ (Shortcut::Dictation | Shortcut::RawDictation | Shortcut::TerminalPaste),
+            ) => {
+                let Some(flavour) = shortcut.flavour() else {
+                    unreachable!("a dictation shortcut has a flavour");
+                };
+                if !self.claim(flavour) {
                     return None;
                 }
                 // A press with no release since the last one, sooner than a
@@ -701,6 +799,7 @@ impl ShortcutState {
                     });
                 self.last_press = Some(now);
                 self.down = true;
+                self.repeating = repeat;
                 if repeat {
                     return None;
                 }
@@ -721,7 +820,10 @@ impl ShortcutState {
                             return None;
                         }
                         self.capture = Capture::Held { second_tap };
-                        Some(HotkeyEvent::Start { raw: self.raw })
+                        self.held_since = Some(now);
+                        Some(HotkeyEvent::Start {
+                            flavour: self.flavour,
+                        })
                     }
                     // The desktop never sent the release that would have
                     // finished or locked this capture (Hyprland's Lua binds and
@@ -735,16 +837,31 @@ impl ShortcutState {
                     Capture::Armed => None,
                 }
             }
-            Input::Released(shortcut @ (Shortcut::Dictation | Shortcut::RawDictation)) => {
-                if (shortcut == Shortcut::RawDictation) != self.raw {
+            Input::Released(
+                shortcut @ (Shortcut::Dictation | Shortcut::RawDictation | Shortcut::TerminalPaste),
+            ) => {
+                if shortcut.flavour() != Some(self.flavour) {
                     return None;
                 }
                 self.down = false;
+                self.repeating = false;
                 match self.capture {
                     Capture::Armed => {
                         self.capture = Capture::Idle;
                         self.last_release = Some(now);
                         None
+                    }
+                    // Labs › Tap or hold: a Toggle press held long enough
+                    // dictates only while held, as Hold does.
+                    Capture::Held { second_tap: true }
+                        if self.tap_or_hold
+                            && self.held_since.is_some_and(|pressed| {
+                                now.saturating_duration_since(pressed) >= TAP_OR_HOLD_THRESHOLD
+                            }) =>
+                    {
+                        self.capture = Capture::Idle;
+                        self.last_release = None;
+                        Some(HotkeyEvent::Finish)
                     }
                     Capture::Held { second_tap: true } => {
                         self.capture = Capture::Locked;
@@ -763,20 +880,29 @@ impl ShortcutState {
                 self.idle().then_some(HotkeyEvent::PasteLast)
             }
             Input::Released(Shortcut::PasteLast) => None,
+            // The typed-text job owns no capture state: pressing its shortcut
+            // or sending `hex typed-text` while idle asks for one job, and
+            // while recording it does nothing at all.
+            Input::Pressed(Shortcut::TypedText) | Input::Command(ShortcutCommand::TypedText) => {
+                self.idle().then_some(HotkeyEvent::TypedText)
+            }
+            Input::Released(Shortcut::TypedText) => None,
             Input::Pressed(Shortcut::Capture) => Some(HotkeyEvent::Capture),
             Input::Released(Shortcut::Capture) => Some(HotkeyEvent::CaptureUp),
             Input::Command(command) => match command {
-                ShortcutCommand::DictationStart => self.start_dictation(false),
-                ShortcutCommand::DictationStartRaw => self.start_dictation(true),
+                ShortcutCommand::DictationStart => self.start_dictation(DictationFlavour::Normal),
+                ShortcutCommand::DictationStartRaw => self.start_dictation(DictationFlavour::Raw),
                 ShortcutCommand::DictationStop => self.stop_dictation(),
                 ShortcutCommand::DictationToggle => self
                     .stop_dictation()
-                    .or_else(|| self.start_dictation(false)),
-                ShortcutCommand::DictationToggleRaw => {
-                    self.stop_dictation().or_else(|| self.start_dictation(true))
-                }
+                    .or_else(|| self.start_dictation(DictationFlavour::Normal)),
+                ShortcutCommand::DictationToggleRaw => self
+                    .stop_dictation()
+                    .or_else(|| self.start_dictation(DictationFlavour::Raw)),
                 ShortcutCommand::DictationCancel => self.cancel(),
-                ShortcutCommand::PasteLast => unreachable!("handled above"),
+                ShortcutCommand::PasteLast | ShortcutCommand::TypedText => {
+                    unreachable!("handled above")
+                }
             },
         }
     }
@@ -785,11 +911,34 @@ impl ShortcutState {
 /// `hex` commands for whichever monitor runs now. The listener keeps one
 /// queue while it registers its shortcuts again after a settings change.
 #[derive(Clone)]
-pub(crate) struct CommandQueue(Arc<Mutex<Receiver<ListenerCommand>>>);
+pub(crate) struct CommandQueue {
+    commands: Arc<Mutex<Receiver<ListenerCommand>>>,
+    /// Whether `hex` commands reach this listener: they go to the service,
+    /// never to a foreground `hex dictate` process.
+    connected: bool,
+}
 
 impl From<Receiver<ListenerCommand>> for CommandQueue {
     fn from(receiver: Receiver<ListenerCommand>) -> Self {
-        Self(Arc::new(Mutex::new(receiver)))
+        Self {
+            commands: Arc::new(Mutex::new(receiver)),
+            connected: true,
+        }
+    }
+}
+
+impl CommandQueue {
+    /// A queue nothing sends to: the foreground `hex dictate` listener.
+    pub(crate) fn disconnected() -> Self {
+        Self {
+            commands: Arc::new(Mutex::new(mpsc::channel().1)),
+            connected: false,
+        }
+    }
+
+    /// Whether this listener's `hex` commands arrive through this queue.
+    pub(crate) fn connected(&self) -> bool {
+        self.connected
     }
 }
 
@@ -824,26 +973,69 @@ impl Dispatcher {
             .extend(self.state.update(input, Instant::now()));
     }
 
+    /// Releases a held dictation shortcut whose desktop stopped repeating it
+    /// without sending its release (see [`ShortcutState::expire`]).
+    fn expire(&mut self) {
+        let was_down = self.state.down;
+        let event = self.state.expire(Instant::now());
+        if was_down && !self.state.down {
+            tracing::info!(
+                "the held dictation shortcut stopped repeating without a release; treating it as released"
+            );
+            self.keys
+                .released(Shortcut::for_flavour(self.state.flavour));
+        }
+        self.pending.extend(event);
+    }
+
     /// Feeds every queued `hex` command.
     fn commands(&mut self) {
-        // Without a sender (`hex dictate`), only shortcuts remain.
+        // `hex dictate` has no queue anything sends to: only shortcuts remain.
+        if !self.commands.connected() {
+            return;
+        }
         let commands = self
             .commands
-            .0
+            .commands
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let queued: Vec<_> = commands.try_iter().collect();
         drop(commands);
         for command in queued {
-            self.keys.command();
-            match command {
-                ListenerCommand::Shortcut(command) => self.input(Input::Command(command)),
-                // Recording stops now, so a following start isn't blocked.
-                ListenerCommand::StopAndPrint(reply) => match self.state.stop_dictation() {
-                    Some(_) => self.pending.push(HotkeyEvent::FinishPrinting(reply)),
-                    None => reply.send(crate::control::PrintedTranscript::NotRecording),
-                },
-            }
+            self.command(command);
+        }
+    }
+
+    /// Waits up to `timeout` for a `hex` command, so a monitor with no
+    /// shortcuts to watch sleeps until one arrives, then feeds it and any
+    /// others already queued.
+    fn wait_for_commands(&mut self, timeout: Duration) {
+        let waiting = self
+            .commands
+            .commands
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let first = waiting.recv_timeout(timeout);
+        drop(waiting);
+        match first {
+            Ok(command) => self.command(command),
+            // Nothing can send another command; keep the loop from spinning
+            // until it sees the listener's stop.
+            Err(mpsc::RecvTimeoutError::Disconnected) => thread::sleep(POLL_INTERVAL),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        self.commands();
+    }
+
+    fn command(&mut self, command: ListenerCommand) {
+        self.keys.command();
+        match command {
+            ListenerCommand::Shortcut(command) => self.input(Input::Command(command)),
+            // Recording stops now, so a following start isn't blocked.
+            ListenerCommand::StopAndPrint(reply) => match self.state.stop_dictation() {
+                Some(_) => self.pending.push(HotkeyEvent::FinishPrinting(reply)),
+                None => reply.send(crate::control::PrintedTranscript::NotRecording),
+            },
         }
     }
 
@@ -994,7 +1186,9 @@ impl Backend {
         self.mark_ready(DesktopShortcuts::Commands);
         let mut probe = probe.then(|| crate::linux::portal::PortalProbe::new(self.stop.clone()));
         while !self.stopping() {
-            dispatcher.commands();
+            // No portal: `hex` commands are the only input, so wait on their
+            // queue; the probe is due far less often than this.
+            dispatcher.wait_for_commands(COMMAND_WAIT);
             if !dispatcher.flush()? {
                 return Ok(None);
             }
@@ -1003,7 +1197,6 @@ impl Backend {
             {
                 return Ok(Some(portal));
             }
-            thread::sleep(POLL_INTERVAL);
         }
         Ok(None)
     }
@@ -1026,7 +1219,16 @@ impl Backend {
                 .raw_dictation
                 .as_ref()
                 .map(|key| (Shortcut::RawDictation, key)),
+            options
+                .typed_text
+                .as_ref()
+                .map(|key| (Shortcut::TypedText, key)),
+            options
+                .terminal_paste
+                .as_ref()
+                .map(|key| (Shortcut::TerminalPaste, key)),
         ];
+        let desktop_assigns = crate::linux::portal::desktop_assigns_triggers();
         let mut shortcuts = Vec::new();
         let mut ids: [Option<String>; Shortcut::ALL.len()] = Default::default();
         for (shortcut, key) in requested.into_iter().flatten() {
@@ -1037,7 +1239,7 @@ impl Backend {
                 continue;
             }
             let trigger = key.portal_trigger()?;
-            let id = portal_shortcut_id(base, &trigger);
+            let id = portal_shortcut_id(base, &trigger, desktop_assigns);
             ids[shortcut.index()] = Some(id.clone());
             shortcuts.push(crate::linux::portal::Shortcut {
                 id,
@@ -1074,7 +1276,7 @@ impl Backend {
                 tracing::warn!(
                     error = format!("{error:#}"),
                     desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default(),
-                    "the shortcuts portal's backend could not bind Hex's shortcuts; dictation follows the hex commands"
+                    "the shortcuts portal's backend could not bind Hex's shortcuts; dictation follows the hex commands, which reach the service listener (`hex start`) but not a foreground `hex dictate`"
                 );
                 drop(portal);
                 self.wait_for_portal(&mut dispatcher, false)?;
@@ -1086,7 +1288,6 @@ impl Backend {
                 ));
             }
         };
-        let desktop_assigns = crate::linux::portal::desktop_assigns_triggers();
         let project = |granted: &std::collections::HashMap<String, Option<String>>| {
             project_grants(granted, &requested, &ids, desktop_assigns)
         };
@@ -1128,7 +1329,9 @@ impl Backend {
                 .find(|shortcut| ids[shortcut.index()].as_deref() == Some(id))
         };
         while !self.stopping() {
-            for event in portal.events() {
+            // Wakes on the desktop's signals; the timeout only lets queued
+            // `hex` commands through while nothing is pressed.
+            for event in portal.wait_events(PORTAL_WAIT) {
                 let input = match event {
                     crate::linux::portal::Event::Pressed(id) => match shortcut_for(&id) {
                         Some(shortcut) => {
@@ -1163,6 +1366,7 @@ impl Backend {
                 };
                 dispatcher.input(input);
             }
+            dispatcher.expire();
             dispatcher.commands();
             if self.status.configure.swap(false, Ordering::AcqRel)
                 && let Err(error) = portal.configure()
@@ -1180,7 +1384,6 @@ impl Backend {
             if !dispatcher.flush()? {
                 break;
             }
-            thread::sleep(POLL_INTERVAL);
         }
         if self.status.forget.load(Ordering::Acquire)
             && let Err(error) = portal.forget()
@@ -1206,7 +1409,9 @@ mod tests {
     use super::x11::*;
     use super::*;
     use HotkeyEvent::{Cancel, Finish, PasteLast};
-    const START: HotkeyEvent = HotkeyEvent::Start { raw: false };
+    const START: HotkeyEvent = HotkeyEvent::Start {
+        flavour: DictationFlavour::Normal,
+    };
     use ShortcutCommand as Command;
 
     struct Test {
@@ -1249,6 +1454,12 @@ mod tests {
             self.input(Input::Command(command));
         }
 
+        fn expire(&mut self) {
+            if let Some(event) = self.state.expire(self.now) {
+                self.events.push(event);
+            }
+        }
+
         fn tap(&mut self) {
             self.press(Shortcut::Dictation);
             self.release(Shortcut::Dictation);
@@ -1266,7 +1477,9 @@ mod tests {
 
     #[test]
     fn raw_dictation_owns_the_capture_it_starts() {
-        const RAW: HotkeyEvent = HotkeyEvent::Start { raw: true };
+        const RAW: HotkeyEvent = HotkeyEvent::Start {
+            flavour: DictationFlavour::Raw,
+        };
         let mut test = Test::new(true);
         test.press(Shortcut::RawDictation);
         // The dictation shortcut can't finish or join another's capture.
@@ -1283,12 +1496,46 @@ mod tests {
         assert_eq!(test.events, [RAW, Finish, START, Finish, RAW, Finish]);
     }
 
+    #[test]
+    fn terminal_paste_shortcut_owns_the_capture_it_starts() {
+        const TERMINAL: HotkeyEvent = HotkeyEvent::Start {
+            flavour: DictationFlavour::TerminalPaste,
+        };
+        let mut test = Test::new(true);
+        test.press(Shortcut::TerminalPaste);
+        // The dictation and raw shortcuts can't finish or join another's
+        // capture.
+        test.tap();
+        test.press(Shortcut::RawDictation);
+        test.release(Shortcut::RawDictation);
+        test.release(Shortcut::TerminalPaste);
+        assert_eq!(test.events, [TERMINAL, Finish]);
+        // A dictation tap right after is not its second tap.
+        test.now += Duration::from_millis(20);
+        test.tap();
+        assert_eq!(test.events, [TERMINAL, Finish, START, Finish]);
+        // A later held press starts and finishes a plain capture.
+        test.now += Duration::from_millis(400);
+        test.press(Shortcut::TerminalPaste);
+        test.release(Shortcut::TerminalPaste);
+        assert_eq!(
+            test.events,
+            [TERMINAL, Finish, START, Finish, TERMINAL, Finish]
+        );
+    }
+
     /// #786: only the shortcuts Hex asked for show; a key the desktop still
     /// keeps for the removed Cancel dictation stays out.
     #[test]
     fn only_requested_shortcuts_are_shown() {
         let binding = LinuxHotkey::default();
-        let requested = [Some((Shortcut::Dictation, &binding)), None, None, None];
+        let requested = [
+            Some((Shortcut::Dictation, &binding)),
+            None,
+            None,
+            None,
+            None,
+        ];
         let mut ids: [Option<String>; Shortcut::ALL.len()] = Default::default();
         ids[Shortcut::Dictation.index()] = Some("dictation-ALT-space".into());
         let granted = std::collections::HashMap::from([
@@ -1314,7 +1561,13 @@ mod tests {
     #[test]
     fn a_missing_trigger_is_unconfirmed_where_the_desktop_assigns_keys() {
         let binding = LinuxHotkey::default();
-        let requested = [Some((Shortcut::Dictation, &binding)), None, None, None];
+        let requested = [
+            Some((Shortcut::Dictation, &binding)),
+            None,
+            None,
+            None,
+            None,
+        ];
         let mut ids: [Option<String>; Shortcut::ALL.len()] = Default::default();
         ids[Shortcut::Dictation.index()] = Some("dictation-ALT-space".into());
         let granted = std::collections::HashMap::from([("dictation-ALT-space".to_string(), None)]);
@@ -1377,7 +1630,12 @@ mod tests {
         };
         let (monitor, _commands) = x11_monitor(binding, double_tap(), Default::default());
         send_key(&harness.connection, harness.root, 4, 8);
-        assert_eq!(recv_event(&monitor), HotkeyEvent::Start { raw: false });
+        assert_eq!(
+            recv_event(&monitor),
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
+        );
         send_key(&harness.connection, harness.root, 5, 8);
         assert_eq!(recv_event(&monitor), HotkeyEvent::Finish);
     }
@@ -1630,7 +1888,8 @@ mod tests {
 
     #[test]
     fn a_changed_portal_trigger_gets_a_new_shortcut_id() {
-        let id = |trigger: &str| portal_shortcut_id(Shortcut::Dictation.portal_id().0, trigger);
+        let id =
+            |trigger: &str| portal_shortcut_id(Shortcut::Dictation.portal_id().0, trigger, false);
         assert_eq!(id("ALT+space"), "dictation-ALT-space");
         assert_eq!(id("ALT+space"), id("ALT+space"));
         assert_ne!(id("ALT+space"), id("CTRL+ALT+space"));
@@ -1648,6 +1907,24 @@ mod tests {
             Some("Press <ctrl>F9")
         );
         assert_eq!(granted_trigger(&granted, &ids, Shortcut::PasteLast), None);
+    }
+
+    /// #1376: Hyprland binds Hex's shortcuts by name in its config and
+    /// ignores the trigger, so a key recorded in Hex keeps the same name.
+    #[test]
+    fn a_desktop_that_assigns_keys_keeps_one_shortcut_id() {
+        let id = |shortcut: Shortcut, trigger: &str| {
+            portal_shortcut_id(shortcut.portal_id().0, trigger, true)
+        };
+        assert_eq!(id(Shortcut::Dictation, "ALT+space"), "dictation");
+        assert_eq!(id(Shortcut::Dictation, "CTRL+ALT+j"), "dictation");
+        assert_eq!(id(Shortcut::PasteLast, "CTRL+ALT+v"), "paste-last");
+        assert_eq!(id(Shortcut::Capture, "F9"), "capture");
+        assert_eq!(id(Shortcut::RawDictation, "CTRL+r"), "raw-dictation");
+        assert_eq!(
+            id(Shortcut::TerminalPaste, "CTRL+SHIFT+t"),
+            "terminal-paste"
+        );
     }
 
     #[test]
@@ -1804,6 +2081,44 @@ mod tests {
         }
     }
 
+    /// #1227: GNOME sends no release when a modifier comes up first, so a
+    /// hold whose repeats stop finishes by itself, and a press right after
+    /// starts a fresh capture rather than locking a double tap.
+    #[test]
+    fn a_hold_whose_repeats_stop_without_a_release_finishes_by_itself() {
+        for double_tap in [false, true] {
+            let mut test = Test::new(double_tap);
+            test.press(Shortcut::Dictation);
+            for _ in 0..20 {
+                test.now += Duration::from_millis(33);
+                test.press(Shortcut::Dictation);
+            }
+            test.now += Duration::from_millis(500);
+            test.expire();
+            assert_eq!(test.events, [START], "repeats may still come");
+            test.now += Duration::from_millis(500);
+            test.expire();
+            assert_eq!(test.events, [START, Finish]);
+            assert_eq!(test.state.capture, Capture::Idle);
+            test.expire();
+            assert_eq!(test.events, [START, Finish]);
+            // A quick press after it is a new capture, never a lock.
+            test.now += Duration::from_millis(100);
+            test.tap();
+            assert_eq!(test.events, [START, Finish, START, Finish]);
+            assert_eq!(test.state.capture, Capture::Idle);
+            // A hold that never repeated has nothing to go on: it waits for
+            // its release or the next press.
+            test.now += Duration::from_secs(1);
+            test.press(Shortcut::Dictation);
+            test.now += Duration::from_secs(5);
+            test.expire();
+            assert_eq!(test.events, [START, Finish, START, Finish, START]);
+            test.release(Shortcut::Dictation);
+            assert_eq!(test.events, [START, Finish, START, Finish, START, Finish]);
+        }
+    }
+
     #[test]
     fn a_balanced_release_finishes_a_repeating_hold() {
         // Space first, or both together: the desktop sends the release.
@@ -1837,6 +2152,117 @@ mod tests {
         test.release(Shortcut::Dictation);
         assert_eq!(test.events, [START]);
         assert_eq!(test.state.capture, Capture::Locked);
+    }
+
+    fn tap_or_hold() -> HotkeyOptions {
+        HotkeyOptions {
+            toggle: true,
+            tap_or_hold: true,
+            ..HotkeyOptions::default()
+        }
+    }
+
+    /// #1144: with Labs › Tap or hold, a held Toggle press dictates until it
+    /// lifts, and a short tap still locks until the next press.
+    #[test]
+    fn tap_or_hold_finishes_a_held_press_and_locks_a_tap() {
+        let mut test = Test::with(tap_or_hold());
+        test.press(Shortcut::Dictation);
+        test.now += Duration::from_millis(600);
+        test.release(Shortcut::Dictation);
+        assert_eq!(test.events, [START, Finish]);
+        assert_eq!(test.state.capture, Capture::Idle);
+
+        test.now += Duration::from_secs(1);
+        test.press(Shortcut::Dictation);
+        test.now += Duration::from_millis(299);
+        test.release(Shortcut::Dictation);
+        assert_eq!(test.events, [START, Finish, START]);
+        assert_eq!(test.state.capture, Capture::Locked);
+        test.now += Duration::from_secs(2);
+        test.press(Shortcut::Dictation);
+        test.now += Duration::from_millis(600);
+        test.release(Shortcut::Dictation);
+        assert_eq!(test.events, [START, Finish, START, Finish]);
+        assert_eq!(test.state.capture, Capture::Idle);
+    }
+
+    /// Off, or in Hold mode, a held Toggle press still locks as before.
+    #[test]
+    fn without_tap_or_hold_a_held_toggle_press_locks() {
+        for options in [
+            HotkeyOptions {
+                tap_or_hold: false,
+                ..tap_or_hold()
+            },
+            HotkeyOptions {
+                toggle: false,
+                double_tap: true,
+                ..tap_or_hold()
+            },
+        ] {
+            let toggle = options.toggle;
+            let mut test = Test::with(options);
+            if !toggle {
+                test.tap();
+                test.now += Duration::from_millis(20);
+            }
+            test.events.clear();
+            test.press(Shortcut::Dictation);
+            test.now += Duration::from_millis(600);
+            test.release(Shortcut::Dictation);
+            assert_eq!(test.events, [START]);
+            assert_eq!(test.state.capture, Capture::Locked);
+        }
+    }
+
+    /// Repeats of a held press neither finish early nor restart the hold,
+    /// and a dropped release leaves the capture recording until a new press.
+    #[test]
+    fn tap_or_hold_survives_repeats_and_dropped_releases() {
+        let mut test = Test::with(tap_or_hold());
+        test.press(Shortcut::Dictation);
+        for _ in 0..20 {
+            test.now += Duration::from_millis(33);
+            test.press(Shortcut::Dictation);
+        }
+        assert_eq!(test.events, [START]);
+        test.release(Shortcut::Dictation);
+        assert_eq!(
+            test.events,
+            [START, Finish],
+            "held 660 ms from the first press"
+        );
+
+        test.now += Duration::from_secs(1);
+        test.press(Shortcut::Dictation);
+        test.now += Duration::from_secs(5);
+        assert_eq!(test.state.capture, Capture::Held { second_tap: true });
+        test.press(Shortcut::Dictation);
+        assert_eq!(test.events, [START, Finish, START, Finish]);
+        test.release(Shortcut::Dictation);
+        assert_eq!(test.events, [START, Finish, START, Finish]);
+        assert_eq!(test.state.capture, Capture::Idle);
+    }
+
+    /// Dictate without processing follows Tap or hold for its own capture,
+    /// and commands are unchanged.
+    #[test]
+    fn tap_or_hold_applies_to_raw_dictation_but_not_commands() {
+        const RAW: HotkeyEvent = HotkeyEvent::Start {
+            flavour: DictationFlavour::Raw,
+        };
+        let mut test = Test::with(tap_or_hold());
+        test.press(Shortcut::RawDictation);
+        test.now += Duration::from_millis(500);
+        test.tap();
+        test.release(Shortcut::RawDictation);
+        assert_eq!(test.events, [RAW, Finish]);
+        test.now += Duration::from_secs(1);
+        test.command(Command::DictationStart);
+        test.now += Duration::from_secs(1);
+        test.command(Command::DictationStop);
+        assert_eq!(test.events, [RAW, Finish, START, Finish]);
     }
 
     /// #786: Escape ends no dictation, held, locked, or idle.
@@ -1967,6 +2393,32 @@ mod tests {
         test.press(Shortcut::PasteLast);
         test.command(Command::PasteLast);
         assert_eq!(test.events, [PasteLast, PasteLast, START]);
+    }
+
+    #[test]
+    fn typed_text_fires_only_while_idle_and_changes_no_capture_state() {
+        let mut test = Test::new(true);
+        test.press(Shortcut::TypedText);
+        test.release(Shortcut::TypedText);
+        test.command(Command::TypedText);
+        assert_eq!(
+            test.events,
+            [HotkeyEvent::TypedText, HotkeyEvent::TypedText]
+        );
+        assert_eq!(test.state.capture, Capture::Idle);
+        // Recording owns the shortcut and `hex typed-text`: no job and no
+        // state change.
+        test.press(Shortcut::Dictation);
+        test.events.clear();
+        test.press(Shortcut::TypedText);
+        test.release(Shortcut::TypedText);
+        test.command(Command::TypedText);
+        assert!(test.events.is_empty());
+        assert!(matches!(test.state.capture, Capture::Held { .. }));
+        assert_eq!(
+            Shortcut::TypedText.portal_id(),
+            ("typed-text", "Transform typed text")
+        );
     }
 
     #[test]
@@ -2239,11 +2691,21 @@ mod tests {
     #[test]
     fn full_event_queue_returns_an_error_instead_of_blocking_the_worker() {
         let (sender, receiver) = mpsc::sync_channel(1);
-        assert!(send_event(&sender, HotkeyEvent::Start { raw: false }).unwrap());
+        assert!(
+            send_event(
+                &sender,
+                HotkeyEvent::Start {
+                    flavour: DictationFlavour::Normal
+                }
+            )
+            .unwrap()
+        );
         assert!(send_event(&sender, HotkeyEvent::Finish).is_err());
         assert_eq!(
             receiver.try_recv().unwrap(),
-            HotkeyEvent::Start { raw: false }
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
         );
         drop(receiver);
         assert!(!send_event(&sender, HotkeyEvent::Cancel).unwrap());
@@ -2377,6 +2839,28 @@ mod tests {
     }
 
     #[test]
+    fn an_idle_monitor_wakes_at_once_for_a_hex_command() {
+        let (sender, events) = mpsc::sync_channel(4);
+        let (commands, receiver) = mpsc::sync_channel(4);
+        let mut dispatcher = Dispatcher::new(
+            &HotkeyOptions::default(),
+            sender,
+            receiver.into(),
+            ShortcutKeys::default(),
+        );
+        let sent = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(20));
+            commands.send(Command::DictationToggle.into()).unwrap();
+        });
+        let started = Instant::now();
+        dispatcher.wait_for_commands(Duration::from_secs(5));
+        assert!(dispatcher.flush().unwrap());
+        assert_eq!(events.recv_timeout(Duration::from_secs(1)).unwrap(), START);
+        assert!(started.elapsed() < Duration::from_secs(1));
+        sent.join().unwrap();
+    }
+
+    #[test]
     fn a_printing_stop_rides_the_command_queue_with_its_reply() {
         use crate::control::{PrintReply, PrintedTranscript};
         let (sender, events) = mpsc::sync_channel(4);
@@ -2403,9 +2887,13 @@ mod tests {
         assert!(matches!(
             received.as_slice(),
             [
-                HotkeyEvent::Start { raw: false },
+                HotkeyEvent::Start {
+                    flavour: DictationFlavour::Normal
+                },
                 HotkeyEvent::FinishPrinting(_),
-                HotkeyEvent::Start { raw: false }
+                HotkeyEvent::Start {
+                    flavour: DictationFlavour::Normal
+                }
             ]
         ));
         // The listener owns the reply now; nothing has answered it yet.
@@ -2427,7 +2915,12 @@ mod tests {
         let (monitor, _commands) =
             x11_monitor(LinuxHotkey::default(), double_tap(), Default::default());
         harness.tap_alt_space();
-        assert_eq!(recv_event(&monitor), HotkeyEvent::Start { raw: false });
+        assert_eq!(
+            recv_event(&monitor),
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
+        );
         assert_eq!(recv_event(&monitor), HotkeyEvent::Finish);
     }
 
@@ -2439,10 +2932,20 @@ mod tests {
             x11_monitor(LinuxHotkey::default(), double_tap(), Default::default());
 
         harness.tap_alt_space();
-        assert_eq!(recv_event(&monitor), HotkeyEvent::Start { raw: false });
+        assert_eq!(
+            recv_event(&monitor),
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
+        );
         assert_eq!(recv_event(&monitor), HotkeyEvent::Finish);
         harness.tap_alt_space();
-        assert_eq!(recv_event(&monitor), HotkeyEvent::Start { raw: false });
+        assert_eq!(
+            recv_event(&monitor),
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
+        );
         assert!(
             monitor
                 .events
@@ -2468,7 +2971,12 @@ mod tests {
         harness.send_key(KEY_PRESS, trigger);
         harness.send_key(KEY_RELEASE, trigger);
 
-        assert_eq!(recv_event(&monitor), HotkeyEvent::Start { raw: false });
+        assert_eq!(
+            recv_event(&monitor),
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
+        );
         assert_eq!(recv_event(&monitor), HotkeyEvent::Finish);
     }
 
@@ -2480,7 +2988,12 @@ mod tests {
             x11_monitor(LinuxHotkey::default(), double_tap(), Default::default());
         harness.send_key(KEY_PRESS, harness.alt);
         harness.send_key(KEY_PRESS, harness.space);
-        assert_eq!(recv_event(&monitor), HotkeyEvent::Start { raw: false });
+        assert_eq!(
+            recv_event(&monitor),
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
+        );
         commands.send(Command::DictationStop.into()).unwrap();
         assert_eq!(recv_event(&monitor), HotkeyEvent::Finish);
         // Releasing the held shortcut afterwards finishes nothing twice.
@@ -2493,7 +3006,12 @@ mod tests {
                 .is_err()
         );
         commands.send(Command::DictationStart.into()).unwrap();
-        assert_eq!(recv_event(&monitor), HotkeyEvent::Start { raw: false });
+        assert_eq!(
+            recv_event(&monitor),
+            HotkeyEvent::Start {
+                flavour: DictationFlavour::Normal
+            }
+        );
         // Escape stays with applications while the capture records (#786).
         thread::sleep(Duration::from_millis(50));
         grab_variants(

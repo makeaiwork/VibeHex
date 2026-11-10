@@ -1,15 +1,18 @@
 //! Labs: features we're unsure about, especially ones people asked for,
 //! each behind its own switch, off by default. There is no master switch:
-//! Settings › Labs lists every feature as a row with a toggle. A feature
+//! Settings › Labs lists every feature as a card with a toggle, under its
+//! group's collapsible header (`Feature::group`). A feature
 //! with its own pane (Meetings, Voice Filter, Playground) joins the sidebar
 //! as a normal item while on and is hidden while off; a behaviour-only
 //! feature (Live text, Live chapters, Vocabulary biasing, keyboard-language
 //! model switching, mouse shortcuts, pausing the browser, restoring Paste
 //! last dictation's default shortcut, keeping the dictation on the
 //! clipboard or only copying it (macOS), a second dictation shortcut
-//! (macOS), Toggle's tap or hold (macOS), stopping an automatic meeting
-//! recording when its call ends (macOS), and Terminal paste
-//! and shortcut sharing on Windows) is just its toggle.
+//! (macOS), Toggle's tap or hold (macOS, Linux), stopping an automatic meeting
+//! recording when its call ends (macOS), transcribing a saved WAV file from a
+//! terminal, and Terminal paste, shortcut sharing
+//! on Windows, and a terminal-paste dictation shortcut on Windows and Linux)
+//! is just its toggle.
 //!
 //! Each feature has an audience (`Feature::audience`): `Everyone` ships in
 //! every build; `Dev` exists only in dev builds (`dev_build::is_dev_build`:
@@ -21,11 +24,14 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use clap::Subcommand;
-use color_eyre::Result;
-use color_eyre::eyre::eyre;
+use crate::app_settings::{AppSettings, CapsLockLight, LabsSettings};
 
-use crate::app_settings::{AppSettings, LabsSettings};
+mod cli;
+mod description;
+mod group;
+
+pub use self::cli::{LabsCommand, run, run_retired_experiments};
+pub use self::group::Group;
 
 /// Where feedback on Hex goes.
 pub const FEEDBACK_EMAIL: &str = "zelenpro@gmail.com";
@@ -87,6 +93,8 @@ pub enum Feature {
     VoiceFilter,
     Playground,
     LiveText,
+    FailureNotices,
+    LiveTyping,
     LiveChapters,
     VocabularyBiasing,
     TerminalPaste,
@@ -102,6 +110,7 @@ pub enum Feature {
     FillerWords,
     SubtitleExport,
     SecondDictationShortcut,
+    TerminalPasteShortcut,
     SmartSpacing,
     SpokenSymbols,
     PickerSortFilter,
@@ -120,9 +129,30 @@ pub enum Feature {
     PickerDownloaded,
     SectionKeyAlone,
     KeepRecordings,
+    SettingsSearch,
+    ReleaseNotesLink,
     HideMenuBarIcon,
     MovableMeetingCapsules,
-    MeetingSummaryModel,
+    GnomeClipboardRestore,
+    TypedText,
+    MeetingNotesVocabulary,
+    NotchIndicator,
+    MeetingFinishedEvent,
+    GnomeMeetingCapsules,
+    GnomeAnnotate,
+    Screenshots,
+    FollowLiveTranscript,
+    MoreCallApps,
+    AnnotateReplay,
+    MeetingImport,
+    MeetingDescriptiveFilenames,
+    QuitClosesWindow,
+    ExpireMeetingAudio,
+    CapsLockDictation,
+    OpenCodeInWsl,
+    TranscribeFiles,
+    ApiProcessing,
+    // VibeHex's own labs.
     AiCleanupServer,
     VocabularyPasteList,
     RussianVibeCoding,
@@ -135,11 +165,13 @@ pub enum Feature {
 }
 
 impl Feature {
-    pub const ALL: [Self; 49] = [
+    pub const ALL: [Self; 72] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
         Self::LiveText,
+        Self::FailureNotices,
+        Self::LiveTyping,
         Self::LiveChapters,
         Self::VocabularyBiasing,
         Self::TerminalPaste,
@@ -155,6 +187,7 @@ impl Feature {
         Self::FillerWords,
         Self::SubtitleExport,
         Self::SecondDictationShortcut,
+        Self::TerminalPasteShortcut,
         Self::SmartSpacing,
         Self::SpokenSymbols,
         Self::PickerSortFilter,
@@ -173,9 +206,29 @@ impl Feature {
         Self::PickerDownloaded,
         Self::SectionKeyAlone,
         Self::KeepRecordings,
+        Self::SettingsSearch,
+        Self::ReleaseNotesLink,
         Self::HideMenuBarIcon,
         Self::MovableMeetingCapsules,
-        Self::MeetingSummaryModel,
+        Self::GnomeClipboardRestore,
+        Self::TypedText,
+        Self::MeetingNotesVocabulary,
+        Self::NotchIndicator,
+        Self::MeetingFinishedEvent,
+        Self::GnomeMeetingCapsules,
+        Self::GnomeAnnotate,
+        Self::Screenshots,
+        Self::FollowLiveTranscript,
+        Self::MoreCallApps,
+        Self::AnnotateReplay,
+        Self::MeetingImport,
+        Self::MeetingDescriptiveFilenames,
+        Self::QuitClosesWindow,
+        Self::ExpireMeetingAudio,
+        Self::CapsLockDictation,
+        Self::OpenCodeInWsl,
+        Self::TranscribeFiles,
+        Self::ApiProcessing,
         Self::AiCleanupServer,
         Self::VocabularyPasteList,
         Self::RussianVibeCoding,
@@ -200,18 +253,37 @@ impl Feature {
     }
 
     /// Whether this build has the feature: its audience reaches a dev or
-    /// stable build.
+    /// stable build, and VibeHex doesn't hide it from a stable one.
     pub fn shipped(self) -> bool {
-        self.audience().reaches(crate::dev_build::is_dev_build())
+        let dev = crate::dev_build::is_dev_build();
+        self.audience().reaches(dev) && (dev || !self.vibehex_hides())
+    }
+
+    /// Hex labs VibeHex leaves out of a stable build, as Hex does its
+    /// developer tools: they repeat something VibeHex already has (Files,
+    /// About) or the owner chose not to ship them.
+    pub const fn vibehex_hides(self) -> bool {
+        matches!(
+            self,
+            Self::TranscribeFiles
+                | Self::MeetingImport
+                | Self::ReleaseNotesLink
+                | Self::QuitClosesWindow
+                | Self::AnnotateReplay
+        )
     }
 
     /// Who the feature is for. Every feature picks one.
     pub const fn audience(self) -> Audience {
         match self {
+            // Developer tools: the story browser, and the virtual microphone
+            // (a stable build keeps only its Uninstall while the driver is
+            // installed).
+            Self::VoiceFilter | Self::Playground => Audience::Dev,
             Self::Meetings
-            | Self::VoiceFilter
-            | Self::Playground
             | Self::LiveText
+            | Self::FailureNotices
+            | Self::LiveTyping
             | Self::LiveChapters
             | Self::VocabularyBiasing
             | Self::TerminalPaste
@@ -227,6 +299,7 @@ impl Feature {
             | Self::FillerWords
             | Self::SubtitleExport
             | Self::SecondDictationShortcut
+            | Self::TerminalPasteShortcut
             | Self::SmartSpacing
             | Self::SpokenSymbols
             | Self::PickerSortFilter
@@ -245,9 +318,29 @@ impl Feature {
             | Self::PickerDownloaded
             | Self::SectionKeyAlone
             | Self::KeepRecordings
+            | Self::SettingsSearch
+            | Self::ReleaseNotesLink
             | Self::HideMenuBarIcon
             | Self::MovableMeetingCapsules
-            | Self::MeetingSummaryModel
+            | Self::GnomeClipboardRestore
+            | Self::TypedText
+            | Self::MeetingNotesVocabulary
+            | Self::MeetingFinishedEvent
+            | Self::GnomeMeetingCapsules
+            | Self::Screenshots
+            | Self::FollowLiveTranscript
+            | Self::MoreCallApps
+            | Self::AnnotateReplay
+            | Self::MeetingImport
+            | Self::MeetingDescriptiveFilenames
+            | Self::ExpireMeetingAudio
+            | Self::NotchIndicator
+            | Self::QuitClosesWindow
+            | Self::GnomeAnnotate
+            | Self::CapsLockDictation
+            | Self::OpenCodeInWsl
+            | Self::TranscribeFiles
+            | Self::ApiProcessing
             | Self::AiCleanupServer
             | Self::VocabularyPasteList
             | Self::RussianVibeCoding
@@ -257,6 +350,77 @@ impl Feature {
             | Self::StopShortcut
             | Self::CollapsibleSidebar
             | Self::Playback => Audience::Everyone,
+        }
+    }
+
+    /// The day it joined Labs, as `yyyymmdd`. Labs marks the newest as New.
+    pub const fn added(self) -> u32 {
+        match self {
+            Self::Meetings
+            | Self::VoiceFilter
+            | Self::Playground
+            | Self::LiveText
+            | Self::LiveChapters
+            | Self::VocabularyBiasing
+            | Self::TerminalPaste
+            | Self::KeyboardModelSwitching
+            | Self::MouseShortcuts
+            | Self::PauseBrowser
+            | Self::ShareShortcut => 20261030,
+            Self::UnloadIdle
+            | Self::RestoreShortcutDefault
+            | Self::KeepOnClipboard
+            | Self::CopyOnly
+            | Self::SpokenFormatting
+            | Self::FillerWords
+            | Self::SubtitleExport
+            | Self::SecondDictationShortcut
+            | Self::SmartSpacing
+            | Self::SpokenSymbols
+            | Self::PickerSortFilter
+            | Self::SidedChords
+            | Self::TapOrHold
+            | Self::BenchmarkDetails => 20261031,
+            Self::ParakeetUltra
+            | Self::StandaloneSpecialKeys
+            | Self::HistoryStats
+            | Self::RecentDictations
+            | Self::SkipPauses => 20261101,
+            Self::StopWhenCallEnds
+            | Self::OutputFixes
+            | Self::PickerActiveFirst
+            | Self::ModelInPlace
+            | Self::PickerDownloaded
+            | Self::SectionKeyAlone
+            | Self::KeepRecordings
+            | Self::HideMenuBarIcon => 20261102,
+            Self::MovableMeetingCapsules
+            | Self::GnomeClipboardRestore
+            | Self::MeetingNotesVocabulary
+            | Self::NotchIndicator => 20261103,
+            Self::MeetingFinishedEvent
+            | Self::GnomeMeetingCapsules
+            | Self::Screenshots
+            | Self::FollowLiveTranscript
+            | Self::AnnotateReplay => 20261104,
+            Self::MoreCallApps | Self::SettingsSearch | Self::MeetingImport => 20261106,
+            Self::LiveTyping
+            | Self::MeetingDescriptiveFilenames
+            | Self::QuitClosesWindow
+            | Self::CapsLockDictation
+            | Self::ExpireMeetingAudio
+            | Self::FailureNotices
+            | Self::TypedText => 20261107,
+            Self::GnomeAnnotate
+            | Self::TerminalPasteShortcut
+            | Self::ReleaseNotesLink
+            | Self::OpenCodeInWsl => 20261108,
+            Self::TranscribeFiles | Self::ApiProcessing => 20261109,
+            // VibeHex's labs, by the day each joined the fork.
+            Self::AiCleanupServer | Self::VocabularyPasteList | Self::RussianVibeCoding => 20261103,
+            Self::VocabularyQuickAdd | Self::CleanupProgress => 20261104,
+            Self::Files | Self::StopShortcut => 20261105,
+            Self::CollapsibleSidebar | Self::Playback => 20261106,
         }
     }
 
@@ -277,44 +441,68 @@ impl Feature {
         if key == "labs.unload_idle_minutes" {
             return Some(Self::UnloadIdle);
         }
+        if key == "labs.caps_lock_light" {
+            return Some(Self::CapsLockDictation);
+        }
+        if key == "capture.replay_hotkey" {
+            return Some(Self::AnnotateReplay);
+        }
         Self::ALL
             .into_iter()
             .find(|feature| feature.settings_key() == key)
     }
 
-    fn on_this_os(self) -> bool {
+    /// Whether this OS has the feature at all, in any build.
+    pub fn on_this_os(self) -> bool {
         match self {
             Self::Meetings
             | Self::LiveChapters
             | Self::SubtitleExport
             | Self::StopWhenCallEnds
             | Self::MovableMeetingCapsules
-            | Self::MeetingSummaryModel => cfg!(target_os = "macos"),
+            | Self::MeetingImport => cfg!(target_os = "macos"),
             Self::VoiceFilter => cfg!(any(target_os = "macos", target_os = "linux")),
-            Self::TerminalPaste | Self::ShareShortcut => cfg!(target_os = "windows"),
-            Self::SectionKeyAlone => cfg!(target_os = "linux"),
-            Self::StandaloneSpecialKeys | Self::SkipPauses => {
+            Self::TerminalPaste | Self::ShareShortcut | Self::OpenCodeInWsl => {
+                cfg!(target_os = "windows")
+            }
+            Self::SectionKeyAlone
+            | Self::GnomeClipboardRestore
+            | Self::TypedText
+            | Self::GnomeMeetingCapsules
+            | Self::GnomeAnnotate
+            | Self::LiveTyping => cfg!(target_os = "linux"),
+            Self::StandaloneSpecialKeys | Self::SkipPauses | Self::TerminalPasteShortcut => {
                 cfg!(any(target_os = "linux", target_os = "windows"))
             }
             Self::MouseShortcuts
             | Self::PauseBrowser
-            | Self::KeepOnClipboard
-            | Self::CopyOnly
             | Self::SecondDictationShortcut
-            | Self::StopShortcut
             | Self::SmartSpacing
             | Self::SidedChords
-            | Self::TapOrHold
             | Self::RecentDictations
             | Self::HideMenuBarIcon
-            | Self::VocabularyQuickAdd
-            | Self::CleanupProgress
-            | Self::Playback
-            | Self::Files => cfg!(target_os = "macos"),
+            | Self::QuitClosesWindow
+            | Self::NotchIndicator
+            | Self::Screenshots
+            | Self::CapsLockDictation => cfg!(target_os = "macos"),
+            Self::KeepOnClipboard | Self::CopyOnly => {
+                cfg!(any(target_os = "macos", target_os = "windows"))
+            }
+            Self::TapOrHold => cfg!(any(target_os = "macos", target_os = "linux")),
             Self::KeyboardModelSwitching => crate::keyboard_input_sources::available(),
+            Self::AnnotateReplay => {
+                #[cfg(hex_capture)]
+                {
+                    crate::capture_host::replay_available()
+                }
+                #[cfg(not(hex_capture))]
+                {
+                    false
+                }
+            }
             Self::Playground
-            | Self::CollapsibleSidebar
             | Self::LiveText
+            | Self::FailureNotices
             | Self::VocabularyBiasing
             | Self::UnloadIdle
             | Self::RestoreShortcutDefault
@@ -329,10 +517,26 @@ impl Feature {
             | Self::ModelInPlace
             | Self::PickerDownloaded
             | Self::KeepRecordings
+            | Self::MeetingNotesVocabulary
+            | Self::MeetingFinishedEvent
+            | Self::MeetingDescriptiveFilenames
+            | Self::FollowLiveTranscript
+            | Self::MoreCallApps
+            | Self::ExpireMeetingAudio
+            | Self::SettingsSearch
+            | Self::ReleaseNotesLink
             | Self::FillerWords
+            | Self::TranscribeFiles
+            | Self::ApiProcessing
             | Self::AiCleanupServer
             | Self::VocabularyPasteList
-            | Self::RussianVibeCoding => true,
+            | Self::RussianVibeCoding
+            | Self::CollapsibleSidebar => true,
+            Self::VocabularyQuickAdd
+            | Self::CleanupProgress
+            | Self::Files
+            | Self::StopShortcut
+            | Self::Playback => cfg!(target_os = "macos"),
         }
     }
 
@@ -360,6 +564,8 @@ impl Feature {
             Self::VoiceFilter => "voice-filter",
             Self::Playground => "playground",
             Self::LiveText => "live-text",
+            Self::FailureNotices => "failure-notices",
+            Self::LiveTyping => "live-typing",
             Self::LiveChapters => "live-chapters",
             Self::VocabularyBiasing => "vocabulary-biasing",
             Self::TerminalPaste => "terminal-paste",
@@ -375,6 +581,7 @@ impl Feature {
             Self::FillerWords => "filler-words",
             Self::SubtitleExport => "subtitle-export",
             Self::SecondDictationShortcut => "second-dictation-shortcut",
+            Self::TerminalPasteShortcut => "terminal-paste-shortcut",
             Self::SmartSpacing => "smart-spacing",
             Self::SpokenSymbols => "spoken-symbols",
             Self::PickerSortFilter => "picker-sort-filter",
@@ -393,9 +600,29 @@ impl Feature {
             Self::PickerDownloaded => "picker-downloaded",
             Self::SectionKeyAlone => "section-key",
             Self::KeepRecordings => "keep-recordings",
+            Self::SettingsSearch => "settings-search",
+            Self::ReleaseNotesLink => "release-notes-link",
             Self::HideMenuBarIcon => "hide-menu-bar-icon",
             Self::MovableMeetingCapsules => "movable-meeting-capsules",
-            Self::MeetingSummaryModel => "meeting-summary-model",
+            Self::GnomeClipboardRestore => "gnome-clipboard-restore",
+            Self::TypedText => "typed-text",
+            Self::MeetingNotesVocabulary => "meeting-notes-vocabulary",
+            Self::NotchIndicator => "notch-indicator",
+            Self::MeetingFinishedEvent => "meeting-finished-event",
+            Self::GnomeMeetingCapsules => "gnome-meeting-capsules",
+            Self::GnomeAnnotate => "gnome-annotate",
+            Self::Screenshots => "screenshots",
+            Self::FollowLiveTranscript => "follow-live-transcript",
+            Self::MoreCallApps => "more-call-apps",
+            Self::AnnotateReplay => "annotate-replay",
+            Self::MeetingImport => "meeting-import",
+            Self::MeetingDescriptiveFilenames => "meeting-descriptive-filenames",
+            Self::QuitClosesWindow => "quit-closes-window",
+            Self::ExpireMeetingAudio => "expire-meeting-audio",
+            Self::CapsLockDictation => "caps-lock-dictation",
+            Self::OpenCodeInWsl => "opencode-in-wsl",
+            Self::TranscribeFiles => "transcribe-files",
+            Self::ApiProcessing => "api-processing",
             Self::AiCleanupServer => "ai-cleanup-server",
             Self::VocabularyPasteList => "vocabulary-paste-list",
             Self::RussianVibeCoding => "russian-vibe-coding",
@@ -415,6 +642,8 @@ impl Feature {
             Self::VoiceFilter => "experimental.hex_microphone",
             Self::Playground => "labs.playground",
             Self::LiveText => "labs.live_text",
+            Self::FailureNotices => "labs.failure_notices",
+            Self::LiveTyping => "labs.live_typing",
             Self::LiveChapters => "labs.live_chapters",
             Self::VocabularyBiasing => "labs.vocabulary_biasing",
             Self::TerminalPaste => "paste_with_shift",
@@ -430,6 +659,7 @@ impl Feature {
             Self::FillerWords => "labs.filler_words",
             Self::SubtitleExport => "labs.subtitle_export",
             Self::SecondDictationShortcut => "labs.second_dictation_shortcut",
+            Self::TerminalPasteShortcut => "labs.terminal_paste_shortcut",
             Self::SmartSpacing => "labs.smart_spacing",
             Self::SpokenSymbols => "labs.spoken_symbols",
             Self::PickerSortFilter => "labs.picker_sort_filter",
@@ -448,9 +678,29 @@ impl Feature {
             Self::PickerDownloaded => "labs.picker_downloaded",
             Self::SectionKeyAlone => "labs.section_key_alone",
             Self::KeepRecordings => "labs.keep_recordings",
+            Self::SettingsSearch => "labs.settings_search",
+            Self::ReleaseNotesLink => "labs.release_notes_link",
             Self::HideMenuBarIcon => "labs.hide_menu_bar_icon",
             Self::MovableMeetingCapsules => "labs.movable_meeting_capsules",
-            Self::MeetingSummaryModel => "labs.meeting_summary_model",
+            Self::GnomeClipboardRestore => "labs.gnome_clipboard_restore",
+            Self::TypedText => "labs.typed_text",
+            Self::MeetingNotesVocabulary => "labs.meeting_notes_vocabulary",
+            Self::NotchIndicator => "labs.notch_indicator",
+            Self::MeetingFinishedEvent => "labs.meeting_finished_event",
+            Self::GnomeMeetingCapsules => "labs.gnome_meeting_capsules",
+            Self::GnomeAnnotate => "labs.gnome_annotate",
+            Self::Screenshots => "labs.screenshots",
+            Self::FollowLiveTranscript => "labs.follow_live_transcript",
+            Self::MoreCallApps => "labs.more_call_apps",
+            Self::AnnotateReplay => "labs.annotate_replay",
+            Self::MeetingImport => "labs.meeting_import",
+            Self::MeetingDescriptiveFilenames => "labs.meeting_descriptive_filenames",
+            Self::QuitClosesWindow => "labs.quit_closes_window",
+            Self::ExpireMeetingAudio => "labs.expire_meeting_audio",
+            Self::CapsLockDictation => "labs.caps_lock_dictation",
+            Self::OpenCodeInWsl => "labs.opencode_in_wsl",
+            Self::TranscribeFiles => "labs.transcribe_files",
+            Self::ApiProcessing => "labs.api_processing",
             Self::AiCleanupServer => "labs.ai_cleanup_server",
             Self::VocabularyPasteList => "labs.vocabulary_paste_list",
             Self::RussianVibeCoding => "labs.russian_vibe_coding",
@@ -460,141 +710,6 @@ impl Feature {
             Self::StopShortcut => "labs.stop_shortcut",
             Self::CollapsibleSidebar => "labs.collapsible_sidebar",
             Self::Playback => "labs.playback",
-        }
-    }
-
-    /// The English one-line description the CLI prints; the window shows
-    /// its translated row.
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Meetings => "Record calls and keep transcripts (its own pane)",
-            Self::VoiceFilter => {
-                "Hex Microphone virtual input and real-time voice filters (its own pane)"
-            }
-            Self::Playground => "Scene and story browser in the window",
-            Self::LiveText => "Show provisional words beside the HUD while dictating",
-            Self::LiveChapters => "Break meeting transcripts into chapters while recording",
-            Self::VocabularyBiasing => {
-                "Bias Parakeet transcription toward your vocabulary; rewriting and search use it either way"
-            }
-            Self::TerminalPaste => "Paste with Ctrl+Shift+V, for apps that ignore Ctrl+V",
-            Self::KeyboardModelSwitching => {
-                "Changing the keyboard language switches the speech model and language"
-            }
-            Self::MouseShortcuts => "Record mouse buttons as shortcuts",
-            Self::PauseBrowser => "Also pause the browser while dictating, with Pause media",
-            Self::ShareShortcut => "Let apps such as Discord see the dictation shortcut too",
-            Self::UnloadIdle => {
-                "Free the speech model's memory after a while unused (labs.unload_idle_minutes); the next dictation reloads it"
-            }
-            Self::RestoreShortcutDefault => {
-                "Offer Restore default next to Paste last dictation's shortcut"
-            }
-            Self::KeepOnClipboard => {
-                "Leave the dictation on the clipboard after pasting instead of restoring what was there"
-            }
-            Self::CopyOnly => "Put the dictation on the clipboard instead of pasting it",
-            Self::SpokenFormatting => {
-                "Turn spoken \"new line\", \"new paragraph\", and \"open/close quote\" into line breaks and quotation marks"
-            }
-            Self::FillerWords => {
-                "Remove filler words such as um and uh from dictations, without an AI model"
-            }
-            Self::SubtitleExport => {
-                "Export meeting transcripts as SRT or VTT subtitles with hex meetings show"
-            }
-            Self::SecondDictationShortcut => {
-                "Another shortcut that dictates like the main one (second_dictation_hotkey), such as a key on an external keyboard"
-            }
-            Self::SmartSpacing => "Add a space before a dictation pasted right after a word",
-            Self::SpokenSymbols => {
-                "Turn spoken \"comma\", \"colon\", \"hashtag\", \"underscore\", and similar words into symbols joined to their words"
-            }
-            Self::PickerSortFilter => {
-                "Sort the Local transcription picker by size or name and show only models for the saved language"
-            }
-            Self::SidedChords => {
-                "Record which side each modifier of a shortcut is on, such as Right Command + Right Option"
-            }
-            Self::TapOrHold => {
-                "In Toggle mode, hold the shortcut to dictate until you let go; a short tap still starts and stops"
-            }
-            Self::BenchmarkDetails => {
-                "Show each model's raw error rate, benchmark, and source in the Local transcription picker"
-            }
-            Self::ParakeetUltra => {
-                "Offer Parakeet Ultra, Moondream's post-trained Parakeet v3, in the Local transcription picker"
-            }
-            Self::StandaloneSpecialKeys if cfg!(target_os = "windows") => {
-                "Use Insert, Home, End, Page Up, or Page Down alone as a shortcut"
-            }
-            Self::StandaloneSpecialKeys => {
-                "Use Menu, Pause, or Scroll Lock alone as a shortcut, such as Caps Lock remapped to Menu"
-            }
-            Self::HistoryStats => {
-                "Show a summary of your retained dictations at the top of History, with hex history stats"
-            }
-            Self::RecentDictations => {
-                "Copy one of your last five dictations from the menu bar, under Paste Last Dictation"
-            }
-            Self::SkipPauses => {
-                "Shorten long pauses before a whole dictation goes to the model, so slow computers paste sooner"
-            }
-            Self::StopWhenCallEnds => {
-                "Stop a meeting recording Hex started on its own 30 s after the call app leaves the microphone and goes quiet"
-            }
-            Self::OutputFixes => {
-                "Offer Vocabulary and Fix this beside Output's Try result, to correct a wrong result"
-            }
-            Self::PickerActiveFirst => "The speech model picker lists the model you're using first",
-            Self::ModelInPlace => {
-                "Add a speech model file and use it where it is, without copying it, so several accounts can share one file"
-            }
-            Self::PickerDownloaded => {
-                "Show only downloaded speech models in the picker, with the space they take"
-            }
-            Self::SectionKeyAlone => {
-                "Use the § key, left of 1 on ISO keyboards, alone as a shortcut; Hex takes § from every app while it's bound"
-            }
-            Self::KeepRecordings => {
-                "Keep the audio of dictations saved to History, so you can transcribe them again with another model"
-            }
-            Self::HideMenuBarIcon => {
-                "Hide Hex's menu bar icon; shortcuts keep working, and opening Hex again shows Settings"
-            }
-            Self::MovableMeetingCapsules => {
-                "Drag meeting capsules such as Meeting transcript ready out of the way; they come back in the corner you left them"
-            }
-            Self::MeetingSummaryModel => {
-                "Choose the OpenCode provider and model that write meeting notes (meetings.opencode_model, provider/model)"
-            }
-            Self::AiCleanupServer => {
-                "Clean up dictations with OpenRouter or your own OpenAI-compatible server, such as LM Studio or Ollama, instead of OpenCode"
-            }
-            Self::VocabularyPasteList => {
-                "The Vocabulary sheet's Text view shows the whole list as text, one term per line as Term | sounds like, sounds like, to paste, fix, or delete many at once"
-            }
-            Self::RussianVibeCoding => {
-                "Adds the Russian vibe-coding vocabulary, word fixes, and AI cleanup instructions to your settings and turns on Clean up with AI and every other VibeHex feature but Stop shortcut; off takes back what it added and you haven't changed"
-            }
-            Self::VocabularyQuickAdd => {
-                "Select a misheard word in any app and press a shortcut to add it to Vocabulary with its right spelling, which also replaces the selection where the text can be edited"
-            }
-            Self::CleanupProgress => {
-                "While AI cleanup takes a while, a bar beside the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"
-            }
-            Self::Files => {
-                "Drop audio and video files to transcribe them, clean them up, and rework the text with your own requests"
-            }
-            Self::StopShortcut => {
-                "Another key, such as Return, finishes a dictation and pastes it, while your shortcut starts it (stop_hotkey)"
-            }
-            Self::CollapsibleSidebar => {
-                "A button beside the logo folds the sidebar into a narrow column of icons, so the pane gets the room"
-            }
-            Self::Playback => {
-                "Play a meeting or a file from its transcript: Play beside the requests opens a player, the line playing lights up, and a click on a line plays from there"
-            }
         }
     }
 
@@ -609,6 +724,8 @@ impl Feature {
             Self::VoiceFilter => settings.experimental.hex_microphone,
             Self::Playground => settings.labs.playground,
             Self::LiveText => settings.labs.live_text,
+            Self::FailureNotices => settings.labs.failure_notices,
+            Self::LiveTyping => settings.labs.live_typing,
             Self::LiveChapters => settings.labs.live_chapters,
             Self::VocabularyBiasing => settings.labs.vocabulary_biasing,
             Self::TerminalPaste => settings.paste_with_shift,
@@ -624,6 +741,7 @@ impl Feature {
             Self::FillerWords => settings.labs.filler_words,
             Self::SubtitleExport => settings.labs.subtitle_export,
             Self::SecondDictationShortcut => settings.labs.second_dictation_shortcut,
+            Self::TerminalPasteShortcut => settings.labs.terminal_paste_shortcut,
             Self::SmartSpacing => settings.labs.smart_spacing,
             Self::SpokenSymbols => settings.labs.spoken_symbols,
             Self::PickerSortFilter => settings.labs.picker_sort_filter,
@@ -642,9 +760,29 @@ impl Feature {
             Self::PickerDownloaded => settings.labs.picker_downloaded,
             Self::SectionKeyAlone => settings.labs.section_key_alone,
             Self::KeepRecordings => settings.labs.keep_recordings,
+            Self::SettingsSearch => settings.labs.settings_search,
+            Self::ReleaseNotesLink => settings.labs.release_notes_link,
             Self::HideMenuBarIcon => settings.labs.hide_menu_bar_icon,
             Self::MovableMeetingCapsules => settings.labs.movable_meeting_capsules,
-            Self::MeetingSummaryModel => settings.labs.meeting_summary_model,
+            Self::GnomeClipboardRestore => settings.labs.gnome_clipboard_restore,
+            Self::TypedText => settings.labs.typed_text,
+            Self::MeetingNotesVocabulary => settings.labs.meeting_notes_vocabulary,
+            Self::NotchIndicator => settings.labs.notch_indicator,
+            Self::MeetingFinishedEvent => settings.labs.meeting_finished_event,
+            Self::GnomeMeetingCapsules => settings.labs.gnome_meeting_capsules,
+            Self::GnomeAnnotate => settings.labs.gnome_annotate,
+            Self::Screenshots => settings.labs.screenshots,
+            Self::FollowLiveTranscript => settings.labs.follow_live_transcript,
+            Self::MoreCallApps => settings.labs.more_call_apps,
+            Self::AnnotateReplay => settings.labs.annotate_replay,
+            Self::MeetingImport => settings.labs.meeting_import,
+            Self::MeetingDescriptiveFilenames => settings.labs.meeting_descriptive_filenames,
+            Self::QuitClosesWindow => settings.labs.quit_closes_window,
+            Self::ExpireMeetingAudio => settings.labs.expire_meeting_audio,
+            Self::CapsLockDictation => settings.labs.caps_lock_dictation,
+            Self::OpenCodeInWsl => settings.labs.opencode_in_wsl,
+            Self::TranscribeFiles => settings.labs.transcribe_files,
+            Self::ApiProcessing => settings.labs.api_processing,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list,
             Self::RussianVibeCoding => settings.labs.russian_vibe_coding,
@@ -670,6 +808,8 @@ impl Feature {
             &mut settings.share_dictation_shortcut,
             &mut labs.playground,
             &mut labs.live_text,
+            &mut labs.failure_notices,
+            &mut labs.live_typing,
             &mut labs.live_chapters,
             &mut labs.vocabulary_biasing,
             &mut labs.mouse_shortcuts,
@@ -681,6 +821,7 @@ impl Feature {
             &mut labs.filler_words,
             &mut labs.subtitle_export,
             &mut labs.second_dictation_shortcut,
+            &mut labs.terminal_paste_shortcut,
             &mut labs.smart_spacing,
             &mut labs.spoken_symbols,
             &mut labs.picker_sort_filter,
@@ -699,9 +840,29 @@ impl Feature {
             &mut labs.picker_downloaded,
             &mut labs.section_key_alone,
             &mut labs.keep_recordings,
+            &mut labs.settings_search,
+            &mut labs.release_notes_link,
             &mut labs.hide_menu_bar_icon,
             &mut labs.movable_meeting_capsules,
-            &mut labs.meeting_summary_model,
+            &mut labs.gnome_clipboard_restore,
+            &mut labs.typed_text,
+            &mut labs.meeting_notes_vocabulary,
+            &mut labs.notch_indicator,
+            &mut labs.meeting_finished_event,
+            &mut labs.gnome_meeting_capsules,
+            &mut labs.gnome_annotate,
+            &mut labs.screenshots,
+            &mut labs.follow_live_transcript,
+            &mut labs.more_call_apps,
+            &mut labs.annotate_replay,
+            &mut labs.meeting_import,
+            &mut labs.meeting_descriptive_filenames,
+            &mut labs.quit_closes_window,
+            &mut labs.expire_meeting_audio,
+            &mut labs.caps_lock_dictation,
+            &mut labs.opencode_in_wsl,
+            &mut labs.transcribe_files,
+            &mut labs.api_processing,
             &mut labs.ai_cleanup_server,
             &mut labs.vocabulary_paste_list,
             &mut labs.russian_vibe_coding,
@@ -725,6 +886,8 @@ impl Feature {
             Self::VoiceFilter => settings.experimental.hex_microphone = on,
             Self::Playground => settings.labs.playground = on,
             Self::LiveText => settings.labs.live_text = on,
+            Self::FailureNotices => settings.labs.failure_notices = on,
+            Self::LiveTyping => settings.labs.live_typing = on,
             Self::LiveChapters => settings.labs.live_chapters = on,
             Self::VocabularyBiasing => settings.labs.vocabulary_biasing = on,
             Self::TerminalPaste => settings.paste_with_shift = on,
@@ -740,6 +903,7 @@ impl Feature {
             Self::FillerWords => settings.labs.filler_words = on,
             Self::SubtitleExport => settings.labs.subtitle_export = on,
             Self::SecondDictationShortcut => settings.labs.second_dictation_shortcut = on,
+            Self::TerminalPasteShortcut => settings.labs.terminal_paste_shortcut = on,
             Self::SmartSpacing => settings.labs.smart_spacing = on,
             Self::SpokenSymbols => settings.labs.spoken_symbols = on,
             Self::PickerSortFilter => settings.labs.picker_sort_filter = on,
@@ -756,14 +920,37 @@ impl Feature {
             Self::ModelInPlace => settings.labs.model_in_place = on,
             Self::PickerDownloaded => settings.labs.picker_downloaded = on,
             Self::KeepRecordings => settings.labs.keep_recordings = on,
+            Self::SettingsSearch => settings.labs.settings_search = on,
+            Self::ReleaseNotesLink => settings.labs.release_notes_link = on,
             Self::HideMenuBarIcon => settings.labs.hide_menu_bar_icon = on,
             Self::MovableMeetingCapsules => settings.labs.movable_meeting_capsules = on,
-            Self::MeetingSummaryModel => settings.labs.meeting_summary_model = on,
+            Self::GnomeClipboardRestore => settings.labs.gnome_clipboard_restore = on,
+            Self::TypedText => settings.labs.typed_text = on,
+            Self::MeetingNotesVocabulary => settings.labs.meeting_notes_vocabulary = on,
+            Self::NotchIndicator => settings.labs.notch_indicator = on,
+            Self::MeetingFinishedEvent => settings.labs.meeting_finished_event = on,
+            Self::GnomeMeetingCapsules => settings.labs.gnome_meeting_capsules = on,
+            Self::GnomeAnnotate => settings.labs.gnome_annotate = on,
+            Self::Screenshots => settings.labs.screenshots = on,
+            Self::FollowLiveTranscript => settings.labs.follow_live_transcript = on,
+            Self::MoreCallApps => settings.labs.more_call_apps = on,
+            Self::AnnotateReplay => settings.labs.annotate_replay = on,
+            Self::MeetingImport => settings.labs.meeting_import = on,
+            Self::MeetingDescriptiveFilenames => settings.labs.meeting_descriptive_filenames = on,
+            Self::QuitClosesWindow => settings.labs.quit_closes_window = on,
+            Self::ExpireMeetingAudio => settings.labs.expire_meeting_audio = on,
+            Self::CapsLockDictation => settings.labs.caps_lock_dictation = on,
+            Self::OpenCodeInWsl => settings.labs.opencode_in_wsl = on,
+            Self::TranscribeFiles => settings.labs.transcribe_files = on,
+            Self::ApiProcessing => settings.labs.api_processing = on,
             Self::AiCleanupServer => settings.labs.ai_cleanup_server = on,
             Self::VocabularyPasteList => settings.labs.vocabulary_paste_list = on,
             Self::VocabularyQuickAdd => settings.labs.vocabulary_quick_add = on,
             Self::CleanupProgress => settings.labs.cleanup_progress = on,
             Self::Files => settings.labs.files = on,
+            Self::StopShortcut => settings.labs.stop_shortcut = on,
+            Self::CollapsibleSidebar => settings.labs.collapsible_sidebar = on,
+            Self::Playback => settings.labs.playback = on,
             // The preset writes into the person's settings once, on the edge.
             Self::RussianVibeCoding => {
                 if settings.labs.russian_vibe_coding != on {
@@ -771,9 +958,6 @@ impl Feature {
                 }
                 settings.labs.russian_vibe_coding = on;
             }
-            Self::StopShortcut => settings.labs.stop_shortcut = on,
-            Self::CollapsibleSidebar => settings.labs.collapsible_sidebar = on,
-            Self::Playback => settings.labs.playback = on,
             // Off, no shortcut keeps a key only the feature allows.
             Self::StandaloneSpecialKeys => {
                 settings.labs.standalone_special_keys = on;
@@ -812,15 +996,55 @@ const STOP_WHEN_CALL_ENDS: u64 = 1 << 20;
 const KEEP_RECORDINGS: u64 = 1 << 21;
 const HIDE_MENU_BAR_ICON: u64 = 1 << 22;
 const MOVABLE_MEETING_CAPSULES: u64 = 1 << 23;
-const MEETING_SUMMARY_MODEL: u64 = 1 << 24;
-const AI_CLEANUP_SERVER: u64 = 1 << 25;
-const VOCABULARY_PASTE_LIST: u64 = 1 << 26;
-const RUSSIAN_VIBE_CODING: u64 = 1 << 27;
-const VOCABULARY_QUICK_ADD: u64 = 1 << 28;
-const CLEANUP_PROGRESS: u64 = 1 << 29;
-const FILES: u64 = 1 << 30;
+// Reuses 1 << 24, Labs › Choose meeting summary model before it became
+// Meetings › Summaries.
+const MORE_CALL_APPS: u64 = 1 << 24;
+const GNOME_CLIPBOARD_RESTORE: u64 = 1 << 25;
+const MEETING_NOTES_VOCABULARY: u64 = 1 << 26;
+const NOTCH_INDICATOR: u64 = 1 << 27;
+const MEETING_FINISHED_EVENT: u64 = 1 << 28;
+const GNOME_MEETING_CAPSULES: u64 = 1 << 29;
+const SCREENSHOTS: u64 = 1 << 30;
+const ANNOTATE_REPLAY: u64 = 1 << 31;
 /// Unload-idle minutes (at most 1,440, 11 bits) sit above the switches.
 const MINUTES_SHIFT: u64 = 32;
+const MINUTES_BITS: u32 = 11;
+const MINUTES_MASK: u64 = (1 << MINUTES_BITS) - 1;
+/// Bits 1..31 are full, so this switch sits above the minutes.
+const MEETING_IMPORT: u64 = 1 << (MINUTES_SHIFT + MINUTES_BITS as u64);
+/// The next bit above Import audio's switch, clear of the minutes below it.
+const QUIT_CLOSES_WINDOW: u64 = MEETING_IMPORT << 1;
+/// The next bit above Quit closes Settings, also clear of the minutes below.
+const EXPIRE_MEETING_AUDIO: u64 = QUIT_CLOSES_WINDOW << 1;
+const LIVE_TYPING: u64 = EXPIRE_MEETING_AUDIO << 1;
+/// The next bit above Live typing's switch.
+const MEETING_DESCRIPTIVE_FILENAMES: u64 = LIVE_TYPING << 1;
+/// The next bit above descriptive meeting file names.
+const FAILURE_NOTICES: u64 = MEETING_DESCRIPTIVE_FILENAMES << 1;
+/// The next bit above Failure notices' switch.
+const CAPS_LOCK_DICTATION: u64 = FAILURE_NOTICES << 1;
+/// The next bit above Caps Lock dictation's switch.
+const GNOME_ANNOTATE: u64 = CAPS_LOCK_DICTATION << 1;
+/// The next bit above Annotate on GNOME's switch.
+const TYPED_TEXT: u64 = GNOME_ANNOTATE << 1;
+/// The next bit above Typed text's switch: Caps Lock dictation's recording
+/// light blinks slowly instead of staying solid.
+const CAPS_LOCK_SLOW_BLINK: u64 = TYPED_TEXT << 1;
+/// The next bit above Caps Lock's slow blink: an OpenCode service in WSL is
+/// found when no Windows one answers (Windows).
+const OPENCODE_IN_WSL: u64 = CAPS_LOCK_SLOW_BLINK << 1;
+/// The next bit above OpenCode in WSL's switch: the local API's
+/// `process=global` returns a transcript after Global mode's output
+/// processing.
+const API_PROCESSING: u64 = OPENCODE_IN_WSL << 1;
+// VibeHex's switches count down from the top bit, so Hex's next switches,
+// which count up, never land on one of them.
+const AI_CLEANUP_SERVER: u64 = 1 << 63;
+const VOCABULARY_PASTE_LIST: u64 = 1 << 62;
+const RUSSIAN_VIBE_CODING: u64 = 1 << 61;
+const VOCABULARY_QUICK_ADD: u64 = 1 << 60;
+const CLEANUP_PROGRESS: u64 = 1 << 59;
+const FILES: u64 = 1 << 58;
 
 /// This process's `labs` switches: unknown until settings load or one is
 /// first read.
@@ -846,6 +1070,20 @@ pub fn live_text() -> bool {
     on(LIVE_TEXT)
 }
 
+/// A failed dictation's explanation beside the HUD (read as each failure
+/// reaches the HUD).
+pub fn failure_notices() -> bool {
+    on(FAILURE_NOTICES) && Feature::FailureNotices.on_this_os()
+}
+
+/// Live typing: provisional words in the focused text field as an
+/// input-method preedit on Wayland, and the final text typed there instead of
+/// pasted (Linux; read as each hotkey capture starts).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn live_typing() -> bool {
+    on(LIVE_TYPING) && Feature::LiveTyping.on_this_os()
+}
+
 /// Live chapters while a meeting records.
 pub fn live_chapters() -> bool {
     on(LIVE_CHAPTERS)
@@ -863,37 +1101,20 @@ pub fn vocabulary_biasing() -> bool {
 
 /// Mouse buttons may be recorded as shortcuts (macOS).
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-/// Labs › Add to vocabulary from a selection: the shortcut that adds a
-/// selected misheard word to Vocabulary (macOS).
-pub fn vocabulary_quick_add() -> bool {
-    on(VOCABULARY_QUICK_ADD)
-}
-
-/// Labs › Cleanup progress: AI cleanup reports how far it is, which a plate
-/// beside the HUD shows with Paste now (macOS).
-pub fn cleanup_progress() -> bool {
-    on(CLEANUP_PROGRESS)
-}
-
-/// Labs › Files: the Files pane, its queue, and its worker (macOS).
-pub fn files() -> bool {
-    on(FILES)
-}
-
 pub fn mouse_shortcuts() -> bool {
     on(MOUSE_SHORTCUTS)
 }
 
 /// A pasted dictation stays on the clipboard rather than the previous
-/// clipboard being restored (macOS; read as each paste commits).
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+/// clipboard being restored (macOS and Windows; read as each paste commits).
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub fn keep_on_clipboard() -> bool {
     on(KEEP_ON_CLIPBOARD)
 }
 
-/// A dictation goes to the clipboard and is never pasted (macOS; read as
-/// each dictation's output commits).
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+/// A dictation goes to the clipboard and is never pasted (macOS and
+/// Windows; read as each dictation's output commits).
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub fn copy_only() -> bool {
     on(COPY_ONLY)
 }
@@ -937,7 +1158,8 @@ pub fn sided_modifier_chords() -> bool {
 }
 
 /// In Toggle mode, a press held past the hold threshold finishes its capture
-/// when it lifts instead of locking it (macOS; read at each release).
+/// when it lifts instead of locking it (macOS reads it at each release;
+/// Linux's listener reads the saved switch with its shortcut options).
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn tap_or_hold() -> bool {
     on(TAP_OR_HOLD)
@@ -977,6 +1199,12 @@ pub fn stop_when_call_ends() -> bool {
     on(STOP_WHEN_CALL_ENDS) && Feature::StopWhenCallEnds.on_this_os()
 }
 
+/// Calls in more apps and on more websites are named and offered (read by
+/// call detection and the window's Detected calls list).
+pub fn more_call_apps() -> bool {
+    on(MORE_CALL_APPS) && Feature::MoreCallApps.on_this_os()
+}
+
 /// A dictation saved to History keeps its 16 kHz audio, and History offers
 /// Transcribe again for it (read as each capture is handed to the engine;
 /// the History pane reads the saved setting).
@@ -991,6 +1219,13 @@ pub fn hide_menu_bar_icon() -> bool {
     on(HIDE_MENU_BAR_ICON) && Feature::HideMenuBarIcon.on_this_os()
 }
 
+/// ⌘Q closes the Settings window instead of quitting Hex (macOS; read each
+/// time the app menu's Quit Hex runs).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn quit_closes_window() -> bool {
+    on(QUIT_CLOSES_WINDOW) && Feature::QuitClosesWindow.on_this_os()
+}
+
 /// The meeting panel capsules (Meeting transcript ready, Recording
 /// automatically, offers, reminders) show in the saved capsule corner and
 /// can be dragged to another (macOS; read each time one shows).
@@ -998,11 +1233,126 @@ pub fn movable_meeting_capsules() -> bool {
     on(MOVABLE_MEETING_CAPSULES) && Feature::MovableMeetingCapsules.on_this_os()
 }
 
-/// Meeting notes written with OpenCode use the saved
-/// `meetings.opencode_model`, with no fallback to another model (macOS;
-/// read at each generation).
-pub fn meeting_summary_model() -> bool {
-    on(MEETING_SUMMARY_MODEL) && Feature::MeetingSummaryModel.on_this_os()
+/// Final meeting notes (title and summary) put the vocabulary ahead of the
+/// transcript (every OS with meetings; read at each generation, so
+/// Regenerate summary uses the current list).
+pub fn meeting_notes_vocabulary() -> bool {
+    on(MEETING_NOTES_VOCABULARY) && Feature::MeetingNotesVocabulary.on_this_os()
+}
+
+/// At either visible indicator position, the HUD grows out of the notch on
+/// a screen that has one (macOS; read each time the HUD is placed).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn notch_indicator() -> bool {
+    on(NOTCH_INDICATOR) && Feature::NotchIndicator.on_this_os()
+}
+
+/// A paste on a Wayland desktop without data-control (GNOME) snapshots and
+/// restores the clipboard through an already running XWayland (Linux; read
+/// as each paste starts).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn gnome_clipboard_restore() -> bool {
+    on(GNOME_CLIPBOARD_RESTORE) && Feature::GnomeClipboardRestore.on_this_os()
+}
+
+/// A shortcut runs the focused app's Output steps on the text already typed
+/// there and replaces it (Linux; read as each shortcut press starts and by
+/// the Output pane's row).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn typed_text() -> bool {
+    on(TYPED_TEXT) && Feature::TypedText.on_this_os()
+}
+
+/// On a Wayland desktop without layer-shell (GNOME), the meeting capsules
+/// float on an already running XWayland (Linux; read as each capsule shows).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn gnome_meeting_capsules() -> bool {
+    on(GNOME_MEETING_CAPSULES) && Feature::GnomeMeetingCapsules.on_this_os()
+}
+
+/// On a Wayland desktop without layer-shell (GNOME), Annotate's capsule and
+/// ink float on an already running XWayland (Linux; read as each overlay
+/// shows).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn gnome_annotate() -> bool {
+    on(GNOME_ANNOTATE) && Feature::GnomeAnnotate.on_this_os()
+}
+
+/// The local API's `GET /meetings/events` serves, and a meeting's final
+/// publication sends, its id (every OS with meetings; read where the route
+/// starts, on each pass of its stream, and at each publication).
+pub fn meeting_finished_event() -> bool {
+    on(MEETING_FINISHED_EVENT) && Feature::MeetingFinishedEvent.on_this_os()
+}
+
+/// The screenshot shortcut takes an area or a window (macOS; read by the
+/// session tap on each key press, so nothing runs while it is off).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn screenshots() -> bool {
+    on(SCREENSHOTS) && Feature::Screenshots.on_this_os()
+}
+
+/// Annotate's rolling 15 s display replay buffer (`SCClipBufferingOutput`,
+/// macOS 27+; read where the replay worker starts and on each `hex capture
+/// replay`).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn annotate_replay() -> bool {
+    on(ANNOTATE_REPLAY) && Feature::AnnotateReplay.on_this_os()
+}
+
+/// Audio files may be imported as meetings (macOS; read where the Meetings
+/// pane offers Import audio and where an import starts).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn meeting_import() -> bool {
+    on(MEETING_IMPORT) && Feature::MeetingImport.on_this_os()
+}
+
+/// Notes or a user rename rename an exported meeting's Markdown to the
+/// meeting's title, keeping its date and time (read when notes are applied
+/// and when a meeting is renamed).
+pub fn meeting_descriptive_filenames() -> bool {
+    on(MEETING_DESCRIPTIVE_FILENAMES) && Feature::MeetingDescriptiveFilenames.on_this_os()
+}
+
+/// A physical Caps Lock press starts and stops dictation, and its light
+/// follows Hex's recording and processing (macOS; read by the listener on
+/// every pass and by the event tap and HID tracker through their own flag).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn caps_lock_dictation() -> bool {
+    on(CAPS_LOCK_DICTATION) && Feature::CapsLockDictation.on_this_os()
+}
+
+/// Whether the Caps Lock light blinks slowly while recording instead of
+/// staying solid (macOS; read by the light model for each pattern).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn caps_lock_slow_blink() -> bool {
+    on(CAPS_LOCK_SLOW_BLINK) && Feature::CapsLockDictation.on_this_os()
+}
+
+/// An OpenCode service running in the default WSL distribution is used when
+/// no Windows registration answers (Windows; read as each service search
+/// starts).
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub fn opencode_in_wsl() -> bool {
+    on(OPENCODE_IN_WSL) && Feature::OpenCodeInWsl.on_this_os()
+}
+
+/// Labs › Add to vocabulary from a selection: the shortcut that adds a
+/// selected misheard word to Vocabulary (macOS).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn vocabulary_quick_add() -> bool {
+    on(VOCABULARY_QUICK_ADD)
+}
+
+/// Labs › Cleanup progress: AI cleanup reports how far it is, which a plate
+/// beside the HUD shows with Paste now (macOS).
+pub fn cleanup_progress() -> bool {
+    on(CLEANUP_PROGRESS)
+}
+
+/// Labs › Files: the Files pane, its queue, and its worker (macOS).
+pub fn files() -> bool {
+    on(FILES)
 }
 
 /// Dictation cleanup may run on OpenRouter or the person's own
@@ -1012,12 +1362,26 @@ pub fn ai_cleanup_server() -> bool {
     on(AI_CLEANUP_SERVER)
 }
 
+/// The local API's `POST /transcriptions` and `POST /streams/{id}/finish`
+/// accept `process=global` (read where each request's route starts and by
+/// the capabilities answer).
+pub fn api_processing() -> bool {
+    on(API_PROCESSING) && Feature::ApiProcessing.on_this_os()
+}
+
+/// Finished meetings may drop their WAV tracks on `meetings.audio_retention`
+/// (read by the meeting controller's expiry pass and the window's Settings
+/// row).
+pub fn expire_meeting_audio() -> bool {
+    on(EXPIRE_MEETING_AUDIO) && Feature::ExpireMeetingAudio.on_this_os()
+}
+
 /// How long the speech model may sit unused before the engine unloads it,
 /// while Labs › Unload model when idle is on.
 pub fn unload_idle() -> Option<std::time::Duration> {
     let state = state();
     (state & UNLOAD_IDLE != 0)
-        .then(|| std::time::Duration::from_secs((state >> MINUTES_SHIFT) * 60))
+        .then(|| std::time::Duration::from_secs(((state >> MINUTES_SHIFT) & MINUTES_MASK) * 60))
 }
 
 /// Records the switches the loaded or saved settings hold.
@@ -1038,6 +1402,12 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
     let minutes = u64::from(settings.unload_idle_minutes.clamp(1, 24 * 60)) << MINUTES_SHIFT;
     [
         (Feature::LiveText, settings.live_text, LIVE_TEXT),
+        (
+            Feature::FailureNotices,
+            settings.failure_notices,
+            FAILURE_NOTICES,
+        ),
+        (Feature::LiveTyping, settings.live_typing, LIVE_TYPING),
         (Feature::LiveChapters, settings.live_chapters, LIVE_CHAPTERS),
         (Feature::Playground, settings.playground, PLAYGROUND),
         (
@@ -1098,6 +1468,11 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             STOP_WHEN_CALL_ENDS,
         ),
         (
+            Feature::MoreCallApps,
+            settings.more_call_apps,
+            MORE_CALL_APPS,
+        ),
+        (
             Feature::KeepRecordings,
             settings.keep_recordings,
             KEEP_RECORDINGS,
@@ -1113,10 +1488,82 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             MOVABLE_MEETING_CAPSULES,
         ),
         (
-            Feature::MeetingSummaryModel,
-            settings.meeting_summary_model,
-            MEETING_SUMMARY_MODEL,
+            Feature::GnomeClipboardRestore,
+            settings.gnome_clipboard_restore,
+            GNOME_CLIPBOARD_RESTORE,
         ),
+        (Feature::TypedText, settings.typed_text, TYPED_TEXT),
+        (
+            Feature::MeetingNotesVocabulary,
+            settings.meeting_notes_vocabulary,
+            MEETING_NOTES_VOCABULARY,
+        ),
+        (
+            Feature::NotchIndicator,
+            settings.notch_indicator,
+            NOTCH_INDICATOR,
+        ),
+        (
+            Feature::MeetingFinishedEvent,
+            settings.meeting_finished_event,
+            MEETING_FINISHED_EVENT,
+        ),
+        (
+            Feature::AnnotateReplay,
+            settings.annotate_replay,
+            ANNOTATE_REPLAY,
+        ),
+        (
+            Feature::MeetingImport,
+            settings.meeting_import,
+            MEETING_IMPORT,
+        ),
+        (
+            Feature::MeetingDescriptiveFilenames,
+            settings.meeting_descriptive_filenames,
+            MEETING_DESCRIPTIVE_FILENAMES,
+        ),
+        (
+            Feature::CapsLockDictation,
+            settings.caps_lock_dictation,
+            CAPS_LOCK_DICTATION,
+        ),
+        (
+            Feature::CapsLockDictation,
+            settings.caps_lock_light == CapsLockLight::SlowBlink,
+            CAPS_LOCK_SLOW_BLINK,
+        ),
+        (
+            Feature::OpenCodeInWsl,
+            settings.opencode_in_wsl,
+            OPENCODE_IN_WSL,
+        ),
+        (
+            Feature::QuitClosesWindow,
+            settings.quit_closes_window,
+            QUIT_CLOSES_WINDOW,
+        ),
+        (
+            Feature::ExpireMeetingAudio,
+            settings.expire_meeting_audio,
+            EXPIRE_MEETING_AUDIO,
+        ),
+        (
+            Feature::ApiProcessing,
+            settings.api_processing,
+            API_PROCESSING,
+        ),
+        (
+            Feature::GnomeMeetingCapsules,
+            settings.gnome_meeting_capsules,
+            GNOME_MEETING_CAPSULES,
+        ),
+        (
+            Feature::GnomeAnnotate,
+            settings.gnome_annotate,
+            GNOME_ANNOTATE,
+        ),
+        (Feature::Screenshots, settings.screenshots, SCREENSHOTS),
         (
             Feature::AiCleanupServer,
             settings.ai_cleanup_server,
@@ -1161,157 +1608,41 @@ pub fn active_names(settings: &AppSettings) -> Vec<String> {
 pub fn log_launch() {
     tracing::info!(
         live_text = live_text(),
+        failure_notices = failure_notices(),
+        live_typing = live_typing(),
         live_chapters = live_chapters(),
+        typed_text = typed_text(),
         playground = playground(),
         vocabulary_biasing = vocabulary_biasing(),
         "labs"
     );
 }
 
-#[derive(Debug, Subcommand)]
-pub enum LabsCommand {
-    /// List every Labs feature and whether it is on (the default).
-    List,
-    /// Turn a Labs feature on.
-    On { feature: String },
-    /// Turn a Labs feature off.
-    Off { feature: String },
-    /// Print the link that opens Hex's Labs page at a feature's row (macOS).
-    #[cfg(target_os = "macos")]
-    Link { feature: String },
-}
-
-/// `hex labs`: edits `settings.json`; a running Hex applies most changes
-/// when it next starts.
-pub fn run(command: Option<&LabsCommand>) -> Result<()> {
-    #[cfg(target_os = "macos")]
-    if let Some(LabsCommand::Link { feature }) = command {
-        println!(
-            "{}",
-            crate::rune_ui::deep_link::labs_link(
-                crate::rune_ui::story_link::scheme(),
-                resolve(feature, Feature::shipped)?
-            )
-        );
-        return Ok(());
-    }
-    // Listing, or handing the change to a running Hex, never writes the file.
-    let settings = AppSettings::read()?;
-    let (name, on) = match command {
-        None | Some(LabsCommand::List) => {
-            print!("{}", list(&settings));
-            return Ok(());
-        }
-        #[cfg(target_os = "macos")]
-        Some(LabsCommand::Link { .. }) => unreachable!("handled above"),
-        Some(LabsCommand::On { feature }) => (feature, true),
-        Some(LabsCommand::Off { feature }) => (feature, false),
-    };
-    if let Some((_, note)) = GRADUATED.iter().find(|(graduated, _)| *graduated == name) {
-        println!("{note}");
-        return Ok(());
-    }
-    let feature = resolve(name, Feature::shipped)?;
-    if let Some(lock) = feature.managed() {
-        return Err(eyre!(lock.refusal()));
-    }
-    if feature == Feature::VoiceFilter
-        && !on
-        && crate::audio::hex_microphone::driver_bundle_installed()
-    {
-        return Err(eyre!(
-            "voice-filter stays on while the Hex Microphone driver is installed; uninstall the driver in its pane to turn it off"
-        ));
-    }
-    if !on && let Some(why) = feature.off_refusal(&settings) {
-        return Err(eyre!(why));
-    }
-    let state = if on { "on" } else { "off" };
-    // A running Hex saves and applies it at once, as its Labs row would.
-    if let Some(reply) = crate::control::cli::set_in_running_hex(
-        feature.settings_key(),
-        if on { "true" } else { "false" },
-    ) {
-        return match reply {
-            crate::control::ControlReply::Error { message, .. } => Err(eyre!("{message}")),
-            _ => {
-                println!("Turned {} {state}.", feature.name());
-                Ok(())
-            }
-        };
-    }
-    let mut settings = AppSettings::load()?;
-    if feature.on(&settings) == on {
-        println!("{} is already {state}.", feature.name());
-        return Ok(());
-    }
-    feature.set(&mut settings, on);
-    settings.save()?;
-    println!("Turned {} {state}.", feature.name());
-    Ok(())
-}
-
-/// The feature `name` names, if this OS has it and `reaches` admits it.
-/// Features that left Labs: `hex labs` still knows their names.
-const GRADUATED: [(&str, &str); 1] = [(
-    "custom-models",
-    "custom-models graduated: adding a model file and models found on this computer are always on now",
-)];
-
-fn resolve(name: &str, reaches: impl Fn(Feature) -> bool + Copy) -> Result<Feature> {
-    if let Some((_, note)) = GRADUATED.iter().find(|(graduated, _)| *graduated == name) {
-        return Err(eyre!("{note}"));
-    }
-    Feature::from_name(name)
-        .filter(|feature| feature.on_this_os() && reaches(*feature))
-        .ok_or_else(|| {
-            eyre!(
-                "unknown Labs feature {name:?}; this Hex has: {}",
-                Feature::available_where(reaches)
-                    .map(Feature::name)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        })
-}
-
-fn list(settings: &AppSettings) -> String {
-    let width = Feature::available()
-        .map(|feature| feature.name().len())
-        .max()
-        .unwrap_or_default();
-    let mut out = String::new();
-    for feature in Feature::available() {
-        let on = feature.on(settings)
-            || (feature == Feature::VoiceFilter
-                && crate::audio::hex_microphone::driver_bundle_installed());
-        out.push_str(&format!(
-            "{:<width$}  {:<7}  {:<8}  {} (hex settings {})\n",
-            feature.name(),
-            if feature.managed().is_some() {
-                "managed"
-            } else if on {
-                "on"
-            } else {
-                "off"
-            },
-            feature.audience().name(),
-            feature.description(),
-            feature.settings_key(),
-        ));
-    }
-    out
-}
-
-/// `hex experiments …`, from before Labs.
-pub fn run_retired_experiments() -> Result<()> {
-    println!("Experiments are now Labs: hex labs, hex labs on|off <feature>");
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
+    use super::cli::resolve;
     use super::*;
+
+    /// VibeHex hides only Hex's labs, never its own, and a stable build
+    /// leaves the hidden ones out (a dev build keeps them, as tests do).
+    #[test]
+    fn vibehex_hides_only_hex_labs_and_only_from_a_stable_build() {
+        for feature in Feature::ALL {
+            assert!(
+                !(feature.vibehex() && feature.vibehex_hides()),
+                "{feature:?}"
+            );
+        }
+        assert!(Feature::ReleaseNotesLink.shipped());
+        #[cfg(target_os = "linux")]
+        {
+            let _stable = crate::dev_build::pretend_stable();
+            for feature in Feature::ALL.into_iter().filter(|f| f.vibehex_hides()) {
+                assert!(!feature.shipped(), "{feature:?}");
+            }
+            assert!(Feature::Files.shipped());
+        }
+    }
 
     #[test]
     fn feedback_mailto_names_the_version_in_the_subject() {
@@ -1326,6 +1657,11 @@ mod tests {
         let error = resolve("custom-models", |_| true).unwrap_err().to_string();
         assert!(error.contains("graduated"), "{error}");
         assert_eq!(Feature::from_name("custom-models"), None);
+        let error = resolve("meeting-platform-icons", |_| true)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("graduated"), "{error}");
+        assert_eq!(Feature::from_name("meeting-platform-icons"), None);
     }
 
     #[test]
@@ -1365,6 +1701,22 @@ mod tests {
         assert!(!Audience::Dev.reaches(false));
     }
 
+    #[test]
+    fn the_developer_tools_are_dev_only() {
+        for feature in [Feature::Playground, Feature::VoiceFilter] {
+            assert_eq!(feature.audience(), Audience::Dev, "{}", feature.name());
+            assert!(resolve(feature.name(), |f| f.audience().reaches(false)).is_err());
+        }
+        let labs = LabsSettings {
+            playground: true,
+            ..LabsSettings::default()
+        };
+        assert_eq!(
+            encode_where(&labs, |f| f.audience().reaches(false)) & PLAYGROUND,
+            0
+        );
+    }
+
     /// Stands in for a Dev feature in a stable build.
     fn stable(feature: Feature) -> bool {
         feature != Feature::LiveText
@@ -1399,6 +1751,10 @@ mod tests {
         assert_eq!(
             Feature::for_settings_key("labs.unload_idle_minutes"),
             Some(Feature::UnloadIdle)
+        );
+        assert_eq!(
+            Feature::for_settings_key("labs.caps_lock_light"),
+            Some(Feature::CapsLockDictation)
         );
         assert_eq!(Feature::for_settings_key("dictation_hotkey"), None);
     }
@@ -1574,6 +1930,44 @@ mod tests {
     }
 
     #[test]
+    fn quit_closes_window_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & QUIT_CLOSES_WINDOW, 0);
+        labs.quit_closes_window = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & QUIT_CLOSES_WINDOW, 0);
+        assert_eq!(state & MEETING_IMPORT, 0);
+        assert_eq!(state & HIDE_MENU_BAR_ICON, 0);
+        // The switch sits above the minutes, which keep their value.
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+    }
+
+    #[test]
+    fn screenshots_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & SCREENSHOTS, 0);
+        labs.screenshots = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & SCREENSHOTS, 0);
+        assert_eq!(state & MEETING_FINISHED_EVENT, 0);
+        assert_eq!(state >> MINUTES_SHIFT, 24 * 60);
+    }
+
+    #[test]
+    fn notch_indicator_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & NOTCH_INDICATOR, 0);
+        labs.notch_indicator = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & NOTCH_INDICATOR, 0);
+        assert_eq!(state & MEETING_NOTES_VOCABULARY, 0);
+        assert_eq!(state >> MINUTES_SHIFT, 24 * 60);
+    }
+
+    #[test]
     fn movable_meeting_capsules_is_its_own_bit_and_off_by_default() {
         let mut labs = LabsSettings::default();
         assert_eq!(encode_where(&labs, |_| true) & MOVABLE_MEETING_CAPSULES, 0);
@@ -1586,12 +1980,236 @@ mod tests {
     }
 
     #[test]
-    fn the_old_master_switch_is_read_and_ignored() {
-        let settings: AppSettings =
-            serde_json::from_str(r#"{"labs": {"enabled": true, "live_text": true}}"#).unwrap();
+    fn gnome_clipboard_restore_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & GNOME_CLIPBOARD_RESTORE, 0);
+        labs.gnome_clipboard_restore = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & GNOME_CLIPBOARD_RESTORE, 0);
+        assert_eq!(state & MEETING_NOTES_VOCABULARY, 0);
+        assert_eq!(state >> MINUTES_SHIFT, 24 * 60);
+    }
+
+    #[test]
+    fn typed_text_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & TYPED_TEXT, 0);
+        labs.typed_text = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & TYPED_TEXT, 0);
+        assert_eq!(state & GNOME_CLIPBOARD_RESTORE, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+        assert_eq!(Feature::TypedText.on_this_os(), cfg!(target_os = "linux"));
+    }
+
+    #[test]
+    fn meeting_finished_event_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & MEETING_FINISHED_EVENT, 0);
+        labs.meeting_finished_event = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & MEETING_FINISHED_EVENT, 0);
+        assert_eq!(state & NOTCH_INDICATOR, 0);
+        assert_eq!(state >> MINUTES_SHIFT, 24 * 60);
+    }
+
+    #[test]
+    fn annotate_replay_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & ANNOTATE_REPLAY, 0);
+        labs.annotate_replay = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & ANNOTATE_REPLAY, 0);
+        assert_eq!(state & GNOME_MEETING_CAPSULES, 0);
+        assert_eq!(state & SCREENSHOTS, 0);
+        assert_eq!(state >> MINUTES_SHIFT, 24 * 60);
+    }
+    #[test]
+    fn gnome_meeting_capsules_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & GNOME_MEETING_CAPSULES, 0);
+        labs.gnome_meeting_capsules = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & GNOME_MEETING_CAPSULES, 0);
+        assert_eq!(state & GNOME_CLIPBOARD_RESTORE, 0);
+        assert_eq!(state >> MINUTES_SHIFT, 24 * 60);
+    }
+
+    #[test]
+    fn gnome_annotate_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & GNOME_ANNOTATE, 0);
+        labs.gnome_annotate = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & GNOME_ANNOTATE, 0);
+        assert_eq!(state & GNOME_MEETING_CAPSULES, 0);
+        assert_eq!(state & CAPS_LOCK_DICTATION, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+    }
+
+    #[test]
+    fn more_call_apps_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & MORE_CALL_APPS, 0);
+        labs.more_call_apps = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & MORE_CALL_APPS, 0);
+        assert_eq!(state & STOP_WHEN_CALL_ENDS, 0);
+        assert_eq!(state >> MINUTES_SHIFT, 24 * 60);
+    }
+
+    #[test]
+    fn meeting_import_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & MEETING_IMPORT, 0);
+        labs.meeting_import = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & MEETING_IMPORT, 0);
+        assert_eq!(state & ANNOTATE_REPLAY, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+    }
+
+    #[test]
+    fn meeting_descriptive_filenames_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(
+            encode_where(&labs, |_| true) & MEETING_DESCRIPTIVE_FILENAMES,
+            0
+        );
+        labs.meeting_descriptive_filenames = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & MEETING_DESCRIPTIVE_FILENAMES, 0);
+        assert_eq!(state & LIVE_TYPING, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+    }
+
+    #[test]
+    fn failure_notices_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & FAILURE_NOTICES, 0);
+        labs.failure_notices = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & FAILURE_NOTICES, 0);
+        assert_eq!(state & MEETING_DESCRIPTIVE_FILENAMES, 0);
+        assert_eq!(state & LIVE_TYPING, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+    }
+
+    #[test]
+    fn expire_meeting_audio_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & EXPIRE_MEETING_AUDIO, 0);
+        labs.expire_meeting_audio = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & EXPIRE_MEETING_AUDIO, 0);
+        assert_eq!(state & MEETING_IMPORT, 0);
+        assert_eq!(state & QUIT_CLOSES_WINDOW, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+    }
+
+    #[test]
+    fn caps_lock_dictation_is_its_own_bit_and_macos_only() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & CAPS_LOCK_DICTATION, 0);
+        labs.caps_lock_dictation = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & CAPS_LOCK_DICTATION, 0);
+        assert_eq!(state & MEETING_DESCRIPTIVE_FILENAMES, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+        assert_eq!(
+            Feature::CapsLockDictation.on_this_os(),
+            cfg!(target_os = "macos")
+        );
+    }
+
+    #[test]
+    fn caps_lock_light_carries_its_slow_blink_choice() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(labs.caps_lock_light, CapsLockLight::Steady);
+        labs.caps_lock_dictation = true;
+        assert_eq!(encode_where(&labs, |_| true) & CAPS_LOCK_SLOW_BLINK, 0);
+        labs.caps_lock_light = CapsLockLight::SlowBlink;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & CAPS_LOCK_SLOW_BLINK, 0);
+        assert_ne!(state & CAPS_LOCK_DICTATION, 0);
+        assert_eq!(state & GNOME_ANNOTATE, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 15);
+    }
+
+    #[test]
+    fn opencode_in_wsl_is_its_own_bit_and_windows_only() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & OPENCODE_IN_WSL, 0);
+        labs.opencode_in_wsl = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & OPENCODE_IN_WSL, 0);
+        assert_eq!(state & CAPS_LOCK_SLOW_BLINK, 0);
+        assert_eq!(state & TYPED_TEXT, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+        assert_eq!(
+            Feature::OpenCodeInWsl.on_this_os(),
+            cfg!(target_os = "windows")
+        );
+    }
+
+    #[test]
+    fn api_processing_is_its_own_bit_and_off_by_default() {
+        let mut labs = LabsSettings::default();
+        assert_eq!(encode_where(&labs, |_| true) & API_PROCESSING, 0);
+        labs.api_processing = true;
+        labs.unload_idle_minutes = 24 * 60;
+        let state = encode_where(&labs, |_| true);
+        assert_ne!(state & API_PROCESSING, 0);
+        assert_eq!(state & OPENCODE_IN_WSL, 0);
+        assert_eq!(state & TYPED_TEXT, 0);
+        assert_eq!((state >> MINUTES_SHIFT) & MINUTES_MASK, 24 * 60);
+        assert!(Feature::ApiProcessing.on_this_os());
+    }
+
+    #[test]
+    fn clipboard_labs_are_macos_or_windows_only() {
+        assert_eq!(
+            Feature::KeepOnClipboard.on_this_os(),
+            cfg!(any(target_os = "macos", target_os = "windows"))
+        );
+        assert_eq!(
+            Feature::CopyOnly.on_this_os(),
+            cfg!(any(target_os = "macos", target_os = "windows"))
+        );
+    }
+
+    #[test]
+    fn terminal_paste_shortcut_is_windows_or_linux_only() {
+        assert_eq!(
+            Feature::TerminalPasteShortcut.on_this_os(),
+            cfg!(any(target_os = "windows", target_os = "linux"))
+        );
+    }
+
+    #[test]
+    fn retired_switches_are_read_and_ignored() {
+        let settings: AppSettings = serde_json::from_str(
+            r#"{"labs": {"enabled": true, "collapsible_meeting_sections": true, "meeting_platform_icons": true, "live_text": true}}"#,
+        )
+        .unwrap();
         assert!(settings.labs.live_text);
         assert!(!settings.labs.playground);
         let json = serde_json::to_value(&settings).unwrap();
         assert!(json["labs"].get("enabled").is_none());
+        assert!(json["labs"].get("collapsible_meeting_sections").is_none());
+        assert!(json["labs"].get("meeting_platform_icons").is_none());
     }
 }

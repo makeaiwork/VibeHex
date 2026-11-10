@@ -1,20 +1,23 @@
-//! What writes meeting titles, notes, and live chapters: the engine chosen
-//! in Meetings › Settings (Codex, OpenRouter, Your server, a built-in model,
-//! or OpenCode, as AI cleanup set them up), falling back to dictation's AI
-//! cleanup engine and then OpenCode when it fails; else, as before, Apple
-//! Intelligence on a Mac that has it and allows it, otherwise the OpenCode
-//! model when the user turned that on. Every engine but Apple Intelligence
-//! receives the transcript, so each is opt-in on every OS, and writes full
-//! notes from the summary prompt; Apple Intelligence writes two sentences.
+//! What writes meeting titles, notes, and live chapters. An engine chosen
+//! in Meetings › Settings › Notes (Codex, OpenRouter, Your server, a
+//! built-in model, or OpenCode, as AI cleanup set them up) writes them,
+//! falling back to dictation's AI cleanup engine and then OpenCode when it
+//! fails. Without one, the writer Meetings › Settings › Summaries names
+//! does: Apple Intelligence on this Mac (handing over to AI cleanup's
+//! engines only while Labs › AI cleanup is on and it can't), or the
+//! OpenCode model. Every engine but Apple Intelligence receives the
+//! transcript, so each is opt-in on every OS, and writes full notes from
+//! the summary prompt; Apple Intelligence writes two sentences.
 
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::app_settings::{AppSettings, CleanupServerSettings, DictationMode};
+use crate::app_settings::{AppSettings, CleanupServerSettings, DictationMode, MeetingSummaries};
 use crate::dictation::processor::Model;
 use crate::files::rewrite::Engine;
 
@@ -26,12 +29,62 @@ pub struct GeneratedNotes {
     pub title: String,
     #[serde(default)]
     pub summary: String,
-    /// The model that wrote full notes; empty for a two-sentence summary.
-    #[serde(default)]
-    pub written_by: String,
+    /// Who wrote these notes; set by `generate_notes`, never by the model.
+    #[serde(skip)]
+    pub written_by: Option<NotesWriter>,
     /// Why the chosen engine didn't write them, when another one did.
-    #[serde(default)]
+    #[serde(skip)]
     pub fell_back: Option<String>,
+}
+
+/// The writer that produced a meeting's notes, kept with them in the
+/// manifest and named in the exported Markdown.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "writer", rename_all = "snake_case")]
+pub enum NotesWriter {
+    AppleIntelligence,
+    #[serde(rename = "opencode")]
+    OpenCode {
+        /// `provider/model`, when Hex named the model; `None` when
+        /// OpenCode's own default answered.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        model: Option<String>,
+    },
+    /// VibeHex: one of AI cleanup's engines (Codex, OpenRouter, Your
+    /// server, a built-in model, or OpenCode through them), by the name
+    /// its model shows.
+    Engine {
+        model: String,
+    },
+}
+
+impl NotesWriter {
+    /// Whether this writer writes full notes rather than two sentences.
+    pub fn full_notes(&self) -> bool {
+        !matches!(self, Self::AppleIntelligence)
+    }
+
+    /// The name Meetings shows for the writer.
+    pub fn name(&self) -> &str {
+        match self {
+            Self::AppleIntelligence => "Apple Intelligence",
+            Self::OpenCode { model: Some(model) } => model,
+            Self::OpenCode { model: None } => "OpenCode",
+            Self::Engine { model } => model,
+        }
+    }
+
+    /// The writer an older VibeHex manifest named by its model alone:
+    /// nothing for a two-sentence summary.
+    pub fn from_legacy_name(name: &str) -> Option<Self> {
+        match name.trim() {
+            "" => None,
+            "OpenCode" => Some(Self::OpenCode { model: None }),
+            model => Some(Self::Engine {
+                model: model.to_owned(),
+            }),
+        }
+    }
 }
 
 /// One live chapter pass: what the new lines are about, and whether that is
@@ -162,29 +215,52 @@ fn config() -> Option<NotesConfig> {
         .clone()
 }
 
-/// The writer for a meeting's notes now: the one the user turned on, or,
-/// when asked for notes directly, Apple Intelligence wherever it is
-/// available, since it never leaves the Mac. Looking for OpenCode asks its
-/// running service over loopback, so call this off the UI thread.
+/// The writer for a meeting's notes now: the engine Meetings › Settings ›
+/// Notes chose, else the one Summaries names, or, with
+/// Summaries off and notes asked for directly, Apple Intelligence where it
+/// is available, since it never leaves the Mac. On this Mac never falls
+/// back to OpenCode. Looking for OpenCode asks its running service over
+/// loopback, so call this off the UI thread.
 fn writer() -> Result<Writer, String> {
-    if let Some(writer) = chosen() {
-        return Ok(writer);
+    if config().is_some_and(|config| config.chosen().is_some()) {
+        return Ok(Writer::Engine);
     }
-    #[cfg(target_os = "macos")]
-    {
-        let availability = crate::apple_intelligence::availability();
-        if availability.is_available() {
-            return Ok(Writer::AppleIntelligence);
-        }
-        if !crate::app_settings::meeting_notes_with_opencode() {
-            return Err(availability.description().to_string());
-        }
+    decide(
+        crate::app_settings::meeting_summaries(),
+        on_this_mac,
+        crate::desktop::opencode_service::running,
+    )
+    .or_else(|why| apple_fallback().map(|_| Writer::Engine).ok_or(why))
+}
+
+fn decide(
+    summaries: MeetingSummaries,
+    on_this_mac: impl FnOnce() -> Result<Writer, String>,
+    opencode_running: impl FnOnce() -> bool,
+) -> Result<Writer, String> {
+    match summaries {
+        MeetingSummaries::Mac => on_this_mac(),
+        MeetingSummaries::OpenCode if opencode_running() => Ok(Writer::OpenCode),
+        MeetingSummaries::OpenCode => Err("OpenCode isn't running".into()),
+        MeetingSummaries::Off => on_this_mac()
+            .map_err(|_| "Turn on Summaries in Meetings › Settings to write meeting notes".into()),
     }
-    Err(if crate::app_settings::meeting_notes_with_opencode() {
-        "OpenCode isn't running".into()
+}
+
+/// Apple Intelligence, or why it can't write notes.
+#[cfg(target_os = "macos")]
+fn on_this_mac() -> Result<Writer, String> {
+    let availability = crate::apple_intelligence::availability();
+    if availability.is_available() {
+        Ok(Writer::AppleIntelligence)
     } else {
-        "Turn on Summarize with OpenCode to write meeting notes".into()
-    })
+        Err(availability.description().to_string())
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn on_this_mac() -> Result<Writer, String> {
+    Err("Apple Intelligence needs a Mac".into())
 }
 
 /// The writer the user turned on, when it is available.
@@ -192,18 +268,10 @@ fn chosen() -> Option<Writer> {
     if config().is_some_and(|config| config.chosen().is_some()) {
         return Some(Writer::Engine);
     }
-    #[cfg(target_os = "macos")]
-    if crate::app_settings::meeting_notes_enabled()
-        && crate::apple_intelligence::availability().is_available()
-    {
-        return Some(Writer::AppleIntelligence);
+    if crate::app_settings::meeting_summaries() == MeetingSummaries::Off {
+        return None;
     }
-    if apple_fallback().is_some() {
-        return Some(Writer::Engine);
-    }
-    (crate::app_settings::meeting_notes_with_opencode()
-        && crate::desktop::opencode_service::running())
-    .then_some(Writer::OpenCode)
+    writer().ok()
 }
 
 /// Why Apple Intelligence can't write the notes it was left to write, when
@@ -216,7 +284,7 @@ fn apple_fallback() -> Option<String> {
         let left_to_apple =
             config().is_some_and(|config| config.writer.is_none() && config.server_on);
         (left_to_apple
-            && crate::app_settings::meeting_notes_enabled()
+            && crate::app_settings::meeting_summaries() == MeetingSummaries::Mac
             && !availability.is_available())
         .then(|| availability.description().to_string())
     }
@@ -291,18 +359,26 @@ pub(crate) fn generate_notes(
     match writer().map_err(GenerationError::Failed)? {
         #[cfg(target_os = "macos")]
         Writer::AppleIntelligence => {
-            crate::apple_intelligence::generate_notes(instructions, prompt, timeout)
+            let notes = crate::apple_intelligence::generate_notes(instructions, prompt, timeout)?;
+            Ok(GeneratedNotes {
+                written_by: Some(NotesWriter::AppleIntelligence),
+                ..notes
+            })
         }
-        Writer::OpenCode => opencode::<GeneratedNotes>(
-            instructions,
-            prompt,
-            r#"{"title": "...", "summary": "..."}"#,
-            timeout,
-        )
-        .map(|notes| GeneratedNotes {
-            written_by: "OpenCode".into(),
-            ..notes
-        }),
+        Writer::OpenCode => {
+            let (notes, model) = opencode_reporting::<GeneratedNotes>(
+                instructions,
+                prompt,
+                r#"{"title": "...", "summary": "..."}"#,
+                timeout,
+            )?;
+            Ok(GeneratedNotes {
+                written_by: Some(NotesWriter::OpenCode {
+                    model: model.map(|model| format!("{}/{}", model.provider, model.id)),
+                }),
+                ..notes
+            })
+        }
         Writer::Engine => engine_notes(instructions, prompt, timeout),
     }
 }
@@ -332,7 +408,9 @@ fn engine_notes(
                 return Ok(GeneratedNotes {
                     title,
                     summary: notes,
-                    written_by: engine.model_name(),
+                    written_by: Some(NotesWriter::Engine {
+                        model: engine.model_name(),
+                    }),
                     fell_back: (!failures.is_empty()).then(|| failures.join("; ")),
                 });
             }
@@ -483,14 +561,24 @@ fn opencode<T: DeserializeOwned>(
     shape: &str,
     timeout: Duration,
 ) -> Result<T, GenerationError> {
+    opencode_reporting(instructions, prompt, shape, timeout).map(|(answer, _)| answer)
+}
+
+/// [`opencode`], with the model that answered when Hex named one.
+fn opencode_reporting<T: DeserializeOwned>(
+    instructions: &str,
+    prompt: &str,
+    shape: &str,
+    timeout: Duration,
+) -> Result<(T, Option<Model>), GenerationError> {
     let request = format!(
         "{instructions}\n\n{prompt}\n\nAnswer with only a JSON object shaped like {shape}, \
          without code fences or any other text."
     );
     let cancelled = AtomicBool::new(false);
-    // Labs › Choose meeting summary model: exactly the chosen model, whose
-    // failure is the meeting's notes error; otherwise the ranked models.
-    let text = match summary_model() {
+    // Exactly the chosen model, whose failure is the meeting's notes error;
+    // otherwise the ranked models.
+    let generated = match summary_model() {
         Some(model) => {
             crate::dictation::processor::generate_text_with(&request, &model, timeout, &cancelled)
                 .map_err(|error| {
@@ -500,7 +588,7 @@ fn opencode<T: DeserializeOwned>(
         None => crate::dictation::processor::generate_text(&request, timeout, &cancelled)
             .map_err(|error| GenerationError::Failed(format!("{error:#}")))?,
     };
-    parse_json(&text)
+    Ok((parse_json(&generated.text)?, generated.model))
 }
 
 /// The saved `meetings.opencode_model`, as settings last applied it.
@@ -521,12 +609,9 @@ pub(crate) fn parse_model(saved: &str) -> Option<(&str, &str)> {
     (!provider.is_empty() && !model.is_empty()).then_some((provider, model))
 }
 
-/// The model meeting notes must use: only with Labs › Choose meeting
-/// summary model on and a valid `provider/model` saved.
+/// The model meeting notes must use: the saved `provider/model`, when it
+/// is valid.
 fn summary_model() -> Option<Model> {
-    if !crate::labs::meeting_summary_model() {
-        return None;
-    }
     let saved = SUMMARY_MODEL
         .read()
         .unwrap_or_else(|error| error.into_inner())
@@ -600,12 +685,42 @@ mod tests {
     }
 
     #[test]
-    fn without_its_labs_toggle_no_summary_model_is_used() {
-        // Tests never load settings, so the Labs toggle reads off.
-        if !crate::labs::meeting_summary_model() {
-            set_summary_model(Some("openai/gpt-5"));
-            assert_eq!(summary_model(), None);
-            set_summary_model(None);
+    fn the_writer_is_exactly_the_one_chosen() {
+        let unavailable = || Err::<Writer, String>("Turn on Apple Intelligence".into());
+        let never = || -> bool { panic!("On this Mac never asks for OpenCode") };
+        assert_eq!(
+            decide(MeetingSummaries::Mac, unavailable, never),
+            Err("Turn on Apple Intelligence".into())
+        );
+        assert_eq!(
+            decide(MeetingSummaries::OpenCode, unavailable, || true),
+            Ok(Writer::OpenCode)
+        );
+        assert_eq!(
+            decide(MeetingSummaries::OpenCode, unavailable, || false),
+            Err("OpenCode isn't running".into())
+        );
+        assert!(decide(MeetingSummaries::Off, unavailable, never).is_err());
+        #[cfg(target_os = "macos")]
+        {
+            let available = || Ok(Writer::AppleIntelligence);
+            assert_eq!(
+                decide(MeetingSummaries::Mac, available, never),
+                Ok(Writer::AppleIntelligence)
+            );
+            assert_eq!(
+                decide(MeetingSummaries::Off, available, never),
+                Ok(Writer::AppleIntelligence),
+                "asked directly, notes stay on this Mac"
+            );
         }
+    }
+
+    #[test]
+    fn a_saved_summary_model_is_used() {
+        set_summary_model(Some("openai/gpt-5"));
+        assert_eq!(summary_model().map(|model| model.id), Some("gpt-5".into()));
+        set_summary_model(None);
+        assert_eq!(summary_model(), None);
     }
 }

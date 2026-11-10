@@ -110,6 +110,18 @@ fn position(ui: &Ui, writers: &[Writer], saved: Option<&str>) -> usize {
         .unwrap_or_default()
 }
 
+/// Whether Written by names the writer, so Hex's Summaries choice is
+/// passed over (`meeting::generator::chosen`): OpenCode, or any other
+/// engine while Labs › Clean up on your own server is on.
+pub(super) fn writer_chosen(ui: &Ui) -> bool {
+    ui.settings
+        .meetings
+        .notes
+        .writer
+        .as_deref()
+        .is_some_and(|writer| writer == "opencode" || ui.settings.labs.ai_cleanup_server)
+}
+
 /// The Notes section: Written by, Reasoning on Codex, and the prompt.
 pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let notes = &ui.settings.meetings.notes;
@@ -124,7 +136,15 @@ pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             ui.update(|settings| settings.meetings.notes.writer = writer);
         },
     );
-    let select = choice_menu(ui, p, "meeting-notes-writer", shown, list, layer);
+    let select = choice_menu(
+        ui,
+        p,
+        "meeting-notes-writer",
+        tr("Written by"),
+        shown,
+        list,
+        layer,
+    );
     // Left to an Apple Intelligence this Mac can't run: say why, and who
     // writes the notes instead.
     let unavailable =
@@ -225,6 +245,7 @@ fn choice_menu(
     ui: &Ui,
     p: Paint,
     key: &'static str,
+    name: &str,
     shown: Option<String>,
     list: KitMenu,
     layer: &mut Vec<El>,
@@ -236,7 +257,8 @@ fn choice_menu(
         .current(shown.as_deref())
         .open(open)
         .on_toggle(move |ui: &mut Ui| s::toggle_menu(ui, menu))
-        .trigger(p.k);
+        .trigger(p.k)
+        .label(name);
     list.open(open).trigger(trigger).build(p.k, layer).mr(-8.0)
 }
 
@@ -310,7 +332,15 @@ fn questions_menu(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             ));
         }
     }
-    choice_menu(ui, p, "meeting-questions-engine", Some(shown), list, layer)
+    choice_menu(
+        ui,
+        p,
+        "meeting-questions-engine",
+        tr("Questions run on"),
+        Some(shown),
+        list,
+        layer,
+    )
 }
 
 /// The prompts' language and why, and the speech model's name.
@@ -442,6 +472,7 @@ pub(super) fn prompt_page(ui: &Ui, p: Paint, edit: &TextEdit) -> El {
                 .max_height(560.0)
                 .width(None)
                 .on_edit(|ui: &mut Ui| ui.meetings.prompt.get_or_insert_with(TextEdit::default))
+                .label(tr("Summary prompt"))
                 .build(p.k)
                 .key("prompt"),
         )

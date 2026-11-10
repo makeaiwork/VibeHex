@@ -48,7 +48,7 @@ pub fn prompt_language(selection: &TranscriptionSelection) -> (&'static str, Bas
     } else {
         None
     };
-    let interface = crate::desktop::i18n::interface_code();
+    let interface = crate::desktop::i18n::vibehex::interface_code();
     match spoken.and_then(|code| known(code, interface)) {
         Some(code) => (code, Basis::SpeechModel),
         None => (

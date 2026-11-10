@@ -503,6 +503,7 @@ pub(super) fn again_row(ui: &Ui, p: Paint, again: &Again, layer: &mut Vec<El>) -
     let labels: Vec<&str> = choices.iter().map(|code| language_name(code)).collect();
     let languages = rune_kit::Select::new("files-again-language", &labels)
         .appearance(rune_kit::SelectAppearance::Inline)
+        .label(tr("Language"))
         .current(Some(language_name(&again.language)))
         .open(menu_open(ui, "files-again-language"))
         .on_toggle(|ui: &mut Ui| toggle(ui, "files-again-language"))
