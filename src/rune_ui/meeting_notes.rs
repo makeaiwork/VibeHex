@@ -110,6 +110,18 @@ fn position(ui: &Ui, writers: &[Writer], saved: Option<&str>) -> usize {
         .unwrap_or_default()
 }
 
+/// Whether Written by names the writer, so Hex's Summaries choice is
+/// passed over (`meeting::generator::chosen`): OpenCode, or any other
+/// engine while Labs › Clean up on your own server is on.
+pub(super) fn writer_chosen(ui: &Ui) -> bool {
+    ui.settings
+        .meetings
+        .notes
+        .writer
+        .as_deref()
+        .is_some_and(|writer| writer == "opencode" || ui.settings.labs.ai_cleanup_server)
+}
+
 /// The Notes section: Written by, Reasoning on Codex, and the prompt.
 pub(super) fn notes_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let notes = &ui.settings.meetings.notes;

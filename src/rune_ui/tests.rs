@@ -281,7 +281,11 @@ fn an_asked_update_check_says_how_it_went() {
             .any(|text| text == "Checking for updates…")
     );
     status(&mut rt, DesktopUpdateStatus::Current);
-    assert!(texts(&rt).iter().any(|text| text == "Hex is up to date"));
+    assert!(
+        texts(&rt)
+            .iter()
+            .any(|text| text == "VibeHex is up to date")
+    );
     status(&mut rt, DesktopUpdateStatus::Failed);
     assert!(
         texts(&rt)

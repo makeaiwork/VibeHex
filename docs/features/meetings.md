@@ -29,6 +29,9 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   ├── After a meeting -> Summaries, Keep meetings, Keep audio
 │   │   (Labs › Expire meeting audio separately), Transcript folder
 │   │   (~/Documents/Hex Meetings; Reveal / choose; its error shows here)
+│   │   ├── VibeHex: hidden while Notes › Written by picks the writer (OpenCode,
+│   │   │   or any engine with Labs › Clean up on your own server on), which
+│   │   │   passes Summaries over (`meeting_notes::writer_chosen`)
 │   │   └── Summaries pop-up (meetings.summaries; one-time migration
 │   │       "meeting-summaries-choice" from the two retired switches)
 │   │       ├── Off -> "No titles or summaries"

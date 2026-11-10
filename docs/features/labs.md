@@ -24,10 +24,20 @@ A feature VibeHex added (`labs::Feature::vibehex`: Clean up on your own
 server, Cleanup progress, Russian vibe coding, Vocabulary text view, Add to
 vocabulary from a selection, Files, Stop shortcut, Collapsible sidebar, Listen
 to the recording; Hex itself has none of them) sits in the group
-`labs/group.rs` gives it. Turning on Russian vibe coding also turns on every
+`labs/group.rs` gives it; its card carries a star ("Added in VibeHex"), and
+the VibeHex chip after the group chips keeps only these (`hex://labs?category=vibehex`).
+Turning on Russian vibe coding also turns on every
 other VibeHex feature this OS and build have and no organization locks, except
-Stop shortcut (it takes a key, Return, so it is left to the person); turning it
+Stop shortcut (it takes a key, Return, so it is left to the person), and Hex's
+Vocabulary in meeting notes, so the preset's terms reach meeting notes; turning it
 off leaves them on. Check: `it_turns_on_every_starred_lab_this_hex_has`.
+The Turned on tab's count sits in a badge after the tabs.
+
+A stable VibeHex build leaves out Hex labs that repeat what VibeHex has or that
+the owner chose not to ship (`labs::Feature::vibehex_hides`: Transcribe files,
+Import audio, Release notes link, Quit closes window, Annotate replay); a dev
+build keeps them, as Hex keeps its developer tools. Check:
+`vibehex_hides_only_hex_labs_and_only_from_a_stable_build`.
 
 ```ts
 Feature             Pane  Toggle (settings.json, hex settings)   On: what it does
@@ -2188,7 +2198,7 @@ on
 ├── replacements-ru.json      added to Global's word fixes, unless a fix for the same phrase exists
 ├── cleanup-instructions-ru.txt  Global's instructions: replaces Hex's default prompt, else appended once
 ├── Global's Clean up with AI    on (it runs where Output says: OpenCode, OpenRouter, or your server)
-└── Labs it builds on            Clean up on your own server and Vocabulary text view on
+└── Labs it builds on            every other starred Lab but Stop shortcut, and Vocabulary in meeting notes, on
 off
 ├── vocabulary entries and fixes exactly as the preset wrote them are removed; edited ones stay
 ├── instructions: only the preset's text is removed; if nothing else was there, Hex's default

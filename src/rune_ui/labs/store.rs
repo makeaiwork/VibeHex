@@ -37,13 +37,12 @@ const GAP: f32 = 8.0;
 /// Discover and Turned on, at the title bar's end.
 pub(in crate::rune_ui) fn tabs(ui: &Ui, p: Paint) -> El {
     let on = shown(ui).iter().filter(|row| row.on).count();
-    let turned_on = tr_fill("Turned on · {}", &on.to_string());
-    let labels = [tr("Discover"), turned_on.as_str()];
+    let labels = [tr("Discover"), tr("Turned on")];
     let selected = match ui.lab_store.tab {
         Tab::Discover => 0,
         Tab::On => 1,
     };
-    segmented_tx(
+    let tabs = segmented_tx(
         p,
         "labs-tab",
         &labels,
@@ -52,7 +51,17 @@ pub(in crate::rune_ui) fn tabs(ui: &Ui, p: Paint) -> El {
             tx.settle();
             ui.lab_store.tab = if index == 0 { Tab::Discover } else { Tab::On };
         },
-    )
+    );
+    // VibeHex: how many are on sits in a badge after the tabs, not after a
+    // middle dot in the label.
+    let count = tone_tag(p, "labs-on-count", &on.to_string(), Tone::Neutral)
+        .label(tr_fill("{} turned on", &on.to_string()));
+    row()
+        .key("labs-tabs")
+        .gap(6.0)
+        .center_y()
+        .child(tabs)
+        .child(count)
 }
 
 /// The page under the title bar: the chips, then the scrolling cards.
@@ -63,7 +72,7 @@ pub(in crate::rune_ui) fn page(ui: &Ui, p: Paint) -> El {
     let newest = rows.iter().map(|row| row.lab.added()).max().unwrap_or(0);
     let is_new = |row: &Row| newest > 0 && row.lab.added() == newest;
     let mut content = col().key("content").px(METRICS.gutter).gap(12.0);
-    let browsing = store.tab == Tab::Discover && store.group.is_none() && query.is_empty();
+    let browsing = store.tab == Tab::Discover && !store.chosen() && query.is_empty();
     // Labs in New in Labs aren't repeated in the grid below.
     let mut featured_labs = Vec::new();
     if browsing {
@@ -87,6 +96,7 @@ pub(in crate::rune_ui) fn page(ui: &Ui, p: Paint) -> El {
         .iter()
         .filter(|row| store.tab == Tab::Discover || row.on)
         .filter(|row| store.group.is_none_or(|group| row.group == group))
+        .filter(|row| !store.vibehex || row.lab.vibehex())
         .filter(|row| matches(row, &query))
         .filter(|row| !featured_labs.contains(&row.lab))
         .collect();
@@ -106,7 +116,7 @@ pub(in crate::rune_ui) fn page(ui: &Ui, p: Paint) -> El {
         );
     } else {
         // A search or chip shows every match, whatever its group's fold.
-        let filtering = !query.is_empty() || store.group.is_some();
+        let filtering = !query.is_empty() || store.chosen();
         for group in Group::ALL {
             let members: Vec<&Row> = matching
                 .iter()
@@ -139,7 +149,7 @@ pub(in crate::rune_ui) fn page(ui: &Ui, p: Paint) -> El {
         .grow(1.0)
         .shrink()
         .min_h(0.0)
-        .child(chips(&rows, store.group, p))
+        .child(chips(&rows, store, p))
         .child(super::super::scroll_body(p.k, "scroll", content))
 }
 
@@ -211,8 +221,9 @@ fn group_header(p: Paint, group: Group, count: usize, open: bool, filtering: boo
         .child(header.px(4.0).py(2.0))
 }
 
-/// All, then a chip per group with its count.
-fn chips(rows: &[Row], selected: Option<Group>, p: Paint) -> El {
+/// All, then a chip per group with its count, then VibeHex's own labs.
+fn chips(rows: &[Row], store: &super::Store, p: Paint) -> El {
+    let selected = (!store.vibehex).then_some(store.group).flatten();
     let mut chips = row()
         .key("chips")
         .px(METRICS.gutter)
@@ -224,8 +235,8 @@ fn chips(rows: &[Row], selected: Option<Group>, p: Paint) -> El {
             "chip-all",
             tr("All"),
             rows.len(),
-            selected.is_none(),
-            None,
+            !store.chosen(),
+            Chip::All,
         ));
     for group in Group::ALL {
         let count = rows.iter().filter(|row| row.group == group).count();
@@ -238,20 +249,32 @@ fn chips(rows: &[Row], selected: Option<Group>, p: Paint) -> El {
             group::name(group),
             count,
             selected == Some(group),
-            Some(group),
+            Chip::Group(group),
+        ));
+    }
+    let ours = rows.iter().filter(|row| row.lab.vibehex()).count();
+    if ours > 0 {
+        chips = chips.child(chip(
+            p,
+            "chip-vibehex",
+            "VibeHex",
+            ours,
+            store.vibehex,
+            Chip::VibeHex,
         ));
     }
     chips
 }
 
-fn chip(
-    p: Paint,
-    key: &str,
-    label: &str,
-    count: usize,
-    selected: bool,
-    group: Option<Group>,
-) -> El {
+/// What a chip keeps: everything, one group, or VibeHex's own labs.
+#[derive(Clone, Copy)]
+enum Chip {
+    All,
+    Group(Group),
+    VibeHex,
+}
+
+fn chip(p: Paint, key: &str, label: &str, count: usize, selected: bool, pick: Chip) -> El {
     let c = &p.k.c;
     let chip = row()
         .key(key)
@@ -285,7 +308,12 @@ fn chip(
         )
         .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
             tx.settle();
-            ui.lab_store.group = group;
+            let store = &mut ui.lab_store;
+            store.group = match pick {
+                Chip::Group(group) => Some(group),
+                Chip::All | Chip::VibeHex => None,
+            };
+            store.vibehex = matches!(pick, Chip::VibeHex);
         });
     if selected {
         chip.fill(c.layer_02)
@@ -325,6 +353,9 @@ fn card(ui: &Ui, p: Paint, entry: &Row, new: bool, featured: bool) -> El {
     }
     if lab.audience() == crate::labs::Audience::Dev {
         tags.push(tone_tag(p, "dev-tag", tr("Dev"), Tone::Neutral));
+    }
+    if lab.vibehex() {
+        tags.push(vibehex_star(p));
     }
     let title = row()
         .key("title-row")
@@ -378,6 +409,16 @@ fn card(ui: &Ui, p: Paint, entry: &Row, new: bool, featured: bool) -> El {
         .child(copy)
         .fill(c.bg_base)
         .border(p.hair, c.border_weak)
+}
+
+/// The star beside a lab VibeHex added; hovering it says so.
+fn vibehex_star(p: Paint) -> El {
+    col()
+        .key("vibehex")
+        .role("image")
+        .label(tr("Added in VibeHex"))
+        .help(tr("Added in VibeHex"))
+        .child(rune::icon(&rune_kit::glyphs::STAR_FILLED, 10.0).color(p.k.c.warning.icon))
 }
 
 const CARD_PADDING: f32 = 12.0;

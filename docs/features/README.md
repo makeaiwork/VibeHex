@@ -1413,7 +1413,7 @@ Menu bar and Settings                    // maintenance
 ├── Settings / Paste Last -> Reachable with Dock icon hidden
 ├── Launch at Login -> macOS owns registration state
 ├── Check for Updates -> The updater (maintain.updates); opens the window, whose
-│   footer then says "Checking for updates…", "Hex is up to date", or
+│   footer then says "Checking for updates…", "VibeHex is up to date", or
 │   "Couldn't check for updates" (#1120)
 └── Quit -> Orderly shutdown (⌘Q closes Settings instead while its Lab is on)
 ```
@@ -1590,7 +1590,7 @@ Hex checks the release service            // maintain.updates
 
 Check for updates pressed (footer, menu bar, app menu)   // maintain.update-feedback (#1120)
 ├── The menu bar's and app menu's open the window at General
-└── Footer -> "Checking for updates…" -> "Hex is up to date" | "Couldn't check for updates"
+└── Footer -> "Checking for updates…" -> "VibeHex is up to date" | "Couldn't check for updates"
     // the hourly check alone keeps "Check for updates"; check:
     // an_asked_update_check_says_how_it_went (fixture; not run on a Mac)
 

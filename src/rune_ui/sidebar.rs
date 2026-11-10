@@ -554,7 +554,7 @@ fn footer(ui: &Ui, p: Paint) -> El {
         // (#1120); the hourly check alone never changes its words.
         Some(status @ (DesktopUpdateStatus::Current | DesktopUpdateStatus::Failed)) => {
             let words = match status {
-                DesktopUpdateStatus::Current if ui.update_asked => tr("Hex is up to date"),
+                DesktopUpdateStatus::Current if ui.update_asked => tr("VibeHex is up to date"),
                 DesktopUpdateStatus::Failed if ui.update_asked => tr("Couldn't check for updates"),
                 _ => tr("Check for updates"),
             };

@@ -253,9 +253,24 @@ impl Feature {
     }
 
     /// Whether this build has the feature: its audience reaches a dev or
-    /// stable build.
+    /// stable build, and VibeHex doesn't hide it from a stable one.
     pub fn shipped(self) -> bool {
-        self.audience().reaches(crate::dev_build::is_dev_build())
+        let dev = crate::dev_build::is_dev_build();
+        self.audience().reaches(dev) && (dev || !self.vibehex_hides())
+    }
+
+    /// Hex labs VibeHex leaves out of a stable build, as Hex does its
+    /// developer tools: they repeat something VibeHex already has (Files,
+    /// About) or the owner chose not to ship them.
+    pub const fn vibehex_hides(self) -> bool {
+        matches!(
+            self,
+            Self::TranscribeFiles
+                | Self::MeetingImport
+                | Self::ReleaseNotesLink
+                | Self::QuitClosesWindow
+                | Self::AnnotateReplay
+        )
     }
 
     /// Who the feature is for. Every feature picks one.
@@ -1606,6 +1621,27 @@ pub fn log_launch() {
 mod tests {
     use super::cli::resolve;
     use super::*;
+
+    /// VibeHex hides only Hex's labs, never its own, and a stable build
+    /// leaves the hidden ones out (a dev build keeps them, as tests do).
+    #[test]
+    fn vibehex_hides_only_hex_labs_and_only_from_a_stable_build() {
+        for feature in Feature::ALL {
+            assert!(
+                !(feature.vibehex() && feature.vibehex_hides()),
+                "{feature:?}"
+            );
+        }
+        assert!(Feature::ReleaseNotesLink.shipped());
+        #[cfg(target_os = "linux")]
+        {
+            let _stable = crate::dev_build::pretend_stable();
+            for feature in Feature::ALL.into_iter().filter(|f| f.vibehex_hides()) {
+                assert!(!feature.shipped(), "{feature:?}");
+            }
+            assert!(Feature::Files.shipped());
+        }
+    }
 
     #[test]
     fn feedback_mailto_names_the_version_in_the_subject() {

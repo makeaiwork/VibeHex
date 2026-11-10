@@ -198,6 +198,21 @@ impl Lab {
             Self::Annotate => crate::labs::Audience::Everyone,
         }
     }
+
+    /// Whether this build shows it: its audience reaches it, and VibeHex
+    /// doesn't hide it from a stable build (`Feature::shipped`).
+    fn shipped(self) -> bool {
+        match self {
+            Self::Feature(feature) => feature.shipped(),
+            #[cfg(hex_capture)]
+            Self::Annotate => true,
+        }
+    }
+
+    /// Whether VibeHex added it: its card carries a star.
+    fn vibehex(self) -> bool {
+        matches!(self, Self::Feature(feature) if feature.vibehex())
+    }
 }
 
 /// Discover lists every lab; Turned on only those that are on.
@@ -215,11 +230,18 @@ pub(super) struct Store {
     pub(super) tab: Tab,
     /// The chip selected: only this group's labs show.
     pub(super) group: Option<Group>,
+    /// VibeHex's chip: only the labs VibeHex added show.
+    pub(super) vibehex: bool,
 }
 
 impl Store {
     fn query(&self) -> String {
         self.search.text.trim().to_lowercase()
+    }
+
+    /// Whether a chip other than All narrows the labs.
+    fn chosen(&self) -> bool {
+        self.group.is_some() || self.vibehex
     }
 }
 
@@ -260,6 +282,7 @@ pub(super) fn reveal(ui: &mut Ui, link: &LabsLink, tx: &mut Tx) {
     if let Some(id) = &link.category {
         match Group::from_id(id) {
             Some(group) => store.group = Some(group),
+            None if id == "vibehex" => store.vibehex = true,
             None => tracing::warn!(category = %id, "a Labs link named no category"),
         }
     }
@@ -303,7 +326,7 @@ struct Row {
 fn shown(ui: &Ui) -> Vec<Row> {
     rows(ui)
         .into_iter()
-        .filter(|row| row.lab.audience().reaches(crate::dev_build::is_dev_build()))
+        .filter(|row| row.lab.shipped())
         .collect()
 }
 

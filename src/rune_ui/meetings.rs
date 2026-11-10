@@ -622,6 +622,10 @@ fn row_meta(pane: &MeetingsPane, meeting: &Meeting, p: Paint) -> (String, Option
 /// one and a neutral one otherwise (another app, or a meeting started by
 /// hand).
 fn platform_icon(meeting: &Meeting) -> &'static rune::Icon {
+    // VibeHex: Yandex Telemost, which Hex's call services don't include.
+    if meeting.app.as_deref().is_some_and(is_telemost) {
+        return &TELEMOST_ICON;
+    }
     match meeting
         .app
         .as_deref()
@@ -630,6 +634,20 @@ fn platform_icon(meeting: &Meeting) -> &'static rune::Icon {
         Some(provider) => super::platform_settings::provider_icon(provider),
         None => &super::icons::CALL,
     }
+}
+
+static TELEMOST_ICON: rune::Icon = rune::Icon {
+    name: "hex-provider-telemost",
+    view: 16.0,
+    body: include_str!("../../assets/icons/providers/telemost.svg"),
+};
+
+/// Whether a meeting's app is Yandex Telemost: its app, or its site.
+fn is_telemost(app: &str) -> bool {
+    let app = app.trim();
+    app == "Yandex Telemost"
+        || app == crate::app_settings::TELEMOST_APP
+        || app == crate::app_settings::TELEMOST_SITE
 }
 
 /// Copy transcript as an icon: a completed row's hover action, or the
@@ -1359,6 +1377,21 @@ mod tests {
         assert_eq!(name("preview-huddle"), "hex-provider-slack");
         assert_eq!(name("preview-design"), "hex-row-call");
         assert_eq!(name("preview-failed"), "hex-row-call");
+    }
+
+    /// VibeHex: a Telemost meeting, from the app or the site, has its own
+    /// icon.
+    #[test]
+    fn telemost_meetings_have_their_own_icon() {
+        for app in [
+            "Yandex Telemost",
+            "ru.yandex.desktop.telemost",
+            "telemost.yandex.ru",
+        ] {
+            assert!(is_telemost(app), "{app}");
+        }
+        assert!(!is_telemost("Zoom"));
+        assert_eq!(TELEMOST_ICON.name, "hex-provider-telemost");
     }
 
     /// Labs › Follow live transcript: only a recording meeting's transcript

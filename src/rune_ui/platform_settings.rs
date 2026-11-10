@@ -263,6 +263,11 @@ fn on_this_mac_detail(availability: NotesAvailability) -> &'static str {
 /// switch turns OpenCode on. Nothing falls back: an unavailable choice stays
 /// chosen and says how to fix it.
 fn summaries_rows(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<CardRow> {
+    // VibeHex: while Notes › Written by picks the writer, Summaries decides
+    // nothing, so it isn't shown beside it.
+    if super::meeting_notes::writer_chosen(ui) {
+        return Vec::new();
+    }
     let chosen = ui.settings.meetings.summaries;
     let managed = opencode_managed();
     let mut rows: Vec<CardRow> = Vec::new();
