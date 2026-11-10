@@ -108,7 +108,7 @@ pub(in super::super) fn bubble(p: Paint, key: &str, question: &str) -> El {
         )
 }
 
-fn markdown(p: Paint, source: String, muted: bool, streaming: bool) -> El {
+pub(in super::super) fn markdown(p: Paint, source: String, muted: bool, streaming: bool) -> El {
     let style = rune_kit::MarkdownStyle::from_kit(p.k)
         .body_font(p.k.ty.ui)
         .text(if muted { p.muted() } else { p.reading() });
@@ -143,7 +143,11 @@ pub(in super::super) fn answer(
 }
 
 /// Copy and Ask again, the model, Stopped, and the time.
-fn answer_row(p: Paint, answered: &Answered<'_>, again: impl Fn(&mut Ui, String) + 'static) -> El {
+pub(in super::super) fn answer_row(
+    p: Paint,
+    answered: &Answered<'_>,
+    again: impl Fn(&mut Ui, String) + 'static,
+) -> El {
     let copied = answered.answer.to_owned();
     let question = answered.question.to_owned();
     let small = rune::TextStyle {

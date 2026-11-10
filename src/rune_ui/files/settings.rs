@@ -56,8 +56,17 @@ pub(in super::super) fn engine_choices(ui: &Ui) -> Vec<EngineChoice> {
             local: false,
         });
     }
-    // Codex, once Output › AI cleanup has been set to it.
-    if server.runs_on == CleanupRunsOn::Codex || !server.codex_model.trim().is_empty() {
+    // Codex, once Output › AI cleanup or Assistant has been set to it.
+    let assistant_on_codex = ui
+        .settings
+        .assistant
+        .engine
+        .as_deref()
+        .is_some_and(|engine| engine.starts_with("codex"));
+    if server.runs_on == CleanupRunsOn::Codex
+        || !server.codex_model.trim().is_empty()
+        || assistant_on_codex
+    {
         let label = match server.codex_model.trim() {
             "" => "Codex".to_owned(),
             model => tr_fill("Codex: {}", model),
@@ -173,7 +182,7 @@ fn choice<R>(
 }
 
 /// Where cleanup or requests run, named for a person: `Built in, Qwen3 4B`.
-fn engine_label(engine: &crate::files::rewrite::Engine) -> String {
+pub(in super::super) fn engine_label(engine: &crate::files::rewrite::Engine) -> String {
     use crate::dictation::cleanup_server::Provider;
     use crate::files::rewrite::Engine;
     let model = engine.model_name();
@@ -368,7 +377,7 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
                     config.server_on,
                     &config.mode,
                 )),
-                |files, value| files.cleanup_engine = value,
+                |settings, value| settings.files.cleanup_engine = value,
                 layer,
             ),
         ),
@@ -436,7 +445,7 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             files.request_engine.as_deref(),
             tr("Same as cleanup"),
             engine_label(&config.engine(None)),
-            |files, value| files.request_engine = value,
+            |settings, value| settings.files.request_engine = value,
             layer,
         ),
     )];
@@ -483,14 +492,14 @@ fn effort_row(ui: &Ui, p: Paint) -> El {
 /// Where cleanup or requests run: `inherit` (saved as none, resolving to
 /// `inherited`), then each engine.
 #[allow(clippy::too_many_arguments)]
-fn engine_select(
+pub(in super::super) fn engine_select(
     ui: &Ui,
     p: Paint,
     key: &'static str,
     current: Option<&str>,
     inherit: &str,
     inherited: String,
-    set: fn(&mut crate::app_settings::FilesSettings, Option<String>),
+    set: fn(&mut crate::app_settings::AppSettings, Option<String>),
     layer: &mut Vec<El>,
 ) -> El {
     // In groups, names only, so each shows whole; the row shows what the
@@ -533,7 +542,7 @@ fn engine_select(
     let mut items = vec![(
         Some(tr("Default")),
         choice(inherit, None, current.is_none(), move |ui: &mut Ui| {
-            ui.update(|settings| set(&mut settings.files, None))
+            ui.update(|settings| set(settings, None))
         }),
     )];
     let mut last = None;
@@ -545,7 +554,7 @@ fn engine_select(
             current == Some(value.as_str()),
             move |ui: &mut Ui| {
                 let value = chosen.clone();
-                ui.update(|settings| set(&mut settings.files, Some(value)));
+                ui.update(|settings| set(settings, Some(value)));
             },
         );
         items.push(((last != Some(*group)).then_some(*group), item));

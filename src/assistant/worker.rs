@@ -37,6 +37,7 @@ pub struct Answering {
     pub question: String,
     /// The reply so far, without a half-written `Sources:` line.
     pub draft: String,
+    #[allow(dead_code)]
     pub started: Instant,
 }
 

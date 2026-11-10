@@ -51,7 +51,9 @@ pub struct Turn<'a> {
 pub struct Prompt {
     pub instructions: String,
     pub input: String,
-    /// The articles it carries, best first.
+    /// The articles it carries, best first. Read by tests for now; a later
+    /// stage shows them as the steps an answer took.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub articles: Vec<&'static str>,
 }
 

@@ -358,7 +358,8 @@ pub(in super::super) fn model_menu(
         .group_label(group);
     let server = &ui.settings.dictation_processing.server;
     let codex_set_up = server.runs_on == crate::app_settings::CleanupRunsOn::Codex
-        || !server.codex_model.trim().is_empty();
+        || !server.codex_model.trim().is_empty()
+        || codex.is_some();
     if codex_set_up {
         for model in &ui.files.codex_models {
             let value = format!("codex:{}", model.id);
