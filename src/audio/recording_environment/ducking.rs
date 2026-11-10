@@ -78,6 +78,11 @@ impl Volume for Lowered {
             Self::Players(players) => players.write(values),
         }
     }
+
+    /// A tap leaves Hex's own process out, and the players are not Hex.
+    fn includes_own_sound(&self) -> bool {
+        matches!(self, Self::Output(_))
+    }
 }
 
 struct Output {

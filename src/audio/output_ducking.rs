@@ -3,6 +3,8 @@
 //! (CoreAudio output channels on macOS, the default sink's channels on
 //! Linux, other apps' audio sessions on Windows). Only the ramp's own thread
 //! waits for restoration; capture and the UI never do.
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -23,6 +25,11 @@ const SETTLE: Duration = Duration::from_millis(500);
 pub(crate) trait Volume {
     fn read(&self) -> Option<Vec<f32>>;
     fn write(&mut self, values: &[f32]) -> bool;
+    /// Whether lowering these lowers Hex's own sound too (its stop tone),
+    /// as an output's channels do and other apps' sessions do not.
+    fn includes_own_sound(&self) -> bool {
+        true
+    }
 }
 
 /// Holds the output lowered to `factor` of its volume until restored or
@@ -30,6 +37,8 @@ pub(crate) trait Volume {
 pub(crate) struct Guard {
     stop: Sender<()>,
     worker: Option<JoinHandle<()>>,
+    /// Set once the ramp's thread opened what it lowers.
+    own_sound: Arc<AtomicBool>,
 }
 
 impl Guard {
@@ -39,12 +48,14 @@ impl Guard {
         open: impl FnOnce() -> Option<V> + Send + 'static,
     ) -> Option<Self> {
         let (stop, receiver) = mpsc::channel();
+        let own_sound = Arc::new(AtomicBool::new(false));
+        let opened = Arc::clone(&own_sound);
         let worker = thread::Builder::new()
             .name("output-ducking".into())
             .spawn(move || {
-                if let Some(output) = open()
-                    && let Some(mut ramp) = Ramp::new(output)
-                {
+                let Some(output) = open() else { return };
+                opened.store(output.includes_own_sound(), Ordering::Release);
+                if let Some(mut ramp) = Ramp::new(output) {
                     run(&mut ramp, factor, receiver);
                 }
             })
@@ -52,7 +63,15 @@ impl Guard {
         Some(Self {
             stop,
             worker: Some(worker),
+            own_sound,
         })
+    }
+
+    /// Whether Hex's own sound is lowered with the rest, so a tone after
+    /// recording should wait for [`Guard::restore`]. False until the ramp's
+    /// thread opened what it lowers: a tone then is not held back.
+    pub(crate) fn lowers_own_sound(&self) -> bool {
+        self.own_sound.load(Ordering::Acquire)
     }
 
     /// Ramps the volume back and returns once it is restored.

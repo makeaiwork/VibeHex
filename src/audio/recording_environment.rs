@@ -99,8 +99,10 @@ pub(crate) enum Effect {
 }
 
 impl Effect {
-    /// Restoration order: output is audible again before a session's
-    /// callback, and resuming media (AppleScript) never delays it.
+    /// Restoration order. A session's callback runs once nothing left to
+    /// restore keeps Hex's own sound quiet (`Restorable::quiets_hex`): after
+    /// unmuting an output, but before resuming media (AppleScript) or other
+    /// apps' lowered sound.
     const ALL: [Self; 4] = [Self::Sleep, Self::Mute, Self::Duck, Self::Pause];
 
     const fn index(self) -> usize {
@@ -123,6 +125,30 @@ impl Hold {
             Effect::Mute => self.audio == RecordingAudioBehavior::Mute,
             Effect::Duck => self.audio == RecordingAudioBehavior::Duck,
             Effect::Pause => self.audio == RecordingAudioBehavior::PauseMedia,
+        }
+    }
+}
+
+/// What one effect holds until dropped, which restores it.
+trait Restorable {
+    /// Whether Hex's own sound stays muted or lowered until this is
+    /// restored, so a session's callback (the stop tone) waits for it.
+    fn quiets_hex(&self) -> bool {
+        false
+    }
+}
+
+impl Restorable for () {}
+
+impl Restorable for Held {
+    fn quiets_hex(&self) -> bool {
+        match self {
+            Self::Sleep { .. } => false,
+            Self::Audio { _guard: guard } => match guard {
+                AudioBehaviorGuard::Muted { .. } => true,
+                AudioBehaviorGuard::Ducked(guard) => guard.lowers_own_sound(),
+                AudioBehaviorGuard::Paused { .. } | AudioBehaviorGuard::None => false,
+            },
         }
     }
 }
@@ -155,7 +181,7 @@ type Callback = Box<dyn FnOnce() + Send + Sync>;
 
 enum EnvironmentCommand {
     Start(Hold),
-    /// Stops, then runs the callback, if any, once a muted output is
+    /// Stops, then runs the callback, if any, once Hex's own sound is
     /// audible again.
     Stop(Hold, Option<Callback>),
     #[cfg(test)]
@@ -200,7 +226,7 @@ impl RecordingEnvironmentController {
         Self::with_environment(|_| ()).0
     }
 
-    fn restoring<H: 'static>(hold: impl Fn(Effect) -> H + Send + 'static) -> Self {
+    fn restoring<H: Restorable + 'static>(hold: impl Fn(Effect) -> H + Send + 'static) -> Self {
         let (controller, restorer) = Self::with_environment(hold);
         let mut restorers = RESTORERS.lock().unwrap_or_else(|error| error.into_inner());
         restorers.retain(|restorer| !restorer.is_finished());
@@ -210,7 +236,7 @@ impl RecordingEnvironmentController {
 
     /// The thread that owns every held effect. `hold` changes the
     /// environment for one effect; dropping what it returns restores it.
-    fn with_environment<H: 'static>(
+    fn with_environment<H: Restorable + 'static>(
         hold: impl Fn(Effect) -> H + Send + 'static,
     ) -> (Self, JoinHandle<()>) {
         let (commands, receiver) = mpsc::channel();
@@ -229,8 +255,20 @@ impl RecordingEnvironmentController {
                         }
                     }
                     EnvironmentCommand::Stop(wanted, mut then) => {
+                        // What this stop restores: effects no other session holds.
+                        let restores: [bool; Effect::ALL.len()] = std::array::from_fn(|index| {
+                            wanted.wants(Effect::ALL[index]) && sessions[index] == 1
+                        });
                         for effect in Effect::ALL {
-                            if effect == Effect::Pause
+                            // The callback (the stop tone) waits only for what
+                            // keeps Hex's own sound quiet, not for media.
+                            if then.is_some()
+                                && !Effect::ALL[effect.index()..].iter().any(|&later| {
+                                    restores[later.index()]
+                                        && held[later.index()]
+                                            .as_ref()
+                                            .is_some_and(Restorable::quiets_hex)
+                                })
                                 && let Some(then) = then.take()
                             {
                                 then();
@@ -298,9 +336,9 @@ pub struct RecordingEnvironmentSession {
 }
 
 impl RecordingEnvironmentSession {
-    /// Ends the session and runs `then` once a muted output is audible
-    /// again; while another session keeps it muted, or with paused media,
-    /// it runs at once.
+    /// Ends the session and runs `then` once Hex's own sound is audible
+    /// again; while another session keeps it muted, or with paused media or
+    /// only other apps lowered, it runs at once.
     pub fn end_then(mut self, then: impl FnOnce() + Send + Sync + 'static) {
         self.then = Some(Box::new(then));
     }
@@ -601,6 +639,13 @@ pub(crate) mod observed {
 
     pub(crate) struct Observed(Effect, Sender<Event>);
 
+    /// Mute stands for a muted output; Duck for other apps lowered.
+    impl Restorable for Observed {
+        fn quiets_hex(&self) -> bool {
+            self.0 == Effect::Mute
+        }
+    }
+
     impl Drop for Observed {
         fn drop(&mut self) {
             let _ = self.1.send(Event::Restored(self.0));
@@ -644,9 +689,9 @@ mod tests {
     use std::sync::mpsc::RecvTimeoutError;
     use std::time::Duration;
 
-    use Effect::{Mute, Pause, Sleep};
+    use Effect::{Duck, Mute, Pause, Sleep};
     use Event::{Held, Restored, Then};
-    use RecordingAudioBehavior::{DoNothing, Mute as MuteOutput, PauseMedia};
+    use RecordingAudioBehavior::{DoNothing, Duck as Lower, Mute as MuteOutput, PauseMedia};
 
     #[test]
     fn the_browser_pauses_only_with_system_audio_granted() {
@@ -683,6 +728,7 @@ mod tests {
     #[test]
     fn quitting_waits_for_the_last_session_to_restore() {
         struct SlowRestore(Sender<Effect>, Effect);
+        impl Restorable for SlowRestore {}
         impl Drop for SlowRestore {
             fn drop(&mut self) {
                 thread::sleep(Duration::from_millis(100));
@@ -820,7 +866,10 @@ mod tests {
     fn a_callback_runs_after_unmuting_and_before_resuming_media() {
         for (audio, expected) in [
             (MuteOutput, [Restored(Sleep), Restored(Mute), Then]),
-            (PauseMedia, [Restored(Sleep), Then, Restored(Pause)]),
+            (PauseMedia, [Then, Restored(Sleep), Restored(Pause)]),
+            // Other apps lowered leave Hex's tone loud: it plays at once,
+            // not after their volume eases back.
+            (Lower, [Then, Restored(Sleep), Restored(Duck)]),
         ] {
             let (sender, events) = mpsc::channel();
             let controller = super::observed::reporting(sender.clone());

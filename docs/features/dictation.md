@@ -699,6 +699,15 @@ and `scripts_tell_only_the_named_players_and_never_launch_one` in
 (constructed replies; the script was run against Music, not the ramp on a
 display).
 
+**Fixed November 10, 2026 (VibeHex):** with Lower audio on, the stop tone
+sounded a second or more late: it waited for the lowered volume to ease back,
+and for a tap to close, even when what was lowered was other apps or the
+players and never Hex's own sound. The tone now waits only for what keeps Hex
+quiet (a muted output, an output's own lowered channels) and plays at once
+otherwise. Check: `a_callback_runs_after_unmuting_and_before_resuming_media` in
+[audio/recording_environment.rs](../../src/audio/recording_environment.rs)
+(an observed environment, not the tap).
+
 **Fixed November 2, 2026 (issue 978):** a Windows paste refused to run when
 the clipboard held only a format Hex can't snapshot (an app's private
 format), failing every dictation with "the current clipboard format cannot be
