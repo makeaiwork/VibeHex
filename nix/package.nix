@@ -100,6 +100,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
       ../.cargo
       ../build.rs
       ../crates
+      # Assistant's guide, compiled in by build.rs.
+      ../docs/guide
       ../src
       ../tests
       ../native

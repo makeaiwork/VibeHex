@@ -5,6 +5,7 @@ fn main() {
     check_windows_split();
     build_version();
     test_build_commit();
+    embed_guide();
     // `hex_capture`: the `capture` experiment's code, in every macOS, Linux,
     // and Windows build (`scrawl-capture` is their dependency).
     println!("cargo::rustc-check-cfg=cfg(hex_capture)");
@@ -161,6 +162,42 @@ fn build_version() {
         }
     }
     println!("cargo:rustc-env=HEX_BUILD_VERSION={version}");
+}
+
+/// Assistant answers from docs/guide, so the binary carries it:
+/// `guide_files.rs` lists every labs/ and topics/ article as (id, text).
+fn embed_guide() {
+    let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let root = manifest_dir.join("docs/guide");
+    println!("cargo:rerun-if-changed={}", root.display());
+    let mut files = Vec::new();
+    for part in ["labs", "topics"] {
+        let dir = root.join(part);
+        println!("cargo:rerun-if-changed={}", dir.display());
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for path in entries.flatten().map(|entry| entry.path()) {
+            if path.extension().and_then(|extension| extension.to_str()) == Some("md") {
+                let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+                files.push((format!("{part}/{stem}"), path));
+            }
+        }
+    }
+    files.sort();
+    let mut out = String::from(
+        "/// docs/guide's articles as (id, text), sorted by id.\n\
+         pub(super) const FILES: &[(&str, &str)] = &[\n",
+    );
+    for (id, path) in &files {
+        out.push_str(&format!(
+            "    ({id:?}, include_str!({:?})),\n",
+            path.display().to_string()
+        ));
+    }
+    out.push_str("];\n");
+    let output_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    std::fs::write(output_dir.join("guide_files.rs"), out).unwrap();
 }
 
 /// A test or local build carries its commit (`HEX_COMMIT`), which the sidebar shows

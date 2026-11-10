@@ -69,7 +69,7 @@ a model that lacks your language switches to the model's own default, usually
 English, and says so; pick the model first.
 
 **Asked as.** "How do I change the dictation shortcut?"; "Cancel a dictation";
-«Как отменить диктовку?»; «Как говорить без удержания кнопки?»; «Вставить
+«Как сменить горячую клавишу?»; «Как отменить диктовку?»; «Как говорить без удержания кнопки?»; «Вставить
 последнюю диктовку ещё раз».
 
 <!-- sources: docs/features/dictation.md:15-30,444-568,1143-1182; docs/features/README.md:625-707; src/rune_ui/general.rs:60-130,920-1030; src/rune_ui/shortcut_mode.rs; src/app_settings/hotkeys.rs:619-751; src/windows/paste.rs; src/linux/paste.rs; src/paste.rs:362-390; src/macos_rune/status_item.rs:242 -->
