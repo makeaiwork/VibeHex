@@ -34,6 +34,8 @@ pub(in super::super) struct Answered<'a> {
     pub(in super::super) answer: &'a str,
     pub(in super::super) model: &'a str,
     pub(in super::super) created_ms: u64,
+    /// What `created_ms` is told against.
+    pub(in super::super) now_ms: u64,
     pub(in super::super) stopped: bool,
 }
 
@@ -54,6 +56,7 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
             answer: &version.text,
             model: &version.model,
             created_ms: version.created_ms,
+            now_ms: crate::files::store::now_ms(),
             stopped: version.stopped,
         },
         move |ui: &mut Ui, question| ask_again(ui, session, question),
@@ -68,6 +71,7 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
                 answer: &asked.answer,
                 model: &asked.model,
                 created_ms: asked.created_ms,
+                now_ms: crate::files::store::now_ms(),
                 stopped: asked.stopped,
             },
             move |ui: &mut Ui, question| ask_again(ui, session, question),
@@ -190,7 +194,7 @@ pub(in super::super) fn answer_row(
         }))
         .child(rune::el().key("push").grow(1.0))
         .child(
-            text(when(answered.created_ms))
+            text(when(answered.created_ms, answered.now_ms))
                 .key("time")
                 .font(small)
                 .color(p.faint()),
@@ -222,11 +226,27 @@ fn quiet_icon(
         .on_press_tx(press)
 }
 
-/// "Today, 11:21", as the list names days.
-pub(in super::super) fn when(ms: u64) -> String {
-    let now = crate::files::store::now_ms();
+/// "Today, 11:21", "Yesterday, 18:05", the weekday within the last week
+/// ("Tuesday, 9:30"), else the full date, as of `now`.
+pub(in super::super) fn when(ms: u64, now: u64) -> String {
+    const DAY: u64 = 86_400_000;
     let day = crate::meeting::day_label(ms, now);
-    format!("{}, {}", super::day_label(&day), crate::meeting::clock(ms))
+    let day = match day.as_str() {
+        "Today" | "Yesterday" => super::day_label(&day).to_owned(),
+        // `Friday, March 14, 2025`: the weekday when it is one of the
+        // last seven days, else the date.
+        date => {
+            let recent = (2..7).any(|days| {
+                crate::meeting::day_label(ms, now.saturating_sub(days * DAY)) == "Today"
+            });
+            match date.split_once(", ") {
+                Some((weekday, _)) if recent => weekday.to_owned(),
+                Some((_, rest)) => rest.to_owned(),
+                None => date.to_owned(),
+            }
+        }
+    };
+    format!("{day}, {}", crate::meeting::clock(ms))
 }
 
 /// Asks a question of the session again, as its next question.
@@ -279,4 +299,28 @@ pub(in super::super) fn answering(p: Paint, task: &Task) -> Vec<El> {
         _ => shown.push(status),
     }
     shown
+}
+
+#[cfg(test)]
+mod tests {
+    use super::when;
+
+    /// Noon on Saturday 14 March 2026, local time near enough: days are
+    /// told by the local calendar, so the test steps whole days from noon.
+    const NOW: u64 = 1_773_489_600_000;
+    const DAY: u64 = 86_400_000;
+
+    #[test]
+    fn dates_read_today_yesterday_a_weekday_then_the_date() {
+        let clock = crate::meeting::clock(NOW);
+        assert_eq!(when(NOW, NOW), format!("Today, {clock}"));
+        assert_eq!(when(NOW - DAY, NOW), format!("Yesterday, {clock}"));
+        let weekday = crate::meeting::day_label(NOW - 3 * DAY, NOW);
+        let weekday = weekday.split(", ").next().unwrap();
+        assert_eq!(when(NOW - 3 * DAY, NOW), format!("{weekday}, {clock}"));
+        let date = crate::meeting::day_label(NOW - 30 * DAY, NOW);
+        let date = date.split_once(", ").unwrap().1;
+        assert_eq!(when(NOW - 30 * DAY, NOW), format!("{date}, {clock}"));
+        assert!(date.ends_with("2026"), "{date}");
+    }
 }

@@ -33,7 +33,10 @@ fn picker(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let pane = &ui.assistant;
     let open = ui.open == Some(Menu::Pick(MENU));
     let (name, detail) = match pane.conversation() {
-        Some(conversation) => (conversation.name.clone(), when(conversation.updated_ms())),
+        Some(conversation) => (
+            conversation.name.clone(),
+            when(conversation.updated_ms(), pane.now_ms()),
+        ),
         None => (
             tr("New conversation").to_owned(),
             tr_fill("{} earlier", &pane.store.conversations().len().to_string()),
@@ -97,7 +100,12 @@ fn picker(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         stick_bottom: false,
     });
     for conversation in conversations {
-        list = list.child(choice(p, conversation, pane.open == Some(conversation.id)));
+        list = list.child(choice(
+            p,
+            conversation,
+            pane.open == Some(conversation.id),
+            pane.now_ms(),
+        ));
     }
     popover = popover.child(list);
     let new = row()
@@ -132,9 +140,9 @@ fn picker(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
 
 /// One conversation: its name over how many questions and when, ✓ on the
 /// open one.
-fn choice(p: Paint, conversation: &Conversation, on: bool) -> El {
+fn choice(p: Paint, conversation: &Conversation, on: bool, now_ms: u64) -> El {
     let c = &p.k.c;
-    let updated = when(conversation.updated_ms());
+    let updated = when(conversation.updated_ms(), now_ms);
     let asked = match conversation.turns.len() {
         1 => tr_fill("1 question, {}", &updated),
         count => tr_named(

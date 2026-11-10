@@ -69,12 +69,19 @@ pub(in super::super) struct AssistantPane {
     woken: bool,
     /// A scene: nothing reads the disk or asks a model.
     pub(super) fixture: bool,
+    /// A scene's clock, so its times read the same on any day.
+    pub(super) fixed_now: Option<u64>,
 }
 
 impl AssistantPane {
     /// The open conversation.
     pub(super) fn conversation(&self) -> Option<&Conversation> {
         self.open.and_then(|id| self.store.get(id))
+    }
+
+    /// The time dates are told against: the clock, or a scene's.
+    pub(super) fn now_ms(&self) -> u64 {
+        self.fixed_now.unwrap_or_else(crate::files::store::now_ms)
     }
 
     /// The answer coming in conversation `id`.

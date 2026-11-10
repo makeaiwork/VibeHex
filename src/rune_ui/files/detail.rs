@@ -391,7 +391,7 @@ fn version_line(
     if version.kind == VersionKind::Original {
         words = version.model.clone();
     }
-    let made = super::session::when(version.created_ms);
+    let made = super::session::when(version.created_ms, crate::files::store::now_ms());
     let details = if words.is_empty() {
         made
     } else {

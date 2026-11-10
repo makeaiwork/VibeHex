@@ -48,7 +48,7 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     for (index, turn) in conversation.turns.iter().enumerate() {
         feed = feed
             .child(session::bubble(p, &format!("asked{index}"), &turn.question))
-            .child(reply(p, index, turn));
+            .child(reply(p, index, turn, pane.now_ms()));
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
@@ -152,7 +152,7 @@ fn example(p: Paint, index: usize, question: &'static str) -> El {
 
 /// A reply beside the face: its words, then what stopped or failed it, the
 /// guide articles it names, and its row.
-fn reply(p: Paint, index: usize, turn: &Turn) -> El {
+fn reply(p: Paint, index: usize, turn: &Turn, now_ms: u64) -> El {
     let mut words = col().key("words").grow(1.0).shrink().min_w(0.0).gap(8.0);
     if !turn.answer.trim().is_empty() {
         words = words.child(session::markdown(p, turn.answer.clone(), false, false));
@@ -187,6 +187,7 @@ fn reply(p: Paint, index: usize, turn: &Turn) -> El {
                 answer: &turn.answer,
                 model: &turn.model,
                 created_ms: turn.created_ms,
+                now_ms,
                 stopped: turn.stopped,
             },
             |ui: &mut Ui, question| {

@@ -233,12 +233,18 @@ pub(in super::super) fn sessions_menu(ui: &Ui, p: Paint, layer: &mut Vec<El>) ->
 fn session_row(p: Paint, session: &Session, on: bool) -> El {
     let c = &p.k.c;
     let asked = match session.turns.len() {
-        1 => tr_fill("1 question, {}", &session::when(session.updated_ms())),
+        1 => tr_fill(
+            "1 question, {}",
+            &session::when(session.updated_ms(), crate::files::store::now_ms()),
+        ),
         count => tr_named(
             "{count} questions, {when}",
             &[
                 ("count", &count.to_string()),
-                ("when", &session::when(session.updated_ms())),
+                (
+                    "when",
+                    &session::when(session.updated_ms(), crate::files::store::now_ms()),
+                ),
             ],
         ),
     };
@@ -338,6 +344,7 @@ pub(in super::super) fn chat(ui: &Ui, p: Paint) -> El {
                     answer: &turn.answer,
                     model: &turn.model,
                     created_ms: turn.created_ms,
+                    now_ms: crate::files::store::now_ms(),
                     stopped: turn.stopped,
                 },
                 move |ui: &mut Ui, question| {

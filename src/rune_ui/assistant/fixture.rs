@@ -21,6 +21,7 @@ fn open(ui: &mut Ui) {
     *ui = mac_fixture();
     ui.pane = Pane::Assistant;
     ui.assistant.fixture = true;
+    ui.assistant.fixed_now = Some(AT + 2 * MINUTE);
     ui.settings.assistant.engine = Some("codex:gpt-6.1-sol".into());
     ui.files.codex_models = FilesPane::fixture_codex_models();
 }
