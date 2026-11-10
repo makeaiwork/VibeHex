@@ -57,6 +57,12 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             tr("Conversations"),
             vec![keep_row(ui, p), clear_row(ui, p)],
         ))
+        .child(section(
+            p,
+            "assistant-reads",
+            tr("What it reads"),
+            vec![recordings_row(ui, p)],
+        ))
 }
 
 /// Codex's reasoning, while Assistant runs on Codex.
@@ -86,6 +92,23 @@ fn effort_row(ui: &Ui, p: Paint) -> El {
                 }
             },
         ),
+    )
+}
+
+/// Whether questions about the person's recordings may read them.
+fn recordings_row(ui: &Ui, p: Paint) -> El {
+    let on = ui.settings.assistant.read_recordings == Some(true);
+    toggle_row(
+        p,
+        "assistant-recordings",
+        tr("Your meetings, files, and dictations"),
+        tr(
+            "Searched on this computer only for questions about them; the passages found go to the model you ask",
+        ),
+        on,
+        move |ui: &mut Ui| {
+            ui.update(|settings| settings.assistant.read_recordings = Some(!on));
+        },
     )
 }
 

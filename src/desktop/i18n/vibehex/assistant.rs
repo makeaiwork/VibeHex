@@ -45,6 +45,9 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Some words come out wrong. How do I fix that?", ["Niektóre słowa wychodzą źle. Jak to naprawić?", "有些词总是识别错。怎么解决？", "一部の単語がうまく認識されません。どう直せますか？", "Manche Wörter kommen falsch heraus. Wie behebe ich das?", "Algunas palabras salen mal. ¿Cómo lo arreglo?", "Деякі слова розпізнаються неправильно. Як це виправити?"]),
     ("Which speech model is best for Russian?", ["Który model mowy jest najlepszy dla rosyjskiego?", "哪个语音模型最适合俄语？", "ロシア語にいちばん合う音声モデルはどれですか？", "Welches Sprachmodell ist für Russisch am besten?", "¿Qué modelo de voz es mejor para el ruso?", "Яка модель мовлення найкраща для російської?"]),
     ("Can I use my ChatGPT plan to clean up dictation?", ["Czy mogę użyć planu ChatGPT do czyszczenia dyktowania?", "能用我的 ChatGPT 套餐来清理听写吗？", "ChatGPT のプランで音声入力をクリーンアップできますか？", "Kann ich mein ChatGPT-Abo zum Bereinigen von Diktaten nutzen?", "¿Puedo usar mi plan de ChatGPT para limpiar el dictado?", "Чи можна використати план ChatGPT для очищення диктування?"]),
+    ("What it reads", ["Co czyta", "读取内容", "読むもの", "Was er liest", "Qué lee", "Що він читає"]),
+    ("Your meetings, files, and dictations", ["Twoje spotkania, pliki i dyktowania", "你的会议、文件和听写", "会議、ファイル、音声入力", "Deine Meetings, Dateien und Diktate", "Tus reuniones, archivos y dictados", "Ваші зустрічі, файли й диктування"]),
+    ("Searched on this computer only for questions about them; the passages found go to the model you ask", ["Przeszukiwane na tym komputerze tylko przy pytaniach o nie; znalezione fragmenty trafiają do modelu, którego pytasz", "仅在询问它们时在这台电脑上搜索；找到的段落会发送给你提问的模型", "それについて質問したときだけこのコンピュータで検索し、見つかった箇所を質問先のモデルに送ります", "Nur bei Fragen dazu auf diesem Computer durchsucht; gefundene Passagen gehen an das gefragte Modell", "Se buscan en este ordenador solo cuando preguntas por ellos; los fragmentos encontrados van al modelo al que preguntas", "Шукаються на цьому комп’ютері лише для запитань про них; знайдені уривки йдуть до моделі, яку ви питаєте"]),
 ];
 
 /// French.
@@ -89,6 +92,9 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("Some words come out wrong. How do I fix that?", "Certains mots sortent mal. Comment corriger ça ?"),
     ("Which speech model is best for Russian?", "Quel modèle vocal est le meilleur pour le russe ?"),
     ("Can I use my ChatGPT plan to clean up dictation?", "Puis-je utiliser mon abonnement ChatGPT pour nettoyer la dictée ?"),
+    ("What it reads", "Ce qu’il lit"),
+    ("Your meetings, files, and dictations", "Vos réunions, fichiers et dictées"),
+    ("Searched on this computer only for questions about them; the passages found go to the model you ask", "Recherchés sur cet ordinateur uniquement pour les questions qui les concernent ; les passages trouvés vont au modèle interrogé"),
 ];
 
 /// Brazilian Portuguese.
@@ -133,6 +139,9 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Some words come out wrong. How do I fix that?", "Algumas palavras saem erradas. Como corrijo isso?"),
     ("Which speech model is best for Russian?", "Qual modelo de fala é melhor para russo?"),
     ("Can I use my ChatGPT plan to clean up dictation?", "Posso usar meu plano do ChatGPT para limpar o ditado?"),
+    ("What it reads", "O que ele lê"),
+    ("Your meetings, files, and dictations", "Suas reuniões, arquivos e ditados"),
+    ("Searched on this computer only for questions about them; the passages found go to the model you ask", "Pesquisados neste computador só para perguntas sobre eles; os trechos encontrados vão para o modelo consultado"),
 ];
 
 /// Russian.
@@ -177,4 +186,7 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("Some words come out wrong. How do I fix that?", "Некоторые слова распознаются неправильно. Как это исправить?"),
     ("Which speech model is best for Russian?", "Какая модель распознавания лучше всего для русского?"),
     ("Can I use my ChatGPT plan to clean up dictation?", "Можно ли очищать диктовку через мою подписку ChatGPT?"),
+    ("What it reads", "Что он читает"),
+    ("Your meetings, files, and dictations", "Ваши встречи, файлы и диктовки"),
+    ("Searched on this computer only for questions about them; the passages found go to the model you ask", "Поиск идёт на этом компьютере и только для вопросов о них; найденные отрывки уходят модели, которую вы спрашиваете"),
 ];

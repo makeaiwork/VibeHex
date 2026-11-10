@@ -22,6 +22,12 @@ pub struct AssistantSettings {
     /// Conversations are saved on this computer; off, they last until
     /// VibeHex quits.
     pub keep_conversations: bool,
+    /// Questions about the person's meetings, Files texts, and dictations
+    /// may search them on this computer and send the passages found to the
+    /// model asked. `None` until the person is first asked; only `Some(true)`
+    /// lets anything be read (`assistant::recordings::Allowed`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_recordings: Option<bool>,
 }
 
 impl Default for AssistantSettings {
@@ -31,6 +37,7 @@ impl Default for AssistantSettings {
             engine: None,
             effort: String::new(),
             keep_conversations: true,
+            read_recordings: None,
         }
     }
 }

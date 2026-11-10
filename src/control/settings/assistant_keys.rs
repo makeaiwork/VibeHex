@@ -24,4 +24,9 @@ pub(super) const ASSISTANT_KEYS: &[Key] = &[
         Kind::Bool,
         "Assistant: conversations are saved on this computer; off, they last until VibeHex quits",
     ),
+    optional(
+        "assistant.read_recordings",
+        Kind::Bool,
+        "Assistant: may answer questions about your meetings, Files texts, and dictations by searching them on this computer and sending the passages found to the model asked; none until you are first asked",
+    ),
 ];
