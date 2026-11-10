@@ -104,9 +104,10 @@ Opened from an answer                            // rune_ui::assistant::jump
   passage near the top, tinted, its words lit until the person leaves the
   pane; a Files text on its Original, the paragraph lit the same way; a
   dictation selected in History (History can't scroll to or light a range
-  yet). Back to Assistant, Cmd+[ (Ctrl+[), and the mouse's back button
-  return to the conversation where it was scrolled; choosing another pane
-  drops them.
+  yet). Back to Assistant and Cmd+[ (Ctrl+[) return to the conversation
+  where it was scrolled; choosing another pane drops them. The mouse's back
+  button doesn't yet (Rune gives other buttons only to elements that also
+  take primary presses).
 - Eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
   texts, five dictations), 26 questions with expected recordings (recall
   must stay at 90% or more, now 100%) and 11 guide questions that must not

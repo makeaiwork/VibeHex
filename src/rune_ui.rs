@@ -1462,7 +1462,6 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .child(body);
     // The OS window is the accessibility tree's root; this box adds nothing
     // to it.
-    let panel = assistant::jump::listen(ui, panel);
     let window = row()
         .key("window")
         .role("none")

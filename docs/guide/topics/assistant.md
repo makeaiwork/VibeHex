@@ -34,8 +34,8 @@ Each numbered mark in the answer, and each chip under **From your
 recordings**, opens its place: a meeting on Transcript with the passage
 tinted and the searched words lit, a Files text on its Original, or the
 dictation in History. **Back to Assistant**, at the top of that pane, returns
-to the same spot in the conversation; Cmd-[ on a Mac, Ctrl+[ elsewhere, and
-the mouse's back button do the same.
+to the same spot in the conversation; Cmd-[ on a Mac and Ctrl+[ elsewhere do
+the same.
 
 ## What leaves your computer
 

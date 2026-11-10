@@ -4,8 +4,11 @@
 //! Files text on the Original, or its dictation in History, and leaves a
 //! small "came from" on `Ui`. While it is there the pane's header leads
 //! with Back to Assistant (a chevron, a small face, the words), and ⌘[
-//! (Ctrl+[ elsewhere) or the mouse's back button do the same: back to the
-//! same conversation, scrolled where it was. Choosing another pane clears it.
+//! (Ctrl+[ elsewhere) does the same: back to the same conversation, scrolled
+//! where it was. Choosing another pane clears it. The mouse's back button
+//! doesn't yet: Rune hands a button other than the primary only to an element
+//! that also takes primary presses, which over the whole pane would take
+//! text selection and window dragging from it.
 //!
 //! The cited place is tinted in the accent, all corners round, with the
 //! answer's `[n]` beside the speaker and the words searched for lit inside
@@ -239,20 +242,6 @@ pub(in super::super) fn on_key(ui: &mut Ui, event: &rune::KeyEvent, tx: &mut Tx)
     }
     back(ui, tx);
     true
-}
-
-/// `panel` hearing the mouse's back button while there is somewhere to go.
-pub(in super::super) fn listen(ui: &Ui, panel: El) -> El {
-    if ui.came_from.is_none() || ui.pane == Pane::Assistant {
-        return panel;
-    }
-    panel.pointer_buttons([rune::PointerButton::Back]).on_drag(
-        |ui: &mut Ui, drag: &mut rune::Drag, tx: &mut Tx| {
-            if drag.phase == rune::Phase::Down && tx.button() == rune::PointerButton::Back {
-                back(ui, tx);
-            }
-        },
-    )
 }
 
 static CHEVRON_LEFT: Icon = Icon {
