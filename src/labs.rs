@@ -162,10 +162,11 @@ pub enum Feature {
     StopShortcut,
     CollapsibleSidebar,
     Playback,
+    LowerEveryApp,
 }
 
 impl Feature {
-    pub const ALL: [Self; 72] = [
+    pub const ALL: [Self; 73] = [
         Self::Meetings,
         Self::VoiceFilter,
         Self::Playground,
@@ -238,6 +239,7 @@ impl Feature {
         Self::StopShortcut,
         Self::CollapsibleSidebar,
         Self::Playback,
+        Self::LowerEveryApp,
     ];
 
     /// The features this OS and build have.
@@ -349,7 +351,8 @@ impl Feature {
             | Self::Files
             | Self::StopShortcut
             | Self::CollapsibleSidebar
-            | Self::Playback => Audience::Everyone,
+            | Self::Playback
+            | Self::LowerEveryApp => Audience::Everyone,
         }
     }
 
@@ -421,6 +424,7 @@ impl Feature {
             Self::VocabularyQuickAdd | Self::CleanupProgress => 20261104,
             Self::Files | Self::StopShortcut => 20261105,
             Self::CollapsibleSidebar | Self::Playback => 20261106,
+            Self::LowerEveryApp => 20261110,
         }
     }
 
@@ -536,7 +540,8 @@ impl Feature {
             | Self::CleanupProgress
             | Self::Files
             | Self::StopShortcut
-            | Self::Playback => cfg!(target_os = "macos"),
+            | Self::Playback
+            | Self::LowerEveryApp => cfg!(target_os = "macos"),
         }
     }
 
@@ -549,6 +554,7 @@ impl Feature {
                 | Self::CleanupProgress
                 | Self::CollapsibleSidebar
                 | Self::Files
+                | Self::LowerEveryApp
                 | Self::Playback
                 | Self::RussianVibeCoding
                 | Self::StopShortcut
@@ -632,6 +638,7 @@ impl Feature {
             Self::StopShortcut => "stop-shortcut",
             Self::CollapsibleSidebar => "collapsible-sidebar",
             Self::Playback => "playback",
+            Self::LowerEveryApp => "lower-every-app",
         }
     }
 
@@ -710,6 +717,7 @@ impl Feature {
             Self::StopShortcut => "labs.stop_shortcut",
             Self::CollapsibleSidebar => "labs.collapsible_sidebar",
             Self::Playback => "labs.playback",
+            Self::LowerEveryApp => "labs.lower_every_app",
         }
     }
 
@@ -792,6 +800,7 @@ impl Feature {
             Self::StopShortcut => settings.labs.stop_shortcut,
             Self::CollapsibleSidebar => settings.labs.collapsible_sidebar,
             Self::Playback => settings.labs.playback,
+            Self::LowerEveryApp => settings.labs.lower_every_app,
         }
     }
 
@@ -872,6 +881,7 @@ impl Feature {
             &mut labs.stop_shortcut,
             &mut labs.collapsible_sidebar,
             &mut labs.playback,
+            &mut labs.lower_every_app,
         ]
     }
 
@@ -951,6 +961,7 @@ impl Feature {
             Self::StopShortcut => settings.labs.stop_shortcut = on,
             Self::CollapsibleSidebar => settings.labs.collapsible_sidebar = on,
             Self::Playback => settings.labs.playback = on,
+            Self::LowerEveryApp => settings.labs.lower_every_app = on,
             // The preset writes into the person's settings once, on the edge.
             Self::RussianVibeCoding => {
                 if settings.labs.russian_vibe_coding != on {
@@ -1045,6 +1056,7 @@ const RUSSIAN_VIBE_CODING: u64 = 1 << 61;
 const VOCABULARY_QUICK_ADD: u64 = 1 << 60;
 const CLEANUP_PROGRESS: u64 = 1 << 59;
 const FILES: u64 = 1 << 58;
+const LOWER_EVERY_APP: u64 = 1 << 57;
 
 /// This process's `labs` switches: unknown until settings load or one is
 /// first read.
@@ -1355,6 +1367,13 @@ pub fn files() -> bool {
     on(FILES)
 }
 
+/// Labs › Lower every app: Mute and Lower audio turn every other app down
+/// through a system audio tap when the output has no volume (macOS).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn lower_every_app() -> bool {
+    on(LOWER_EVERY_APP)
+}
+
 /// Dictation cleanup may run on OpenRouter or the person's own
 /// OpenAI-compatible server instead of OpenCode (read as each dictation's
 /// rewrite starts).
@@ -1590,6 +1609,11 @@ fn encode_where(settings: &LabsSettings, reaches: impl Fn(Feature) -> bool) -> u
             CLEANUP_PROGRESS,
         ),
         (Feature::Files, settings.files, FILES),
+        (
+            Feature::LowerEveryApp,
+            settings.lower_every_app,
+            LOWER_EVERY_APP,
+        ),
     ]
     .into_iter()
     .filter(|(feature, on, _)| *on && reaches(*feature))

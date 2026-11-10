@@ -198,6 +198,9 @@ impl Feature {
             Self::CollapsibleSidebar => {
                 "A button beside the logo folds the sidebar into a narrow column of icons, so the pane gets the room"
             }
+            Self::LowerEveryApp => {
+                "Mute and Lower audio turn down every other app through a system audio tap when macOS can't set the output's volume, such as a monitor's; needs system audio access"
+            }
             Self::Playback => {
                 "Play a meeting or a file from its transcript: Play beside the requests opens a player, the line playing lights up, and a click on a line plays from there"
             }

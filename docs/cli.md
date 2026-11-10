@@ -518,13 +518,16 @@ observe input-source changes or show these controls.
 `recording_audio_behavior` also accepts `duck` (Lower audio): macOS and Linux
 lower the default output, Windows lowers other apps' audio sessions.
 `recording_duck_volume` sets the fraction of the original output volume (0–1,
-default 0.2), applied on the next intentional capture when ducking is selected.
+default 0.2), applied on the next intentional capture when ducking is selected. On macOS an
+output without a volume (a DisplayPort or HDMI display's) lowers every other
+app through a system audio tap while `labs.lower_every_app` is on, else the
+playing Music's or Spotify's own volume.
 
 Writable keys: `release_microphone_while_idle`,
 `sound_effects`, `sound_effect_volume`, `sound_theme`, `microphone`,
 `avoid_bluetooth_microphone`, `recording_audio_behavior`, `recording_duck_volume`, `double_tap_lock`, `double_tap_only`,
 `shortcut_mode`, `dictation_hotkey`, `paste_last_hotkey`, `raw_dictation_hotkey`,
-`second_dictation_hotkey`, `labs.second_dictation_shortcut`, `vocabulary_add_hotkey`, `labs.vocabulary_quick_add`, `labs.cleanup_progress`, `labs.standalone_special_keys`, `show_dock_icon`, `vocabulary_boost`,
+`second_dictation_hotkey`, `labs.second_dictation_shortcut`, `vocabulary_add_hotkey`, `labs.vocabulary_quick_add`, `labs.cleanup_progress`, `labs.lower_every_app`, `labs.standalone_special_keys`, `show_dock_icon`, `vocabulary_boost`,
 `dictation_processing.default_mode`, `dictation_processing.modes`,
 `labs.ai_cleanup_server`, `dictation_processing.server.runs_on`,
 `dictation_processing.server.url`, `dictation_processing.server.openrouter_model`,

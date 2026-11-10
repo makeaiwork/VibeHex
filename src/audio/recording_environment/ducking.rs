@@ -1,5 +1,8 @@
 //! The CoreAudio adapter for "Lower audio": the default output's channel
 //! volumes, or its master volume when channels cannot be set separately.
+//! An output with neither (a DisplayPort or HDMI display's) lowers every
+//! other app through a system audio tap with Labs › Lower every app on
+//! (`every_app`), else the playing players' own volume (`players`).
 use std::mem::{offset_of, size_of};
 use std::ptr::NonNull;
 
@@ -9,10 +12,77 @@ use objc2_core_audio::{
 };
 use objc2_core_audio_types::{AudioBuffer, AudioBufferList};
 
+use super::every_app::EveryApp;
+use super::players::Players;
 use crate::audio::output_ducking::{Guard, Volume};
 
 pub(super) fn start(factor: f32) -> Option<Guard> {
-    Guard::start(factor, Output::current)
+    Guard::start(factor, move || {
+        if let Some(output) = Output::current() {
+            tracing::info!(factor, "lowered system output while recording");
+            return Some(Lowered::Output(output));
+        }
+        without_output(factor)
+    })
+}
+
+/// Lowers what an output without a volume leaves: every other app with Labs
+/// › Lower every app on, else the playing players. "Mute" uses it at zero.
+pub(super) fn start_without_output(factor: f32) -> Option<Guard> {
+    Guard::start(factor, move || without_output(factor))
+}
+
+fn without_output(factor: f32) -> Option<Lowered> {
+    if crate::labs::lower_every_app()
+        && let Some(apps) = super::default_output_device().and_then(EveryApp::start)
+    {
+        tracing::info!(
+            factor,
+            "the output has no volume to set; lowered every other app"
+        );
+        return Some(Lowered::EveryApp(apps));
+    }
+    let players = Players::playing();
+    if players.is_some() {
+        tracing::info!(
+            factor,
+            "the output has no volume to set; lowered the players instead"
+        );
+    } else {
+        tracing::info!("the output has no volume to set, and no player with one is playing");
+    }
+    players.map(Lowered::Players)
+}
+
+/// What lowering holds: the output's channels, every other app's tapped
+/// sound, or the players' volumes.
+enum Lowered {
+    Output(Output),
+    EveryApp(EveryApp),
+    Players(Players),
+}
+
+impl Volume for Lowered {
+    fn read(&self) -> Option<Vec<f32>> {
+        match self {
+            Self::Output(output) => output.read(),
+            Self::EveryApp(apps) => apps.read(),
+            Self::Players(players) => players.read(),
+        }
+    }
+
+    fn write(&mut self, values: &[f32]) -> bool {
+        match self {
+            Self::Output(output) => output.write(values),
+            Self::EveryApp(apps) => apps.write(values),
+            Self::Players(players) => players.write(values),
+        }
+    }
+
+    /// A tap leaves Hex's own process out, and the players are not Hex.
+    fn includes_own_sound(&self) -> bool {
+        matches!(self, Self::Output(_))
+    }
 }
 
 struct Output {

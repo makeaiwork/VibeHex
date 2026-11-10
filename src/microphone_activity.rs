@@ -742,7 +742,7 @@ fn property_vec_in<T: Copy + Default>(
 }
 
 #[cfg(target_os = "macos")]
-fn property_cf_string(
+pub(crate) fn property_cf_string(
     object: AudioObjectID,
     selector: AudioObjectPropertySelector,
 ) -> Option<String> {

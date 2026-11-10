@@ -815,6 +815,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
             tr("Cleanup progress"),
             tr("While AI cleanup takes a while, a bar in place of the HUD shows how far it is, with Paste now to paste the part already cleaned and the rest as transcribed"),
         ));
+        rows.push(row(
+            Feature::LowerEveryApp,
+            Some(&WAVE),
+            tr("Lower every app"),
+            tr("Mute and Lower audio turn down every app, Podcasts and browsers too, when macOS can't set your output's volume, such as a monitor's. Needs system audio access"),
+        ));
         // macOS's session tap takes the key while a recording runs.
         rows.push(row(
             Feature::StopShortcut,
@@ -975,6 +981,7 @@ fn row_key(lab: Lab) -> &'static str {
         Feature::StopShortcut => "lab-stop-shortcut",
         Feature::CollapsibleSidebar => "lab-collapsible-sidebar",
         Feature::Playback => "lab-playback",
+        Feature::LowerEveryApp => "lab-lower-every-app",
     }
 }
 
@@ -1008,8 +1015,9 @@ fn flip(ui: &mut Ui, lab: Lab) {
         Feature::KeyboardModelSwitching => ui.open = None,
         // A notice already on screen leaves with its lab.
         Feature::FailureNotices if !on => crate::rune_ui::live_text::dismiss_failure(),
-        // Hex hears the browser through System Audio Recording.
-        Feature::PauseBrowser if on && !ui.platform.system_audio => {
+        // Hex hears the browser, and plays every app back lower, through
+        // System Audio Recording.
+        Feature::PauseBrowser | Feature::LowerEveryApp if on && !ui.platform.system_audio => {
             ui.ask(super::platform::PlatformRequest::SystemAudio);
         }
         _ => {}

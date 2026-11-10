@@ -261,6 +261,8 @@ pub(in super::super) const TRANSLATIONS: &[(&str, &str)] = &[
     ("A button beside the logo folds the sidebar into a narrow column of icons, so the pane gets the room", "Кнопка рядом с логотипом сворачивает боковую панель в узкую колонку значков, и разделу достаётся больше места"),
     ("Close sidebar", "Свернуть боковую панель"),
     ("Open sidebar", "Развернуть боковую панель"),
+    ("Lower every app", "Приглушать все приложения"),
+    ("Mute and Lower audio turn down every app, Podcasts and browsers too, when macOS can't set your output's volume, such as a monitor's. Needs system audio access", "«Выключать звук» и «Приглушать звук» убавляют все приложения, включая Подкасты и браузеры, когда macOS не может менять громкость выхода, например монитора. Нужен доступ к системному звуку"),
     ("Listen to the recording", "Прослушать запись"),
     ("Play a meeting or a file from its transcript: Play beside the requests opens a player, the line playing lights up, and a click on a line plays from there", "Воспроизводите встречу или файл по расшифровке: «Воспроизвести» рядом с запросами открывает плеер, звучащая строка подсвечивается, а щелчок по строке запускает воспроизведение с неё"),
     ("Play from {}", "Воспроизвести с {}"),

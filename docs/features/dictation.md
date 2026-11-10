@@ -686,6 +686,28 @@ audio/output_ducking.rs, and
 [dictation.rs](../../src/dictation.rs) (constructed audio; not run on a device
 or physical output).
 
+**Fixed November 10, 2026 (VibeHex, macOS):** Mute and Lower audio set the
+default output's volume, and an output macOS has no volume for (a DisplayPort
+or HDMI display, many USB interfaces) left both doing nothing, with nothing
+logged; only Pause media worked. On such an output both now set the playing
+Music's or Spotify's own volume over AppleScript, ramped and restored like an
+output's channels (Mute ramps to zero); other apps and the browser stay as
+loud. With Labs › Lower every app on, every other app is turned down through
+a system audio tap first (labs.md). Checks: `volumes_parse_as_fractions_and_a_quit_player_fails_the_read`
+and `scripts_tell_only_the_named_players_and_never_launch_one` in
+[audio/recording_environment/players.rs](../../src/audio/recording_environment/players.rs)
+(constructed replies; the script was run against Music, not the ramp on a
+display).
+
+**Fixed November 10, 2026 (VibeHex):** with Lower audio on, the stop tone
+sounded a second or more late: it waited for the lowered volume to ease back,
+and for a tap to close, even when what was lowered was other apps or the
+players and never Hex's own sound. The tone now waits only for what keeps Hex
+quiet (a muted output, an output's own lowered channels) and plays at once
+otherwise. Check: `a_callback_runs_after_unmuting_and_before_resuming_media` in
+[audio/recording_environment.rs](../../src/audio/recording_environment.rs)
+(an observed environment, not the tap).
+
 **Fixed November 2, 2026 (issue 978):** a Windows paste refused to run when
 the clipboard held only a format Hex can't snapshot (an app's private
 format), failing every dictation with "the current clipboard format cannot be
