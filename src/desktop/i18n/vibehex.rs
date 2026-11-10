@@ -3,16 +3,34 @@
 //! [`super::TRANSLATIONS`] (Polish, Chinese (Simplified), Japanese, German,
 //! Spanish, Ukrainian), then French and Brazilian Portuguese.
 
+pub(super) mod assistant;
 pub(super) mod codex;
 pub(super) mod files;
 pub(super) mod russian;
 
-/// VibeHex's rows for the six-column table: its own, then Files' and Codex's.
+/// VibeHex's rows for the six-column table: its own, then Files', Codex's,
+/// and Assistant's.
 pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
     TRANSLATIONS
         .iter()
         .chain(files::TRANSLATIONS)
         .chain(codex::TRANSLATIONS)
+        .chain(assistant::TRANSLATIONS)
+}
+
+/// VibeHex's French rows: its own, then Assistant's.
+pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    FRENCH.iter().chain(assistant::FRENCH)
+}
+
+/// VibeHex's Brazilian Portuguese rows: its own, then Assistant's.
+pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    PORTUGUESE.iter().chain(assistant::PORTUGUESE)
+}
+
+/// VibeHex's Russian rows: its own, then Assistant's.
+pub(super) fn russian() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    russian::TRANSLATIONS.iter().chain(assistant::RUSSIAN)
 }
 
 /// The interface's language code (`en`, `pl`, `zh-Hant`…).
