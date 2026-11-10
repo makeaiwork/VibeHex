@@ -134,6 +134,13 @@ impl Store {
     }
 
     /// Adds a finished turn to conversation `id`.
+    /// Dates conversation `id` at `created_ms`, as a scene's fixed clock.
+    pub fn date(&mut self, id: u32, created_ms: u64) {
+        if let Some(conversation) = self.conversations.iter_mut().find(|c| c.id == id) {
+            conversation.created_ms = created_ms;
+        }
+    }
+
     pub fn push(&mut self, id: u32, turn: Turn) {
         if let Some(conversation) = self.conversations.iter_mut().find(|c| c.id == id) {
             conversation.turns.push(turn);

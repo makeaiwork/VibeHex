@@ -98,6 +98,9 @@ pub struct Ref {
     pub at_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset_ms: Option<u64>,
+    /// The words searched for, which the place lights when opened.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub words: Vec<String>,
 }
 
 /// One step of the search, as the pane lists it.
@@ -153,6 +156,8 @@ impl Budget {
 pub struct Found {
     pub excerpts: Vec<Excerpt>,
     pub steps: Vec<Step>,
+    /// The words searched for.
+    pub terms: Vec<String>,
 }
 
 impl Found {
@@ -171,6 +176,7 @@ impl Found {
                     title: excerpt.title.clone(),
                     at_ms: excerpt.at_ms,
                     offset_ms: excerpt.offset_ms,
+                    words: self.terms.clone(),
                 });
             }
         }
@@ -213,7 +219,10 @@ pub fn search(
     now_ms: u64,
     step: &mut dyn FnMut(&Step),
 ) -> Found {
-    let mut found = Found::default();
+    let mut found = Found {
+        terms: intent.terms.clone(),
+        ..Found::default()
+    };
     let mut record = |found: &mut Found, done: Step| {
         step(&done);
         found.steps.push(done);

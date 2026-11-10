@@ -14,6 +14,7 @@ mod connect;
 pub(super) mod face;
 mod feed;
 pub(super) mod fixture;
+pub(super) mod jump;
 pub(super) mod nav;
 mod picker;
 mod recall;
@@ -64,6 +65,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) consent: Option<recall::Pending>,
     /// Answers whose search steps are open, by conversation and turn.
     pub(super) unfolded: Vec<(u32, usize)>,
+    /// How far the conversation is scrolled, to come back to.
+    pub(super) scroll_y: ScrollAt,
     /// Clear conversations… was pressed once.
     pub(super) clear_armed: bool,
     /// The face's blink, squish, and reading eyes.
@@ -76,6 +79,22 @@ pub(in super::super) struct AssistantPane {
     pub(super) fixture: bool,
     /// A scene's clock, so its times read the same on any day.
     pub(super) fixed_now: Option<u64>,
+}
+
+/// A scroll offset the feed keeps up to date.
+#[derive(Clone)]
+pub(super) struct ScrollAt(rune::Live<f32>);
+
+impl Default for ScrollAt {
+    fn default() -> Self {
+        Self(rune::Live::new(0.0))
+    }
+}
+
+impl ScrollAt {
+    pub(super) fn get(&self) -> f32 {
+        self.0.get()
+    }
 }
 
 impl AssistantPane {
@@ -186,6 +205,12 @@ fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
         .min_h(0.0)
         .clip_fade(0.0, 4.0, 0.0, 24.0)
         .scroll(ScrollSpec { stick_bottom: true })
+        .on_scroll_offset({
+            let at = ui.assistant.scroll_y.0.clone();
+            move |pos: rune::ScrollPos| {
+                at.set(pos.offset[1]);
+            }
+        })
         .child(
             col()
                 .key("inset")

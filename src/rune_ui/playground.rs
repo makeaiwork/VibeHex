@@ -180,6 +180,24 @@ const PATHS: &[(&str, &str)] = &[
     ("assistant-start", "Window/Assistant/New conversation"),
     ("assistant-connect", "Window/Assistant/Connect a model"),
     ("assistant-settings", "Window/Assistant/Settings"),
+    (
+        "assistant-consent",
+        "Window/Assistant/Asks to read recordings",
+    ),
+    ("assistant-steps", "Window/Assistant/Searching recordings"),
+    (
+        "assistant-recordings",
+        "Window/Assistant/Answer from recordings",
+    ),
+    (
+        "assistant-steps-open",
+        "Window/Assistant/Answer with its steps open",
+    ),
+    (
+        "meetings-cited",
+        "Window/Assistant/Meeting opened from an answer",
+    ),
+    ("files-cited", "Window/Assistant/File opened from an answer"),
     ("files", "Window/Files/Files"),
     (
         "files-engine-menu",

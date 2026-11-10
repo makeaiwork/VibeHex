@@ -698,6 +698,7 @@ pub(crate) struct Ui {
     fun: fun::FunPane,
     activity: activity::ActivityPane,
     assistant: assistant::AssistantPane,
+    came_from: Option<assistant::jump::CameFrom>, // Opened from an answer: Back to Assistant.
     hud_copied: bool, // HUD Lab's preset was copied since it last changed.
     hud_saved: bool,  // HUD Lab saved Dot scope's tuning, until the next change.
     saved: usize,     // Settings saves and Quit Hex a fixture recorded.
@@ -815,6 +816,7 @@ impl Ui {
             fun: fun::FunPane::default(),
             activity: activity::ActivityPane::default(),
             assistant: assistant::AssistantPane::default(),
+            came_from: None,
             hud_copied: false,
             hud_saved: false,
             saved: 0,
@@ -1133,6 +1135,7 @@ impl Ui {
         settings::cancel_capture(self);
         self.open = None;
         self.general_search.clear();
+        self.came_from = None;
         models::close(self);
         self.close_dialogs();
         self.output.prompt_copied = false;
@@ -1156,7 +1159,10 @@ impl Ui {
 /// sidebar's panes in order; otherwise Escape closes Shortcut mode,
 /// the sound sets sheet, the picker, or the open menu.
 fn on_key(ui: &mut Ui, event: &rune::KeyEvent, tx: &mut Tx) -> bool {
-    if settings::on_key(ui, event, tx) || playback::on_key(ui, event) {
+    if settings::on_key(ui, event, tx)
+        || playback::on_key(ui, event)
+        || assistant::jump::on_key(ui, event, tx)
+    {
         return true;
     }
     // Labs › Playground: ⇧⌘D (Ctrl+Shift+D off macOS) opens the playground.
@@ -1438,6 +1444,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .clip_soft(0.0)
         .child(pane_header(
             p,
+            assistant::jump::back_button(ui, p),
             if ui.labs_open {
                 tr("Labs")
             } else {
@@ -1455,6 +1462,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .child(body);
     // The OS window is the accessibility tree's root; this box adds nothing
     // to it.
+    let panel = assistant::jump::listen(ui, panel);
     let window = row()
         .key("window")
         .role("none")

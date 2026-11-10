@@ -2894,7 +2894,16 @@ fn goldens() {
         "assistant-start",
         "assistant-connect",
         "assistant-settings",
+        "assistant-consent",
+        "assistant-steps",
+        "assistant-steps-open",
+        "files-cited",
     ] {
+        check_golden(scene, true, PANE_SIZE);
+    }
+    // Answers from recordings, and the place one opens, in both themes.
+    for scene in ["assistant-recordings", "meetings-cited"] {
+        check_golden(scene, false, PANE_SIZE);
         check_golden(scene, true, PANE_SIZE);
     }
 }

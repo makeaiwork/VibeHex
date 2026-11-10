@@ -234,14 +234,22 @@ pub(super) fn title_bar(element: El) -> El {
 
 /// The title bar of the content panel: the title, a view switch that stays
 /// beside it, and the pane's actions on the right. The title is the pane's
-/// level 1 heading.
-pub(super) fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Vec<El>) -> El {
+/// level 1 heading. `back`: Back to Assistant, before the title, when the
+/// pane was opened from an answer.
+pub(super) fn pane_header(
+    p: Paint,
+    back: Option<El>,
+    title: &str,
+    switch: Option<El>,
+    actions: Vec<El>,
+) -> El {
     title_bar(row())
         .key("pane-header")
         .h(52.0)
         .px(METRICS.gutter)
         .gap(8.0)
         .center_y()
+        .children(back.map(|back| back.mr(4.0)))
         .child(
             text(title)
                 .key("pane-title")

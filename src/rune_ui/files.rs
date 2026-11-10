@@ -166,6 +166,15 @@ impl FilesPane {
         self.tasks.iter().filter(move |task| task.record == record)
     }
 
+    /// The first Original version of record `id`.
+    pub(super) fn original(&self, id: &str) -> Option<u32> {
+        let record = self.record(id)?;
+        let mut versions = record.versions.iter();
+        let original =
+            versions.find(|version| version.kind == crate::files::store::VersionKind::Original)?;
+        Some(original.id)
+    }
+
     pub(super) fn select(&mut self, id: String) {
         if self.selected.as_deref() != Some(id.as_str()) {
             self.tab = None;

@@ -14,6 +14,7 @@
 use rune::{El, TextEdit, Tx, col, row, text};
 use rune_kit::{IconButton, IconButtonVariant, Menu as KitMenu, MenuItem, Placement, TextInput};
 
+use super::assistant::jump;
 use super::controls::{
     ButtonKind, DESCRIPTION, Paint, button, card, page, pulsing_dot, segmented_tx,
 };
@@ -21,6 +22,7 @@ use super::list_detail::{self as ld, Item};
 use super::lists::{Tone, dismissible_error_panel, error_panel, section_label, tone_tag};
 use super::platform::MeetingRequest;
 use super::{Menu, Ui};
+use crate::assistant::recordings::Kind;
 use crate::desktop::file_dialog::{Dialog, Filter, Pending, Target};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 
@@ -973,6 +975,7 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
                     .key("transcript-block")
                     .gap(10.0)
                     .child(section_label(p, "transcript-label", transcript_label))
+                    .children(jump::bar(ui, p, Kind::Meeting, &meeting.id))
                     .child(transcript(ui, p, meeting, pane.stop_pending)),
             );
         }
@@ -1235,13 +1238,27 @@ fn transcript(ui: &Ui, p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
     let playing = heard
         .and_then(|heard| heard.at_ms)
         .and_then(|at| super::playback::playing_line(turns.iter().map(|turn| turn.start_ms), at));
+    // Opened from an answer: the places it cites, lit.
+    let cited = jump::cited(ui, Kind::Meeting, &meeting.id);
+    let starts: Vec<u64> = turns.iter().map(|turn| turn.start_ms).collect();
+    let marks = cited.map(|cited| cited.marks(&starts)).unwrap_or_default();
+    if cited.is_some() {
+        lines = lines.px(jump::INSET);
+    }
     for (index, turn) in turns.iter().enumerate() {
         let listened = heard.map(|heard| {
             let at = heard.at_ms.unwrap_or(turn.start_ms);
             let lit = (Some(turn.start_ms) == playing).then_some((at, heard.marked));
             (&of, lit)
         });
-        lines = lines.children(turn_line(p, index, turn, meeting.imported, listened));
+        let mut shown = turn_line(p, index, turn, meeting.imported, listened);
+        if let Some(Some(mark)) = marks.get(index) {
+            let head = speaker(p, turn, meeting.imported, false);
+            shown.pop();
+            let key = format!("turn{index}");
+            shown.push(jump::line(p, key, *mark, (Some(head), None), &turn.text));
+        }
+        lines = lines.children(shown);
     }
     if meeting.status == Status::Recording && !stop_pending {
         lines = lines.child(
@@ -1278,36 +1295,12 @@ pub(super) fn turn_line(
         col()
             .key(format!("turn{index}"))
             .gap(2.0)
-            .child(
-                row()
-                    .key("speaker")
-                    .gap(8.0)
-                    .child(
-                        text(if imported {
-                            tr("Speaker")
-                        } else if turn.mine {
-                            tr("You")
-                        } else {
-                            tr("Them")
-                        })
-                        .key("name")
-                        .font(p.k.ty.small_medium)
-                        .color(if turn.mine && !imported {
-                            p.text()
-                        } else {
-                            p.faint()
-                        }),
-                    )
-                    .child(
-                        text(clock_offset(turn.start_ms))
-                            .key("clock")
-                            .font(p.k.ty.small)
-                            .color(match listened {
-                                Some((_, Some(_))) => p.accent(),
-                                _ => p.faint(),
-                            }),
-                    ),
-            )
+            .child(speaker(
+                p,
+                turn,
+                imported,
+                matches!(listened, Some((_, Some(_)))),
+            ))
             .child(
                 match listened {
                     Some((of, lit)) => {
@@ -1324,6 +1317,35 @@ pub(super) fn turn_line(
             ),
     );
     els
+}
+
+/// Who spoke and when, the time in the accent while it plays.
+fn speaker(p: Paint, turn: &Turn, imported: bool, playing: bool) -> El {
+    row()
+        .key("speaker")
+        .gap(8.0)
+        .child(
+            text(if imported {
+                tr("Speaker")
+            } else if turn.mine {
+                tr("You")
+            } else {
+                tr("Them")
+            })
+            .key("name")
+            .font(p.k.ty.small_medium)
+            .color(if turn.mine && !imported {
+                p.text()
+            } else {
+                p.faint()
+            }),
+        )
+        .child(
+            text(clock_offset(turn.start_ms))
+                .key("clock")
+                .font(p.k.ty.small)
+                .color(if playing { p.accent() } else { p.faint() }),
+        )
 }
 
 #[cfg(all(test, not(target_os = "macos")))]

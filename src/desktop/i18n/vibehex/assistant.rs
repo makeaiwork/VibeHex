@@ -71,6 +71,12 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("{} files", ["pliki ({})", "{} 个文件", "ファイル {} 件", "{} Dateien", "{} archivos", "файли ({})"]),
     ("1 dictation", ["1 dyktowanie", "1 条听写", "ディクテーション 1 件", "1 Diktat", "1 dictado", "1 диктування"]),
     ("{} dictations", ["dyktowania ({})", "{} 条听写", "ディクテーション {} 件", "{} Diktate", "{} dictados", "диктування ({})"]),
+    ("Back to Assistant", ["Wróć do Asystenta", "返回助手", "アシスタントに戻る", "Zurück zum Assistenten", "Volver al Asistente", "Назад до Асистента"]),
+    ("{current} of {count}", ["{current} z {count}", "第 {current} / {count} 处", "{count} 件中 {current}", "{current} von {count}", "{current} de {count}", "{current} з {count}"]),
+    ("From the answer: {}", ["Z odpowiedzi: {}", "来自回答：{}", "回答から：{}", "Aus der Antwort: {}", "De la respuesta: {}", "З відповіді: {}"]),
+    ("Previous place", ["Poprzednie miejsce", "上一处", "前の箇所", "Vorherige Stelle", "Lugar anterior", "Попереднє місце"]),
+    ("Next place", ["Następne miejsce", "下一处", "次の箇所", "Nächste Stelle", "Lugar siguiente", "Наступне місце"]),
+    ("Clear highlight", ["Wyczyść wyróżnienie", "清除高亮", "ハイライトを消す", "Hervorhebung entfernen", "Quitar el resaltado", "Прибрати виділення"]),
 ];
 
 /// French.
@@ -141,6 +147,12 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("{} files", "{} fichiers"),
     ("1 dictation", "1 dictée"),
     ("{} dictations", "{} dictées"),
+    ("Back to Assistant", "Retour à l’Assistant"),
+    ("{current} of {count}", "{current} sur {count}"),
+    ("From the answer: {}", "D’après la réponse : {}"),
+    ("Previous place", "Passage précédent"),
+    ("Next place", "Passage suivant"),
+    ("Clear highlight", "Effacer la mise en évidence"),
 ];
 
 /// Brazilian Portuguese.
@@ -211,6 +223,12 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("{} files", "{} arquivos"),
     ("1 dictation", "1 ditado"),
     ("{} dictations", "{} ditados"),
+    ("Back to Assistant", "Voltar ao Assistente"),
+    ("{current} of {count}", "{current} de {count}"),
+    ("From the answer: {}", "Da resposta: {}"),
+    ("Previous place", "Trecho anterior"),
+    ("Next place", "Próximo trecho"),
+    ("Clear highlight", "Limpar destaque"),
 ];
 
 /// Russian.
@@ -281,4 +299,10 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("{} files", "файлы ({})"),
     ("1 dictation", "1 диктовка"),
     ("{} dictations", "диктовки ({})"),
+    ("Back to Assistant", "Назад к Ассистенту"),
+    ("{current} of {count}", "{current} из {count}"),
+    ("From the answer: {}", "Из ответа: {}"),
+    ("Previous place", "Предыдущее место"),
+    ("Next place", "Следующее место"),
+    ("Clear highlight", "Убрать выделение"),
 ];

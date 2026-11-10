@@ -1679,6 +1679,7 @@ mod tests {
         include_str!("../rune_ui/assistant/composer.rs"),
         include_str!("../rune_ui/assistant/connect.rs"),
         include_str!("../rune_ui/assistant/feed.rs"),
+        include_str!("../rune_ui/assistant/jump.rs"),
         include_str!("../rune_ui/assistant/nav.rs"),
         include_str!("../rune_ui/assistant/picker.rs"),
         include_str!("../rune_ui/assistant/recall.rs"),

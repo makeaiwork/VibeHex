@@ -6,12 +6,14 @@ use rune::{El, TextEdit, Tx, col, icon, row, text};
 use rune_kit::TextArea;
 
 use super::super::Ui;
+use super::super::assistant::jump;
 use super::super::controls::{ButtonKind, DESCRIPTION, Paint, button};
 use super::super::list_detail as ld;
 use super::super::playback::{self, Of};
 use super::actions;
 use super::tabs;
 use super::{Armed, Tab, failure, stage_label, submit};
+use crate::assistant::recordings::Kind;
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::files::rewrite::DraftKind;
 use crate::files::store::{self, FileRecord, Version, VersionKind};
@@ -255,6 +257,9 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
                     layer,
                 )));
             } else {
+                if version.kind == VersionKind::Original {
+                    body = body.children(jump::bar(ui, p, Kind::File, &record.id));
+                }
                 body = body.child(content(ui, p, version));
                 ask = Some(actions::ask_area(ui, p, None, layer));
             }
@@ -575,13 +580,37 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
                 .color(p.faint());
         }
         let shown = timestamps(ui);
+        // Opened from an answer: the places it cites, lit, over the player.
+        let id = ui.files.selected.as_deref().unwrap_or_default();
+        let cited = jump::cited(ui, Kind::File, id);
+        let starts: Vec<u64> = paragraphs
+            .iter()
+            .map(|paragraph| paragraph.start_ms)
+            .collect();
+        let marks = cited.map(|cited| cited.marks(&starts)).unwrap_or_default();
         let listened = ui.files.selected.clone().map(Of::File);
         if let Some((of, heard)) = listened.and_then(|of| playback::heard(ui, &of).map(|h| (of, h)))
+            && cited.is_none()
         {
             return playback::file_original(p, &of, &version.segments, heard, shown);
         }
         let mut lines = col().key("paragraphs").gap(12.0);
+        if cited.is_some() {
+            lines = lines.px(jump::INSET);
+        }
         for (index, paragraph) in paragraphs.into_iter().enumerate() {
+            if let Some(Some(mark)) = marks.get(index) {
+                let clock = text(file_text::clock(paragraph.start_ms))
+                    .key("clock")
+                    .font(p.k.ty.text_xsmall_medium)
+                    .color(p.faint())
+                    .w(40.0)
+                    .pt(1.0);
+                let key = format!("paragraph{index}");
+                let beside = (None, shown.then_some(clock));
+                lines = lines.child(jump::line(p, key, *mark, beside, &paragraph.text));
+                continue;
+            }
             let words = text(paragraph.text)
                 .key("text")
                 .font(p.k.ty.ui)

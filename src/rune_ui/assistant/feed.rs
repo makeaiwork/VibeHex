@@ -169,7 +169,7 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
         words = words.child(super::recall::answer(
             p,
             &turn.answer,
-            &turn.refs,
+            Some((conversation, index)),
             false,
             false,
         ));
@@ -194,7 +194,12 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
                 })),
         );
     }
-    words = words.children(super::recall::chips(p, &turn.refs, now_ms));
+    words = words.children(super::recall::chips(
+        p,
+        &turn.refs,
+        now_ms,
+        (conversation, index),
+    ));
     words = words.children(sources(p, &turn.sources));
     if turn.error.is_none() {
         words = words.child(session::answer_row(
@@ -279,7 +284,7 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
     let words = if !answering.draft.trim().is_empty() {
         let mut draft = answering.draft.trim_end().to_owned();
         draft.push('▌');
-        Some(super::recall::answer(p, &draft, &[], true, true))
+        Some(super::recall::answer(p, &draft, None, true, true))
     } else if steps.is_none() {
         Some(
             text(tr("Looking in the guide…"))

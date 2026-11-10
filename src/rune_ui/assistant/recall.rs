@@ -11,8 +11,7 @@
 //!   1 file in 9 s ›", which opens on a click; a guide answer has none;
 //! - its `[n]` show as small numbered marks, and "From your recordings"
 //!   lists the places cited ("Meeting title, Tuesday, 10:12"). A mark or a
-//!   chip opens its meeting at that moment, its Files text, or its
-//!   dictation in History.
+//!   chip opens its place (`jump`).
 //!
 //! What a question may read is decided here (`recall`): only the question's
 //! words before the person has agreed (`assistant::intent`).
@@ -22,7 +21,6 @@ use rune::{El, Icon, LinkPaint, Span, Tx, col, el, icon, row, text};
 use super::super::Ui;
 use super::super::controls::{ButtonKind, DESCRIPTION, Paint, button};
 use super::super::files::session;
-use super::super::playback;
 use super::super::sidebar::Pane;
 use super::face::Mood;
 use crate::assistant::intent;
@@ -399,7 +397,14 @@ pub(super) fn folded(
 }
 
 /// The answer, its `[n]` as small numbered marks that open their place.
-pub(super) fn answer(p: Paint, answer: &str, refs: &[Ref], muted: bool, streaming: bool) -> El {
+/// `from`: the conversation and turn it answers, once it is in.
+pub(super) fn answer(
+    p: Paint,
+    answer: &str,
+    from: Option<(u32, usize)>,
+    muted: bool,
+    streaming: bool,
+) -> El {
     let style = rune_kit::MarkdownStyle::from_kit(p.k)
         .body_font(p.k.ty.ui)
         .text(if muted { p.muted() } else { p.reading() });
@@ -415,7 +420,6 @@ pub(super) fn answer(p: Paint, answer: &str, refs: &[Ref], muted: bool, streamin
     };
     let hover = LinkPaint::new().bg(k.alpha(accent, 0.22));
     let ring = k.alpha(accent, 0.5);
-    let refs = refs.to_vec();
     rune_kit::Markdown::new(marked(answer))
         .style(style)
         .selectable(!streaming)
@@ -425,8 +429,8 @@ pub(super) fn answer(p: Paint, answer: &str, refs: &[Ref], muted: bool, streamin
         .link_ring(move |url| url.starts_with(REF).then_some((ring, 1.0)))
         .on_link_tx(move |ui: &mut Ui, url: &str, tx: &mut Tx| {
             let n = url.strip_prefix(REF).and_then(|n| n.parse::<u32>().ok());
-            if let Some(cited) = refs.iter().find(|cited| Some(cited.n) == n) {
-                open(ui, cited, tx);
+            if let (Some((conversation, index)), Some(n)) = (from, n) {
+                super::jump::open(ui, conversation, index, n, tx);
             }
         })
         .build(k)
@@ -454,6 +458,13 @@ fn marked(answer: &str) -> String {
             });
         match numbers {
             Some(inside) => {
+                // Kept on the line of the word it follows, a little apart.
+                if out.ends_with(' ') {
+                    out.pop();
+                }
+                if !out.is_empty() && !out.ends_with(char::is_whitespace) {
+                    out.push('\u{a0}');
+                }
                 for n in inside.split(',').map(str::trim).filter(|n| !n.is_empty()) {
                     out.push_str(&format!("[{n}]({REF}{n})"));
                 }
@@ -470,7 +481,12 @@ fn marked(answer: &str) -> String {
 }
 
 /// "From your recordings" and the places cited, each opening its place.
-pub(super) fn chips(p: Paint, refs: &[Ref], now: u64) -> Option<El> {
+pub(super) fn chips(
+    p: Paint,
+    refs: &[Ref],
+    now: u64,
+    (conversation, index): (u32, usize),
+) -> Option<El> {
     if refs.is_empty() {
         return None;
     }
@@ -537,42 +553,12 @@ pub(super) fn chips(p: Paint, refs: &[Ref], now: u64) -> Option<El> {
                         .max_lines(1),
                 )
                 .child(text(at).key("at").font(small).color(p.faint()).max_lines(1))
-                .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| open(ui, &cited, tx)),
+                .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
+                    super::jump::open(ui, conversation, index, cited.n, tx);
+                }),
         );
     }
     Some(line)
-}
-
-/// Opens a cited place: the meeting at that moment (where Listen to the
-/// recording can mark it), the Files text, or the dictation in History.
-fn open(ui: &mut Ui, cited: &Ref, tx: &mut Tx) {
-    if ui.is_fixture() || ui.assistant.fixture {
-        return;
-    }
-    match cited.kind {
-        Kind::Meeting => {
-            ui.select_pane(Pane::Meetings, tx);
-            ui.meetings.select(cited.id.clone());
-            if let Some(offset) = cited.offset_ms
-                && crate::labs::Feature::Playback.on(&ui.settings)
-            {
-                playback::pick(ui, &playback::Of::Meeting(cited.id.clone()), offset);
-            }
-        }
-        Kind::File => {
-            ui.select_pane(Pane::Files, tx);
-            ui.files.select(cited.id.clone());
-            if let Some(offset) = cited.offset_ms
-                && crate::labs::Feature::Playback.on(&ui.settings)
-            {
-                playback::pick(ui, &playback::Of::File(cited.id.clone()), offset);
-            }
-        }
-        Kind::Dictation => {
-            ui.select_pane(Pane::History, tx);
-            ui.history.selected = cited.id.parse().ok();
-        }
-    }
 }
 
 #[cfg(test)]
@@ -583,7 +569,7 @@ mod tests {
     fn citations_become_links_and_the_rest_stays() {
         assert_eq!(
             marked("Cut by 15 % [2][3]. See [1, 4]."),
-            "Cut by 15 % [2](hex-ref:2)[3](hex-ref:3). See [1](hex-ref:1)[4](hex-ref:4)."
+            "Cut by 15 %\u{a0}[2](hex-ref:2)\u{a0}[3](hex-ref:3). See\u{a0}[1](hex-ref:1)[4](hex-ref:4)."
         );
         assert_eq!(
             marked("A [link](https://x) and [b]"),

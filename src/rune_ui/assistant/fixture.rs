@@ -9,6 +9,7 @@ use super::super::files::FilesPane;
 use super::super::scenes::mac_fixture;
 use super::super::sidebar::Pane;
 use super::View;
+use crate::assistant::recordings::{Kind, Ref, Step};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Answering;
 
@@ -104,4 +105,139 @@ pub(in super::super) fn connect(ui: &mut Ui) {
     ui.settings.labs.ai_cleanup_server = false;
     ui.assistant.reach.codex = Some(true);
     ui.assistant.reach.opencode = Some(false);
+}
+
+const DAY: u64 = 24 * 60 * MINUTE;
+
+/// A question about meetings waiting for leave to read them.
+pub(in super::super) fn consent(ui: &mut Ui) {
+    open(ui);
+    let question = "Что мы решили по бюджету на встречах в марте?";
+    let id = ui.assistant.store.start(question, None, None);
+    ui.assistant.store.date(id, AT + MINUTE);
+    ui.assistant.open = Some(id);
+    ui.assistant.consent = Some(super::recall::Pending {
+        conversation: id,
+        question: question.into(),
+    });
+}
+
+/// The search's steps as they land: meetings found and read, files being
+/// searched.
+pub(in super::super) fn steps(ui: &mut Ui) {
+    open(ui);
+    let question = "Что мы решили по бюджету на встречах в марте?";
+    let id = ui.assistant.store.start(question, None, None);
+    ui.assistant.store.date(id, AT + MINUTE);
+    ui.assistant.open = Some(id);
+    ui.assistant.answering = Some(Answering {
+        conversation: id,
+        question: question.into(),
+        draft: String::new(),
+        started: Instant::now(),
+        steps: vec![
+            Step::Meetings {
+                searched: 12,
+                found: 4,
+            },
+            Step::Read {
+                notes: 4,
+                passages: 6,
+            },
+        ],
+        searching: true,
+    });
+}
+
+fn place(n: u32, kind: Kind, id: &str, title: &str, at_ms: u64, offset: Option<u64>) -> Ref {
+    Ref {
+        n,
+        kind,
+        id: id.into(),
+        title: title.into(),
+        at_ms,
+        offset_ms: offset,
+        words: vec!["бюджет".into()],
+    }
+}
+
+/// An answer from four meetings and a file: the steps folded into one
+/// line, `[n]` marks, and the places cited.
+pub(in super::super) fn recordings(ui: &mut Ui) {
+    open(ui);
+    let question = "Что мы решили по бюджету на встречах в марте?";
+    let id = ui.assistant.store.start(question, None, None);
+    ui.assistant.store.date(id, AT);
+    let meeting = Kind::Meeting;
+    ui.assistant.store.push(
+        id,
+        Turn {
+            steps: vec![
+                Step::Meetings {
+                    searched: 12,
+                    found: 4,
+                },
+                Step::Read {
+                    notes: 4,
+                    passages: 6,
+                },
+                Step::Files {
+                    searched: 3,
+                    found: 1,
+                },
+            ],
+            refs: vec![
+                place(1, meeting, "planerka", "Планёрка", AT - 10 * DAY, Some(60_000)),
+                place(2, meeting, "hiring", "Найм бэкенда", AT - 7 * DAY, Some(720_000)),
+                place(3, meeting, "budget", "Бюджет Q1", AT - 3 * DAY, Some(300_000)),
+                place(4, Kind::File, "draft", "budget-draft.m4a", AT - 2 * DAY, Some(6_000)),
+            ],
+            seconds: 9.0,
+            ..turn(
+                question,
+                "В марте бюджет обсуждали на трёх встречах, и решение складывалось постепенно.\n\n- **4 марта** утверждение отложили: не хватало цифр по маркетингу [1].\n- **7 марта** решили взять деньги на второго бэкендера из маркетинга и перенести утверждение [2].\n- **11 марта** утвердили лимит на Q1, 1,2 млн рублей, маркетинг урезали на 15 % [3]. В черновике было 1,5 млн [4].",
+                &[],
+                1,
+            )
+        },
+    );
+    ui.assistant.open = Some(id);
+}
+
+/// The same answer with its steps open.
+pub(in super::super) fn steps_open(ui: &mut Ui) {
+    recordings(ui);
+    let id = ui.assistant.open.unwrap_or_default();
+    ui.assistant.unfolded.push((id, 0));
+}
+
+/// A meeting opened from an answer citing it twice: Back to Assistant,
+/// the bar, the place shown and the other one fainter, the words lit.
+pub(in super::super) fn meeting_cited(ui: &mut Ui) {
+    *ui = mac_fixture();
+    ui.pane = Pane::Meetings;
+    ui.meetings.select("preview-notes".into());
+    ui.meetings.tab = Some(super::super::meeting_tabs::MeetingTab::Transcript);
+    ui.came_from = Some(super::jump::scene(
+        Kind::Meeting,
+        "preview-notes",
+        "What did we decide about the build screen and games",
+        &[(2, 13_000, &["games"]), (3, 95_000, &["build", "proposal"])],
+    ));
+}
+
+/// A Files text opened from an answer: its Original, the cited paragraph
+/// lit.
+pub(in super::super) fn file_cited(ui: &mut Ui) {
+    *ui = mac_fixture();
+    ui.settings.labs.files = true;
+    ui.files = FilesPane::fixture();
+    ui.files.tab = Some(super::super::files::Tab::Version(1));
+    ui.pane = Pane::Files;
+    ui.came_from = Some(super::jump::scene(
+        Kind::File,
+        "preview-interview",
+        "What does the client want",
+        &[(1, 48_000, &["prototype", "friday"])],
+    ));
 }
