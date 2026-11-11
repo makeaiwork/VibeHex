@@ -12,12 +12,16 @@
 //! with the guide. A question that only names them, or only asks what was
 //! said, may be: once the person has agreed, the search decides it.
 //!
-//! Times are read against a `now` passed in, in local time.
+//! Times are read against a `now` passed in, in local time. A question
+//! about VibeHex's releases ("Что нового в последнем релизе?") is never one
+//! about recordings (`releases`).
 
 mod day;
+mod releases;
 mod setup;
 
 use day::{Day, span};
+pub use releases::releases;
 pub use setup::setup;
 
 /// Which recordings a question names; none named means all.
@@ -54,6 +58,9 @@ pub struct Intent {
 
 /// The question's intent when it may be about recordings.
 pub fn read(question: &str, now_ms: u64) -> Option<Intent> {
+    if releases(question).is_some() {
+        return None;
+    }
     let words = words(question);
     let mut kinds = Kinds::default();
     let mut named = false;
