@@ -14,6 +14,7 @@ pub mod names;
 pub mod parse;
 pub mod parts;
 pub mod state;
+pub mod vocab;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -63,6 +64,8 @@ pub enum CardKind {
     Plan,
     /// Instructions, shown line by line.
     Prompt,
+    /// Vocabulary terms, checked or not, added together (`vocab`).
+    Vocabulary,
 }
 
 /// One key a card changes.
@@ -154,6 +157,31 @@ pub fn resolve(
     let mut cards: Vec<Card> = Vec::new();
     let mut refused = Vec::new();
     for proposal in proposals {
+        if proposal.key == vocab::KEY {
+            match vocab::card(proposal, settings) {
+                // The vocabulary has it: dropped, never told the model.
+                Ok(None) => {}
+                Ok(Some(card)) => match cards.last_mut() {
+                    Some(plan) if proposal.plan && plan.kind == CardKind::Plan => {
+                        plan.items.extend(card.items)
+                    }
+                    Some(terms) if !proposal.plan && terms.kind == CardKind::Vocabulary => {
+                        vocab::merge(terms, card)
+                    }
+                    _ if proposal.plan => cards.push(Card {
+                        kind: CardKind::Plan,
+                        ..card
+                    }),
+                    _ => cards.push(card),
+                },
+                Err(why) => refused.push(Refused {
+                    line: proposal.line.clone(),
+                    key: Some(vocab::KEY.to_owned()),
+                    why,
+                }),
+            }
+            continue;
+        }
         match card(proposal, settings, shortcuts) {
             Ok(card) if proposal.plan => match cards.last_mut() {
                 Some(plan) if plan.kind == CardKind::Plan => plan.items.extend(card.items),

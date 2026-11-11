@@ -16,6 +16,7 @@ use serde_json::Value;
 
 use super::changes::catalog::{self, Shorter};
 use super::changes::parse::Proposal;
+use super::changes::vocab::{self, Term};
 use super::changes::{Card, CardKind};
 use crate::app_settings::AppSettings;
 use crate::control::settings;
@@ -394,6 +395,43 @@ pub fn baseline(answers: &[Answer], settings: &AppSettings) -> Vec<Proposal> {
             line: key.into(),
             ..Proposal::default()
         })
+        .chain(
+            // Russian vibe coding brings its own terms.
+            (code && matches!(language, "ru" | "mixed") && !vibe)
+                .then(code_terms)
+                .into_iter()
+                .flatten(),
+        )
+        .collect()
+}
+
+/// Terms someone dictating code in Russian likely says, for an optional
+/// Vocabulary row; the plan leaves out the ones the vocabulary has.
+fn code_terms() -> Vec<Proposal> {
+    const TERMS: [(&str, &[&str]); 5] = [
+        ("GitHub", &["гитхаб", "гит хаб"]),
+        ("Claude Code", &["клод код"]),
+        ("pull request", &["пул реквест", "пулл реквест"]),
+        ("TypeScript", &["тайпскрипт", "тайп скрипт"]),
+        ("Docker", &["докер"]),
+    ];
+    TERMS
+        .iter()
+        .map(|(term, sounds_like)| Proposal {
+            key: vocab::KEY.into(),
+            value: Some(
+                Term {
+                    term: (*term).into(),
+                    sounds_like: sounds_like.iter().map(|&text| text.into()).collect(),
+                }
+                .value(),
+            ),
+            why: tr("Tech terms you likely say, spelled as they should be").into(),
+            optional: true,
+            plan: true,
+            line: vocab::KEY.into(),
+            ..Proposal::default()
+        })
         .collect()
 }
 
@@ -432,7 +470,11 @@ fn speech_model(
 /// decision 4). `None` when nothing is left.
 pub fn plan(cards: Vec<Card>, settings: &AppSettings, state: &catalog::State) -> Option<Card> {
     let mut items = Vec::new();
-    for item in cards.into_iter().flat_map(|card| card.items) {
+    let (terms, settings_items): (Vec<_>, Vec<_>) = cards
+        .into_iter()
+        .flat_map(|card| card.items)
+        .partition(|item| item.key == vocab::KEY);
+    for item in settings_items {
         let key = match super::changes::parts::part(&item.key, settings) {
             Some(part) => part.parent().to_owned(),
             None => item.key.clone(),
@@ -445,6 +487,13 @@ pub fn plan(cards: Vec<Card>, settings: &AppSettings, state: &catalog::State) ->
             continue;
         }
         items.push(item);
+    }
+    // Every term in one row, never checked to begin with.
+    if items.len() < PLAN_LINES
+        && let Some(mut row) = vocab::row(terms)
+    {
+        row.included = false;
+        items.push(row);
     }
     for item in &mut items {
         let shorter: Option<Shorter> = catalog::shorter(&item.key, &item.from, &item.to);
@@ -550,13 +599,46 @@ mod tests {
         for language in ["ru", "en", "mixed"] {
             for cloud in ["chatgpt", "this_mac", "no_cleanup"] {
                 let lines = baseline(&answers(&all, language, cloud), &settings);
-                assert!(lines.len() <= PLAN_LINES);
+                let terms = lines.iter().filter(|line| line.key == vocab::KEY).count();
+                assert!(lines.len() - terms <= PLAN_LINES);
                 let (cards, refused) = changes::resolve(&lines, &settings, &rules);
                 assert!(refused.is_empty(), "{language} {cloud}: {refused:?}");
                 assert_eq!(cards.len(), 1, "one plan");
                 assert_eq!(cards[0].items.len(), lines.len());
+                let state = catalog::State::default();
+                let plan = plan(cards, &settings, &state).unwrap();
+                assert!(plan.items.len() <= PLAN_LINES);
             }
         }
+    }
+
+    /// Dictating code in Russian on this Mac: one Vocabulary row of terms,
+    /// unchecked, without the ones the vocabulary has.
+    #[test]
+    fn russian_code_gets_an_unchecked_row_of_terms() {
+        let settings = AppSettings {
+            vocabulary: vec![crate::dictation::vocabulary::VocabularyEntry {
+                term: "github".into(),
+                sounds_like: Vec::new(),
+            }],
+            ..AppSettings::default()
+        };
+        let rules = crate::rune_ui::shortcut_rules();
+        let lines = baseline(&answers(&["dictation_code"], "ru", "this_mac"), &settings);
+        let (cards, _) = changes::resolve(&lines, &settings, &rules);
+        let plan = plan(cards, &settings, &catalog::State::default()).unwrap();
+        let row = plan
+            .items
+            .iter()
+            .find(|item| item.key == vocab::KEY)
+            .unwrap();
+        assert!(!row.included);
+        let terms = vocab::terms(&row.to);
+        assert_eq!(terms.len(), 4);
+        assert!(terms.iter().all(|term| term.term != "GitHub"));
+        // With vibe coding, which brings its own terms, there is none.
+        let lines = baseline(&answers(&["dictation_code"], "ru", "chatgpt"), &settings);
+        assert!(lines.iter().all(|line| line.key != vocab::KEY));
     }
 
     #[test]

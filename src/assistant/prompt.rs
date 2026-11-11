@@ -103,7 +103,18 @@ recommend) instead of `value`.
 already has the value.
 - Name only the setting asked about: the app also turns on what it needs (a Labs feature, \
 Meetings).
-- Never a key that isn't listed. Never say you changed anything: the person decides on the card.";
+- Never a key that isn't listed. Never say you changed anything: the person decides on the card.
+
+To add names or terms dictation gets wrong to the person's Vocabulary, write one JSON object \
+per term in one block, after your answer, before the Sources line:
+
+```hex-vocab
+{\"term\":\"Kubernetes\",\"sounds_like\":[\"кубернетис\",\"кубер\"],\"why\":\"a short reason\"}
+```
+
+- `term` spelled as it should be written; `sounds_like`: up to 5 ways a transcript gets it \
+wrong, in the language they speak. At most 8 terms, only ones the question is about.
+- You never see their vocabulary: the app leaves out a term it has.";
 
 /// Guided setup, a typed request: the three questions, in the message's
 /// language, as option chips.
@@ -149,6 +160,9 @@ for Russian, parakeet_v3 for Russian mixed with English.
 - Cleanup on their ChatGPT plan: dictation_processing.server.runs_on codex, with \
 dictation_processing.default_mode.cleanup on. Only on this computer: nothing that sends text \
 out. No cleanup: leave it off.
+- Dictation into code in Russian or mixed, without vibe coding (which brings its own \
+terms): you may add a ```hex-vocab block of up to 6 terms they likely say, each line with \
+`\"optional\":true`, as `{\"term\":\"GitHub\",\"sounds_like\":[\"гитхаб\"],\"optional\":true}`.
 - `why`: one short phrase each, in that language. Name only the settings; the app turns on \
 what they need. Never say you changed anything.";
 
@@ -270,7 +284,8 @@ const REPAIR: &str = "
 
 Your reply above had change lines the app refused (in <refused>, each with why). Write them \
 again, fixed: only keys from <changeable_settings>, values as it writes them. Reply with \
-only one ```hex-change block, and leave out a line you can't fix. An empty block if none fit.";
+only one ```hex-change block (vocabulary terms in one ```hex-vocab block), and leave out a \
+line you can't fix. An empty block if none fit.";
 
 /// One more ask, for a remote model whose change lines were refused: its
 /// reply, what was refused and why, and to write those lines again.
@@ -304,6 +319,10 @@ pub fn changes_line(cards: &[changes::Card], refused: &[Refused]) -> String {
             changes::Decision::Applied { .. } => "applied",
         };
         for item in &card.items {
+            let done = match (&card.decision, item.included) {
+                (changes::Decision::Applied { .. }, false) => "left out",
+                _ => done,
+            };
             lines.push(format!("{} = {}: {done}", item.key, item.to));
         }
     }
@@ -685,6 +704,7 @@ mod tests {
             &Stage::None,
         );
         assert!(large.instructions.contains("```hex-change"));
+        assert!(large.instructions.contains("```hex-vocab"));
         assert!(large.input.contains("<changeable_settings>"));
         assert!(
             large

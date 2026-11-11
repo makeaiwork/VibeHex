@@ -197,6 +197,7 @@ pub const WHERE: &[(&str, &str, &str, Home)] = &[
         "Clean up with AI",
         Home::Output,
     ),
+    (super::vocab::KEY, "General", "Vocabulary", Home::General),
     (
         "dictation_processing.server.runs_on",
         "Output › AI cleanup",
@@ -491,6 +492,9 @@ const LABELS: &[(&str, &str)] = &[
 /// How `value` of `key` reads on a card: `On`, `OpenCode`, `Parakeet v3`,
 /// `30%`.
 pub fn label(key: &str, value: &Value) -> String {
+    if key == super::vocab::KEY {
+        return super::vocab::label(value);
+    }
     match value {
         Value::Bool(true) => "On".into(),
         Value::Bool(false) => "Off".into(),
@@ -650,7 +654,7 @@ mod tests {
                 keys.iter().any(|known| known.starts_with(key))
             } else {
                 keys.iter().any(|known| known == key)
-                    || [parts::PROMPT, parts::CLEANUP].contains(key)
+                    || [parts::PROMPT, parts::CLEANUP, super::super::vocab::KEY].contains(key)
             };
             // Annotate's keys exist only in capture builds.
             assert!(real || key.starts_with("capture."), "{key} is no setting");

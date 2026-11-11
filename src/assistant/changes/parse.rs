@@ -24,6 +24,8 @@ enum Fence {
     Plan,
     /// One question per line, with option chips (setup).
     Ask,
+    /// One vocabulary term per line, all in one card.
+    Vocab,
 }
 
 /// One change line, as the model wrote it.
@@ -99,6 +101,7 @@ fn opens(line: &str, next: Option<&str>) -> Option<(&'static str, Fence)> {
         "hex-change" | "hex-changes" => Fence::Change,
         "hex-plan" => Fence::Plan,
         "hex-ask" => Fence::Ask,
+        "hex-vocab" | "hex-vocabulary" => Fence::Vocab,
         "json" | "jsonl" | "" if next.is_some_and(starts_change) => Fence::Change,
         _ => return None,
     };
@@ -109,7 +112,9 @@ fn opens(line: &str, next: Option<&str>) -> Option<(&'static str, Fence)> {
 pub(crate) fn starts_change(line: &str) -> bool {
     let compact: String = line.chars().filter(|c| !c.is_whitespace()).collect();
     let compact = compact.trim_start_matches('[');
-    compact.starts_with("{\"key\"") || compact.starts_with("{'key'")
+    ["{\"key\"", "{'key'", "{\"term\"", "{\"vocabulary_add\""]
+        .iter()
+        .any(|start| compact.starts_with(start))
 }
 
 fn read_block(lines: &[&str], fence: Fence, parsed: &mut Parsed) {
@@ -131,6 +136,12 @@ fn read_block(lines: &[&str], fence: Fence, parsed: &mut Parsed) {
     for (line, value) in objects {
         match (fence, value) {
             (Fence::Ask, Some(value @ Value::Object(_))) => parsed.asks.push(value),
+            (_, Some(Value::Object(object))) if super::vocab::is_term(&object) => {
+                match super::vocab::proposals(&object, fence == Fence::Plan, &line) {
+                    Some(terms) => parsed.proposals.extend(terms),
+                    None => parsed.malformed.push(line),
+                }
+            }
             (_, Some(Value::Object(object))) => match proposal(&object, fence, &line) {
                 Some(proposal) => parsed.proposals.push(proposal),
                 None => parsed.malformed.push(line),
@@ -308,6 +319,7 @@ fn unfinished_fence(line: &str) -> bool {
             || "hex-change".starts_with(info)
             || "hex-plan".starts_with(info)
             || "hex-ask".starts_with(info)
+            || "hex-vocab".starts_with(info)
             || "json".starts_with(info))
         || "CHANGE".starts_with(line)
             && !line.is_empty()

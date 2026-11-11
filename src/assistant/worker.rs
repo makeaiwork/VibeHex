@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
 
-use super::changes::{self, Card, Refused, Why};
+use super::changes::{self, Card, CardKind, Refused, Why};
 use super::intent::Intent;
 use super::prompt::{self, Reach, Room};
 use super::recordings::{self, Allowed, Budget, Found, Sources, Step};
@@ -314,21 +314,28 @@ fn settle(
                 plan_lines(&mut parsed.proposals);
             }
             let (more, _) = changes::resolve(&parsed.proposals, &context.settings, &rules);
-            let more: Vec<Card> = more
-                .into_iter()
-                .filter(|card| !cards.iter().any(|known| same_keys(known, card)))
+            let fixed: Vec<String> = more
+                .iter()
+                .flat_map(|card| card.items.iter().map(|item| item.key.clone()))
                 .collect();
-            if !more.is_empty() {
-                // A refusal its fix replaced goes; the rest stay.
+            for card in more {
+                // Fixed terms join the terms card there is.
+                if card.kind == CardKind::Vocabulary
+                    && let Some(terms) = cards
+                        .iter_mut()
+                        .find(|known| known.kind == CardKind::Vocabulary)
+                {
+                    changes::vocab::merge(terms, card);
+                } else if !cards.iter().any(|known| same_keys(known, &card)) {
+                    cards.push(card);
+                }
+            }
+            // A refusal its fix replaced goes; the rest stay.
+            if !fixed.is_empty() {
                 refused.retain(|refused| {
                     refused.why == Why::Never
-                        || refused.key.as_ref().is_some_and(|key| {
-                            !more
-                                .iter()
-                                .any(|card| card.items.iter().any(|item| item.key == *key))
-                        })
+                        || refused.key.as_ref().is_some_and(|key| !fixed.contains(key))
                 });
-                cards.extend(more);
             }
         }
     }
@@ -583,6 +590,47 @@ mod tests {
         assert_eq!(keys, ["labs.smart_spacing", "labs.files"]);
         // Its fix named another key: the refusal stays.
         assert_eq!(turn.refused.len(), 1);
+    }
+
+    /// A refused term comes back fixed into the terms card there is.
+    #[test]
+    fn a_fixed_term_joins_the_terms_card() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let calls = Arc::new(Mutex::new(0));
+        let count = calls.clone();
+        let long = "k".repeat(80);
+        let generate: Generate = Box::new(move |_, input, _, _| {
+            let mut calls = count.lock().unwrap();
+            *calls += 1;
+            Ok(if *calls == 1 {
+                format!(
+                    "Добавлю.\n\n```hex-vocab\n{{\"term\":\"Kubernetes\"}}\n{{\"term\":\"{long}\"}}\n```\n\nSources: none"
+                )
+            } else {
+                assert!(input.contains("<refused>"));
+                "```hex-vocab\n{\"term\":\"kubectl\",\"sounds_like\":[\"кубкатл\"]}\n{\"term\":\"kubernetes\"}\n```".into()
+            })
+        });
+        assert!(start(
+            with_changes("q"),
+            Room::Large,
+            "GPT".into(),
+            generate,
+            false
+        ));
+        let (_, turn) = finished();
+        assert_eq!(*calls.lock().unwrap(), 2);
+        assert_eq!(turn.cards.len(), 1);
+        assert_eq!(turn.cards[0].kind, CardKind::Vocabulary);
+        let terms: Vec<String> = turn.cards[0]
+            .items
+            .iter()
+            .map(|item| changes::vocab::terms(&item.to)[0].term.clone())
+            .collect();
+        assert_eq!(terms, ["Kubernetes", "kubectl"]);
+        assert!(turn.refused.is_empty(), "its fix replaced it");
     }
 
     #[test]

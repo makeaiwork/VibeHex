@@ -164,3 +164,28 @@ fn cards_round_trip_and_old_turns_still_load() {
     let back: (Vec<Card>, Vec<Refused>) = serde_json::from_str(&json).unwrap();
     assert_eq!(back, (vec![card], refused));
 }
+
+/// A `hex-vocab` block, or the older `vocabulary_add` shape, makes one
+/// terms card; the block never shows, even while it streams.
+#[test]
+fn vocabulary_terms_make_one_card() {
+    use super::vocab;
+    let reply = "Добавлю их в словарь.\n\n```hex-vocab\n{\"term\":\"Kubernetes\",\"sounds_like\":[\"кубернетис\",\"кубер\"],\"why\":\"часто путается\"}\n{\"term\":\"kubectl\",\"sounds_like\":\"куб контрол, кубкатл\"}\n{\"term\":\"Kubernetes\"}\n```\n\n```hex-change\n{\"vocabulary_add\":[{\"term\":\"Grafana\",\"sounds_like\":[\"графана\"]}]}\n```\n\nSources: none";
+    let parsed = parse(reply);
+    assert_eq!(parsed.body, "Добавлю их в словарь.\n\nSources: none");
+    assert_eq!(parsed.proposals.len(), 4);
+    assert!(parsed.malformed.is_empty());
+    let settings = AppSettings::default();
+    let (cards, refused) = resolve(&parsed.proposals, &settings, &rules());
+    assert!(refused.is_empty());
+    assert_eq!(cards.len(), 1);
+    assert_eq!(cards[0].kind, CardKind::Vocabulary);
+    let names: Vec<String> = cards[0]
+        .items
+        .iter()
+        .map(|item| vocab::terms(&item.to)[0].term.clone())
+        .collect();
+    assert_eq!(names, ["Kubernetes", "kubectl", "Grafana"]);
+    let streaming = "Добавлю.\n\n```hex-vo";
+    assert_eq!(crate::assistant::prompt::draft(streaming), "Добавлю.");
+}
