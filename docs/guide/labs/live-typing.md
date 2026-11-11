@@ -2,6 +2,8 @@
 feature: live-typing
 key: labs.live_typing
 title: Live typing
+for: []
+ask: Type dictations straight into the field on Sway or Hyprland?
 group: Dictation
 os: Linux
 vibehex: false

@@ -2,6 +2,8 @@
 feature: spoken-symbols
 key: labs.spoken_symbols
 title: Spoken symbols
+for: [dictation, code]
+ask: Say comma, hashtag, or underscore and get the symbol?
 group: Output
 os: every OS
 vibehex: false

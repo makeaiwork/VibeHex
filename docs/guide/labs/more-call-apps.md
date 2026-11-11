@@ -2,6 +2,8 @@
 feature: more-call-apps
 key: labs.more_call_apps
 title: More call apps
+for: [meetings]
+ask: Offer to record calls in Signal, Telegram, WeChat, and more?
 group: Meetings
 os: every OS
 vibehex: false

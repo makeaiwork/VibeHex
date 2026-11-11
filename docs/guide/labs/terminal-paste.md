@@ -2,6 +2,8 @@
 feature: terminal-paste
 key: paste_with_shift
 title: Terminal paste
+for: [code]
+ask: Make dictations paste into terminals that ignore Ctrl+V?
 group: Output
 os: Windows
 vibehex: false

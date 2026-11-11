@@ -2,6 +2,9 @@
 feature: expire-meeting-audio
 key: labs.expire_meeting_audio
 title: Expire meeting audio separately
+for: [meetings]
+ask: Delete meeting audio sooner while keeping the transcripts?
+then: Choose how long in Meetings › Settings › Keep audio
 group: Meetings
 os: every OS
 vibehex: false

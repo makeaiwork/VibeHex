@@ -2,6 +2,8 @@
 feature: playback
 key: labs.playback
 title: Listen to the recording
+for: [meetings, files]
+ask: Play the recording from its transcript, line by line?
 group: Meetings
 os: macOS
 vibehex: true

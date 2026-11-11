@@ -2,6 +2,8 @@
 feature: picker-downloaded
 key: labs.picker_downloaded
 title: Downloaded models only
+for: []
+ask: See how much disk space your downloaded models take?
 group: Models
 os: every OS
 vibehex: false

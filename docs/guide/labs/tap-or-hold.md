@@ -2,6 +2,8 @@
 feature: tap-or-hold
 key: labs.tap_or_hold
 title: Tap or hold
+for: []
+ask: In Tap mode, also hold the shortcut to talk?
 group: Shortcuts
 os: [macOS, Linux]
 vibehex: false

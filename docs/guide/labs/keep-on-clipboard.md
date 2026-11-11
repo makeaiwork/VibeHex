@@ -2,6 +2,8 @@
 feature: keep-on-clipboard
 key: labs.keep_on_clipboard
 title: Keep dictation on clipboard
+for: [dictation]
+ask: Leave each dictation on the clipboard after it's pasted?
 group: Output
 os: [macOS, Windows]
 vibehex: false

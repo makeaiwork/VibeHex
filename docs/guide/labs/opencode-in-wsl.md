@@ -2,6 +2,8 @@
 feature: opencode-in-wsl
 key: labs.opencode_in_wsl
 title: OpenCode in WSL
+for: []
+ask: Use OpenCode running inside WSL when Windows has none?
 group: Output
 os: Windows
 vibehex: false

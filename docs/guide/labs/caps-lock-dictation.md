@@ -2,6 +2,8 @@
 feature: caps-lock-dictation
 key: labs.caps_lock_dictation
 title: Caps Lock dictation
+for: [dictation, code]
+ask: Use Caps Lock as a one-press dictation key?
 group: Shortcuts
 os: macOS
 vibehex: false

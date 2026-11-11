@@ -2,6 +2,8 @@
 feature: history-stats
 key: labs.history_stats
 title: Dictation stats
+for: []
+ask: See stats on how much and how fast you dictate?
 group: History
 os: every OS
 vibehex: false

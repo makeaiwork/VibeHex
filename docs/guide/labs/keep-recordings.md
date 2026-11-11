@@ -2,6 +2,8 @@
 feature: keep-recordings
 key: labs.keep_recordings
 title: Keep recordings
+for: [dictation]
+ask: Keep dictation audio so you can transcribe it again later?
 group: History
 os: every OS
 vibehex: false

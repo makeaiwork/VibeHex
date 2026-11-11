@@ -2,6 +2,8 @@
 feature: stop-shortcut
 key: labs.stop_shortcut
 title: Stop shortcut
+for: [dictation, code]
+ask: Finish a dictation by pressing Return instead of your shortcut?
 group: Shortcuts
 os: macOS
 vibehex: true

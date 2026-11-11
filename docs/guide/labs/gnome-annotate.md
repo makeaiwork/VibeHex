@@ -2,6 +2,8 @@
 feature: gnome-annotate
 key: labs.gnome_annotate
 title: Annotate on GNOME
+for: []
+ask: Show Annotate's capsule and ink on GNOME Wayland?
 group: Annotate
 os: Linux
 vibehex: false

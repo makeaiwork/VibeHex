@@ -2,6 +2,8 @@
 feature: live-chapters
 key: labs.live_chapters
 title: Live chapters
+for: [meetings, cleanup]
+ask: Split meeting transcripts into named chapters while you record?
 group: Meetings
 os: [macOS, Windows, Linux]
 vibehex: false

@@ -2,6 +2,8 @@
 feature: release-notes-link
 key: labs.release_notes_link
 title: Release notes link
+for: []
+ask: Show a link to this version's release notes?
 group: Dictation
 os: every OS
 vibehex: false

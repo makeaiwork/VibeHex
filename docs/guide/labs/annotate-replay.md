@@ -2,6 +2,8 @@
 feature: annotate-replay
 key: labs.annotate_replay
 title: Annotate 15 s replay
+for: []
+ask: Keep the last 15 seconds of your screen, ready to save?
 group: Annotate
 os: macOS
 vibehex: false

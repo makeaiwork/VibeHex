@@ -2,6 +2,8 @@
 feature: failure-notices
 key: labs.failure_notices
 title: Failure notices
+for: [dictation, code]
+ask: Show why a dictation failed, right beside the indicator?
 group: Dictation
 os: every OS
 vibehex: false

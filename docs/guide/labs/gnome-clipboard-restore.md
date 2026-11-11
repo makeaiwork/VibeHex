@@ -2,6 +2,8 @@
 feature: gnome-clipboard-restore
 key: labs.gnome_clipboard_restore
 title: Restore clipboard on GNOME
+for: []
+ask: Get your copied text back after dictating on GNOME?
 group: Output
 os: Linux
 vibehex: false

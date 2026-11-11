@@ -2,6 +2,8 @@
 feature: meeting-import
 key: labs.meeting_import
 title: Import audio
+for: []
+ask: Import an audio file into Meetings to transcribe it?
 group: Meetings
 os: macOS
 vibehex: false

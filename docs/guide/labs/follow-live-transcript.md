@@ -2,6 +2,8 @@
 feature: follow-live-transcript
 key: labs.follow_live_transcript
 title: Follow live transcript
+for: [meetings]
+ask: Keep a recording meeting's transcript scrolled to the newest line?
 group: Meetings
 os: every OS
 vibehex: false

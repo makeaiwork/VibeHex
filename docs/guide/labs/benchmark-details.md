@@ -2,6 +2,8 @@
 feature: benchmark-details
 key: labs.benchmark_details
 title: Benchmark details
+for: []
+ask: Show where each speech model's accuracy figure comes from?
 group: Models
 os: every OS
 vibehex: false

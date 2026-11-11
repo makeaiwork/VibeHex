@@ -2,6 +2,8 @@
 feature: picker-sort-filter
 key: labs.picker_sort_filter
 title: Sort and filter models
+for: []
+ask: Sort the model list and show only your language's models?
 group: Models
 os: every OS
 vibehex: false

@@ -2,6 +2,8 @@
 feature: gnome-meeting-capsules
 key: labs.gnome_meeting_capsules
 title: Floating meeting capsules on GNOME
+for: []
+ask: Show meeting capsules over your call on GNOME Wayland?
 group: Meetings
 os: Linux
 vibehex: false

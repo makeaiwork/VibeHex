@@ -2,6 +2,8 @@
 feature: movable-meeting-capsules
 key: labs.movable_meeting_capsules
 title: Movable meeting capsules
+for: [meetings]
+ask: Drag meeting pop-ups out of the way of your call?
 group: Meetings
 os: macOS
 vibehex: false

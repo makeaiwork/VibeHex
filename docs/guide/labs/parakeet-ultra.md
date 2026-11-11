@@ -2,6 +2,8 @@
 feature: parakeet-ultra
 key: labs.parakeet_ultra
 title: Parakeet Ultra
+for: []
+ask: Offer Parakeet Ultra, a fine-tuned offline speech model, in the picker?
 group: Models
 os: every OS
 vibehex: false

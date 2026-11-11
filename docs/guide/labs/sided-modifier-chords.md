@@ -2,6 +2,8 @@
 feature: sided-modifier-chords
 key: labs.sided_modifier_chords
 title: Sided modifier chords
+for: []
+ask: Let shortcuts tell left and right modifier keys apart?
 group: Shortcuts
 os: macOS
 vibehex: false

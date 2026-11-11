@@ -2,6 +2,8 @@
 feature: live-text
 key: labs.live_text
 title: Live text
+for: [dictation, code]
+ask: See the words you're saying appear while you speak?
 group: Dictation
 os: every OS
 vibehex: false

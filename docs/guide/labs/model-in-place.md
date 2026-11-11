@@ -2,6 +2,8 @@
 feature: model-in-place
 key: labs.model_in_place
 title: Use model files where they are
+for: []
+ask: Use your own model file without copying it into VibeHex?
 group: Models
 os: every OS
 vibehex: false

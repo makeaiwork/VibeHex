@@ -2,6 +2,8 @@
 feature: transcribe-files
 key: labs.transcribe_files
 title: Transcribe files
+for: []
+ask: Transcribe WAV recordings from the terminal with hex transcribe?
 group: Models
 os: every OS
 vibehex: false

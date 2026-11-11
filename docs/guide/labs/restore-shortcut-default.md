@@ -2,6 +2,8 @@
 feature: restore-shortcut-default
 key: labs.restore_shortcut_default
 title: Restore shortcut default
+for: []
+ask: Add a button that restores the paste-last shortcut's default?
 group: Shortcuts
 os: every OS
 vibehex: false

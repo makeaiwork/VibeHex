@@ -2,6 +2,9 @@
 feature: pause-browser
 key: pause_browser_media
 title: Also pause the browser
+for: [dictation]
+ask: Pause music and browser videos while you dictate?
+then: Set While dictating to Pause media and allow system audio
 group: Dictation
 os: macOS
 vibehex: false

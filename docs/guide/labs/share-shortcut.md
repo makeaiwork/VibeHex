@@ -2,6 +2,8 @@
 feature: share-shortcut
 key: share_dictation_shortcut
 title: Share dictation shortcut with other apps
+for: []
+ask: Let apps like Discord see your dictation key too?
 group: Shortcuts
 os: Windows
 vibehex: false

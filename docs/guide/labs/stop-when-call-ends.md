@@ -2,6 +2,8 @@
 feature: stop-when-call-ends
 key: labs.stop_when_call_ends
 title: Stop when the call ends
+for: [meetings]
+ask: Stop the recording by itself when the call ends?
 group: Meetings
 os: macOS
 vibehex: false

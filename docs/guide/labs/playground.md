@@ -2,6 +2,8 @@
 feature: playground
 key: labs.playground
 title: Playground
+for: []
+ask: Browse VibeHex's sample screens and animations, for developers?
 group: Dictation
 os: every OS
 vibehex: false

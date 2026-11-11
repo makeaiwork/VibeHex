@@ -2,6 +2,8 @@
 feature: cleanup-progress
 key: labs.cleanup_progress
 title: Cleanup progress
+for: [dictation, code, cleanup]
+ask: Show progress while AI cleanup works on a long dictation?
 group: Output
 os: macOS
 vibehex: true

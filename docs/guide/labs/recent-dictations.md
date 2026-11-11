@@ -2,6 +2,8 @@
 feature: recent-dictations
 key: labs.recent_dictations
 title: Copy recent dictations
+for: [dictation, code]
+ask: Copy any of your last five dictations from the menu bar?
 group: History
 os: macOS
 vibehex: false

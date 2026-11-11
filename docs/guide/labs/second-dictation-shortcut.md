@@ -2,6 +2,9 @@
 feature: second-dictation-shortcut
 key: labs.second_dictation_shortcut
 title: Second dictation shortcut
+for: [dictation]
+ask: Add a second dictation key, such as one on an external keyboard?
+then: Record its key in General › Second dictation shortcut
 group: Shortcuts
 os: macOS
 vibehex: false

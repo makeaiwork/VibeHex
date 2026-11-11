@@ -2,6 +2,8 @@
 feature: skip-pauses
 key: labs.skip_pauses
 title: Skip long pauses
+for: [dictation]
+ask: Get text sooner on a slow computer by skipping long pauses?
 group: Dictation
 os: [Windows, Linux]
 vibehex: false

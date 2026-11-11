@@ -2,6 +2,8 @@
 feature: voice-filter
 key: experimental.hex_microphone
 title: Voice Filter
+for: []
+ask: Keep your call from hearing you while you dictate?
 group: Dictation
 os: [macOS, Linux]
 vibehex: false

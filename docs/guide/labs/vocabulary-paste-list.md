@@ -2,6 +2,8 @@
 feature: vocabulary-paste-list
 key: labs.vocabulary_paste_list
 title: Vocabulary text view
+for: []
+ask: Edit your whole vocabulary as one block of text?
 group: Dictation
 os: every OS
 vibehex: true

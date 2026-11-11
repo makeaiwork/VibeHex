@@ -2,6 +2,8 @@
 feature: settings-search
 key: labs.settings_search
 title: Settings search
+for: []
+ask: Add a search field that finds any setting?
 group: Dictation
 os: every OS
 vibehex: false

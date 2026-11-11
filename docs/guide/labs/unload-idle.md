@@ -2,6 +2,8 @@
 feature: unload-idle
 key: labs.unload_idle
 title: Unload model when idle
+for: [dictation]
+ask: Free the speech model's memory while you're not dictating?
 group: Models
 os: every OS
 vibehex: false

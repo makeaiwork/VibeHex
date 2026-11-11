@@ -2,6 +2,9 @@
 feature: terminal-paste-shortcut
 key: labs.terminal_paste_shortcut
 title: Terminal paste shortcut
+for: [code]
+ask: Want a separate shortcut that always pastes into the terminal?
+then: Record its key in General › Terminal paste shortcut
 group: Shortcuts
 os: [Windows, Linux]
 vibehex: false

@@ -2,6 +2,8 @@
 feature: meeting-finished-event
 key: labs.meeting_finished_event
 title: Meeting finished event
+for: []
+ask: Tell your own scripts when a meeting's transcript is ready?
 group: Meetings
 os: every OS
 vibehex: false

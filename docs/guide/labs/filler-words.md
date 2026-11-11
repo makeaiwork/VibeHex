@@ -2,6 +2,8 @@
 feature: filler-words
 key: labs.filler_words
 title: Remove filler words
+for: [dictation, code]
+ask: Remove ums and ahs from what you dictate?
 group: Output
 os: every OS
 vibehex: false

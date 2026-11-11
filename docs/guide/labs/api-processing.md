@@ -2,6 +2,8 @@
 feature: api-processing
 key: labs.api_processing
 title: Process API transcripts
+for: []
+ask: Let your own scripts get cleaned-up transcripts from VibeHex?
 group: Output
 os: every OS
 vibehex: false

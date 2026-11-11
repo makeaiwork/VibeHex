@@ -2,6 +2,8 @@
 feature: meeting-descriptive-filenames
 key: labs.meeting_descriptive_filenames
 title: Descriptive meeting file names
+for: [meetings]
+ask: Name meeting files after their titles instead of placeholders?
 group: Meetings
 os: every OS
 vibehex: false

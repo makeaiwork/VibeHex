@@ -2,6 +2,8 @@
 feature: hide-menu-bar-icon
 key: labs.hide_menu_bar_icon
 title: Hide menu bar icon
+for: []
+ask: Hide VibeHex's icon from the menu bar?
 group: Dictation
 os: macOS
 vibehex: false

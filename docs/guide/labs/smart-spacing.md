@@ -2,6 +2,8 @@
 feature: smart-spacing
 key: labs.smart_spacing
 title: Smart spacing
+for: [dictation]
+ask: Add a space automatically when you dictate right after a word?
 group: Output
 os: macOS
 vibehex: false

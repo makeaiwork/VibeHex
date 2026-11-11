@@ -21,6 +21,15 @@ pub struct Article {
     pub body: String,
     /// The "Asked as" phrasings, English and Russian.
     pub asked_as: String,
+    /// A Labs feature's uses setup offers it for (`for: [code, ru]`):
+    /// `dictation`, `code`, `meetings`, `files`, and the qualifiers `ru`
+    /// and `cleanup`; empty, setup never offers it on its own.
+    pub uses: Vec<String>,
+    /// Setup's yes/no question about it, in English (`ask:`).
+    pub ask: String,
+    /// What else it takes after the switch, in English (`then:`), if
+    /// anything.
+    pub then: String,
 }
 
 impl Article {
@@ -54,14 +63,15 @@ fn parse(id: &'static str, text: &str) -> Article {
                 .map(|value| value.trim().to_owned())
         })
     };
+    let list = |text: String| -> Vec<String> {
+        text.trim_matches(['[', ']'])
+            .split(',')
+            .map(|item| item.trim().to_owned())
+            .filter(|item| !item.is_empty())
+            .collect()
+    };
     let keys = field("keys")
-        .map(|list| {
-            list.trim_matches(['[', ']'])
-                .split(',')
-                .map(|key| key.trim().to_owned())
-                .filter(|key| !key.is_empty())
-                .collect()
-        })
+        .map(list)
         .or_else(|| field("key").map(|key| vec![key]))
         .unwrap_or_default();
     let body = without_comments(body).trim().to_owned();
@@ -70,6 +80,9 @@ fn parse(id: &'static str, text: &str) -> Article {
         title: field("title").unwrap_or_else(|| id.to_owned()),
         keys,
         os: field("os").unwrap_or_default(),
+        uses: field("for").map(list).unwrap_or_default(),
+        ask: field("ask").unwrap_or_default(),
+        then: field("then").unwrap_or_default(),
         asked_as: asked_as(&body),
         body,
     }
@@ -179,6 +192,53 @@ mod tests {
             .map(|article| format!("{}: about {} tokens", article.id, article.body.len() / 4))
             .collect();
         assert!(long.is_empty(), "{}", long.join("\n"));
+    }
+
+    /// Setup asks about Labs features from their front matter: each one
+    /// says whom it is for and asks one short question, and one it may
+    /// offer turns on with a switch.
+    #[test]
+    fn every_labs_article_says_whom_setup_asks_and_how() {
+        const TAGS: [&str; 6] = ["dictation", "code", "meetings", "files", "ru", "cleanup"];
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/guide/labs");
+        for article in articles().iter().filter(|article| article.is_lab()) {
+            let file = root.join(format!("{}.md", &article.id["labs/".len()..]));
+            let text = std::fs::read_to_string(&file).unwrap();
+            assert!(text.contains("\nfor:"), "{} has no for:", article.id);
+            let words = article.ask.split_whitespace().count();
+            assert!(
+                (1..=12).contains(&words) && article.ask.ends_with('?'),
+                "{}: ask {:?}",
+                article.id,
+                article.ask
+            );
+            assert!(
+                article.then.split_whitespace().count() <= 12,
+                "{}",
+                article.id
+            );
+            for tag in &article.uses {
+                assert!(TAGS.contains(&tag.as_str()), "{}: {tag}", article.id);
+            }
+            if article.uses.is_empty() {
+                continue;
+            }
+            assert!(
+                article
+                    .uses
+                    .iter()
+                    .any(|tag| !["ru", "cleanup"].contains(&tag.as_str())),
+                "{} names no use",
+                article.id
+            );
+            let key = article.keys.first().map(String::as_str).unwrap_or_default();
+            let kind = crate::control::settings::kinds().find(|(known, ..)| *known == key);
+            assert!(
+                kind.is_some_and(|(_, kind, ..)| kind == "bool"),
+                "{}: {key} is no switch",
+                article.id
+            );
+        }
     }
 
     #[test]

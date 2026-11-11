@@ -2,6 +2,9 @@
 feature: keyboard-model-switching
 key: keyboard_model_switching.enabled
 title: Switch model with keyboard language
+for: [dictation, code, ru]
+ask: Switch speech language automatically when you change keyboard layout?
+then: Pick a model for each keyboard layout in General
 group: Models
 os: [macOS, Windows, Linux (X11 only)]
 vibehex: false

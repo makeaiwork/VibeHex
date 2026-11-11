@@ -2,6 +2,8 @@
 feature: meeting-notes-vocabulary
 key: labs.meeting_notes_vocabulary
 title: Vocabulary in meeting notes
+for: [meetings]
+ask: Spell names in meeting summaries the way your vocabulary has them?
 group: Meetings
 os: every OS
 vibehex: false

@@ -2,6 +2,8 @@
 feature: ai-cleanup-server
 key: labs.ai_cleanup_server
 title: Clean up on your own server
+for: []
+ask: Clean up dictations with Codex, OpenRouter, or a local model?
 group: Output
 os: every OS
 vibehex: true

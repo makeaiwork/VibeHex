@@ -2,6 +2,9 @@
 feature: typed-text
 key: labs.typed_text
 title: Transform typed text
+for: [dictation, cleanup]
+ask: Clean up text you typed, just like a dictation?
+then: Record its shortcut in Output › Typed text
 group: Output
 os: Linux
 vibehex: false

@@ -2,6 +2,9 @@
 feature: screenshots
 key: labs.screenshots
 title: Screenshots
+for: [code]
+ask: Take screenshots you can mark up and talk over?
+then: Free ⌘⇧4 in Keyboard Shortcuts › Screenshots, allow Screen Recording
 group: Annotate
 os: macOS
 vibehex: false

@@ -2,6 +2,8 @@
 feature: vocabulary-quick-add
 key: labs.vocabulary_quick_add
 title: Add to vocabulary from a selection
+for: [dictation, code]
+ask: Fix a misheard word by selecting it and pressing a shortcut?
 group: Dictation
 os: macOS
 vibehex: true

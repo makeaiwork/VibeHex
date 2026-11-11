@@ -2,6 +2,8 @@
 feature: spoken-formatting
 key: labs.spoken_formatting
 title: Spoken formatting
+for: [dictation]
+ask: Format by voice, saying new line or new paragraph?
 group: Output
 os: every OS
 vibehex: false

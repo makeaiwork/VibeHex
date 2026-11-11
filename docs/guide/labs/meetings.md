@@ -2,6 +2,8 @@
 feature: meetings
 key: meetings.enabled
 title: Meetings (beta)
+for: []
+ask: Record calls and keep written transcripts of them?
 group: Meetings
 os: [macOS, Windows, Linux]
 vibehex: false

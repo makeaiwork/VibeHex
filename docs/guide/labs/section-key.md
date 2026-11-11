@@ -2,6 +2,8 @@
 feature: section-key
 key: labs.section_key_alone
 title: Section key alone
+for: []
+ask: Use the § key alone as your dictation shortcut?
 group: Shortcuts
 os: Linux
 vibehex: false

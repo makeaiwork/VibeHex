@@ -2,6 +2,8 @@
 feature: picker-active-first
 key: labs.picker_active_first
 title: Model in use first
+for: []
+ask: List the model you're using first in the model picker?
 group: Models
 os: every OS
 vibehex: false

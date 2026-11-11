@@ -2,6 +2,8 @@
 feature: russian-vibe-coding
 key: labs.russian_vibe_coding
 title: Russian vibe coding
+for: []
+ask: Want Russian speech with English tech terms written right?
 group: Dictation
 os: every OS
 vibehex: true

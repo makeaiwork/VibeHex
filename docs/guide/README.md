@@ -76,6 +76,9 @@ Assistant answers in whatever language it is asked.
 feature: smart-spacing            # `hex labs` name, same as the file name
 key: labs.smart_spacing           # its `hex settings` key
 title: Smart spacing              # the Labs row title, exactly
+for: [dictation]                  # whom guided setup asks: dictation, code, meetings, files, ru, cleanup; [] never
+ask: Add a space automatically when you dictate right after a word?  # setup's yes/no, 12 words or fewer
+then: …                           # optional: what follows a Yes, 12 words or fewer
 group: Pasting                    # the Labs section it sits in
 os: macOS                         # macOS | Windows | Linux | every OS, or a list
 vibehex: false                    # true when VibeHex added it (a star in Labs)

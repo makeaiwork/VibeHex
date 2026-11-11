@@ -2,6 +2,8 @@
 feature: output-fixes
 key: labs.output_fixes
 title: Fix results in Output
+for: []
+ask: Get quick fixes beside Output's test sentence when it's wrong?
 group: Output
 os: every OS
 vibehex: false

@@ -2,6 +2,9 @@
 feature: lower-every-app
 key: labs.lower_every_app
 title: Lower every app
+for: [dictation]
+ask: Turn down every app while you dictate, even through monitor speakers?
+then: Set While dictating to Mute or Lower audio, allow system audio
 group: Dictation
 os: macOS
 vibehex: true

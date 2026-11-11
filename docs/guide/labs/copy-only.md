@@ -2,6 +2,8 @@
 feature: copy-only
 key: labs.copy_only
 title: Copy dictation only
+for: []
+ask: Copy dictations to the clipboard instead of pasting them?
 group: Output
 os: [macOS, Windows]
 vibehex: false

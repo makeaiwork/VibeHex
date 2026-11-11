@@ -2,6 +2,8 @@
 feature: quit-closes-window
 key: labs.quit_closes_window
 title: ⌘Q closes Settings
+for: []
+ask: Make ⌘Q close the window instead of stopping dictation?
 group: Dictation
 os: macOS
 vibehex: false

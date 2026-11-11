@@ -2,6 +2,8 @@
 feature: special-keys
 key: labs.standalone_special_keys
 title: Special keys alone
+for: []
+ask: Allow special keys alone as your dictation shortcut?
 group: Shortcuts
 os: [Linux, Windows]
 vibehex: false

@@ -2,6 +2,8 @@
 feature: files
 key: labs.files
 title: Files
+for: []
+ask: Transcribe audio and video files you already have?
 group: Dictation
 os: macOS
 vibehex: true

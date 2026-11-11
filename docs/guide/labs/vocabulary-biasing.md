@@ -2,6 +2,9 @@
 feature: vocabulary-biasing
 key: labs.vocabulary_biasing
 title: Vocabulary biasing
+for: [dictation, code]
+ask: Make the speech model write your vocabulary terms as you speak?
+then: Add your names and terms in General › Vocabulary
 group: Dictation
 os: every OS
 vibehex: false

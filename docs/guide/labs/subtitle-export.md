@@ -2,6 +2,8 @@
 feature: subtitle-export
 key: labs.subtitle_export
 title: Subtitle export
+for: []
+ask: Export meeting transcripts as subtitle files from the terminal?
 group: Meetings
 os: [macOS, Windows, Linux]
 vibehex: false

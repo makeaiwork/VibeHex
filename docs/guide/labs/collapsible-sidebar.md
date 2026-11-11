@@ -2,6 +2,8 @@
 feature: collapsible-sidebar
 key: labs.collapsible_sidebar
 title: Collapsible sidebar
+for: []
+ask: Let the sidebar fold into icons to give the pane room?
 group: Dictation
 os: every OS
 vibehex: true
