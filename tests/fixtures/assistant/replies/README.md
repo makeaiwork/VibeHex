@@ -14,6 +14,7 @@ model wrote it. Every header field is optional; a field present is checked.
 | `terms` | vocabulary terms, `,` between them |
 | `asks` | the `hex-ask` question ids, `,` between them |
 | `own_asks` | `true` when setup falls back to the app's own questions |
+| `follow_ups` | the follow-up questions setup keeps from a `hex-ask` block, `,` between them |
 | `malformed` | lines in a change block that weren't a change |
 | `cards` | cards made against default settings |
 | `refused` | refusals as `key:why` (`unknown`, `invalid`, `never`, `malformed`), `,` between them |

@@ -397,6 +397,12 @@ pub const WHERE: &[(&str, &str, &str, Home)] = &[
         Home::Labs("keyboard-model-switching"),
     ),
     ("capture.", "Annotate", "Annotate", Home::Annotate),
+    (
+        "files.cleanup_engine",
+        "Files › Settings › Cleanup",
+        "Runs on",
+        Home::Files,
+    ),
     ("files.", "Labs › Files", "Files", Home::Files),
 ];
 

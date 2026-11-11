@@ -45,6 +45,17 @@ pub(super) fn context(ui: &Ui) -> Context {
             installed,
             codex_signed_in: super::super::output::codex_signed_in(ui),
             opencode_running: ui.assistant.reach.opencode,
+            // The keychain and the Applications folder: never in a scene.
+            openrouter_key: (!ui.assistant.fixture).then(|| {
+                crate::dictation::cleanup_server::keys::has(
+                    crate::dictation::cleanup_server::Provider::OpenRouter,
+                )
+            }),
+            servers: if ui.assistant.fixture {
+                Vec::new()
+            } else {
+                crate::assistant::setup::engines::installed_servers()
+            },
         },
     }
 }

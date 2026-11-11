@@ -725,7 +725,12 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::fixture_cards::change_coming,
     ),
     ("assistant-setup-ask", assistant::setup_fixture::setup_ask),
+    (
+        "assistant-setup-follow",
+        assistant::setup_fixture::setup_follow,
+    ),
     ("assistant-setup-plan", assistant::setup_fixture::setup_plan),
+    ("assistant-setup-kept", assistant::setup_fixture::setup_kept),
     (
         "assistant-setup-result",
         assistant::setup_fixture::setup_result,

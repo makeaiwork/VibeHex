@@ -26,6 +26,7 @@ mod plan;
 mod recall;
 mod settings;
 pub(super) mod setup_fixture;
+mod tick;
 mod verbs;
 mod vocab;
 
@@ -85,6 +86,8 @@ pub(in super::super) struct AssistantPane {
     /// Cards applied in the open conversation this session: Undo holds
     /// for them until another conversation opens (owner decision 2).
     pub(super) undo: Vec<changes::At>,
+    /// Setup plans whose "Already set" is unfolded.
+    pub(super) kept_open: Vec<changes::At>,
     /// The conversation `undo` belongs to.
     pub(super) undo_for: Option<u32>,
     /// The instructions card being edited before it saves, and its text.

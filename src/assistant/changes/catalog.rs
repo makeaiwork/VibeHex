@@ -196,6 +196,11 @@ pub struct State {
     pub installed: Vec<String>,
     pub codex_signed_in: Option<bool>,
     pub opencode_running: Option<bool>,
+    /// Whether an OpenRouter key is saved; `None` while unknown. Only the
+    /// app reads it: no model is told.
+    pub openrouter_key: Option<bool>,
+    /// The local servers installed (LM Studio, Ollama), for setup to name.
+    pub servers: Vec<&'static str>,
 }
 
 /// How much of the catalog a model reads.

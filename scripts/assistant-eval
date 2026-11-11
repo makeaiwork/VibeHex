@@ -4,11 +4,11 @@ set -euo pipefail
 # Opt-in live eval of Assistant's replies; never part of scripts/check or CI.
 #
 # Asks a real engine every question in tests/fixtures/assistant/questions.jsonl,
-# then guided setup (its questions, then a plan for fixed answers) and a
-# vocabulary request, through the same path the pane takes: the prompt, the
-# reply, the parse, and the repair round for a remote engine. It prints one line
-# per reply and writes a JSON report: the cards each made, what was refused,
-# and the expected changes it missed.
+# then guided setup (its four questions, the follow-ups, then a plan for fixed
+# answers) and a vocabulary request, through the same path the pane takes: the
+# prompt, the reply, the parse, and the repair round for a remote engine. It
+# prints one line per reply and writes a JSON report: the cards each made, what
+# was refused, and the expected changes it missed.
 #
 # A remote engine is paid per request: choose one on purpose.
 #

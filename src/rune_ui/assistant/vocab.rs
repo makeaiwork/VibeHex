@@ -7,7 +7,7 @@
 //! card added, while it holds (owner decision 2).
 
 use rune::{El, Icon, col, el, icon, row, text};
-use rune_kit::{Button, ButtonVariant, Checkbox, TextInput};
+use rune_kit::{Button, ButtonVariant, TextInput};
 use rune_theme_opencode::icons as theme;
 use serde_json::{Map, Value, json};
 
@@ -100,12 +100,11 @@ fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El
         .next()
         .unwrap_or_default();
     let lead = match shown {
-        Row::Open { checked, .. } => Checkbox::new(*checked)
-            .label(term.term.clone())
-            .hide_label()
-            .on_toggle(move |ui: &mut Ui| act::toggle(ui, at, index))
-            .build(p.k)
-            .key("check"),
+        Row::Open { checked, .. } => {
+            super::tick::tick(p, *checked, &term.term, move |ui: &mut Ui| {
+                act::toggle(ui, at, index)
+            })
+        }
         Row::Applied => mark(&theme::CHECK, p.success()),
         Row::Failed(_) => mark(&theme::CIRCLE_EXCLAMATION, p.danger()),
         Row::Left | Row::Downloading { .. } => mark(&theme::DASH, p.k.c.icon_faint),

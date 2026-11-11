@@ -62,21 +62,45 @@ fn cases() -> Vec<Case> {
         Answer {
             id: "use".into(),
             chosen: vec!["dictation_code".into(), "meetings".into()],
+            ..Default::default()
         },
         Answer {
             id: "language".into(),
             chosen: vec!["ru".into()],
+            ..Default::default()
         },
         Answer {
-            id: "cloud".into(),
-            chosen: vec!["chatgpt".into()],
+            id: "cleanup".into(),
+            chosen: vec!["codex".into()],
+            ..Default::default()
+        },
+        Answer {
+            id: "notes".into(),
+            chosen: vec!["codex".into()],
+            ..Default::default()
         },
     ];
+    let state = catalog::State {
+        os: std::env::consts::OS,
+        ..catalog::State::default()
+    };
+    let candidates = setup::follow::candidates(&answers, &AppSettings::default(), &state);
     cases.extend([
         Case {
             id: "setup-ask".into(),
             question: "Помоги мне настроить VibeHex под меня".into(),
             setup: Stage::Ask,
+            keys: Vec::new(),
+            terms: Vec::new(),
+        },
+        Case {
+            id: "setup-follow".into(),
+            question: String::new(),
+            setup: Stage::Follow {
+                line: setup_line(&answers).unwrap_or_default(),
+                answers: answers.clone(),
+                candidates,
+            },
             keys: Vec::new(),
             terms: Vec::new(),
         },
@@ -87,9 +111,14 @@ fn cases() -> Vec<Case> {
                 line: setup_line(&answers).unwrap_or_default(),
                 answers,
             },
+            // Code in Russian: Parakeet v3, never GigaAM.
             keys: vec![
-                ("transcription.model".into(), Some(json!("gigaam_v3"))),
+                ("transcription.model".into(), Some(json!("parakeet_v3"))),
                 ("labs.russian_vibe_coding".into(), Some(json!(true))),
+                (
+                    "dictation_processing.server.runs_on".into(),
+                    Some(json!("codex")),
+                ),
                 ("meetings.enabled".into(), Some(json!(true))),
             ],
             terms: Vec::new(),
@@ -181,7 +210,13 @@ fn score(case: &Case, turn: &Turn) -> Value {
         .collect();
     let asked = match case.setup {
         // Setup's questions are the model's own, not the app's fallback.
-        Stage::Ask => turn.asks.len() == 3 && turn.asks.iter().all(|ask| !ask.own),
+        Stage::Ask => turn.asks.len() == 4 && turn.asks.iter().all(|ask| !ask.own),
+        // Follow-ups in the model's words, at most a few rounds of them.
+        Stage::Follow { .. } => {
+            !turn.asks.is_empty()
+                && turn.asks.len() + turn.more.len() <= setup::follow::ROUND * setup::follow::ROUNDS
+                && turn.asks.iter().any(|ask| !ask.own)
+        }
         _ => true,
     };
     json!({

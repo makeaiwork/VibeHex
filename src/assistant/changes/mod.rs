@@ -44,6 +44,10 @@ pub struct Card {
     /// A permission it needs was put off with Later.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub later: bool,
+    /// A setup plan's "Already set": what fits already and stays, each as
+    /// an item whose `from` is its value now.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub kept: Vec<Item>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -88,6 +92,14 @@ pub struct Item {
     /// Why a plan's save left this item out, when its own check failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failed: Option<String>,
+    /// A plan's line over a value the person chose themselves: it starts
+    /// unchecked, with "You chose" and its value now.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub yours: bool,
+    /// A plan's line that isn't ready yet: where to finish first, in
+    /// English for the pane to translate.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub note: String,
 }
 
 /// What the person did with a card.
@@ -264,7 +276,7 @@ fn card(
             included: !proposal.optional,
             class,
             requires,
-            failed: None,
+            ..Item::default()
         }],
         ..Card::default()
     })

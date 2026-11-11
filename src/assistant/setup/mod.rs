@@ -1,53 +1,62 @@
-//! Guided setup, "Set VibeHex up for me": three questions with option
-//! chips, then one list of changes the person ticks and applies.
+//! Guided setup, "Set VibeHex up for me": what is set now, the app's four
+//! questions with every chip preselected from the settings, follow-up
+//! rounds about the Labs features that fit the answers, then one list of
+//! changes the person ticks and applies.
 //!
-//! The questions are the app's own, with fixed ids (`questions`). The
-//! Start screen's button draws them at once, in the window's language,
-//! with no model call; a typed request ("помоги настроить") asks the model
-//! to write them in the message's language (`hex-ask` lines), and `asks`
-//! keeps only known ids, falling back to the app's own when they are
-//! missing or broken. The answers go back as one turn the model reads as
-//! `<answers>`, and it writes a `hex-plan`; `plan` tidies that into one
-//! checklist, and when nothing usable came, `baseline` makes one from
-//! rules checked against this VibeHex's keys, models, and OS.
+//! Round one is the app's own (`questions`, fixed ids): what VibeHex is
+//! for, the language, where dictation is cleaned up (the person waits for
+//! it), and where meeting notes and files are worked on (they may take
+//! longer). The Start screen's button draws it at once, in the window's
+//! language, with no model call; a typed request ("помоги настроить") asks
+//! the model to write it in the message's language (`hex-ask` lines), and
+//! `asks` keeps only known ids, falling back to the app's own. Either way
+//! `preselect` picks each chip from the settings.
+//!
+//! The follow-up rounds come from the Labs articles' `for:` and `ask:`
+//! (`follow`): the app picks the ones that fit, a remote model may reword,
+//! drop, and add to them, and each option carries its changes. The plan
+//! (`plan`) is the app's rules first, which keep what already fits, never
+//! move a choice the person made without saying so, and leave a line that
+//! isn't ready yet unchecked; a remote model's lines join them under the
+//! same rules.
+
+pub mod engines;
+pub mod follow;
+pub mod now;
+pub mod plan;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::changes::catalog::{self, Shorter};
-use super::changes::parse::Proposal;
-use super::changes::vocab::{self, Term};
-use super::changes::{Card, CardKind};
 use crate::app_settings::AppSettings;
-use crate::control::settings;
 use crate::desktop::i18n::tr;
-use crate::transcription::models::{self, TranscriptionModelId};
-
-/// The most lines a plan keeps.
-pub const PLAN_LINES: usize = 8;
+use crate::transcription::models;
 
 /// One question with option chips.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 pub struct Ask {
-    /// `use`, `language`, or `cloud`.
+    /// `use`, `language`, `cleanup`, `notes`, or a follow-up's id.
     pub id: String,
     /// The question as the model wrote it; for the app's own (`own`), the
     /// English the pane translates.
     pub q: String,
-    /// A few words beside it: "pick any".
+    /// A few words beside it: "pick any", a Labs feature's title.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub hint: String,
-    /// Several options may be chosen, then Continue.
+    /// Several options may be chosen.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub multi: bool,
     pub options: Vec<Choice>,
     /// The app's own words, shown in the window's language.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub own: bool,
-    /// The option ids picked so far.
+    /// The option ids picked so far; round one's start from the settings.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub chosen: Vec<String>,
+    /// The person picked something here themselves.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub touched: bool,
     /// Answered: it shows as chosen chips.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub done: bool,
@@ -59,6 +68,15 @@ pub struct Ask {
 pub struct Choice {
     pub id: String,
     pub label: String,
+    /// A line under the label: what picking it means.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub note: String,
+    /// A name after the label, never translated: "LM Studio".
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub extra: String,
+    /// What a follow-up's option changes: `(key, value)`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changes: Vec<(String, Value)>,
 }
 
 /// What the person picked for one question.
@@ -67,6 +85,9 @@ pub struct Choice {
 pub struct Answer {
     pub id: String,
     pub chosen: Vec<String>,
+    /// What the chosen options change (a follow-up's "Yes").
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changes: Vec<(String, Value)>,
 }
 
 /// Where a setup conversation is.
@@ -75,34 +96,54 @@ pub enum Stage {
     /// An ordinary question.
     #[default]
     None,
-    /// A typed setup request: the model writes the questions.
+    /// A typed setup request: the model writes round one's questions.
     Ask,
-    /// The answers came: the model writes the plan. `line` is them as the
-    /// model reads them, with the labels the person saw.
+    /// Round one is answered: a remote model rewords, drops, or adds to
+    /// the follow-up questions the app picked (`candidates`).
+    Follow {
+        answers: Vec<Answer>,
+        line: String,
+        candidates: Vec<Ask>,
+    },
+    /// Every round is answered: the model writes the plan. `line` is the
+    /// answers as the model reads them, with the labels the person saw.
     Plan { answers: Vec<Answer>, line: String },
 }
 
-/// The fixed questions: id, the English question, its hint, whether
-/// several may be picked, and the options' ids and English labels.
+impl Stage {
+    /// The answers it carries, if any.
+    pub fn answers(&self) -> &[Answer] {
+        match self {
+            Self::Follow { answers, .. } | Self::Plan { answers, .. } => answers,
+            _ => &[],
+        }
+    }
+}
+
+/// An option: id, English label, and English caption.
+type Opt = (&'static str, &'static str, &'static str);
+
+/// A fixed question: id, the English question, its hint, whether several
+/// may be picked, and its options.
 type Question = (
     &'static str,
     &'static str,
     &'static str,
     bool,
-    &'static [(&'static str, &'static str)],
+    &'static [Opt],
 );
 
-const QUESTIONS: [Question; 3] = [
+const QUESTIONS: [Question; 4] = [
     (
         "use",
         "What do you use VibeHex for?",
         "pick any",
         true,
         &[
-            ("dictation_any", "Dictation into any app"),
-            ("dictation_code", "Dictation into code and the terminal"),
-            ("meetings", "Recording calls"),
-            ("files", "Transcribing files"),
+            ("dictation_any", "Dictation into any app", ""),
+            ("dictation_code", "Dictation into code and the terminal", ""),
+            ("meetings", "Recording calls", ""),
+            ("files", "Transcribing files", ""),
         ],
     ),
     (
@@ -111,26 +152,64 @@ const QUESTIONS: [Question; 3] = [
         "",
         false,
         &[
-            ("ru", "Russian"),
-            ("en", "English"),
-            ("mixed", "Both, mixed"),
+            ("ru", "Russian", ""),
+            ("en", "English", ""),
+            ("ru_tech", "Russian with English tech terms", ""),
+            ("mixed", "Other or mixed", ""),
         ],
     ),
     (
-        "cloud",
-        "May text go to a cloud model?",
-        "for cleaning up dictation and meeting notes",
+        "cleanup",
+        "Where should dictation be cleaned up?",
+        "you wait for it",
         false,
         &[
-            ("chatgpt", "Yes, through my ChatGPT"),
-            ("this_mac", "Only on this Mac"),
-            ("no_cleanup", "No cleanup for now"),
+            (
+                "local",
+                "On this Mac",
+                "Fastest. A small model, little context",
+            ),
+            (
+                "codex",
+                "Codex",
+                "ChatGPT plan. Slower, better on long ones",
+            ),
+            ("opencode", "OpenCode", "The OpenCode app, if it runs"),
+            ("openrouter", "OpenRouter", "Cloud models, one API key"),
+            ("custom", "My own server", "LM Studio, Ollama, or alike"),
+            ("none", "No cleanup", "Pastes as you said it"),
+        ],
+    ),
+    (
+        "notes",
+        "Where should meeting notes and files be worked on?",
+        "may take longer",
+        false,
+        &[
+            ("codex", "Codex", "ChatGPT plan. Reads a long call whole"),
+            ("opencode", "OpenCode", "The OpenCode app, if it runs"),
+            ("openrouter", "OpenRouter", "Cloud models, one API key"),
+            ("custom", "My own server", "LM Studio, Ollama, or alike"),
+            ("local", "On this Mac", "Private. Reads less at once"),
+            (
+                "apple",
+                "Apple Intelligence",
+                "This Mac, meeting notes only",
+            ),
         ],
     ),
 ];
 
-/// The app's own three questions on `os`, in English for the pane to
-/// translate. Off a Mac, "this Mac" is "this computer".
+/// "On this Mac", off a Mac.
+const OFF_MAC: &str = "On this computer";
+
+/// The hint the language question gets when code was picked with
+/// Russian, and Russian with English tech terms is preselected.
+pub const TECH_HINT: &str = "for code, tech terms usually stay in English";
+
+/// The app's own four questions on `os`, in English for the pane to
+/// translate. Off a Mac, "this Mac" is "this computer" and Apple
+/// Intelligence isn't offered.
 pub fn questions(os: &str) -> Vec<Ask> {
     QUESTIONS
         .iter()
@@ -142,9 +221,16 @@ pub fn questions(os: &str) -> Vec<Ask> {
             own: true,
             options: options
                 .iter()
-                .map(|&(id, label)| Choice {
+                .filter(|(option, ..)| *option != "apple" || os == "macos")
+                .map(|&(id, label, note)| Choice {
                     id: id.into(),
-                    label: own_label(id, label, os).into(),
+                    label: if label == "On this Mac" && os != "macos" {
+                        OFF_MAC.into()
+                    } else {
+                        label.into()
+                    },
+                    note: note.into(),
+                    ..Choice::default()
                 })
                 .collect(),
             ..Ask::default()
@@ -156,25 +242,117 @@ pub fn questions(os: &str) -> Vec<Ask> {
 /// tables' test.
 #[cfg(test)]
 pub fn own_words() -> Vec<&'static str> {
-    let mut words = vec!["Only on this computer"];
+    let mut words = vec![OFF_MAC, TECH_HINT];
+    words.extend(follow::words());
+    words.extend(engines::words());
+    words.extend(plan::words());
     for (_, q, hint, _, options) in QUESTIONS {
         words.extend([q, hint].into_iter().filter(|word| !word.is_empty()));
-        words.extend(options.iter().map(|(_, label)| *label));
+        for (_, label, note) in options {
+            words.extend([*label, *note].into_iter().filter(|word| !word.is_empty()));
+        }
     }
     words
 }
 
-fn own_label<'a>(id: &str, label: &'a str, os: &str) -> &'a str {
-    if id == "this_mac" && os != "macos" {
-        "Only on this computer"
-    } else {
-        label
+/// Round one's chips as the settings have them: the uses they show, the
+/// language the speech model is set to, where cleanup runs now, and who
+/// writes notes. A question the person touched keeps their pick; Russian
+/// with code picked is Russian with English tech terms, with a hint why.
+pub fn preselect(asks: &mut [Ask], settings: &AppSettings, state: &super::changes::catalog::State) {
+    if let Some(ask) = asks.iter_mut().find(|ask| ask.id == "use" && !ask.touched) {
+        ask.chosen = uses_now(settings)
+            .iter()
+            .map(|id| (*id).to_owned())
+            .collect();
     }
+    let code = asks
+        .iter()
+        .find(|ask| ask.id == "use")
+        .is_some_and(|ask| ask.chosen.iter().any(|id| id == "dictation_code"));
+    let language = language_now(settings, code);
+    for ask in asks.iter_mut().filter(|ask| !ask.touched) {
+        let chosen = match ask.id.as_str() {
+            "language" => language,
+            "cleanup" => engines::dictation_now(settings),
+            "notes" => engines::notes_now(settings, state.os),
+            _ => continue,
+        };
+        if ask.options.iter().any(|option| option.id == chosen) {
+            ask.chosen = vec![chosen.to_owned()];
+        }
+        if ask.id == "language" && ask.own {
+            ask.hint = if chosen == "ru_tech" && code {
+                TECH_HINT.into()
+            } else {
+                String::new()
+            };
+        }
+    }
+    let server = engines::own_server(&settings.dictation_processing.server.url, &state.servers);
+    for ask in asks.iter_mut() {
+        for option in ask
+            .options
+            .iter_mut()
+            .filter(|option| option.id == "custom")
+        {
+            option.extra = server.unwrap_or_default().to_owned();
+        }
+    }
+}
+
+/// The uses the settings show: dictation always (a dictation shortcut is
+/// always set), code with Russian vibe coding or a terminal lab on,
+/// meetings and files with theirs.
+fn uses_now(settings: &AppSettings) -> Vec<&'static str> {
+    let labs = &settings.labs;
+    let mut uses = vec!["dictation_any"];
+    if labs.russian_vibe_coding || labs.terminal_paste_shortcut || settings.paste_with_shift {
+        uses.push("dictation_code");
+    }
+    if settings.meetings.enabled {
+        uses.push("meetings");
+    }
+    if labs.files {
+        uses.push("files");
+    }
+    uses
+}
+
+/// The language the speech model is set to, as round one names it.
+fn language_now(settings: &AppSettings, code: bool) -> &'static str {
+    let tech = code || settings.labs.russian_vibe_coding;
+    let model = models::definition(settings.transcription.model);
+    let language = settings.transcription.language.as_str();
+    let language = match language {
+        "" | "auto" if model.languages.len() == 1 => model.languages[0],
+        language => language,
+    };
+    match language.split(['-', '_']).next().unwrap_or_default() {
+        "ru" if tech => "ru_tech",
+        "ru" => "ru",
+        "en" => "en",
+        _ => "mixed",
+    }
+}
+
+/// Whether a round-one question shows: the one about notes and files only
+/// for calls or files.
+pub fn shows(asks: &[Ask], ask: &Ask) -> bool {
+    if ask.id != "notes" {
+        return true;
+    }
+    let uses = asks
+        .iter()
+        .find(|ask| ask.id == "use")
+        .map(|ask| ask.chosen.as_slice())
+        .unwrap_or_default();
+    uses.iter().any(|id| id == "meetings" || id == "files")
 }
 
 /// The questions to show for the `hex-ask` lines a model wrote: its own
 /// words when every fixed question came with known option ids, else the
-/// app's own.
+/// app's own. A caption it left out is the app's, translated.
 pub fn asks(written: &[Value], os: &str) -> Vec<Ask> {
     let own = questions(os);
     let read: Option<Vec<Ask>> = own
@@ -184,20 +362,28 @@ pub fn asks(written: &[Value], os: &str) -> Vec<Ask> {
                 .iter()
                 .find(|line| line.get("id").and_then(Value::as_str) == Some(&fixed.id))?;
             let q = line.get("q").and_then(Value::as_str)?.trim();
-            let options: Vec<Choice> =
-                line.get("options")?
-                    .as_array()?
-                    .iter()
-                    .filter_map(|option| {
-                        let id = option.get("id").and_then(Value::as_str)?;
-                        let label = option.get("label").and_then(Value::as_str)?.trim();
-                        (fixed.options.iter().any(|known| known.id == id) && !label.is_empty())
-                            .then(|| Choice {
-                                id: id.into(),
-                                label: label.into(),
-                            })
+            let options: Vec<Choice> = line
+                .get("options")?
+                .as_array()?
+                .iter()
+                .filter_map(|option| {
+                    let id = option.get("id").and_then(Value::as_str)?;
+                    let label = option.get("label").and_then(Value::as_str)?.trim();
+                    let known = fixed.options.iter().find(|known| known.id == id)?;
+                    let note = option
+                        .get("note")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|note| !note.is_empty())
+                        .unwrap_or_else(|| tr(&known.note));
+                    (!label.is_empty()).then(|| Choice {
+                        id: id.into(),
+                        label: label.into(),
+                        note: note.into(),
+                        ..Choice::default()
                     })
-                    .collect();
+                })
+                .collect();
             (!q.is_empty() && options.len() >= 2).then(|| Ask {
                 id: fixed.id.clone(),
                 q: q.into(),
@@ -220,29 +406,36 @@ pub fn asks(written: &[Value], os: &str) -> Vec<Ask> {
 pub fn ask_lines(os: &str) -> String {
     questions(os)
         .iter()
-        .map(|ask| {
-            let mut line = serde_json::json!({
-                "id": ask.id,
-                "q": ask.q,
-                "options": ask.options.iter().map(|option| {
-                    serde_json::json!({"id": option.id, "label": option.label})
-                }).collect::<Vec<_>>(),
-            });
-            if !ask.hint.is_empty() {
-                line["hint"] = ask.hint.clone().into();
-            }
-            if ask.multi {
-                line["multi"] = true.into();
-            }
-            line.to_string()
-        })
+        .map(ask_line)
         .collect::<Vec<_>>()
         .join("\n")
 }
 
+/// One question as a `hex-ask` line: its id, words, and options.
+pub fn ask_line(ask: &Ask) -> String {
+    let mut line = serde_json::json!({
+        "id": ask.id,
+        "q": ask.q,
+        "options": ask.options.iter().map(|option| {
+            let mut written = serde_json::json!({"id": option.id, "label": option.label});
+            if !option.note.is_empty() {
+                written["note"] = option.note.clone().into();
+            }
+            written
+        }).collect::<Vec<_>>(),
+    });
+    if !ask.hint.is_empty() {
+        line["hint"] = ask.hint.clone().into();
+    }
+    if ask.multi {
+        line["multi"] = true.into();
+    }
+    line.to_string()
+}
+
 /// The answers as the model reads them: `use: dictation_code (Dictation
 /// into code…), meetings (…); language: ru (…)`, with `label` naming each
-/// option as the person saw it.
+/// option as the person saw it. A question left unanswered is left out.
 pub fn answers_line(asks: &[Ask], label: impl Fn(&Ask, &Choice) -> String) -> String {
     asks.iter()
         .filter(|ask| !ask.chosen.is_empty())
@@ -259,474 +452,88 @@ pub fn answers_line(asks: &[Ask], label: impl Fn(&Ask, &Choice) -> String) -> St
         .join("; ")
 }
 
+/// What each answered question's chosen options are, and change.
+pub fn answers(asks: &[Ask]) -> Vec<Answer> {
+    asks.iter()
+        .filter(|ask| ask.done && !ask.chosen.is_empty())
+        .map(|ask| Answer {
+            id: ask.id.clone(),
+            chosen: ask.chosen.clone(),
+            changes: ask
+                .options
+                .iter()
+                .filter(|option| ask.chosen.contains(&option.id))
+                .flat_map(|option| option.changes.iter().cloned())
+                .collect(),
+        })
+        .collect()
+}
+
 /// What the guide is searched for, for these answers.
 pub fn query(answers: &[Answer]) -> String {
     let mut words = vec!["set up"];
-    for id in answers.iter().flat_map(|answer| &answer.chosen) {
-        words.push(match id.as_str() {
-            "dictation_any" => "dictation smart spacing vocabulary",
-            "dictation_code" => "vibe coding terminal code",
-            "meetings" => "meetings notes calls",
-            "files" => "transcribe files",
-            "ru" => "Russian speech model",
-            "en" => "English speech model",
-            "mixed" => "speech model languages",
-            "chatgpt" => "Codex ChatGPT AI cleanup",
-            "this_mac" => "offline on this computer",
-            _ => continue,
-        });
+    for answer in answers {
+        for id in &answer.chosen {
+            words.push(match (answer.id.as_str(), id.as_str()) {
+                (_, "dictation_any") => "dictation smart spacing vocabulary",
+                (_, "dictation_code") => "vibe coding terminal code",
+                ("use", "meetings") => "meetings notes calls",
+                ("use", "files") => "transcribe files",
+                ("language", "ru") => "Russian speech model",
+                ("language", "ru_tech") => "Russian vibe coding speech model",
+                ("language", "en") => "English speech model",
+                ("language", "mixed") => "speech model languages",
+                (_, "codex") => "Codex ChatGPT AI cleanup",
+                (_, "local") => "built-in model on this computer",
+                (_, "custom") => "own server LM Studio Ollama",
+                (_, "openrouter") => "OpenRouter",
+                _ => continue,
+            });
+        }
     }
     words.join(" ")
 }
 
-fn picked<'a>(answers: &'a [Answer], id: &str) -> impl Iterator<Item = &'a str> {
+/// The ids picked for question `id`.
+pub fn picked<'a>(answers: &'a [Answer], id: &str) -> impl Iterator<Item = &'a str> {
     answers
         .iter()
         .filter(move |answer| answer.id == id)
         .flat_map(|answer| answer.chosen.iter().map(String::as_str))
 }
 
-/// A plan from rules, for when the model wrote none that the app could
-/// use. Each rule names a key this VibeHex has and that this OS allows,
-/// and a model only when it is in the catalog and usable here; what is set
-/// that way already is left out.
-pub fn baseline(answers: &[Answer], settings: &AppSettings) -> Vec<Proposal> {
-    let uses: Vec<&str> = picked(answers, "use").collect();
-    let language = picked(answers, "language").next().unwrap_or_default();
-    let cloud = picked(answers, "cloud").next().unwrap_or_default();
-    let dictates = uses.contains(&"dictation_any") || uses.contains(&"dictation_code");
-    let code = uses.contains(&"dictation_code");
-    let mut lines: Vec<(&str, Value, &'static str, bool)> = Vec::new();
-    if let Some((model, why)) = speech_model(language, settings) {
-        lines.push((
-            "transcription.model",
-            Value::from(model.as_str()),
-            why,
-            false,
-        ));
-    }
-    // Russian vibe coding switches AI cleanup on, so only with a cloud
-    // model the person allowed, which then runs it.
-    let vibe = code && matches!(language, "ru" | "mixed") && cloud == "chatgpt";
-    if vibe {
-        lines.push((
-            "labs.russian_vibe_coding",
-            Value::Bool(true),
-            tr("Russian speech with English tech terms written as they should be"),
-            false,
-        ));
-    }
-    if dictates && cloud == "chatgpt" {
-        lines.push((
-            "dictation_processing.server.runs_on",
-            Value::from("codex"),
-            tr("Cleans up dictation on your ChatGPT plan"),
-            false,
-        ));
-        // Russian vibe coding switches cleanup on itself.
-        if !vibe {
-            lines.push((
-                super::changes::parts::CLEANUP,
-                Value::Bool(true),
-                tr("Every dictation is cleaned up before it pastes"),
-                false,
-            ));
-        }
-    }
-    if dictates && cloud == "no_cleanup" {
-        lines.push((
-            super::changes::parts::CLEANUP,
-            Value::Bool(false),
-            tr("Dictation pastes as you said it"),
-            false,
-        ));
-    }
-    if uses.contains(&"meetings") {
-        lines.push((
-            "meetings.enabled",
-            Value::Bool(true),
-            tr("Records calls, with a transcript and notes"),
-            false,
-        ));
-        if cloud == "chatgpt" {
-            lines.push((
-                "meetings.notes.writer",
-                Value::from("codex"),
-                tr("Notes written on your ChatGPT plan, good in Russian too"),
-                false,
-            ));
-        }
-    }
-    if uses.contains(&"files") {
-        lines.push((
-            "labs.files",
-            Value::Bool(true),
-            tr("Turns recordings you already have into text"),
-            false,
-        ));
-    }
-    if dictates {
-        lines.push((
-            "labs.smart_spacing",
-            Value::Bool(true),
-            tr("Adds the space you'd type after a word"),
-            false,
-        ));
-        lines.push((
-            "labs.vocabulary_quick_add",
-            Value::Bool(true),
-            tr("Adds a misheard word to Vocabulary with one shortcut, handy if mistakes repeat"),
-            true,
-        ));
-    }
-    lines
-        .into_iter()
-        .filter(|(key, value, ..)| {
-            settings::unavailable(key).is_none()
-                && super::changes::current(settings, key).as_ref() != Some(value)
+/// The owner's own setup, which a scene draws and the tests hold the
+/// plan to: Orukeet in Russian, dictation cleaned up on this Mac for
+/// speed (Gemma 4 E4B), notes and Files on Codex, Russian vibe coding and
+/// Vocabulary quick add on, 94 terms, LM Studio's address saved.
+pub fn sample(settings: &mut AppSettings) {
+    use crate::app_settings::CleanupRunsOn;
+    use crate::dictation::vocabulary::VocabularyEntry;
+    settings.transcription.model = models::TranscriptionModelId::Orukeet;
+    settings.transcription.language = "ru".into();
+    settings
+        .dictation_processing
+        .default_mode
+        .post_processing
+        .enabled = true;
+    settings.labs.ai_cleanup_server = true;
+    let server = &mut settings.dictation_processing.server;
+    server.runs_on = CleanupRunsOn::Local;
+    server.local_model = "gemma-4-e4b-it".into();
+    server.url = "http://127.0.0.1:1234/v1".into();
+    settings.meetings.enabled = true;
+    settings.meetings.notes.writer = Some("codex:gpt-6.1-terra".into());
+    settings.labs.files = true;
+    settings.files.cleanup_engine = Some("codex".into());
+    settings.labs.russian_vibe_coding = true;
+    settings.labs.vocabulary_quick_add = true;
+    settings.vocabulary = (1..=94)
+        .map(|number| VocabularyEntry {
+            term: format!("Term{number}"),
+            sounds_like: Vec::new(),
         })
-        .take(PLAN_LINES)
-        .map(|(key, value, why, optional)| Proposal {
-            key: key.into(),
-            value: Some(value),
-            why: why.into(),
-            optional,
-            plan: true,
-            line: key.into(),
-            ..Proposal::default()
-        })
-        .chain(
-            // Russian vibe coding brings its own terms.
-            (code && matches!(language, "ru" | "mixed") && !vibe)
-                .then(code_terms)
-                .into_iter()
-                .flatten(),
-        )
-        .collect()
-}
-
-/// Terms someone dictating code in Russian likely says, for an optional
-/// Vocabulary row; the plan leaves out the ones the vocabulary has.
-fn code_terms() -> Vec<Proposal> {
-    const TERMS: [(&str, &[&str]); 5] = [
-        ("GitHub", &["гитхаб", "гит хаб"]),
-        ("Claude Code", &["клод код"]),
-        ("pull request", &["пул реквест", "пулл реквест"]),
-        ("TypeScript", &["тайпскрипт", "тайп скрипт"]),
-        ("Docker", &["докер"]),
-    ];
-    TERMS
-        .iter()
-        .map(|(term, sounds_like)| Proposal {
-            key: vocab::KEY.into(),
-            value: Some(
-                Term {
-                    term: (*term).into(),
-                    sounds_like: sounds_like.iter().map(|&text| text.into()).collect(),
-                }
-                .value(),
-            ),
-            why: tr("Tech terms you likely say, spelled as they should be").into(),
-            optional: true,
-            plan: true,
-            line: vocab::KEY.into(),
-            ..Proposal::default()
-        })
-        .collect()
-}
-
-/// The speech model for `language`, if the one in use doesn't suit it:
-/// GigaAM v3 for Russian, a model that hears both for mixed, and the
-/// picker's English recommendation for English.
-fn speech_model(
-    language: &str,
-    settings: &AppSettings,
-) -> Option<(TranscriptionModelId, &'static str)> {
-    let now = models::definition(settings.transcription.model);
-    let (model, why) = match language {
-        "ru" => (
-            TranscriptionModelId::GigaAmV3,
-            tr("Best accuracy for Russian"),
-        ),
-        "mixed" if !(now.supports_language("ru") && now.supports_language("en")) => (
-            TranscriptionModelId::ParakeetV3,
-            tr("Hears Russian and English"),
-        ),
-        "en" if !now.supports_language("en") => (
-            models::choices_for_runtime("en").first()?.model.id,
-            tr("Made for English"),
-        ),
-        _ => return None,
-    };
-    let usable = models::MODELS
-        .iter()
-        .any(|known| known.id == model && known.available());
-    (usable && model != settings.transcription.model).then_some((model, why))
-}
-
-/// One checklist from a plan reply's cards: every item in it once, none
-/// already set or held here, at most [`PLAN_LINES`]. A shorter retention
-/// and a change that needs a Codex sign-in start unchecked (owner
-/// decision 4). `None` when nothing is left.
-pub fn plan(cards: Vec<Card>, settings: &AppSettings, state: &catalog::State) -> Option<Card> {
-    let mut items = Vec::new();
-    let (terms, settings_items): (Vec<_>, Vec<_>) = cards
-        .into_iter()
-        .flat_map(|card| card.items)
-        .partition(|item| item.key == vocab::KEY);
-    for item in settings_items {
-        let key = match super::changes::parts::part(&item.key, settings) {
-            Some(part) => part.parent().to_owned(),
-            None => item.key.clone(),
-        };
-        let held = settings::unavailable(&key).is_some();
-        let known = items
-            .iter()
-            .any(|known: &super::changes::Item| known.key == item.key);
-        if held || known || item.from == item.to || items.len() == PLAN_LINES {
-            continue;
-        }
-        items.push(item);
-    }
-    // Every term in one row, never checked to begin with.
-    if items.len() < PLAN_LINES
-        && let Some(mut row) = vocab::row(terms)
-    {
-        row.included = false;
-        items.push(row);
-    }
-    for item in &mut items {
-        let shorter: Option<Shorter> = catalog::shorter(&item.key, &item.from, &item.to);
-        let signed_out =
-            catalog::needs_codex(&item.key, &item.to) && state.codex_signed_in == Some(false);
-        if shorter.is_some() || signed_out {
-            item.included = false;
-        }
-    }
-    (!items.is_empty()).then(|| Card {
-        kind: CardKind::Plan,
-        items,
-        ..Card::default()
-    })
+        .collect();
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::assistant::changes;
-    use serde_json::json;
-
-    fn answers(uses: &[&str], language: &str, cloud: &str) -> Vec<Answer> {
-        vec![
-            Answer {
-                id: "use".into(),
-                chosen: uses.iter().map(|id| (*id).into()).collect(),
-            },
-            Answer {
-                id: "language".into(),
-                chosen: vec![language.into()],
-            },
-            Answer {
-                id: "cloud".into(),
-                chosen: vec![cloud.into()],
-            },
-        ]
-    }
-
-    fn keys(lines: &[Proposal]) -> Vec<&str> {
-        lines.iter().map(|line| line.key.as_str()).collect()
-    }
-
-    #[test]
-    fn the_apps_questions_have_their_fixed_ids() {
-        let asks = questions("macos");
-        let ids: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
-        assert_eq!(ids, ["use", "language", "cloud"]);
-        assert!(asks[0].multi && !asks[1].multi && !asks[2].multi);
-        assert_eq!(asks[2].options[1].label, "Only on this Mac");
-        assert_eq!(
-            questions("windows")[2].options[1].label,
-            "Only on this computer"
-        );
-        let options: Vec<&str> = asks[0].options.iter().map(|o| o.id.as_str()).collect();
-        assert_eq!(
-            options,
-            ["dictation_any", "dictation_code", "meetings", "files"]
-        );
-    }
-
-    #[test]
-    fn a_models_questions_keep_known_ids_or_fall_back() {
-        let written: Vec<Value> = [
-            r#"{"id":"use","q":"Для чего вам VibeHex?","hint":"можно несколько","multi":false,"options":[{"id":"dictation_any","label":"Диктовка"},{"id":"meetings","label":"Созвоны"},{"id":"teleport","label":"Телепорт"}]}"#,
-            r#"{"id":"language","q":"На каком языке?","options":[{"id":"ru","label":"Русский"},{"id":"en","label":"English"}]}"#,
-            r#"{"id":"cloud","q":"В облако можно?","options":[{"id":"chatgpt","label":"Да"},{"id":"no_cleanup","label":"Нет"}]}"#,
-            r#"{"id":"mood","q":"Как дела?","options":[]}"#,
-        ]
-        .iter()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
-        let asks = asks(&written, "macos");
-        assert_eq!(asks.len(), 3, "an unknown question is dropped");
-        assert!(!asks[0].own && asks[0].multi, "multi is the app's to say");
-        assert_eq!(asks[0].q, "Для чего вам VibeHex?");
-        assert_eq!(asks[0].options.len(), 2, "an unknown option is dropped");
-        // One question missing: the app's own three instead.
-        let fallback = super::asks(&written[..2], "macos");
-        assert!(fallback.iter().all(|ask| ask.own));
-        assert_eq!(super::asks(&[], "macos"), questions("macos"));
-    }
-
-    #[test]
-    fn the_answers_read_as_ids_and_the_labels_seen() {
-        let mut asks = questions("macos");
-        asks[0].chosen = vec!["dictation_code".into(), "meetings".into()];
-        asks[1].chosen = vec!["ru".into()];
-        let line = answers_line(&asks, |_, option| option.label.clone());
-        assert_eq!(
-            line,
-            "use: dictation_code (Dictation into code and the terminal), meetings (Recording calls); language: ru (Russian)"
-        );
-    }
-
-    /// Every rule's key is real, its value one a save takes, and its model
-    /// one this OS can run.
-    #[test]
-    fn every_baseline_rule_resolves_to_a_valid_change() {
-        let settings = AppSettings::default();
-        let rules = crate::rune_ui::shortcut_rules();
-        let all = ["dictation_any", "dictation_code", "meetings", "files"];
-        for language in ["ru", "en", "mixed"] {
-            for cloud in ["chatgpt", "this_mac", "no_cleanup"] {
-                let lines = baseline(&answers(&all, language, cloud), &settings);
-                let terms = lines.iter().filter(|line| line.key == vocab::KEY).count();
-                assert!(lines.len() - terms <= PLAN_LINES);
-                let (cards, refused) = changes::resolve(&lines, &settings, &rules);
-                assert!(refused.is_empty(), "{language} {cloud}: {refused:?}");
-                assert_eq!(cards.len(), 1, "one plan");
-                assert_eq!(cards[0].items.len(), lines.len());
-                let state = catalog::State::default();
-                let plan = plan(cards, &settings, &state).unwrap();
-                assert!(plan.items.len() <= PLAN_LINES);
-            }
-        }
-    }
-
-    /// Dictating code in Russian on this Mac: one Vocabulary row of terms,
-    /// unchecked, without the ones the vocabulary has.
-    #[test]
-    fn russian_code_gets_an_unchecked_row_of_terms() {
-        let settings = AppSettings {
-            vocabulary: vec![crate::dictation::vocabulary::VocabularyEntry {
-                term: "github".into(),
-                sounds_like: Vec::new(),
-            }],
-            ..AppSettings::default()
-        };
-        let rules = crate::rune_ui::shortcut_rules();
-        let lines = baseline(&answers(&["dictation_code"], "ru", "this_mac"), &settings);
-        let (cards, _) = changes::resolve(&lines, &settings, &rules);
-        let plan = plan(cards, &settings, &catalog::State::default()).unwrap();
-        let row = plan
-            .items
-            .iter()
-            .find(|item| item.key == vocab::KEY)
-            .unwrap();
-        assert!(!row.included);
-        let terms = vocab::terms(&row.to);
-        assert_eq!(terms.len(), 4);
-        assert!(terms.iter().all(|term| term.term != "GitHub"));
-        // With vibe coding, which brings its own terms, there is none.
-        let lines = baseline(&answers(&["dictation_code"], "ru", "chatgpt"), &settings);
-        assert!(lines.iter().all(|line| line.key != vocab::KEY));
-    }
-
-    #[test]
-    fn russian_code_and_chatgpt_make_the_setup_boards_plan() {
-        let settings = AppSettings::default();
-        let lines = baseline(
-            &answers(&["dictation_code", "meetings"], "ru", "chatgpt"),
-            &settings,
-        );
-        // The board's list, less what this OS hasn't (Smart spacing, Quick
-        // add, and Files are Mac labs).
-        let here = |keys: &[&'static str]| -> Vec<&'static str> {
-            keys.iter()
-                .copied()
-                .filter(|key| settings::unavailable(key).is_none())
-                .collect()
-        };
-        assert_eq!(
-            keys(&lines),
-            here(&[
-                "transcription.model",
-                "labs.russian_vibe_coding",
-                "dictation_processing.server.runs_on",
-                "meetings.enabled",
-                "meetings.notes.writer",
-                "labs.smart_spacing",
-                "labs.vocabulary_quick_add",
-            ])
-        );
-        assert_eq!(lines[0].value, Some(json!("gigaam_v3")));
-        assert!(
-            lines
-                .iter()
-                .all(|line| line.optional == (line.key == "labs.vocabulary_quick_add"))
-        );
-        // English, offline, files only: a lab, and no model change.
-        let lines = baseline(&answers(&["files"], "en", "this_mac"), &settings);
-        assert_eq!(keys(&lines), here(&["labs.files"]));
-    }
-
-    #[test]
-    fn what_is_set_already_is_left_out() {
-        let mut settings = AppSettings::default();
-        settings.transcription.model = TranscriptionModelId::GigaAmV3;
-        settings.meetings.enabled = true;
-        let lines = baseline(&answers(&["meetings"], "ru", "this_mac"), &settings);
-        assert!(lines.is_empty(), "{:?}", keys(&lines));
-    }
-
-    #[test]
-    fn a_plan_is_one_list_with_risky_lines_unchecked() {
-        let settings = AppSettings::default();
-        let rules = crate::rune_ui::shortcut_rules();
-        let line = |key: &str, value: Value| Proposal {
-            key: key.into(),
-            value: Some(value),
-            plan: true,
-            ..Proposal::default()
-        };
-        let mut lines = vec![
-            line("labs.filler_words", json!(true)),
-            line("labs.filler_words", json!(true)),
-            line("dictation_processing.server.runs_on", json!("codex")),
-            line("meetings.retention", json!("day")),
-        ];
-        lines.push(line(
-            "labs.spoken_formatting",
-            changes::current(&settings, "labs.spoken_formatting").unwrap(),
-        ));
-        let (cards, _) = changes::resolve(&lines, &settings, &rules);
-        let state = catalog::State {
-            codex_signed_in: Some(false),
-            ..catalog::State::default()
-        };
-        let plan = plan(cards, &settings, &state).unwrap();
-        let shown: Vec<(&str, bool)> = plan
-            .items
-            .iter()
-            .map(|item| (item.key.as_str(), item.included))
-            .collect();
-        assert_eq!(
-            shown,
-            [
-                ("labs.filler_words", true),
-                ("dictation_processing.server.runs_on", false),
-                ("meetings.retention", false),
-            ]
-        );
-        assert!(super::plan(Vec::new(), &settings, &state).is_none());
-    }
-}
+mod tests;

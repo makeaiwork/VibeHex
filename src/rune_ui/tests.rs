@@ -2913,7 +2913,9 @@ fn goldens() {
         "assistant-change-both",
         "assistant-change-coming",
         "assistant-setup-ask",
+        "assistant-setup-follow",
         "assistant-setup-plan",
+        "assistant-setup-kept",
         "assistant-setup-result",
     ] {
         check_golden(scene, false, PANE_SIZE);

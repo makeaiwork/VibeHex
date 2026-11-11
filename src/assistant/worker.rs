@@ -150,7 +150,7 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
         conversation: question.conversation,
         // Setup's answers show as chips, never as a question.
         question: match question.setup {
-            Stage::Plan { .. } => String::new(),
+            Stage::Plan { .. } | Stage::Follow { .. } => String::new(),
             _ => question.question.clone(),
         },
         draft: String::new(),
@@ -269,14 +269,29 @@ fn settle(
 ) -> Settled {
     let mut parsed = changes::parse::parse(&reply);
     let plan = matches!(question.setup, Stage::Plan { .. });
-    let asks = match &question.setup {
-        Stage::Ask => setup::asks(
-            &parsed.asks,
-            question
-                .changes
-                .as_ref()
-                .map_or(std::env::consts::OS, |context| context.state.os),
-        ),
+    let os = question
+        .changes
+        .as_ref()
+        .map_or(std::env::consts::OS, |context| context.state.os);
+    let asks = match (&question.setup, &question.changes) {
+        (Stage::Ask, context) => {
+            let mut asks = setup::asks(&parsed.asks, os);
+            if let Some(context) = context {
+                setup::preselect(&mut asks, &context.settings, &context.state);
+            }
+            asks
+        }
+        // Follow-up questions only: any change lines are dropped.
+        (Stage::Follow { candidates, .. }, Some(context)) => {
+            let asks = setup::follow::follow_ups(&parsed.asks, candidates, &context.settings);
+            return Settled {
+                reply,
+                cards: Vec::new(),
+                refused: Vec::new(),
+                asks,
+            };
+        }
+        (Stage::Follow { candidates, .. }, None) => candidates.clone(),
         _ => Vec::new(),
     };
     let Some(context) = &question.changes else {
@@ -340,23 +355,15 @@ fn settle(
         }
     }
     if plan {
-        let answers = match &question.setup {
-            Stage::Plan { answers, .. } => answers.as_slice(),
-            _ => &[],
-        };
-        cards = match setup::plan(cards, &context.settings, &context.state) {
-            Some(plan) => vec![plan],
-            // Nothing usable came: the rules' plan, and no refusals beside
-            // it.
-            None => {
-                refused.clear();
-                let lines = setup::baseline(answers, &context.settings);
-                let (cards, _) = changes::resolve(&lines, &context.settings, &rules);
-                setup::plan(cards, &context.settings, &context.state)
-                    .into_iter()
-                    .collect()
-            }
-        };
+        // The app's rules decide; the model's lines join them.
+        cards = setup::plan::plan(
+            cards,
+            question.setup.answers(),
+            &context.settings,
+            &context.state,
+        )
+        .into_iter()
+        .collect();
     }
     Settled {
         reply,
@@ -430,10 +437,8 @@ fn finish(
         seconds: started.elapsed().as_secs_f32(),
         created_ms: now_ms(),
         steps: found.map(|found| found.steps.clone()).unwrap_or_default(),
-        answers: match &question.setup {
-            Stage::Plan { answers, .. } => answers.clone(),
-            _ => Vec::new(),
-        },
+        answers: question.setup.answers().to_vec(),
+        follow: matches!(question.setup, Stage::Follow { .. }),
         ..Turn::default()
     };
     match result {
@@ -443,6 +448,18 @@ fn finish(
             turn.cards = settled.cards;
             turn.refused = settled.refused;
             turn.asks = settled.asks;
+            if turn.follow {
+                // One round at a time; the rest wait.
+                let rest = turn
+                    .asks
+                    .split_off(turn.asks.len().min(setup::follow::ROUND));
+                turn.more = rest;
+            }
+            if question.setup == Stage::Ask
+                && let Some(context) = &question.changes
+            {
+                turn.now = setup::now::now(&context.settings);
+            }
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
             // The lines cited are kept with the places; the answer shows
@@ -670,17 +687,20 @@ mod tests {
                 setup::Answer {
                     id: "use".into(),
                     chosen: vec!["dictation_code".into(), "meetings".into()],
+                    ..Default::default()
                 },
                 setup::Answer {
                     id: "language".into(),
                     chosen: vec!["ru".into()],
+                    ..Default::default()
                 },
                 setup::Answer {
-                    id: "cloud".into(),
-                    chosen: vec!["chatgpt".into()],
+                    id: "cleanup".into(),
+                    chosen: vec!["codex".into()],
+                    ..Default::default()
                 },
             ],
-            line: "use: dictation_code, meetings; language: ru; cloud: chatgpt".into(),
+            line: "use: dictation_code, meetings; language: ru; cleanup: codex".into(),
         }
     }
 
@@ -690,7 +710,7 @@ mod tests {
         let _serial = SERIAL
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let written = "Давайте настроим.\n```hex-ask\n{\"id\":\"use\",\"q\":\"Для чего?\",\"options\":[{\"id\":\"meetings\",\"label\":\"Созвоны\"},{\"id\":\"files\",\"label\":\"Файлы\"}]}\n{\"id\":\"language\",\"q\":\"Язык?\",\"options\":[{\"id\":\"ru\",\"label\":\"Русский\"},{\"id\":\"en\",\"label\":\"English\"}]}\n{\"id\":\"cloud\",\"q\":\"В облако?\",\"options\":[{\"id\":\"chatgpt\",\"label\":\"Да\"},{\"id\":\"no_cleanup\",\"label\":\"Нет\"}]}\n```\nSources: none";
+        let written = "Давайте настроим.\n```hex-ask\n{\"id\":\"use\",\"q\":\"Для чего?\",\"options\":[{\"id\":\"meetings\",\"label\":\"Созвоны\"},{\"id\":\"files\",\"label\":\"Файлы\"}]}\n{\"id\":\"language\",\"q\":\"Язык?\",\"options\":[{\"id\":\"ru\",\"label\":\"Русский\"},{\"id\":\"en\",\"label\":\"English\"}]}\n{\"id\":\"cleanup\",\"q\":\"Где чистить?\",\"options\":[{\"id\":\"codex\",\"label\":\"Codex\"},{\"id\":\"none\",\"label\":\"Нет\"}]}\n{\"id\":\"notes\",\"q\":\"Конспекты?\",\"options\":[{\"id\":\"codex\",\"label\":\"Codex\"},{\"id\":\"local\",\"label\":\"Здесь\"}]}\n```\nSources: none";
         for (reply, own) in [(written, false), ("Давайте настроим. Sources: none", true)]
         {
             let reply = reply.to_owned();
@@ -702,7 +722,7 @@ mod tests {
             let question = setup("Помоги мне настроить VibeHex под меня", Stage::Ask);
             assert!(start(question, Room::Large, "GPT".into(), generate, false));
             let (_, turn) = finished();
-            assert_eq!(turn.asks.len(), 3);
+            assert_eq!(turn.asks.len(), 4);
             assert!(turn.asks.iter().all(|ask| ask.own == own), "{own}");
             assert!(turn.answer.starts_with("Давайте настроим."));
             assert!(!turn.answer.contains("hex-ask"));
@@ -744,11 +764,14 @@ mod tests {
                 .iter()
                 .map(|item| item.key.as_str())
                 .collect();
-            assert_eq!(&got[..keys.len()], keys.as_slice());
+            for key in &keys {
+                assert!(got.contains(key), "{key}: {got:?}");
+            }
             assert_eq!(turn.answers.len(), 3);
-            // The rules' plan comes with no refusals beside it.
+            // A bad reply still gets the rules' plan; what it got wrong
+            // shows beside it.
             if keys == ["transcription.model"] {
-                assert!(turn.refused.is_empty());
+                assert_eq!(turn.refused.len(), 2, "{:?}", turn.refused);
                 assert!(got.len() >= 3);
             }
         }

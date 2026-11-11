@@ -133,8 +133,15 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
                 }
                 "own_asks" => {
                     let asks = setup::asks(&parsed.asks, "macos");
-                    assert_eq!(asks.len(), 3, "{name}: setup always asks three");
+                    let all = setup::questions("macos").len();
+                    assert_eq!(asks.len(), all, "{name}: setup always asks all four");
                     assert_eq!(asks[0].own.to_string(), want, "{name}: own_asks");
+                }
+                "follow_ups" => {
+                    let asks =
+                        setup::follow::follow_ups(&parsed.asks, &[], &AppSettings::default());
+                    let got: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
+                    assert_eq!(got, list(&want, ','), "{name}: follow_ups");
                 }
                 "malformed" => assert_eq!(
                     parsed.malformed.len(),

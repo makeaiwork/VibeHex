@@ -1,229 +1,364 @@
-//! Guided setup as scenes (the Setup board): a typed Russian request with
-//! its first question open, the plan after the three answers, and the plan
-//! applied with one row failed and the speech model downloading.
+//! Guided setup as scenes (the Setup board), on the owner's own settings
+//! (`setup::sample`): what is set now and round one preselected from it;
+//! a follow-up round; the plan grouped by area, with a "Yes" checked, a
+//! value the person chose unchecked, an engine not ready yet, and
+//! "Already set" unfolded; and a plan applied with one row failed and a
+//! speech model downloading.
 
 use std::time::Instant;
 
 use serde_json::{Map, Value, json};
 
 use super::super::Ui;
-use super::fixture::{AT, MINUTE, open, turn};
+use super::changes::At;
+use super::fixture::{AT, MINUTE, open};
 use super::fixture_cards::{conversation, item};
-use crate::app_settings::CleanupRunsOn;
-use crate::assistant::changes::catalog::Class;
-use crate::assistant::changes::{Card, CardKind, Decision, Item, current};
-use crate::assistant::setup::{Answer, Ask, Choice};
+use crate::assistant::changes::catalog::{Class, State};
+use crate::assistant::changes::{Card, CardKind, Decision, Item, current, parts};
+use crate::assistant::setup::{self, Ask, follow};
 use crate::assistant::store::Turn;
+use crate::dictation::ShortcutMode;
 use crate::transcription::models::{ModelPreparationStage, TranscriptionModelId};
 
-const REQUEST: &str = "Помоги мне настроить VibeHex под меня";
-
-fn choice(id: &str, label: &str) -> Choice {
-    Choice {
-        id: id.into(),
-        label: label.into(),
+/// The owner's settings, and the state a scene plays: a Mac, Codex
+/// signed in, no OpenRouter key.
+fn sample(ui: &mut Ui) -> State {
+    setup::sample(&mut ui.settings);
+    ui.settings.shortcut_mode = ShortcutMode::Toggle;
+    State {
+        os: "macos",
+        codex_signed_in: Some(true),
+        opencode_running: Some(false),
+        openrouter_key: Some(false),
+        ..State::default()
     }
 }
 
-/// The three questions as a model wrote them in Russian, answered as the
-/// board shows, or not yet.
-fn asks(answered: bool) -> Vec<Ask> {
-    let ask = |id: &str, q: &str, hint: &str, multi, options, chosen: &[&str]| Ask {
-        id: id.into(),
-        q: q.into(),
-        hint: hint.into(),
-        multi,
-        options,
-        chosen: if answered {
-            chosen.iter().map(|id| (*id).into()).collect()
-        } else {
-            Vec::new()
-        },
-        done: answered,
-        own: false,
+/// Round one as the app asks it, preselected from the settings.
+fn first(ui: &Ui, state: &State) -> Vec<Ask> {
+    let mut asks = setup::questions("macos");
+    setup::preselect(&mut asks, &ui.settings, state);
+    asks
+}
+
+/// Round one's turn: what is set now above it.
+fn opening(ui: &Ui, asks: Vec<Ask>) -> Turn {
+    Turn {
+        now: setup::now::now(&ui.settings),
+        asks,
+        created_ms: AT,
+        ..Turn::default()
+    }
+}
+
+/// Round one answered: code, calls, and files, in Russian with tech terms,
+/// dictation on this Mac and notes on `notes`.
+fn answered(ui: &Ui, state: &State, notes: &str) -> Vec<Ask> {
+    let mut asks = first(ui, state);
+    for ask in &mut asks {
+        if ask.id == "use" {
+            ask.chosen = ["dictation_any", "dictation_code", "meetings", "files"]
+                .map(String::from)
+                .to_vec();
+        }
+        if ask.id == "notes" {
+            ask.chosen = vec![notes.into()];
+        }
+        ask.done = true;
+    }
+    asks
+}
+
+/// A follow-up round of four, as the app writes them.
+fn round(answered: bool) -> Vec<Ask> {
+    let ask = |key: &str, q: &str, hint: &str| {
+        let mut ask = Ask {
+            id: key.into(),
+            q: q.into(),
+            hint: hint.into(),
+            own: true,
+            ..Ask::default()
+        };
+        ask.options = vec![
+            setup::Choice {
+                id: "yes".into(),
+                label: follow::YES.into(),
+                changes: vec![(key.into(), Value::Bool(true))],
+                ..setup::Choice::default()
+            },
+            setup::Choice {
+                id: "no".into(),
+                label: follow::NO.into(),
+                ..setup::Choice::default()
+            },
+        ];
+        ask
     };
-    vec![
+    let mut asks = vec![
         ask(
-            "use",
-            "Для чего вам VibeHex?",
-            "можно несколько",
-            true,
-            vec![
-                choice("dictation_any", "Диктовка в любые приложения"),
-                choice("dictation_code", "Диктовка в код и терминал"),
-                choice("meetings", "Запись созвонов"),
-                choice("files", "Расшифровка файлов"),
-            ],
-            &["dictation_any", "dictation_code", "meetings"],
+            "labs.stop_shortcut",
+            "Finish a dictation by pressing Return instead of your shortcut?",
+            "Stop shortcut",
         ),
         ask(
-            "language",
-            "На каком языке вы обычно говорите?",
-            "",
-            false,
-            vec![
-                choice("ru", "Русский"),
-                choice("en", "English"),
-                choice("mixed", "Оба, вперемешку"),
-            ],
-            &["ru"],
+            "labs.spoken_symbols",
+            "Say comma, hashtag, or underscore and get the symbol?",
+            "Spoken symbols",
         ),
         ask(
-            "cloud",
-            "Можно отправлять текст в облачную модель?",
-            "для чистки диктовки и конспектов",
-            false,
-            vec![
-                choice("chatgpt", "Да, через мой ChatGPT"),
-                choice("this_mac", "Только на этом Mac"),
-                choice("no_cleanup", "Пока без чистки"),
-            ],
-            &["chatgpt"],
+            "labs.stop_when_call_ends",
+            "Stop the recording by itself when the call ends?",
+            "Stop when the call ends",
         ),
-    ]
+        ask(
+            "labs.filler_words",
+            "Remove ums and ahs from what you dictate?",
+            "Filler words",
+        ),
+    ];
+    asks[0].chosen = vec!["yes".into()];
+    asks[0].touched = true;
+    if answered {
+        asks[2].chosen = vec!["yes".into()];
+        for ask in &mut asks {
+            ask.done = true;
+        }
+    }
+    asks
 }
 
-/// The request and the model's questions.
-fn request(asks: Vec<Ask>) -> Turn {
-    let mut first = turn(
-        REQUEST,
-        "Давайте настроим VibeHex под вас. Три коротких вопроса, потом один список изменений, и вы сами решите, что применить.",
-        &[],
-        1,
-    );
-    first.asks = asks;
-    first
-}
-
-/// The first question open, two of its options chosen, and Continue.
+/// What is set now, and round one preselected from it: code and calls
+/// and files, Russian with English tech terms, dictation on this Mac,
+/// notes on Codex.
 pub(in super::super) fn setup_ask(ui: &mut Ui) {
     open(ui);
-    let mut asks = asks(false);
-    asks[0].chosen = vec!["dictation_code".into(), "meetings".into()];
-    conversation(ui, REQUEST, vec![request(asks)], &[]);
+    let state = sample(ui);
+    let asks = first(ui, &state);
+    let turn = opening(ui, asks);
+    conversation(ui, "Set up for me", vec![turn], &[]);
 }
 
-/// The plan's rows as the board lists them, against the scene's settings.
-fn rows(ui: &mut Ui) -> Vec<Item> {
+/// Round one answered, and the first follow-up round open, one answered.
+pub(in super::super) fn setup_follow(ui: &mut Ui) {
+    open(ui);
+    let state = sample(ui);
+    let turns = vec![
+        opening(ui, answered(ui, &state, "codex")),
+        Turn {
+            asks: round(false),
+            created_ms: AT + MINUTE,
+            ..Turn::default()
+        },
+    ];
+    conversation(ui, "Set up for me", turns, &[]);
+}
+
+/// The plan's rows: two follow-ups said yes to, the writer and Files on
+/// OpenRouter without a key, and a model's line over a choice the person
+/// made, unchecked. What fits stays under "Already set".
+fn rows(ui: &Ui) -> (Vec<Item>, Vec<Item>) {
+    let settings = &ui.settings;
+    let mut spoken = item(
+        "labs.spoken_symbols",
+        json!(false),
+        json!(true),
+        "You said yes to this",
+    );
+    spoken.included = true;
+    let mut mode = item(
+        "shortcut_mode",
+        json!("toggle"),
+        json!("hold"),
+        "Hold to talk suits short commands to an agent",
+    );
+    mode.yours = true;
+    mode.included = false;
+    let stop = item(
+        "labs.stop_shortcut",
+        json!(false),
+        json!(true),
+        "You said yes to this",
+    );
+    let calls = item(
+        "labs.stop_when_call_ends",
+        json!(false),
+        json!(true),
+        "You said yes to this",
+    );
+    let writer_now = current(settings, "meetings.notes.writer").unwrap_or(Value::Null);
+    let mut writer = item(
+        "meetings.notes.writer",
+        writer_now,
+        json!("openrouter"),
+        "Notes written by a cloud model through OpenRouter",
+    );
+    writer.included = false;
+    writer.note = "Add an OpenRouter key in Output › AI cleanup first".into();
+    let mut files = item(
+        "files.cleanup_engine",
+        json!("codex"),
+        json!("openrouter"),
+        "Cleans up transcribed files there",
+    );
+    files.included = false;
+    files.note = writer.note.clone();
+    let kept = [
+        "dictation_processing.server.runs_on",
+        "labs.russian_vibe_coding",
+        "labs.vocabulary_quick_add",
+        "meetings.enabled",
+        "labs.files",
+        "transcription.model",
+    ]
+    .iter()
+    .map(|key| {
+        let now = current(settings, key).unwrap_or(Value::Null);
+        Item {
+            key: (*key).into(),
+            from: now.clone(),
+            to: now,
+            ..Item::default()
+        }
+    })
+    .collect();
+    (vec![spoken, mode, stop, calls, writer, files], kept)
+}
+
+/// The answers turn: no bubble, the app's line, and the plan.
+fn answers(asks: &[Ask], plan: Card) -> Turn {
+    Turn {
+        answer: "Here is what fits how you work. Untick what you don't need.".into(),
+        answers: setup::answers(asks),
+        cards: vec![plan],
+        created_ms: AT + 2 * MINUTE,
+        ..Turn::default()
+    }
+}
+
+/// The plan grouped by area: Yes lines checked, "You chose" unchecked,
+/// OpenRouter not ready, and "Already set" folded.
+pub(in super::super) fn setup_plan(ui: &mut Ui) {
+    plan_scene(ui, false);
+}
+
+/// The same plan with "Already set" unfolded.
+pub(in super::super) fn setup_kept(ui: &mut Ui) {
+    plan_scene(ui, true);
+}
+
+fn plan_scene(ui: &mut Ui, unfolded: bool) {
+    open(ui);
+    ui.platform.system_audio = true;
+    let state = sample(ui);
+    let first = answered(ui, &state, "openrouter");
+    let follow = round(true);
+    let (items, kept) = rows(ui);
+    let plan = Card {
+        kind: CardKind::Plan,
+        items,
+        kept,
+        ..Card::default()
+    };
+    let asked: Vec<Ask> = first.iter().chain(&follow).cloned().collect();
+    let turns = vec![
+        opening(ui, first),
+        Turn {
+            asks: follow,
+            created_ms: AT + MINUTE,
+            ..Turn::default()
+        },
+        answers(&asked, plan),
+    ];
+    let id = conversation(ui, "Set up for me", turns, &[]);
+    if unfolded {
+        ui.assistant.kept_open = vec![At {
+            conversation: id,
+            turn: 2,
+            card: 0,
+        }];
+    }
+}
+
+/// The rows the applied scene saved, from a fresh install.
+fn fresh_rows(ui: &mut Ui) -> Vec<Item> {
     let settings = &mut ui.settings;
-    settings.transcription.model = TranscriptionModelId::ParakeetV3;
-    settings.labs.russian_vibe_coding = false;
-    settings.labs.ai_cleanup_server = false;
-    settings.dictation_processing.server.runs_on = CleanupRunsOn::Opencode;
+    settings.transcription.model = TranscriptionModelId::ParakeetUnifiedEnglish;
     settings.meetings.enabled = false;
-    settings.meetings.notes.writer = None;
-    settings.labs.vocabulary_quick_add = false;
-    let writer = current(settings, "meetings.notes.writer").unwrap_or(Value::Null);
+    settings.labs.russian_vibe_coding = false;
     let mut model = item(
         "transcription.model",
+        json!("parakeet_unified_en"),
         json!("parakeet_v3"),
-        json!("gigaam_v3"),
-        "Лучшая точность на русском",
+        "Hears Russian with English tech terms and reads your Vocabulary",
     );
     model.class = Class::Download;
-    let mut runs_on = item(
-        "dictation_processing.server.runs_on",
-        json!("opencode"),
-        json!("codex"),
-        "Чистка диктовки на вашем тарифе ChatGPT",
-    );
-    runs_on.requires = vec![("labs.ai_cleanup_server".into(), json!(true))];
     let mut meetings = item(
         "meetings.enabled",
         json!(false),
         json!(true),
-        "Запись созвонов, транскрипт и конспект",
+        "Records calls, with a transcript and notes",
     );
     meetings.class = Class::Permission;
-    let mut quick = item(
-        "labs.vocabulary_quick_add",
-        json!(false),
-        json!(true),
-        "Выделить ошибочное слово и добавить его в словарь одной клавишей. Пригодится, если ошибки повторяются",
-    );
-    quick.included = false;
+    let cleanup = current(settings, parts::CLEANUP).unwrap_or(Value::Null);
     vec![
-        model,
         item(
             "labs.russian_vibe_coding",
             json!(false),
             json!(true),
-            "Словарь и правила для русской речи с английскими терминами. Выключение вернёт всё как было",
+            "Russian speech with English tech terms written as they should be",
         ),
-        runs_on,
+        item(
+            "labs.spoken_symbols",
+            json!(false),
+            json!(true),
+            "You said yes to this",
+        ),
         meetings,
         item(
             "meetings.notes.writer",
-            writer,
+            Value::Null,
             json!("codex"),
-            "Конспекты на русском заметно лучше, чем у Apple Intelligence",
+            "Notes on your ChatGPT plan, good with long calls",
         ),
-        quick,
+        model,
     ]
+    .into_iter()
+    .chain((cleanup == json!(false)).then(|| {
+        item(
+            parts::CLEANUP,
+            json!(false),
+            json!(true),
+            "Every dictation is cleaned up before it pastes",
+        )
+    }))
+    .collect()
 }
 
-/// The answers turn: no bubble, the model's two lines, and the plan.
-fn answers(plan: Card) -> Turn {
-    let mut answered = turn(
-        "use: dictation_any, dictation_code, meetings; language: ru; cloud: chatgpt",
-        "Готово. Вот что я предлагаю под русскую диктовку в код и записи созвонов. Снимите галочку с того, что не нужно.",
-        &[],
-        2,
-    );
-    answered.answers = asks(true)
-        .into_iter()
-        .map(|ask| Answer {
-            id: ask.id,
-            chosen: ask.chosen,
-        })
-        .collect();
-    answered.cards = vec![plan];
-    answered
-}
-
-/// The Setup board: three answered questions, then six changes, five
-/// selected, the permission named before Apply.
-pub(in super::super) fn setup_plan(ui: &mut Ui) {
-    open(ui);
-    ui.platform.system_audio = false;
-    let plan = Card {
-        kind: CardKind::Plan,
-        items: rows(ui),
-        ..Card::default()
-    };
-    conversation(ui, REQUEST, vec![request(asks(true)), answers(plan)], &[]);
-}
-
-/// Applied: four of five rows saved, Meetings' writer refused, and GigaAM
-/// downloading; Undo while the conversation stays open.
+/// Applied: four of five rows saved, Meetings' writer refused, and
+/// Parakeet v3 downloading; Undo while the conversation stays open.
 pub(in super::super) fn setup_result(ui: &mut Ui) {
     open(ui);
     ui.platform.system_audio = true;
-    let mut items = rows(ui);
-    items[4].failed = Some("Codex isn't installed on this Mac".into());
-    // What the save changed.
+    let state = sample(ui);
+    let first = answered(ui, &state, "codex");
+    let mut items = fresh_rows(ui);
+    items[3].failed = Some("Codex isn't installed on this Mac".into());
     let settings = &mut ui.settings;
     settings.labs.russian_vibe_coding = true;
-    settings.labs.ai_cleanup_server = true;
-    settings.dictation_processing.server.runs_on = CleanupRunsOn::Codex;
+    settings.labs.spoken_symbols = true;
     settings.meetings.enabled = true;
     let mut before = Map::new();
     let mut after = Map::new();
     for (key, old, new) in [
         ("labs.russian_vibe_coding", json!(false), json!(true)),
-        ("labs.ai_cleanup_server", json!(false), json!(true)),
-        (
-            "dictation_processing.server.runs_on",
-            json!("opencode"),
-            json!("codex"),
-        ),
+        ("labs.spoken_symbols", json!(false), json!(true)),
         ("meetings.enabled", json!(false), json!(true)),
     ] {
         before.insert(key.into(), old);
         after.insert(key.into(), new);
     }
     if let Some(view) = ui.view.as_mut() {
-        let model = TranscriptionModelId::GigaAmV3;
+        let model = TranscriptionModelId::ParakeetV3;
         let bytes = crate::transcription::models::definition(model)
             .download_bytes()
             .unwrap_or(0);
@@ -242,12 +377,8 @@ pub(in super::super) fn setup_result(ui: &mut Ui) {
         },
         ..Card::default()
     };
-    conversation(
-        ui,
-        REQUEST,
-        vec![request(asks(true)), answers(plan)],
-        &[(1, 0)],
-    );
+    let turns = vec![opening(ui, first.clone()), answers(&first, plan)];
+    conversation(ui, "Set up for me", turns, &[(1, 0)]);
 }
 
 #[cfg(test)]
@@ -258,9 +389,11 @@ mod tests {
 
     #[test]
     fn every_setup_scene_has_nothing_left_to_save() {
-        let scenes: [Scene; 3] = [
+        let scenes: [Scene; 5] = [
             ("setup-ask", setup_ask),
+            ("setup-follow", setup_follow),
             ("setup-plan", setup_plan),
+            ("setup-kept", setup_kept),
             ("setup-result", setup_result),
         ];
         for (name, scene) in scenes {
@@ -268,5 +401,35 @@ mod tests {
             scene(&mut ui);
             assert!(ui.drafted() == ui.settings, "{name} has a draft to save");
         }
+    }
+
+    /// The opening scene's chips are the owner's: code, calls, and files;
+    /// Russian with tech terms; dictation on this Mac; notes on Codex; and
+    /// the server LM Studio's port names.
+    #[test]
+    fn the_opening_scene_is_preselected_from_the_owners_settings() {
+        let mut ui = super::super::super::scenes::mac_fixture();
+        setup_ask(&mut ui);
+        let turn = &ui.assistant.conversation().unwrap().turns[0];
+        let chosen = |id: &str| -> Vec<String> {
+            turn.asks
+                .iter()
+                .find(|ask| ask.id == id)
+                .unwrap()
+                .chosen
+                .clone()
+        };
+        assert_eq!(
+            chosen("use"),
+            ["dictation_any", "dictation_code", "meetings", "files"]
+        );
+        assert_eq!(chosen("language"), ["ru_tech"]);
+        assert_eq!(chosen("cleanup"), ["local"]);
+        assert_eq!(chosen("notes"), ["codex"]);
+        let cleanup = turn.asks.iter().find(|ask| ask.id == "cleanup").unwrap();
+        let server = cleanup.options.iter().find(|o| o.id == "custom").unwrap();
+        assert_eq!(server.extra, "LM Studio");
+        assert!(turn.now.contains("Orukeet"), "{}", turn.now);
+        assert!(turn.now.contains("94"), "{}", turn.now);
     }
 }

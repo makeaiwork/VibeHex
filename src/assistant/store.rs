@@ -57,6 +57,16 @@ pub struct Turn {
     /// question of its own, and shows no bubble.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub answers: Vec<Answer>,
+    /// Setup's paragraph of what was set when it began, above its
+    /// questions, in the window's language.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub now: String,
+    /// Setup's follow-up questions for later rounds.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub more: Vec<Ask>,
+    /// A follow-up round a model wrote: asking again asks it again.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub follow: bool,
 }
 
 /// One conversation.

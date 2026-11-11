@@ -235,7 +235,15 @@ const PATHS: &[(&str, &str)] = &[
     ),
     (
         "assistant-setup-ask",
-        "Window/Assistant/Setup/A question with option chips",
+        "Window/Assistant/Setup/What is set now, and round one preselected",
+    ),
+    (
+        "assistant-setup-follow",
+        "Window/Assistant/Setup/A follow-up round",
+    ),
+    (
+        "assistant-setup-kept",
+        "Window/Assistant/Setup/Already set, unfolded",
     ),
     (
         "assistant-setup-plan",

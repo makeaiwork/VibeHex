@@ -12,7 +12,7 @@
 //! while it holds (owner decision 2).
 
 use rune::{El, Icon, col, el, icon, row, text};
-use rune_kit::{Checkbox, Progress};
+use rune_kit::Progress;
 use rune_theme_opencode::icons as theme;
 
 use super::super::Ui;
@@ -23,6 +23,7 @@ use crate::assistant::changes::catalog::{self, Class, Permission};
 use crate::assistant::changes::names;
 use crate::assistant::changes::state::{self, Row, Shown};
 use crate::assistant::changes::{Card, CardKind, Item, vocab};
+use crate::assistant::setup;
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::transcription::models;
 
@@ -101,16 +102,135 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
         .filter(|item| item.included)
         .map(|item| item.key.as_str())
         .collect();
+    let mut area = None;
     for (index, item) in card.items.iter().enumerate() {
         let shown = state::row(card, index, &live);
+        let here = setup::plan::area(&item.key);
+        list = list.child(rule(p, &format!("rule{index}")));
+        if area != Some(here) {
+            area = Some(here);
+            list = list.child(heading(p, here));
+        }
+        list = list.child(line(ui, p, at, index, item, &shown, &included));
+    }
+    if !card.kept.is_empty() {
         list = list
-            .child(rule(p, &format!("rule{index}")))
-            .child(line(ui, p, at, index, item, &shown, &included));
+            .child(rule(p, "rule-kept"))
+            .child(kept(ui, p, at, card));
+    }
+    if card.items.is_empty() {
+        return Some(list);
     }
     Some(
         list.child(rule(p, "rule-foot"))
             .child(footer(ui, p, at, card, &shown, primary)),
     )
+}
+
+/// An area's heading over its rows: Dictation, Code, Meetings, Files,
+/// Models.
+fn heading(p: Paint, area: setup::plan::Area) -> El {
+    row()
+        .key(format!("area-{}", area.name().to_lowercase()))
+        .px(14.0)
+        .pt(9.0)
+        .child(
+            text(tr(area.name()))
+                .key("heading")
+                .font(rune::TextStyle {
+                    weight: 600.0,
+                    ..p.k.ty.small
+                })
+                .color(p.faint()),
+        )
+}
+
+/// "Already set: 3 things ›", and what they are once unfolded.
+fn kept(ui: &Ui, p: Paint, at: At, card: &Card) -> El {
+    let open = ui.assistant.kept_open.contains(&at);
+    let count = card.kept.len();
+    let words = match count {
+        1 => tr("Already set: 1 thing").to_owned(),
+        count => tr_fill("Already set: {} things", &count.to_string()),
+    };
+    let c = &p.k.c;
+    let toggle = row()
+        .key("kept-toggle")
+        .role("button")
+        .label(words.clone())
+        .checked(open)
+        .focusable(true)
+        .focus_ring(2.0, 0.0, c.border_focus)
+        .gap(6.0)
+        .px(6.0)
+        .h(24.0)
+        .center_y()
+        .radius(p.k.radius.sm)
+        .hover(c.hover)
+        .child(text(words).key("words").font(p.k.ty.small).color(p.muted()))
+        .child(
+            icon(
+                if open {
+                    &theme::CHEVRON_DOWN
+                } else {
+                    &theme::CHEVRON_RIGHT
+                },
+                12.0,
+            )
+            .key("chevron")
+            .color(c.icon_faint),
+        )
+        .on_press(move |ui: &mut Ui| {
+            let kept = &mut ui.assistant.kept_open;
+            match kept.iter().position(|known| *known == at) {
+                Some(index) => {
+                    kept.remove(index);
+                }
+                None => kept.push(at),
+            }
+        });
+    let mut fold = col()
+        .key("kept")
+        .px(8.0)
+        .py(6.0)
+        .gap(2.0)
+        .child(row().key("head").child(toggle));
+    if open {
+        for (index, item) in card.kept.iter().enumerate() {
+            let (name, path) = match names::place(&item.key, &ui.settings) {
+                Some(place) => (tr(&place.name).to_owned(), tr(place.path).to_owned()),
+                None => (item.key.clone(), String::new()),
+            };
+            fold = fold.child(
+                row()
+                    .key(format!("kept{index}"))
+                    .px(6.0)
+                    .py(3.0)
+                    .gap(8.0)
+                    .center_y()
+                    .child(icon(&theme::CHECK, 12.0).key("glyph").color(p.success()))
+                    .child(
+                        row()
+                            .key("names")
+                            .gap(8.0)
+                            .grow(1.0)
+                            .shrink()
+                            .min_w(0.0)
+                            .flex_wrap()
+                            .child(text(name).key("name").font(p.k.ty.small).color(p.text()))
+                            .child(text(path).key("path").font(p.k.ty.small).color(p.faint())),
+                    )
+                    .child(card::value_chip(
+                        p,
+                        "now",
+                        &card::label(&item.key, &item.from),
+                        false,
+                        false,
+                    )),
+            );
+        }
+    }
+    fold
 }
 
 /// A hairline between rows.
@@ -138,12 +258,9 @@ fn line(
         None => (String::new(), item.key.clone()),
     };
     let lead = match shown {
-        Row::Open { checked, .. } => Checkbox::new(*checked)
-            .label(name.clone())
-            .hide_label()
-            .on_toggle(move |ui: &mut Ui| act::toggle(ui, at, index))
-            .build(p.k)
-            .key("check"),
+        Row::Open { checked, .. } => super::tick::tick(p, *checked, &name, move |ui: &mut Ui| {
+            act::toggle(ui, at, index)
+        }),
         Row::Applied => mark(&theme::CHECK, p.success()),
         Row::Failed(_) => mark(&theme::CIRCLE_EXCLAMATION, p.danger()),
         Row::Left => mark(&theme::DASH, p.k.c.icon_faint),
@@ -185,6 +302,7 @@ fn line(
                 .wrap(),
         );
     }
+    words = words.children(notes(p, item, shown));
     words = words.children(takes(ui, p, item, shown, included));
     row()
         .key(format!("row{index}"))
@@ -207,6 +325,42 @@ fn line(
                     card::change_chips(p, &item.key, &item.from, &item.to, off)
                 }),
         )
+}
+
+/// A setup row's notes while it is open: "You chose" its value now, what
+/// to finish before it can run, and what the Labs feature takes after the
+/// switch.
+fn notes(p: Paint, item: &Item, shown: &Row) -> Vec<El> {
+    if !matches!(shown, Row::Open { .. }) {
+        return Vec::new();
+    }
+    let mut lines = Vec::new();
+    let line = |key: &str, words: String, color: rune::Color| {
+        text(words)
+            .key(key.to_owned())
+            .font(DESCRIPTION)
+            .color(color)
+            .wrap()
+    };
+    if item.yours {
+        lines.push(line(
+            "yours",
+            tr_fill("You chose {}", &card::label(&item.key, &item.from)),
+            p.muted(),
+        ));
+    }
+    if !item.note.is_empty() {
+        lines.push(line("note", tr(&item.note).to_owned(), p.warning()));
+    }
+    let then = crate::assistant::guide::articles()
+        .iter()
+        .find(|article| article.is_lab() && article.keys.first() == Some(&item.key))
+        .map(|article| article.then.as_str())
+        .filter(|then| !then.is_empty());
+    if let Some(then) = then {
+        lines.push(line("then", tr_fill("Then: {}", tr(then)), p.faint()));
+    }
+    lines
 }
 
 /// A row's mark once the plan is decided.

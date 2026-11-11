@@ -116,16 +116,17 @@ per term in one block, after your answer, before the Sources line:
 wrong, in the language they speak. At most 8 terms, only ones the question is about.
 - You never see their vocabulary: the app leaves out a term it has.";
 
-/// Guided setup, a typed request: the three questions, in the message's
-/// language, as option chips.
+/// Guided setup, a typed request: round one's four questions, in the
+/// message's language, as option chips the app preselects.
 fn setup_ask(os: &str) -> String {
     format!(
         "
 
 The person asks you to set VibeHex up for them. Don't answer from the guide yet, and \
-suggest no changes. In one or two sentences, in the language of their message, say you'll \
-ask three short questions and then offer one list of changes they decide on. Then write \
-this block, with `q`, `hint`, and every `label` in the language of their message, and every \
+suggest no changes. In one sentence, in the language of their message, say you'll ask a \
+few short questions, with their current settings already picked, and then offer one list \
+of changes they decide on. Then write this block, with `q`, `hint`, every `label`, and \
+every `note` (one short line under an option) in the language of their message, and every \
 `id` exactly as written:
 
 ```hex-ask
@@ -137,34 +138,63 @@ End with `Sources: none`.",
     )
 }
 
+/// Guided setup after round one: the follow-up questions the app picked,
+/// for a remote model to reword, drop, or add to.
+fn setup_follow(candidates: &str, others: &str) -> String {
+    format!(
+        "
+
+<answers> holds the person's answers to the first setup questions. The app picked the \
+follow-up questions below, each about one Labs feature or setting, best first; each option's \
+id is what the app changes on it (yes turns the feature on, no leaves it).
+
+```hex-ask
+{candidates}
+```
+
+- Write one short sentence, in the language of the setup request or, without one, of the \
+words in <answers>, that a few questions about features that fit how they work follow.
+- Then one ```hex-ask block, one JSON object per line, the most useful first, at most 12: \
+the questions above that fit these answers, with `q` and every `label` in that language \
+and every `id` exactly as written. Leave out one that doesn't fit them.
+- You may add a question about a Labs feature from <labs_catalog> (`key | title | \
+question`) that clearly fits, as {{\"id\":\"<key>\",\"q\":\"...\",\"options\":[{{\"id\":\"yes\",\"label\":\"...\"}},{{\"id\":\"no\",\"label\":\"...\"}}]}}, or about a \
+setting from <changeable_settings> with each option's `value` as the list writes it (an \
+option without one changes nothing).
+- Questions only: no changes, no plan. End with `Sources: none`.
+
+<labs_catalog>
+{others}
+</labs_catalog>"
+    )
+}
+
 const SETUP_PLAN: &str = "
 
 <answers> holds the person's answers to the setup questions: each question's id, then the \
-ids of the options they picked, with the words they saw. Suggest one list of setting \
-changes for how they work, from <changeable_settings>.
+ids of the options they picked, with the words they saw. A follow-up's id is the setting it \
+asks about; `yes` means they want it. The app already builds the list from these answers: \
+the speech model, where dictation and notes run, Meetings, Files, Russian vibe coding, and \
+every follow-up they said yes to. Your part is a sentence and what it may have missed.
 
 - First one or two sentences, in the language of the setup request or, without one, of the \
 words in <answers>: what the list is for, and that they can untick what they don't need.
-- Then one block, one JSON object per line, at most 8, the most useful first:
+- Then, only if something else clearly fits how they work, one block, one JSON object per \
+line, at most 6:
 
 ```hex-plan
 {\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"a short reason\"}
 ```
 
 - Keys exactly as listed, values as the list writes them (true/false for on/off). Skip what \
-the now column already has.
+the now column already has, and anything they answered no to.
 - `\"optional\":true` on a line that is only nice to have: it starts unchecked.
-- A speech model for their language is transcription.model (it downloads first): gigaam_v3 \
-for Russian, parakeet_v3 for Russian mixed with English.
-- Dictation into code in Russian: labs.russian_vibe_coding.
-- Cleanup on their ChatGPT plan: dictation_processing.server.runs_on codex, with \
-dictation_processing.default_mode.cleanup on. Only on this computer: nothing that sends text \
-out. No cleanup: leave it off.
-- Dictation into code in Russian or mixed, without vibe coding (which brings its own \
-terms): you may add a ```hex-vocab block of up to 6 terms they likely say, each line with \
-`\"optional\":true`, as `{\"term\":\"GitHub\",\"sounds_like\":[\"гитхаб\"],\"optional\":true}`.
-- `why`: one short phrase each, in that language. Name only the settings; the app turns on \
-what they need. Never say you changed anything.";
+- Never change the speech model, where cleanup or notes run, or a value they set \
+themselves: the app decides those from their answers. Dictation stays fast: never move it \
+to a slower engine than they picked.
+- `why`: one short phrase each, in that language. You may also write a line the app's list \
+has, with the same value, to give its reason in that language. Never say you changed \
+anything.";
 
 /// What a question may read besides the guide.
 #[derive(Clone, Copy, Debug)]
@@ -212,7 +242,7 @@ pub fn build(
     // A follow-up ("and on Windows?") is about what the last question was;
     // setup's answers, about what they picked.
     let query = match (stage, earlier.last()) {
-        (Stage::Plan { answers, .. }, _) => setup::query(answers),
+        (Stage::Plan { answers, .. } | Stage::Follow { answers, .. }, _) => setup::query(answers),
         (_, Some(last)) => format!("{} {}", last.question, question),
         (_, None) => question.to_owned(),
     };
@@ -226,8 +256,15 @@ pub fn build(
         let os = changes.map_or(std::env::consts::OS, |context| context.state.os);
         instructions.push_str(&setup_ask(os));
     } else if let Some(context) = changes {
-        let plan = matches!(stage, Stage::Plan { .. });
-        instructions.push_str(if plan { SETUP_PLAN } else { CHANGES });
+        let plan = matches!(stage, Stage::Plan { .. } | Stage::Follow { .. });
+        match stage {
+            Stage::Follow { candidates, .. } => {
+                let (asks, others) = setup::follow::prompt_lines(candidates, &context.settings);
+                instructions.push_str(&setup_follow(&asks, &others));
+            }
+            Stage::Plan { .. } => instructions.push_str(SETUP_PLAN),
+            _ => instructions.push_str(CHANGES),
+        }
         let reading = catalog::Reading {
             // A plan reads every key, whatever the room.
             every: plan || room == Room::Large,
@@ -268,7 +305,7 @@ pub fn build(
         ));
     }
     match stage {
-        Stage::Plan { line, .. } => {
+        Stage::Plan { line, .. } | Stage::Follow { line, .. } => {
             input.push_str(&format!("\n<answers>\n{}\n</answers>\n", line.trim()));
         }
         _ => input.push_str(&format!("\n<question>\n{}\n</question>\n", question.trim())),
@@ -827,6 +864,7 @@ mod tests {
                 answers: vec![setup::Answer {
                     id: "language".into(),
                     chosen: vec!["ru".into()],
+                    ..Default::default()
                 }],
                 line: "language: ru (Русский)".into(),
             },
@@ -839,7 +877,11 @@ mod tests {
         assert!(!plan.input.contains("<question>"));
         // Every key, though the room is small.
         assert!(plan.input.contains("labs.spoken_formatting | on/off"));
-        assert!(plan.articles.contains(&"topics/speech-models"));
+        assert!(
+            plan.articles.contains(&"topics/speech-models"),
+            "{:?}",
+            plan.articles
+        );
     }
 
     #[test]
