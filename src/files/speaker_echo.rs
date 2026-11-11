@@ -8,7 +8,8 @@
 //! sound the speakers played and removes it from the microphone, after the
 //! call, on the recorded tracks; capture and transcription are untouched.
 //! The result is kept beside the recording (`FILE`), so a meeting is
-//! cleaned once, the first time it plays.
+//! cleaned once: right after it is transcribed while Labs › Listen to the
+//! recording is on (`meeting::watcher`), else on its first Play.
 
 use std::path::Path;
 
@@ -24,6 +25,10 @@ pub const FILE: &str = "microphone.echo-cancelled.wav";
 /// AEC3 works in 10 ms frames.
 const FRAME: usize = RATE as usize / 100;
 
+/// One meeting cleaned at a time, so a Play during the cleaning after the
+/// call waits for its copy instead of redoing it beside it.
+static CLEANING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// `microphone` with `system`'s sound cancelled out of it, both 16 kHz and
 /// placed on the meeting's timeline from `microphone_at` and `system_at`
 /// samples. Read from `directory`'s copy when one of the same length is
@@ -35,6 +40,9 @@ pub fn cleaned(
     system: &[f32],
     system_at: usize,
 ) -> Vec<f32> {
+    let _cleaning = CLEANING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let path = directory.join(FILE);
     if let Ok(saved) = read(&path)
         && saved.len() == microphone.len()

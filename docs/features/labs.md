@@ -119,7 +119,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Lower every app no   labs.lower_every_app         (macOS 14.2+) Mute and Lower audio on an output without a volume (a monitor's) play every other app back lower through a system audio tap
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
-├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there (files.md, meetings.md)
+├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there; a meeting's microphone plays with the speakers' echo taken out, cleaned right after the meeting is transcribed (files.md, meetings.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on

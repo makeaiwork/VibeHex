@@ -365,6 +365,27 @@ struct ManifestTrack {
 /// Both tracks at 16 kHz, each from where it started on the meeting's
 /// timeline (the transcript's times count from the earlier one), mixed.
 fn decode_meeting(directory: &Path) -> Result<Vec<i16>> {
+    let (system, microphone) = meeting_tracks(directory)?;
+    let mut mixed: Vec<f32> = Vec::new();
+    for (samples, at) in system.iter().chain(&microphone) {
+        mix_into(&mut mixed, samples, *at);
+    }
+    Ok(to_pcm(&mixed))
+}
+
+/// Cleans a finished meeting's microphone of the speakers' echo ahead of
+/// its first Play, which then only reads the saved copy.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn prepare_meeting(directory: &Path) -> Result<()> {
+    meeting_tracks(directory).map(drop)
+}
+
+/// A track's samples and where on the meeting's timeline they start.
+type Placed = Option<(Vec<f32>, usize)>;
+
+/// The system track and the microphone, the microphone with the speakers'
+/// echo taken out.
+fn meeting_tracks(directory: &Path) -> Result<(Placed, Placed)> {
     let manifest: Manifest = serde_json::from_slice(
         &std::fs::read(directory.join("manifest.json"))
             .wrap_err("the meeting's manifest couldn't be read")?,
@@ -405,11 +426,7 @@ fn decode_meeting(directory: &Path) -> Result<Vec<i16>> {
     if system.is_none() && microphone.is_none() {
         return Err(eyre!("This meeting kept no audio."));
     }
-    let mut mixed: Vec<f32> = Vec::new();
-    for (samples, at) in system.iter().chain(&microphone) {
-        mix_into(&mut mixed, samples, *at);
-    }
-    Ok(to_pcm(&mixed))
+    Ok((system, microphone))
 }
 
 /// Adds `samples` to `mixed` from `offset`, growing it as needed.
