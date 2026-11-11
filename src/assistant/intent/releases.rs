@@ -135,7 +135,7 @@ pub fn releases(question: &str) -> Option<Asked> {
         return None;
     }
     let asks = phrase(WHATS_NEW) || changelog || when || (release && changed) || version.is_some();
-    asks.then(|| Asked {
+    asks.then_some(Asked {
         version,
         history: changelog || when,
     })

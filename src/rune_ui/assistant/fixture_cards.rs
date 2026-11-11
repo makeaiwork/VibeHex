@@ -499,33 +499,6 @@ pub(in super::super) fn vocab_applied(ui: &mut Ui) {
     ui.assistant.vocab_term = rune::TextEdit::new("Prometheus".to_owned());
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    type Scene = (&'static str, fn(&mut Ui));
-
-    /// A scene's settings are what its editors hold, so no draft save
-    /// changes them a moment in.
-    #[test]
-    fn every_scene_has_nothing_left_to_save() {
-        let scenes: [Scene; 7] = [
-            ("cards", cards),
-            ("cards-more", cards_more),
-            ("cards-held", cards_held),
-            ("cards-prompt", cards_prompt),
-            ("applied", applied),
-            ("change-both", change_both),
-            ("change-coming", change_coming),
-        ];
-        for (name, scene) in scenes {
-            let mut ui = super::super::super::scenes::mac_fixture();
-            scene(&mut ui);
-            assert!(ui.drafted() == ui.settings, "{name} has a draft to save");
-        }
-    }
-}
-
 /// «Что нового?» after an update from 3.3.0-vibe.4: the releases since,
 /// grouped, then For you with two Labs cards that fit how the person works
 /// (they record meetings; both are off).
@@ -576,4 +549,31 @@ pub(in super::super) fn whats_new(ui: &mut Ui) {
 pub(in super::super) fn updated(ui: &mut Ui) {
     open(ui);
     ui.assistant.updated = Some(("3.3.0-vibe.7".into(), AT));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Scene = (&'static str, fn(&mut Ui));
+
+    /// A scene's settings are what its editors hold, so no draft save
+    /// changes them a moment in.
+    #[test]
+    fn every_scene_has_nothing_left_to_save() {
+        let scenes: [Scene; 7] = [
+            ("cards", cards),
+            ("cards-more", cards_more),
+            ("cards-held", cards_held),
+            ("cards-prompt", cards_prompt),
+            ("applied", applied),
+            ("change-both", change_both),
+            ("change-coming", change_coming),
+        ];
+        for (name, scene) in scenes {
+            let mut ui = super::super::super::scenes::mac_fixture();
+            scene(&mut ui);
+            assert!(ui.drafted() == ui.settings, "{name} has a draft to save");
+        }
+    }
 }
