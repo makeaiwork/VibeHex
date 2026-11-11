@@ -406,11 +406,7 @@ fn ranked<K: Ord>(counts: HashMap<K, usize>, most: usize) -> Vec<(K, usize)> {
 }
 
 fn percent(part: usize, whole: usize) -> u32 {
-    if whole == 0 {
-        0
-    } else {
-        ((part * 100 + whole / 2) / whole) as u32
-    }
+    (part * 100 + whole / 2).checked_div(whole).unwrap_or(0) as u32
 }
 
 #[cfg(test)]

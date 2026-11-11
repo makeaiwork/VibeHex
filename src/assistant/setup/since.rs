@@ -408,7 +408,7 @@ mod tests {
         };
         assert!(paragraph(&unread).contains("Assistant › Settings"));
         assert!(prompt(&unread).contains("not read"));
-        assert!(returning(&[], 49, 0) == false && returning(&[], 50, 0) && returning(&[], 0, 1));
+        assert!(!returning(&[], 49, 0) && returning(&[], 50, 0) && returning(&[], 0, 1));
     }
 
     #[test]

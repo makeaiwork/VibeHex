@@ -107,6 +107,9 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
         for item in cards.into_iter().flat_map(|card| card.items) {
             if key == vocab::KEY {
                 terms.push(item);
+            } else if unsupported(&item, settings) {
+                // It needs a Labs feature this OS doesn't have.
+                planned.missing.push(name(&key, settings));
             } else {
                 items.push(ready(item, settings, state));
             }
@@ -129,6 +132,20 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
         ..Card::default()
     });
     planned
+}
+
+/// Whether saving `item` alone fails because this OS doesn't have what
+/// it needs (a key whose Labs feature is another OS's).
+fn unsupported(item: &Item, settings: &AppSettings) -> bool {
+    let one = Card {
+        items: vec![item.clone()],
+        ..Card::default()
+    };
+    let Ok(values) = changes::values(&one, settings) else {
+        return false;
+    };
+    let shortcuts = crate::rune_ui::shortcut_rules();
+    settings::check(settings, &values, &shortcuts).is_err_and(|error| error.code == "unsupported")
 }
 
 /// The preset's shortcuts as a plan, each as `hex settings set` takes it;
@@ -390,12 +407,14 @@ mod tests {
     fn the_shortcuts_come_as_text_and_resolve() {
         let preset = denis();
         let card = shortcuts(&preset, &AppSettings::default()).unwrap();
+        // Right Option is a Mac's key.
         let dictation = card
             .items
             .iter()
-            .find(|item| item.key == "dictation_hotkey")
-            .unwrap();
-        assert_eq!(dictation.to, Value::String("right-option".into()));
+            .find(|item| item.key == "dictation_hotkey");
+        if cfg!(target_os = "macos") {
+            assert_eq!(dictation.unwrap().to, Value::String("right-option".into()));
+        }
         let shortcuts = crate::rune_ui::shortcut_rules();
         let values = changes::values(&card, &AppSettings::default()).unwrap();
         assert!(settings::check(&AppSettings::default(), &values, &shortcuts).is_ok());
