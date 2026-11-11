@@ -222,6 +222,18 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Cards/Preparing a change",
     ),
     (
+        "assistant-setup-ask",
+        "Window/Assistant/Setup/A question with option chips",
+    ),
+    (
+        "assistant-setup-plan",
+        "Window/Assistant/Setup/Suggested changes",
+    ),
+    (
+        "assistant-setup-result",
+        "Window/Assistant/Setup/Applied, one failed, one downloading",
+    ),
+    (
         "meetings-cited",
         "Window/Assistant/Meeting opened from an answer",
     ),

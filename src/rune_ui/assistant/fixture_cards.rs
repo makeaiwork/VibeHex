@@ -20,7 +20,7 @@ use crate::assistant::store::Turn;
 use crate::assistant::worker::Answering;
 use crate::transcription::models::{ModelPreparationStage, TranscriptionModelId};
 
-fn item(key: &str, from: Value, to: Value, why: &str) -> Item {
+pub(super) fn item(key: &str, from: Value, to: Value, why: &str) -> Item {
     Item {
         key: key.into(),
         from,
@@ -57,7 +57,12 @@ fn declined(mut card: Card) -> Card {
 /// A conversation of `turns`, open, with Undo for the cards at `undo`.
 /// The editors take the scene's settings too, or their next draft save
 /// would write the fixture's back.
-fn conversation(ui: &mut Ui, name: &str, turns: Vec<Turn>, undo: &[(usize, usize)]) -> u32 {
+pub(super) fn conversation(
+    ui: &mut Ui,
+    name: &str,
+    turns: Vec<Turn>,
+    undo: &[(usize, usize)],
+) -> u32 {
     let settings = ui.settings.clone();
     ui.modes.reload(&settings);
     ui.vocabulary.reload(&settings.vocabulary);
