@@ -70,7 +70,7 @@ const DOWNLOADS: [&str; 2] = ["transcription.model", "transcription.language"];
 
 /// Whether no card ever changes `key`.
 pub fn never(key: &str) -> bool {
-    if parts::PROMPT == key || key.starts_with("meetings.providers.") {
+    if [parts::PROMPT, parts::CLEANUP].contains(&key) || key.starts_with("meetings.providers.") {
         return false;
     }
     if NEVER
@@ -256,6 +256,18 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
         out.push_str(if reading.send { " |\n" } else { "\n" });
     }
     out.push_str(&format!(
+        "{} | on/off | Output › AI cleanup › Clean up with AI{}\n",
+        parts::CLEANUP,
+        if reading.send {
+            match parts::Part::Cleanup.value(settings) {
+                Value::Bool(true) => " | on",
+                _ => " | off",
+            }
+        } else {
+            ""
+        },
+    ));
+    out.push_str(&format!(
         "{} | the Global mode's whole instructions, as text | Output › AI cleanup › Instructions{}\n",
         parts::PROMPT,
         if reading.send { " |" } else { "" },
@@ -434,7 +446,9 @@ mod tests {
         let keys = advertised(&section);
         assert!(keys.len() > 60, "only {} keys", keys.len());
         for key in keys {
-            if key == parts::PROMPT || key == "meetings.providers.<app>.policy" {
+            if [parts::PROMPT, parts::CLEANUP].contains(&key.as_str())
+                || key == "meetings.providers.<app>.policy"
+            {
                 continue;
             }
             assert!(

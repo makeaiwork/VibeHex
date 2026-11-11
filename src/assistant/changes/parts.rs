@@ -1,6 +1,7 @@
 //! Narrow addresses inside two JSON keys a card may change: one app's
 //! choice in `meetings.providers` (`meetings.providers.<app>.policy`), and
-//! the Global mode's instructions (`dictation_processing.default_mode.prompt`).
+//! the Global mode's instructions (`dictation_processing.default_mode.prompt`)
+//! and its Clean up with AI switch (`dictation_processing.default_mode.cleanup`).
 //! A part is read from and written back into its whole key, which
 //! `control::settings::check` then validates as it would any other value.
 
@@ -10,6 +11,8 @@ use crate::app_settings::{AppSettings, MeetingPolicy, MeetingProviderChoice};
 
 /// The Global mode's AI cleanup instructions.
 pub const PROMPT: &str = "dictation_processing.default_mode.prompt";
+/// The Global mode's Clean up with AI switch.
+pub const CLEANUP: &str = "dictation_processing.default_mode.cleanup";
 const PROVIDERS: &str = "meetings.providers";
 const DEFAULT_MODE: &str = "dictation_processing.default_mode";
 
@@ -17,6 +20,7 @@ const DEFAULT_MODE: &str = "dictation_processing.default_mode";
 #[derive(Clone, Debug, PartialEq)]
 pub enum Part {
     Prompt,
+    Cleanup,
     /// One call service's Ask / Always record / Never offer.
     Provider {
         key: String,
@@ -29,6 +33,9 @@ pub enum Part {
 pub fn part(key: &str, settings: &AppSettings) -> Option<Part> {
     if key == PROMPT {
         return Some(Part::Prompt);
+    }
+    if key == CLEANUP {
+        return Some(Part::Cleanup);
     }
     let app = key
         .strip_prefix("meetings.providers.")?
@@ -77,7 +84,7 @@ impl Part {
     /// The whole key the part lives in.
     pub fn parent(&self) -> &'static str {
         match self {
-            Self::Prompt => DEFAULT_MODE,
+            Self::Prompt | Self::Cleanup => DEFAULT_MODE,
             Self::Provider { .. } => PROVIDERS,
         }
     }
@@ -93,6 +100,13 @@ impl Part {
                     .post_processing
                     .prompt
                     .clone(),
+            ),
+            Self::Cleanup => Value::Bool(
+                settings
+                    .dictation_processing
+                    .default_mode
+                    .post_processing
+                    .enabled,
             ),
             Self::Provider { key, .. } => {
                 let policy = settings
@@ -119,6 +133,14 @@ impl Part {
                 };
                 let mut mode = settings.dictation_processing.default_mode.clone();
                 mode.post_processing.prompt = prompt.clone();
+                serde_json::to_value(mode)
+            }
+            Self::Cleanup => {
+                let Value::Bool(on) = value else {
+                    return Err("expected on or off".into());
+                };
+                let mut mode = settings.dictation_processing.default_mode.clone();
+                mode.post_processing.enabled = *on;
                 serde_json::to_value(mode)
             }
             Self::Provider { key, label } => {
@@ -180,5 +202,11 @@ mod tests {
             .unwrap();
         assert_eq!(parent, "dictation_processing.default_mode");
         assert_eq!(mode["post_processing"]["prompt"], "Fix punctuation.");
+        let cleanup = part(CLEANUP, &settings).unwrap();
+        assert_eq!(cleanup.value(&settings), json!(false));
+        let (parent, mode) = cleanup.with(&settings, &json!(true)).unwrap();
+        assert_eq!(parent, "dictation_processing.default_mode");
+        assert_eq!(mode["post_processing"]["enabled"], true);
+        assert!(cleanup.with(&settings, &json!("on")).is_err());
     }
 }

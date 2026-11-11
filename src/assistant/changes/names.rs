@@ -192,6 +192,12 @@ pub const WHERE: &[(&str, &str, &str, Home)] = &[
         Home::Output,
     ),
     (
+        parts::CLEANUP,
+        "Output › AI cleanup",
+        "Clean up with AI",
+        Home::Output,
+    ),
+    (
         "dictation_processing.server.runs_on",
         "Output › AI cleanup",
         "Runs on",
@@ -545,6 +551,10 @@ pub fn normalize(settings: &AppSettings, key: &str, raw: &Value) -> Value {
             (Some(Part::Provider { .. }), Value::String(text)) => {
                 Value::String(choice(text, &["ask", "always_record", "never_offer"]))
             }
+            (Some(Part::Cleanup), Value::String(text)) => match switch(text) {
+                Some(on) => Value::Bool(on),
+                None => raw.clone(),
+            },
             _ => raw.clone(),
         };
     };
@@ -553,11 +563,7 @@ pub fn normalize(settings: &AppSettings, key: &str, raw: &Value) -> Value {
         _ => "",
     };
     match setting.kind.as_str() {
-        "bool" => match text.to_ascii_lowercase().as_str() {
-            "on" | "true" | "yes" | "1" => Value::Bool(true),
-            "off" | "false" | "no" | "0" => Value::Bool(false),
-            _ => raw.clone(),
-        },
+        "bool" => switch(text).map_or_else(|| raw.clone(), Value::Bool),
         "number" | "integer" => text
             .trim_end_matches('%')
             .parse::<f64>()
@@ -594,6 +600,15 @@ pub fn normalize(settings: &AppSettings, key: &str, raw: &Value) -> Value {
                 )
         }
         _ => raw.clone(),
+    }
+}
+
+/// A switch as a model wrote it: `on`, `True`, `yes`, `0`.
+fn switch(text: &str) -> Option<bool> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "on" | "true" | "yes" | "1" => Some(true),
+        "off" | "false" | "no" | "0" => Some(false),
+        _ => None,
     }
 }
 
@@ -634,7 +649,8 @@ mod tests {
             let real = if key.ends_with('.') {
                 keys.iter().any(|known| known.starts_with(key))
             } else {
-                keys.iter().any(|known| known == key) || *key == parts::PROMPT
+                keys.iter().any(|known| known == key)
+                    || [parts::PROMPT, parts::CLEANUP].contains(key)
             };
             // Annotate's keys exist only in capture builds.
             assert!(real || key.starts_with("capture."), "{key} is no setting");
@@ -706,5 +722,6 @@ mod tests {
             json!("always_record")
         );
         assert_eq!(normal("labs.smart_spacing", json!("maybe")), json!("maybe"));
+        assert_eq!(normal(parts::CLEANUP, json!("on")), json!(true));
     }
 }
