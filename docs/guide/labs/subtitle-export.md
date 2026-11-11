@@ -3,7 +3,7 @@ feature: subtitle-export
 key: labs.subtitle_export
 title: Subtitle export
 group: Meetings
-os: macOS
+os: [macOS, Windows, Linux]
 vibehex: false
 ---
 
@@ -22,7 +22,8 @@ switch adds nothing to the window.
 **Needs.** Meetings, with at least one recording, and the Terminal: the
 export is a command, `hex meetings show <meeting> --srt` or `--vtt`, which
 prints the subtitles to save into a file. Turn the switch on first, otherwise
-the command refuses and names the switch.
+the command refuses and names the switch. On Windows and Linux, switch it
+in the window: `hex labs` and `hex settings` refuse it there.
 
 **Good to know.** Times come from each turn's start and end, not from single
 words, so a cue can be a whole sentence or longer. There is no export button
