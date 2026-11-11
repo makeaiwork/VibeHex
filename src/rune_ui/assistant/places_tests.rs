@@ -64,11 +64,16 @@ fn a_pane_and_a_path_into_it_resolve() {
 #[test]
 fn a_lab_resolves_by_its_title_alone_or_under_labs() {
     let ui = ui();
-    let smart = Some((To::Labs(Some("smart-spacing")), lit(&["Smart spacing"])));
-    assert_eq!(resolve(&ui, "Labs › Smart spacing"), smart);
-    assert_eq!(resolve(&ui, "smart spacing"), smart);
-    let quick = resolve(&ui, "Add to vocabulary from a selection");
-    assert!(matches!(quick, Some((To::Labs(Some(_)), _))), "{quick:?}");
+    // Settings search is a lab on every OS; Smart spacing only on a Mac.
+    let search = Some((To::Labs(Some("settings-search")), lit(&["Settings search"])));
+    assert_eq!(resolve(&ui, "Labs › Settings search"), search);
+    assert_eq!(resolve(&ui, "settings search"), search);
+    if cfg!(target_os = "macos") {
+        let smart = Some((To::Labs(Some("smart-spacing")), lit(&["Smart spacing"])));
+        assert_eq!(resolve(&ui, "smart spacing"), smart);
+        let quick = resolve(&ui, "Add to vocabulary from a selection");
+        assert!(matches!(quick, Some((To::Labs(Some(_)), _))), "{quick:?}");
+    }
     // A lab this Hex doesn't have: Labs itself, its deepest known part.
     assert_eq!(
         resolve(&ui, "Labs › No such lab"),
@@ -162,7 +167,7 @@ fn a_settings_path_opens_that_view() {
 #[test]
 fn a_lab_opens_labs_on_its_card_lit() {
     let mut ui = ui();
-    open_named(&mut ui, "Labs › Smart spacing", &mut Tx::default());
+    open_named(&mut ui, "Labs › Settings search", &mut Tx::default());
     assert!(ui.labs_open);
     assert_eq!(probe(&ui), Some(0), "its card's title is lit");
 }

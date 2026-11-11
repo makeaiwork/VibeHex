@@ -632,7 +632,10 @@ mod tests {
                 .unwrap()
                 .ends_with(" | none")
         );
-        if settings::unavailable("vocabulary_add_hotkey").is_none() {
+        // Quick add is a Labs feature of some systems only.
+        if settings::unavailable("labs.vocabulary_quick_add").is_none()
+            && settings::unavailable("vocabulary_add_hotkey").is_none()
+        {
             assert!(
                 line(&every, "labs.vocabulary_quick_add")
                     .unwrap()
