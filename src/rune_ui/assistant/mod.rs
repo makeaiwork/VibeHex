@@ -19,13 +19,13 @@ pub(super) mod face;
 mod feed;
 pub(super) mod fixture;
 pub(super) mod fixture_cards;
-pub(super) mod fixture_setup;
 pub(super) mod jump;
 pub(super) mod nav;
 mod picker;
 mod plan;
 mod recall;
 mod settings;
+pub(super) mod setup_fixture;
 mod verbs;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
