@@ -215,7 +215,7 @@ fn example(p: Paint, index: usize, question: &'static str) -> El {
         .py(9.0)
         .center_y()
         .radius(p.k.radius.md)
-        .border(p.hair, c.border_weak)
+        .border(p.hair, c.border_base)
         .hover(c.hover)
         .press(c.pressed)
         .child(
