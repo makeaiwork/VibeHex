@@ -27,6 +27,7 @@ mod recall;
 mod settings;
 pub(super) mod setup_fixture;
 mod verbs;
+mod vocab;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
 
@@ -89,6 +90,10 @@ pub(in super::super) struct AssistantPane {
     /// The instructions card being edited before it saves, and its text.
     pub(super) editing: Option<changes::At>,
     pub(super) edit: TextEdit,
+    /// The vocabulary card row being edited, and its two fields.
+    pub(super) vocab_edit: Option<(changes::At, usize)>,
+    pub(super) vocab_term: TextEdit,
+    pub(super) vocab_sounds: TextEdit,
     /// A scene's card states this computer can't take on: an
     /// organization's lock, Codex signed out.
     pub(super) shown_as: Vec<(changes::At, crate::assistant::changes::state::Shown)>,

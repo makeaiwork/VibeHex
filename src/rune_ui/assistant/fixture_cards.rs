@@ -400,6 +400,105 @@ pub(in super::super) fn change_coming(ui: &mut Ui) {
     });
 }
 
+/// A term as a vocabulary card's row holds it.
+fn term(term: &str, sounds_like: &[&str]) -> Item {
+    item(
+        crate::assistant::changes::vocab::KEY,
+        Value::Null,
+        json!({"term": term, "sounds_like": sounds_like}),
+        "",
+    )
+}
+
+/// The Web board's vocabulary card: three terms to add, each with what it
+/// sounds like.
+pub(in super::super) fn vocab_card(ui: &mut Ui) {
+    open(ui);
+    let question = "И добавь в словарь Kubernetes, kubectl и Grafana, они всё время пишутся криво";
+    let answer = turn(
+        question,
+        "Добавлю все три с тем, как они слышатся. Снимите галочку с лишнего или поправьте написание.",
+        &["topics/vocabulary"],
+        1,
+    );
+    let card = Card {
+        kind: CardKind::Vocabulary,
+        items: vec![
+            term("Kubernetes", &["кубернетес", "кубер", "кубернетис"]),
+            term("kubectl", &["куб контрол", "кубкатл", "куб си ти эл"]),
+            term("Grafana", &["графана"]),
+        ],
+        ..Card::default()
+    };
+    conversation(ui, question, vec![with_cards(answer, vec![card])], &[]);
+}
+
+/// After Add: two terms in, one the vocabulary had, with Undo; then a new
+/// card with a term open in Edit.
+pub(in super::super) fn vocab_applied(ui: &mut Ui) {
+    open(ui);
+    ui.settings.vocabulary = vec![crate::dictation::vocabulary::VocabularyEntry {
+        term: "Grafana".into(),
+        sounds_like: vec!["графана".into()],
+    }];
+    let first = "Добавь Kubernetes, kubectl и Grafana в словарь";
+    let mut added = Card {
+        kind: CardKind::Vocabulary,
+        items: vec![
+            term("Kubernetes", &["кубернетес", "кубер"]),
+            term("kubectl", &["кубкатл"]),
+            term("Grafana", &["графана"]),
+        ],
+        decision: Decision::Applied {
+            before: Map::new(),
+            after: Map::from_iter([(
+                crate::assistant::changes::vocab::KEY.to_owned(),
+                json!(["Kubernetes", "kubectl"]),
+            )]),
+            at_ms: AT + MINUTE,
+        },
+        ..Card::default()
+    };
+    added.items[2].failed = Some("Already in Vocabulary".into());
+    let second = "И ещё Prometheus и Terraform";
+    let more = Card {
+        kind: CardKind::Vocabulary,
+        items: vec![
+            term("Prometeus", &["прометеус"]),
+            term("Terraform", &["терраформ"]),
+        ],
+        ..Card::default()
+    };
+    let turns = vec![
+        with_cards(
+            turn(
+                first,
+                "Готово, два термина добавлены.",
+                &["topics/vocabulary"],
+                1,
+            ),
+            vec![added],
+        ),
+        with_cards(
+            turn(
+                second,
+                "Вот оба, проверьте написание.",
+                &["topics/vocabulary"],
+                2,
+            ),
+            vec![more],
+        ),
+    ];
+    let id = conversation(ui, first, turns, &[(0, 0)]);
+    let at = At {
+        conversation: id,
+        turn: 1,
+        card: 0,
+    };
+    super::vocab::edit(ui, at, 0);
+    ui.assistant.vocab_term = rune::TextEdit::new("Prometheus".to_owned());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

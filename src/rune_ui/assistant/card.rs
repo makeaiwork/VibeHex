@@ -26,11 +26,11 @@ use crate::assistant::changes::{Card, CardKind, Decision, Item, Refused, Why};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 
 /// Where the words start: past the 28 pt tile and its gap.
-const INDENT: f32 = 38.0;
+pub(super) const INDENT: f32 = 38.0;
 
 /// How a card's shell is tinted.
 #[derive(Clone, Copy, PartialEq)]
-enum Shell {
+pub(super) enum Shell {
     /// Waiting on the person.
     Open,
     /// Saved: a soft success tint.
@@ -391,7 +391,7 @@ fn glyph(card: &Card, item: &Item, home: Option<Home>) -> &'static Icon {
     }
 }
 
-fn shell_of(p: Paint, key: &str, shell: Shell, name: &str) -> El {
+pub(super) fn shell_of(p: Paint, key: &str, shell: Shell, name: &str) -> El {
     let c = &p.k.c;
     let (fill, border) = match shell {
         Shell::Open => (c.layer_01, c.border_weak),
@@ -410,7 +410,7 @@ fn shell_of(p: Paint, key: &str, shell: Shell, name: &str) -> El {
         .border(p.hair, border)
 }
 
-fn tile(p: Paint, glyph: &'static Icon, shell: Shell) -> El {
+pub(super) fn tile(p: Paint, glyph: &'static Icon, shell: Shell) -> El {
     let c = &p.k.c;
     let (fill, ink) = match shell {
         Shell::Open => (c.layer_02, c.icon_base),
@@ -431,7 +431,13 @@ fn header(p: Paint, path: &str, name: &str, chips: Option<El>) -> El {
 }
 
 /// The header with its name in `ink`: muted on a card with nothing to do.
-fn header_in(p: Paint, path: &str, name: &str, chips: Option<El>, ink: rune::Color) -> El {
+pub(super) fn header_in(
+    p: Paint,
+    path: &str,
+    name: &str,
+    chips: Option<El>,
+    ink: rune::Color,
+) -> El {
     let mut words = col().key("names").grow(1.0).shrink().min_w(0.0).gap(1.0);
     if !path.is_empty() {
         words = words.child(
@@ -474,7 +480,7 @@ pub(super) fn change_chips(p: Paint, key: &str, from: &Value, to: &Value, struck
 
 /// A value: the one now outlined, the new one on a soft accent tint, or
 /// struck through when it was turned down.
-fn value_chip(p: Paint, key: &str, label: &str, new: bool, struck: bool) -> El {
+pub(super) fn value_chip(p: Paint, key: &str, label: &str, new: bool, struck: bool) -> El {
     let c = &p.k.c;
     let (fill, border, ink) = if new {
         (
@@ -532,7 +538,7 @@ fn status(words: &str, color: rune::Color) -> El {
         .shrink()
 }
 
-fn buttons(children: Vec<El>) -> El {
+pub(super) fn buttons(children: Vec<El>) -> El {
     row()
         .key("buttons")
         .pl(INDENT)

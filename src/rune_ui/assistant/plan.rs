@@ -22,7 +22,7 @@ use super::changes::{self as act, At};
 use crate::assistant::changes::catalog::{self, Class, Permission};
 use crate::assistant::changes::names;
 use crate::assistant::changes::state::{self, Row, Shown};
-use crate::assistant::changes::{Card, CardKind, Item};
+use crate::assistant::changes::{Card, CardKind, Item, vocab};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::transcription::models;
 
@@ -200,7 +200,12 @@ fn line(
             row()
                 .key("change")
                 .pt(1.0)
-                .child(card::change_chips(p, &item.key, &item.from, &item.to, off)),
+                .child(if item.key == vocab::KEY {
+                    // Terms come new: no value before them.
+                    card::value_chip(p, "to", &card::label(&item.key, &item.to), !off, off)
+                } else {
+                    card::change_chips(p, &item.key, &item.from, &item.to, off)
+                }),
         )
 }
 

@@ -1691,6 +1691,7 @@ mod tests {
         include_str!("../rune_ui/assistant/picker.rs"),
         include_str!("../rune_ui/assistant/recall.rs"),
         include_str!("../rune_ui/assistant/settings.rs"),
+        include_str!("../rune_ui/assistant/vocab.rs"),
         include_str!("../rune_ui/hud_lab.rs"),
         include_str!("../rune_ui/labs.rs"),
         include_str!("../rune_ui/labs/group.rs"),

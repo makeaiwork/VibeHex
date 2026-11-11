@@ -14,7 +14,7 @@ use super::super::{Ui, history, labs, picker, platform};
 use crate::assistant::changes::catalog::{self, Class};
 use crate::assistant::changes::names::{self, Home};
 use crate::assistant::changes::state::{self, Live, Shown};
-use crate::assistant::changes::{self, Card, CardKind, Context, Decision};
+use crate::assistant::changes::{self, Card, CardKind, Context, Decision, vocab};
 use crate::control::settings::{self, Effect};
 use crate::desktop::i18n::tr;
 use crate::transcription::models::{self as transcription_models, TranscriptionModelId};
@@ -125,7 +125,7 @@ pub(super) fn newest(ui: &Ui, id: u32) -> Option<At> {
         .last()
 }
 
-fn set(ui: &mut Ui, at: At, change: impl FnOnce(&mut Card)) {
+pub(super) fn set(ui: &mut Ui, at: At, change: impl FnOnce(&mut Card)) {
     let Some(mut card) = card(ui, at).cloned() else {
         return;
     };
@@ -148,6 +148,11 @@ pub(super) fn apply(ui: &mut Ui, at: At) {
     };
     if card.kind == CardKind::Plan {
         return apply_plan(ui, at, card);
+    }
+    if card.kind == CardKind::Vocabulary {
+        super::vocab::done(ui);
+        let card = self::card(ui, at).cloned().unwrap_or(card);
+        return super::vocab::apply(ui, at, card);
     }
     let decision = match card.items.first() {
         Some(item) if is_download(item) => {
@@ -180,9 +185,14 @@ fn apply_plan(ui: &mut Ui, at: At, mut card: Card) {
     let rules = super::super::shortcut_rules();
     let mut candidate = before.clone();
     let mut effects = Vec::new();
+    let mut terms = Vec::new();
     for item in &mut card.items {
         item.failed = None;
         if !item.included || is_download(item) {
+            continue;
+        }
+        if item.key == vocab::KEY {
+            terms.extend(super::vocab::add(&mut candidate.vocabulary, item));
             continue;
         }
         let one = Card {
@@ -211,11 +221,21 @@ fn apply_plan(ui: &mut Ui, at: At, mut card: Card) {
             card.items[index].failed = Some(why);
         }
     }
+    if let Ok(Decision::Applied { after, .. }) = &mut decision
+        && !terms.is_empty()
+    {
+        after.extend(super::vocab::added_map(terms));
+    }
     let (done, _) = state::applied_count(&card);
     if done == 0 && decision.is_ok() {
         let why = card.items.iter().find_map(|item| item.failed.clone());
         decision = Err(why.unwrap_or_else(|| tr("Nothing was selected").to_owned()));
     }
+    decide(ui, at, card, decision);
+}
+
+/// Keeps what a save of `card` made of it, and offers Undo for it.
+pub(super) fn decide(ui: &mut Ui, at: At, mut card: Card, decision: Result<Decision, String>) {
     let applied = decision.is_ok();
     card.decision = decision.unwrap_or_else(|why| Decision::Failed { why });
     ui.assistant
@@ -352,19 +372,21 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
     if state::shown(&card, &live(ui, at)) != (Shown::Applied { undo: true }) {
         return;
     }
-    let Decision::Applied { before, .. } = &card.decision else {
+    let Decision::Applied { before, after, .. } = &card.decision else {
         return;
     };
     let done = match card.items.first() {
         Some(item) if card.kind != CardKind::Plan && is_download(item) => {
             prepare(ui, &item.key, &item.from)
         }
+        _ if card.kind == CardKind::Vocabulary => super::vocab::take_back(ui, after),
         _ if card.kind == CardKind::Plan => {
             let saved = if before.is_empty() {
                 Ok(())
             } else {
                 save(ui, before).map(|_| ())
-            };
+            }
+            .and_then(|()| super::vocab::take_back(ui, after));
             // The speech model it downloaded goes back to the one before.
             for item in &card.items {
                 if item.included && item.failed.is_none() && is_download(item) {

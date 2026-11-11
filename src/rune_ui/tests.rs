@@ -2908,6 +2908,8 @@ fn goldens() {
         "assistant-cards-prompt",
         "assistant-cards-prompt-edit",
         "assistant-applied",
+        "assistant-vocab-card",
+        "assistant-vocab-applied",
         "assistant-change-both",
         "assistant-change-coming",
         "assistant-setup-ask",

@@ -283,10 +283,10 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
             card,
         };
         let primary = newest == Some(at);
-        words = words.children(if turn.cards[card].kind == CardKind::Plan {
-            super::plan::view(ui, p, at, primary)
-        } else {
-            super::card::view(ui, p, at, primary)
+        words = words.children(match turn.cards[card].kind {
+            CardKind::Plan => super::plan::view(ui, p, at, primary),
+            CardKind::Vocabulary => super::vocab::view(ui, p, at, primary),
+            _ => super::card::view(ui, p, at, primary),
         });
     }
     for (number, refused) in turn.refused.iter().enumerate() {
