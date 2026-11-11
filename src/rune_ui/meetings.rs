@@ -1271,7 +1271,8 @@ fn transcript(ui: &Ui, p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
                 matches!(listened, Some((_, Some(_)))),
             );
             shown.pop();
-            let (key, words) = (format!("turn{index}"), turn_words(p, turn, listened));
+            let under = jump::underlines(p, mark);
+            let (key, words) = (format!("turn{index}"), turn_words(p, turn, listened, under));
             shown.push(jump::line(p, key, mark, (Some(head), None), words));
         }
         lines = lines.children(shown);
@@ -1318,7 +1319,7 @@ pub(super) fn turn_line(
                 matches!(listened, Some((_, Some(_)))),
             ))
             .child(
-                turn_words(p, turn, listened)
+                turn_words(p, turn, listened, Vec::new())
                     .key("text")
                     .font(p.k.ty.body)
                     .color(p.reading())
@@ -1334,14 +1335,15 @@ fn turn_words(
     p: Paint,
     turn: &Turn,
     listened: Option<(&super::playback::Of, Option<(u64, bool)>)>,
+    under: Vec<rune::Span>,
 ) -> El {
     match listened {
         Some((of, lit)) => {
             let times = (turn.start_ms, turn.end_ms);
             let words = (turn.text.clone(), turn.words.as_slice());
-            super::playback::meeting_turn(p, of, words, times, lit)
+            super::playback::meeting_turn(p, of, words, times, (lit, under))
         }
-        None => text(turn.text.clone()),
+        None => text(turn.text.clone()).spans(under),
     }
 }
 

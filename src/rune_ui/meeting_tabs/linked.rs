@@ -175,6 +175,7 @@ fn session(now: u64) -> Session {
         at_ms: now.saturating_sub(ago),
         offset_ms: (kind == Kind::Meeting).then_some(31_000),
         lines: Vec::new(),
+        notes: false,
     };
     let turn = FollowUp {
         question: "Как мы решили с логином на прошлых встречах?".into(),

@@ -116,10 +116,10 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
     let pane = &ui.assistant;
     let mut shown = Vec::new();
     if !turn.now.trim().is_empty() {
-        shown.push(super::recall::answer(p, &turn.now, None, false, false).key("now"));
+        shown.push(super::recall::answer(p, &turn.now, None, None, (false, false)).key("now"));
     }
     if !turn.since.trim().is_empty() {
-        shown.push(super::recall::answer(p, &turn.since, None, false, false).key("since"));
+        shown.push(super::recall::answer(p, &turn.since, None, None, (false, false)).key("since"));
     }
     if turn.asks.is_empty() {
         return shown;

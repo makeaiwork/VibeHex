@@ -184,6 +184,7 @@ mod tests {
                         end_ms: 52_000,
                         at: 120..190,
                     }],
+                    notes: false,
                 }],
                 steps: vec![
                     Step::Meetings {

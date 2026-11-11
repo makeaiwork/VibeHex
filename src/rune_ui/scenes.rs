@@ -709,6 +709,8 @@ pub(super) const SCENES: &[Scene] = &[
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
     ("assistant", assistant::fixture::conversation),
     ("assistant-answering", assistant::fixture::answering),
+    ("assistant-places", assistant::fixture::places),
+    ("assistant-place-opened", assistant::fixture::place_opened),
     ("assistant-start", assistant::fixture::start),
     ("assistant-connect", assistant::fixture::connect),
     ("assistant-settings", assistant::fixture::settings),
@@ -776,6 +778,14 @@ pub(super) const SCENES: &[Scene] = &[
             };
         }
     }),
+    (
+        "meetings-cited-notes",
+        assistant::fixture::meeting_notes_cited,
+    ),
+    (
+        "meetings-cited-long",
+        assistant::fixture::meeting_cited_long,
+    ),
     ("files-cited", assistant::fixture::file_cited),
     (
         "files-cited-listening",

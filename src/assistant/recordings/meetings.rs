@@ -96,7 +96,7 @@ pub(super) fn search(
             .map(crate::meeting::notes_markdown)
             .filter(|notes| !notes.trim().is_empty());
         if let Some(notes) = &notes {
-            push(None, "Notes", clip(notes, NOTES_CHARS), Vec::new());
+            push(None, super::NOTES, clip(notes, NOTES_CHARS), Vec::new());
         }
         // Its best passages, in the order they were said; a meeting
         // without notes or matches opens with its first words.

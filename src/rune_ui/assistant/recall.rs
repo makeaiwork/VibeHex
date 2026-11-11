@@ -18,13 +18,16 @@
 
 use std::rc::Rc;
 
-use rune::{El, Icon, LinkPaint, Span, Tx, col, el, icon, row, text};
+use rune::{Color, El, Icon, LinkPaint, Span, Tx, col, el, icon, row, text};
+use rune_kit::markdown::Highlight;
 
 use super::super::Ui;
 use super::super::controls::{ButtonKind, DESCRIPTION, Paint, button};
 use super::super::files::session;
 use super::super::sidebar::Pane;
 use super::face::Mood;
+use super::places::Known;
+use super::strong;
 use crate::assistant::intent;
 use crate::assistant::recordings::{Allowed, Kind, Ref, Sources, Step, cite};
 use crate::assistant::store::Turn;
@@ -475,34 +478,37 @@ pub(in super::super) fn steps_folded(
     Some(shown)
 }
 
-/// The answer, its `[n]` as small numbered marks that open their place.
-/// `from`: the conversation and turn it answers, once it is in.
+/// The answer, its `[n]` as small numbered marks that open their place,
+/// the places in the window it names in bold as links that open them
+/// (with `known`, once it is in), and its other bold words at full
+/// brightness. `from`: the conversation and turn it answers, once it is in.
 pub(super) fn answer(
     p: Paint,
     answer: &str,
     from: Option<(u32, usize)>,
-    muted: bool,
-    streaming: bool,
+    known: Option<&Known>,
+    (muted, streaming): (bool, bool),
 ) -> El {
     let open = from.map(|from| -> Open {
         Rc::new(move |ui: &mut Ui, n, mark, tx: &mut Tx| {
             super::jump::open(ui, from, n, mark, tx);
         })
     });
-    answer_with(p, answer, open, muted, streaming)
+    answer_with(p, answer, open, known, (muted, streaming))
 }
 
 /// Opens place `n` of one answer: the lines its `mark`-th `[n]` cites, or
 /// its first place for a chip.
 pub(in super::super) type Open = Rc<dyn Fn(&mut Ui, u32, Option<u32>, &mut Tx)>;
 
-/// An answer, its `[n]` as small numbered marks that `open` their place.
+/// An answer, its `[n]` as small numbered marks that `open` their place,
+/// and the places in the window it names in bold (with `known`) as links.
 pub(in super::super) fn answer_with(
     p: Paint,
     answer: &str,
     open: Option<Open>,
-    muted: bool,
-    streaming: bool,
+    known: Option<&Known>,
+    (muted, streaming): (bool, bool),
 ) -> El {
     let style = rune_kit::MarkdownStyle::from_kit(p.k)
         .body_font(p.k.ty.ui)
@@ -519,14 +525,55 @@ pub(in super::super) fn answer_with(
     };
     let hover = LinkPaint::new().bg(k.alpha(accent, 0.22));
     let ring = k.alpha(accent, 0.5);
-    rune_kit::Markdown::new(marked(answer))
+    let (source, names) = match known {
+        Some(known) => strong::linked(answer, |name| known.resolve(name).is_some()),
+        None => (answer.to_owned(), Vec::new()),
+    };
+    let source = marked(&source);
+    let bright = if muted {
+        Vec::new()
+    } else {
+        strong::bright(&source)
+    };
+    // A place reads in the link colour, underlined under the pointer.
+    let place = Span {
+        color: Some(accent),
+        ..Span::default()
+    };
+    let place_hover = LinkPaint::new().underline(accent);
+    let names: Rc<[String]> = names.into();
+    let named = names.clone();
+    rune_kit::Markdown::new(source)
         .style(style)
+        .highlights(bright.into_iter().map(|at| {
+            (
+                at,
+                Highlight::new().bg(Color::TRANSPARENT).fg(k.c.text_base),
+            )
+        }))
         .selectable(!streaming)
         .streaming(streaming)
         .tasks_read_only()
-        .link_style(move |url| url.starts_with(REF).then(|| (mark.clone(), hover)))
+        .link_style(move |url| {
+            if url.starts_with(REF) {
+                Some((mark.clone(), hover))
+            } else {
+                url.starts_with(strong::PLACE)
+                    .then(|| (place.clone(), place_hover))
+            }
+        })
         .link_ring(move |url| url.starts_with(REF).then_some((ring, 1.0)))
+        .link_help(move |url| {
+            let name = named.get(url.strip_prefix(strong::PLACE)?.parse::<usize>().ok()?)?;
+            Some(tr_fill("Open {}", name))
+        })
         .on_link_tx(move |ui: &mut Ui, url: &str, tx: &mut Tx| {
+            if let Some(n) = url.strip_prefix(strong::PLACE) {
+                if let Some(name) = n.parse::<usize>().ok().and_then(|n| names.get(n)) {
+                    super::places::open_named(ui, name, tx);
+                }
+                return;
+            }
             // `hex-ref:2.1`: the second of the answer's [2].
             let Some((n, mark)) = url.strip_prefix(REF).and_then(|id| id.split_once('.')) else {
                 return;

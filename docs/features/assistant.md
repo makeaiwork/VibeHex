@@ -27,7 +27,10 @@ Assistant                                        // rune_ui::assistant
 │   │           A failed answer says why and offers Try again.
 │   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
 │   │           the answer (a click lists the steps), [n] marks inline, and
-│   │           "From your recordings" chips (title, date, time)
+│   │           "From your recordings" chips (title, date, time).
+│   │           A place in the window named in bold (General › Vocabulary,
+│   │           Labs › Smart spacing, Output) reads in the link colour and
+│   │           opens it; other bold words are full-brightness text
 │   ├── Consent the first question about recordings, before anything is
 │   │           read: "Read your meetings, files, and dictations?", the model
 │   │           the passages go to, Allow or Answer without recordings
@@ -70,9 +73,19 @@ Opened from an answer                            // rune_ui::assistant::jump
 ├── Bar         an item cited more than once: "From the answer: <question>",
 │               "1 of 2", up and down between places, a cross to clear
 └── Place       tinted in the accent, round corners, the answer's [n] by the
-                speaker, the cited phrases lit inside; others cited fainter;
-                a third of the way down the pane. A dictation: its History
+                speaker; inside, the cited phrases at full strength over a
+                thin soft accent underline and the rest of the passage muted
+                (no fill behind the words; without
+                cited phrases the passage reads whole); others cited fainter;
+                the first cited words a third of the way down the pane,
+                however deep in a long passage. A dictation: its History
                 row tinted with the [n] before its title
+Opened from a place link                         // rune_ui::assistant::places
+├── Header      Back to Assistant (not on the Labs page)
+└── Titles      the section and row the path names, their words lit in
+                the accent; the deepest lands a third of the way down, its
+                Advanced fold opened when it is under one; a lab: Labs on
+                its group, its card's title lit. Lit until another pane
 ```
 
 ## Behaviour
@@ -95,6 +108,19 @@ Opened from an answer                            // rune_ui::assistant::jump
 - The face: pointed at, it blinks once (0.34 s); pressed, it squishes and
   springs back (0.46 s); while an answer comes its eyes read. Under Reduce
   Motion nothing moves and reading eyes rest to one side.
+
+- Places in answers (`rune_ui::assistant::strong`, `places`): a finished
+  answer's `**…**` that names a place becomes a link before it renders.
+  Names match the window's words, translated or English, ignoring case: the
+  shown panes, Labs and each lab's title, and the paths of the settings cards
+  know (`changes::names::WHERE`); a path resolves through its first part, a
+  pane's Settings view, then titles to light. A one-word name other than a
+  pane or a lab needs its path, and a name two places share stays bold.
+  Bold inside code, links, or with markup in it is left alone, and a draft
+  while it streams is not rewritten. Every other bold word, here and in
+  Files' and meetings' answers (`files::session::markdown`), is drawn in the
+  base text colour over the softer reading colour, as a highlight, so it
+  takes no hand cursor or Tab stop.
 
 ## Setting changes as cards
 
@@ -358,13 +384,19 @@ Opened from an answer                            // rune_ui::assistant::jump
   no valid lines tints its passage only. A turn keeps its steps, seconds,
   and these places.
 - A mark or chip opens its place (`jump`): a meeting on Transcript, the
-  passage tinted and exactly its cited phrases lit, until the person leaves
+  passage tinted and exactly its cited phrases bright over the rest of it
+  muted, until the person leaves
   the pane; a Files text on its Original the same way, also while Listen to
   the recording plays (the playing word underlined over the tint); a
   dictation selected in History, its row tinted with the [n]. The lit
   phrase lands about a third of the way down the pane, whatever its height
   (measured from the panel), stopping at the text's start and end. No
   searched words are lit. Several places of one item step through the bar.
+  A citation with no place of its own (an excerpt of a meeting's notes,
+  `Ref::notes`, or an item cited whole) makes no other place current: notes
+  open the meeting on Summary at its top, anything else opens the item at its
+  top; the item's other places stay faintly lit, nothing lands, and the bar
+  counts them without "1 of", its arrows starting at the first or the last.
   Back to Assistant and Cmd+[ (Ctrl+[) return to the conversation
   where it was scrolled; choosing another pane drops them. The mouse's back
   button doesn't yet (Rune gives other buttons only to elements that also
@@ -411,7 +443,7 @@ each with the parse it must make); scenes `assistant`,
 `assistant-answering`, `assistant-start`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
 `assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
-`files-cited`, `files-cited-listening`, `history-cited`, the cards'
+`meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`, the cards'
 `assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,
 `assistant-cards-prompt`, `assistant-cards-prompt-edit`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,

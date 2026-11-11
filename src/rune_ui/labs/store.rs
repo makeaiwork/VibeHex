@@ -362,7 +362,9 @@ fn card(ui: &Ui, p: Paint, entry: &Row, new: bool, featured: bool) -> El {
         .min_w(0.0)
         .gap(6.0)
         .center_y()
-        .child(
+        .child(super::super::assistant::places::lit(
+            p,
+            entry.title,
             text(entry.title)
                 .key("title")
                 .font(p.k.ty.ui_medium)
@@ -370,7 +372,7 @@ fn card(ui: &Ui, p: Paint, entry: &Row, new: bool, featured: bool) -> El {
                 .truncate()
                 .shrink()
                 .min_w(0.0),
-        )
+        ))
         .children(tags)
         .child(el().key("spacer").grow(1.0).min_w(8.0))
         .child(lab_switch(p, entry).key(row_key(lab)));

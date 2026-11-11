@@ -180,8 +180,13 @@ pub(in super::super) fn file_original(
                 let timed = timing::timed(&words, range.clone(), line_ms, &segment.words);
                 timing::heard_at(&timed, at).map(|word| lit(p, word, marked))
             })
-            .into_iter()
-            .collect();
+            .into_iter();
+        // The word playing over the cited phrases' underlines.
+        let under = marks.get(index).and_then(Option::as_ref);
+        let under = under
+            .map(|mark| jump::underlines(p, mark))
+            .unwrap_or_default();
+        let spans = under.into_iter().chain(spans).collect();
         let links: Vec<_> = ranges
             .iter()
             .map(|(range, segment)| (range.clone(), segment.start_ms))
@@ -272,16 +277,15 @@ pub(in super::super) fn meeting_turn(
     of: &Of,
     (words, starts): (String, &[u64]),
     (start_ms, end_ms): (u64, u64),
-    lit_now: Option<(u64, bool)>,
+    (lit_now, under): (Option<(u64, bool)>, Vec<Span>),
 ) -> El {
     let all = 0..words.len();
-    let spans = lit_now
-        .and_then(|(at, marked)| {
-            let timed = timing::timed(&words, all.clone(), (start_ms, end_ms), starts);
-            timing::heard_at(&timed, at).map(|word| lit(p, word, marked))
-        })
-        .into_iter()
-        .collect();
+    let playing = lit_now.and_then(|(at, marked)| {
+        let timed = timing::timed(&words, all.clone(), (start_ms, end_ms), starts);
+        timing::heard_at(&timed, at).map(|word| lit(p, word, marked))
+    });
+    // The word playing over the cited phrases' underlines.
+    let spans = under.into_iter().chain(playing).collect();
     linked(p, of, words, spans, [(all, start_ms)])
 }
 

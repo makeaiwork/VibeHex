@@ -69,3 +69,45 @@ fn the_cited_place_lands_a_third_of_the_way_down() {
         );
     }
 }
+
+/// Deep inside a passage longer than the pane, the first cited words land
+/// a third of the way down, not the passage's top.
+#[test]
+fn a_long_passage_lands_on_its_cited_words_not_its_top() {
+    let mut state = Ui::with(AppSettings::default(), Service::Fixture(Vec::new()));
+    assistant::fixture::meeting_cited_long(&mut state);
+    let mut rt = runtime_for(state, true, (980.0, 760.0));
+    settle(&mut rt);
+    let panel = element(&rt, "panel").rect;
+    let (_, y) = rt.find("cited-now").expect("the cited words are lit");
+    let down = (y - panel[1]) / panel[3];
+    assert!(
+        (0.2..0.45).contains(&down),
+        "lit words {down:.2} of the way down"
+    );
+    let top = element(&rt, "turn4").rect[1];
+    assert!(top < panel[1], "the passage starts above the pane ({top})");
+}
+
+/// [1] cited the meeting's notes: the meeting opens on Summary at its
+/// top, and neither of the transcript's places is current.
+#[test]
+fn a_citation_of_notes_opens_them_with_nothing_current() {
+    let mut state = Ui::with(AppSettings::default(), Service::Fixture(Vec::new()));
+    assistant::fixture::meeting_notes_cited(&mut state);
+    assert_eq!(state.pane, Pane::Meetings);
+    assert_eq!(
+        state.meetings.tab,
+        Some(crate::rune_ui::meeting_tabs::MeetingTab::Summary)
+    );
+    let cited = state
+        .came_from
+        .as_ref()
+        .and_then(|from| from.cited.as_ref());
+    let cited = cited.expect("the answer's places in the meeting");
+    assert_eq!((cited.places.len(), cited.current), (2, None));
+    let mut rt = runtime_for(state, true, (980.0, 760.0));
+    settle(&mut rt);
+    assert!(rt.find("cited-now").is_none(), "nothing lands");
+    assert!(rt.find("turn0").is_none(), "the transcript stays shut");
+}

@@ -157,7 +157,7 @@ pub(in super::super) fn answer(
             .font(p.k.ty.ui)
             .color(p.faint())
     } else {
-        recall::answer_with(p, answered.answer, Some(open.clone()), false, false)
+        recall::answer_with(p, answered.answer, Some(open.clone()), None, (false, false))
     };
     let chips = recall::chips_with(
         p,
@@ -207,8 +207,8 @@ pub(in super::super) fn coming(p: Paint, task: &Task) -> Option<Vec<El>> {
             p,
             &format!("{draft}▌"),
             None,
-            true,
-            true,
+            None,
+            (true, true),
         ));
     }
     Some(shown)
