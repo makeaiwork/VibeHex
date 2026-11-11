@@ -492,6 +492,10 @@ fn every_rule_resolves_to_a_valid_change() {
         for language in ["ru", "en", "ru_tech", "mixed"] {
             for cleanup in ["local", "codex", "opencode", "openrouter", "custom", "none"] {
                 for notes in ["codex", "local", "apple", "opencode"] {
+                    // Apple Intelligence is offered on a Mac only.
+                    if notes == "apple" && !cfg!(target_os = "macos") {
+                        continue;
+                    }
                     let answers = vec![
                         answer(
                             "use",
