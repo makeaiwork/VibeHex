@@ -190,6 +190,10 @@ topic coming back, a decision that changed, one thing leading to another), and n
 [2.3], or a run of lines, [2.3-2.5]; an excerpt without numbered lines by its number, [1]. \
 Cite the fewest lines that say it, only ids in the block. No Sources line entry for them.
 - When the excerpts don't hold the answer, say so plainly. Never guess what was said.
+- When the latest question refers back (answer the earlier question, more, the others), the \
+excerpts were found again for the earlier question about recordings: answer that from them. \
+While this block is here you can read their recordings; if an earlier answer said you \
+couldn't, it was wrong.
 - Times are the person's local time; the block says when now is.";
 
 const DECLINED: &str = "

@@ -602,3 +602,76 @@ fn the_eval_finds_what_each_question_is_about() {
         assert_eq!(intent::read(question, now()), None, "{question} would ask");
     }
 }
+
+/// Follow-ups that only refer back: the earlier question, the follow-up,
+/// and what it should read again.
+const FOLLOW_UPS: &[(&str, &str, &[&str])] = &[
+    (
+        "А можешь найти последние мои диктовки, где я говорил о VibeHex?",
+        "А можешь ответить также на последний вопрос, который я задал?",
+        &["dictation:15", "dictation:11"],
+    ),
+    (
+        "Summarize my calls with Anna last week",
+        "and the other ones?",
+        &["meeting:sync-anna", "meeting:pricing-anna"],
+    ),
+    (
+        "Что мы решили по бюджету на встречах в ноябре?",
+        "Подробнее",
+        &["meeting:budget-q1"],
+    ),
+    (
+        "What did I dictate to Oleg?",
+        "Answer my last question",
+        &["dictation:2"],
+    ),
+];
+
+#[test]
+fn the_eval_follows_a_follow_up_back() {
+    for (asked, follow_up, want) in FOLLOW_UPS {
+        assert_eq!(intent::read(follow_up, now()), None, "{follow_up} alone");
+        let intent = intent::carried(follow_up, &[asked], now())
+            .unwrap_or_else(|| panic!("{follow_up} after {asked}"));
+        let found = search(
+            &allowed(),
+            &fixtures(),
+            &intent,
+            &[],
+            Budget::LARGE,
+            now(),
+            &mut |_| {},
+        );
+        for id in *want {
+            let (kind, slug) = id.split_once(':').unwrap();
+            assert!(
+                found.excerpts.iter().any(|excerpt| {
+                    let kind_matches = match excerpt.kind {
+                        Kind::Meeting => kind == "meeting",
+                        Kind::File => kind == "file",
+                        Kind::Dictation => kind == "dictation",
+                    };
+                    kind_matches
+                        && (excerpt.id == slug || excerpt.id.ends_with(&format!("-{slug}")))
+                }),
+                "{follow_up} after {asked}: {id}"
+            );
+        }
+    }
+    // After a guide question, or asked first, a follow-up stays with the guide.
+    for question in GUIDE {
+        for follow_up in ["Answer my last question", "ещё", "Подробнее"] {
+            assert_eq!(
+                intent::carried(follow_up, &[question], now()),
+                None,
+                "{follow_up} after {question}"
+            );
+        }
+        assert_eq!(
+            intent::carried(question, &[FOLLOW_UPS[0].0], now()),
+            None,
+            "{question} after a recordings question"
+        );
+    }
+}

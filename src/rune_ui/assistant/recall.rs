@@ -43,10 +43,25 @@ static LOCK: Icon = Icon {
 };
 
 /// What `question` may read. `None`: it is about the person's recordings
-/// and they haven't allowed reading them, so the card asks first.
+/// and they haven't allowed reading them, so the card asks first. A
+/// follow-up that only refers back ("ответь на последний вопрос", "tell me
+/// more") reads what the conversation's last question about recordings did.
 pub(super) fn recall(ui: &mut Ui, conversation: u32, question: &str) -> Option<Recall> {
     let now = ui.assistant.now_ms();
-    let Some(intent) = intent::read(question, now) else {
+    let earlier: Vec<String> = ui
+        .assistant
+        .store
+        .get(conversation)
+        .map(|conversation| {
+            conversation
+                .turns
+                .iter()
+                .map(|turn| turn.question.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+    let earlier: Vec<&str> = earlier.iter().map(String::as_str).collect();
+    let Some(intent) = intent::carried(question, &earlier, now) else {
         return Some(Recall::Guide);
     };
     match Allowed::from_settings(&ui.settings.assistant) {

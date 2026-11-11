@@ -209,6 +209,12 @@ Opened from an answer                            // rune_ui::assistant::jump
   "что я диктовал вчера"). A question that only may be
   about recordings searches them (once allowed) and goes to the guide when
   nothing matches.
+- A follow-up that only refers back ("ответь на последний вопрос", «а там
+  ещё что-то?», "tell me more", "and the other ones") carries the newest
+  earlier question's intent, past other follow-ups (`intent::carried`): the
+  search runs again for that question, and the prompt tells the model the
+  excerpts answer it. One naming something new, asking how VibeHex works,
+  or following a guide question stays with the guide.
 - While `assistant.read_recordings` is not `true` such a question shows the
   consent card first; nothing is read. Allow sets it and asks; Answer
   without recordings answers from the guide, telling the model it may not
@@ -266,8 +272,9 @@ Opened from an answer                            // rune_ui::assistant::jump
   texts, fifteen dictations, ten naming VibeHex, half in Cyrillic), 28 questions with expected recordings (recall
   must stay at 90% or more, now 100%), 8 questions whose cited line must be
   offered and map to its time (now 8 of 8; word-timed, segment-only, and
-  Files transcripts), and 13 guide questions that must not route
-  (`scripts/check assistant::recordings`).
+  Files transcripts), 13 guide questions that must not route, and 4
+  follow-ups that must read the earlier question's recordings again (the
+  guide questions, followed up, must not; `scripts/check assistant::recordings`).
 
 ## Settings keys
 

@@ -15,11 +15,13 @@
 //! Times are read against a `now` passed in, in local time.
 
 mod day;
+mod follow;
 mod setup;
 mod spoken;
 mod stop;
 
 use day::{Day, span};
+pub use follow::carried;
 pub use setup::setup;
 pub use spoken::forms as spoken_forms_of;
 use stop::STOP;
