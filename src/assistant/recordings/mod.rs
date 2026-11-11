@@ -42,6 +42,9 @@ pub struct Sources {
     meetings: PathBuf,
     history: PathBuf,
     files: PathBuf,
+    /// The recording a question was asked about, which the search leaves
+    /// out: its own text is read already (a meeting's or a file's Requests).
+    except: Option<(Kind, String)>,
 }
 
 impl Sources {
@@ -52,7 +55,24 @@ impl Sources {
             meetings: crate::meeting::root().ok()?,
             history: support.join("history.json"),
             files: support.join("files"),
+            except: None,
         })
+    }
+
+    /// The same, leaving out recording `id` of `kind`.
+    pub fn without(self, kind: Kind, id: &str) -> Self {
+        Self {
+            except: Some((kind, id.to_owned())),
+            ..self
+        }
+    }
+
+    /// The id left out of `kind`'s, if one is.
+    fn except(&self, kind: Kind) -> Option<&str> {
+        self.except
+            .as_ref()
+            .filter(|(left, _)| *left == kind)
+            .map(|(_, id)| id.as_str())
     }
 
     /// The same layout under `root`, for tests.
@@ -62,6 +82,7 @@ impl Sources {
             meetings: root.join("meetings"),
             history: root.join("history.json"),
             files: root.join("files"),
+            except: None,
         }
     }
 }
@@ -309,8 +330,14 @@ pub fn search(
     let query = spoken::query(intent, vocabulary);
     let mut excerpts = Vec::new();
     if intent.kinds.meetings {
-        let (searched, picked) =
-            meetings::search(&sources.meetings, intent, &query, budget, now_ms);
+        let (searched, picked) = meetings::search(
+            &sources.meetings,
+            sources.except(Kind::Meeting),
+            intent,
+            &query,
+            budget,
+            now_ms,
+        );
         let read = picked
             .iter()
             .map(|excerpt| &excerpt.id)
@@ -339,7 +366,13 @@ pub fn search(
         excerpts.extend(picked);
     }
     if intent.kinds.files {
-        let (searched, picked) = texts::files(&sources.files, intent, &query, budget);
+        let (searched, picked) = texts::files(
+            &sources.files,
+            sources.except(Kind::File),
+            intent,
+            &query,
+            budget,
+        );
         let read = distinct(&picked);
         record(
             &mut found,
@@ -351,7 +384,13 @@ pub fn search(
         excerpts.extend(picked);
     }
     if intent.kinds.dictations {
-        let (searched, picked) = texts::dictations(&sources.history, intent, &query, budget);
+        let (searched, picked) = texts::dictations(
+            &sources.history,
+            sources.except(Kind::Dictation),
+            intent,
+            &query,
+            budget,
+        );
         let read = picked.len();
         record(
             &mut found,

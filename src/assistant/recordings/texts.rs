@@ -15,9 +15,10 @@ const STRETCH_CHARS: usize = 1_200;
 
 /// How many Files records were in range, and the excerpts of those read:
 /// for each, its best stretches of the transcript, segment by segment, with
-/// their times.
+/// their times. `except` is never read.
 pub(super) fn files(
     dir: &Path,
+    except: Option<&str>,
     intent: &Intent,
     query: &Query,
     budget: Budget,
@@ -25,7 +26,7 @@ pub(super) fn files(
     // Newest first, as Files lists them.
     let records: Vec<FileRecord> = crate::files::store::list_in(dir)
         .into_iter()
-        .filter(|record| within(intent, record.added_ms))
+        .filter(|record| within(intent, record.added_ms) && Some(record.id.as_str()) != except)
         .filter(|record| !record.versions.is_empty())
         .collect();
     let searched = records.len();
@@ -133,9 +134,10 @@ pub(super) fn files(
     (searched, excerpts)
 }
 
-/// How many dictations were in range, and the ones read.
+/// How many dictations were in range, and the ones read; `except` never.
 pub(super) fn dictations(
     path: &Path,
+    except: Option<&str>,
     intent: &Intent,
     query: &Query,
     budget: Budget,
@@ -143,7 +145,9 @@ pub(super) fn dictations(
     let Ok(mut entries) = crate::history::read_snapshot(path) else {
         return (0, Vec::new());
     };
-    entries.retain(|entry| within(intent, entry.timestamp_ms));
+    entries.retain(|entry| {
+        within(intent, entry.timestamp_ms) && except != Some(entry.id.to_string().as_str())
+    });
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp_ms));
     // Every dictation in range is searched; "the last few" are the newest
     // of those that match, not the newest few searched.

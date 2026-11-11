@@ -217,6 +217,34 @@ This question seems to be about the person's own meetings, files, or dictations,
 cannot read: they haven't allowed it. Say so in one sentence, and that Assistant › Settings › \
 Your meetings, files, and dictations allows it; then answer what the guide covers, if anything.";
 
+const LINKED: &str = "The person's question also reaches past this text, to their OTHER \
+recordings. The <other_recordings> block holds numbered excerpts from them, found on their \
+computer for this question: other meetings (notes and passages, Me is the person, Them the \
+others), Files texts, and dictations. A transcript excerpt has one numbered line per phrase: \
+[2.3] is line 3 of excerpt 2.
+- Answer from the text first. Where the question reaches past it, bring the excerpts in: say \
+which recording each fact is from and when, and how they connect with this text (the same \
+topic coming back, a decision that changed, one thing leading to another).
+- Cite every fact from an excerpt right after it, in square brackets: the lines that say it, \
+like [2.3], or a run of lines, [2.3-2.5]; an excerpt without numbered lines by its number, \
+[1]. Only ids in the block. Facts from this text keep their times as before, never a bracket.
+- When neither this text nor the excerpts hold the answer, say so plainly. Never guess what \
+was said.
+- Times are the person's local time; the block says when now is.";
+
+/// What a question in Requests is told when it reaches past its text and
+/// the person said not now to reading their other recordings.
+pub const LINKED_DECLINED: &str = "The question may be about the person's other meetings, \
+files, or dictations, which you cannot read: they said not now. Say so in one short sentence, \
+then answer from this text alone.";
+
+/// What a question in a meeting's or a file's Requests adds when it reaches
+/// past its own text: how to use and cite the other recordings `found`,
+/// and the block of them, numbered as the Assistant numbers its excerpts.
+pub fn linked(found: &Found, now_ms: u64) -> String {
+    format!("{LINKED}\n{}", tagged("other_recordings", found, now_ms))
+}
+
 /// The prompt for `question` after `earlier` turns, oldest first. With
 /// `changes`, the model may suggest setting changes from the catalog; a
 /// setup `stage` asks for its questions or its plan instead.
@@ -377,7 +405,12 @@ fn excerpt(article: &Article) -> String {
 
 /// The excerpts as the model reads them: `[n]`, what and when, the text.
 fn recordings_block(found: &Found, now_ms: u64) -> String {
-    let mut block = format!("\n<recordings now=\"{}\">\n", stamp(now_ms));
+    tagged("recordings", found, now_ms)
+}
+
+/// The excerpts in a `<tag>` block.
+fn tagged(tag: &str, found: &Found, now_ms: u64) -> String {
+    let mut block = format!("\n<{tag} now=\"{}\">\n", stamp(now_ms));
     if found.excerpts.is_empty() {
         block.push_str("Nothing in the recordings matches this question.\n");
     }
@@ -392,7 +425,7 @@ fn recordings_block(found: &Found, now_ms: u64) -> String {
         }
         block.push('\n');
     }
-    block.push_str("</recordings>\n");
+    block.push_str(&format!("</{tag}>\n"));
     block
 }
 
@@ -727,6 +760,12 @@ mod tests {
         assert!(block.contains(", Notes\nApproved.\n"));
         assert!(block.contains(", Them\n[2.1] So.\n[2.2] The limit holds.\n"));
         assert!(!block.contains("So. The limit holds."));
+        // Requests read the same excerpts as other recordings.
+        let linked = linked(&found, 0);
+        assert!(linked.contains("OTHER recordings"));
+        assert!(linked.contains("<other_recordings now="));
+        assert!(linked.contains("[2.2] The limit holds.\n"));
+        assert!(linked.trim_end().ends_with("</other_recordings>"));
     }
 
     fn context(send: bool) -> changes::Context {

@@ -675,3 +675,72 @@ fn the_eval_follows_a_follow_up_back() {
         );
     }
 }
+
+/// A question in one meeting's Requests reads the others, never itself.
+#[test]
+fn a_search_from_one_recording_leaves_it_out() {
+    let question = "Что мы решили по бюджету на встречах в ноябре?";
+    let intent = intent::read(question, now()).unwrap();
+    let all = found(question, Budget::LARGE);
+    let budget = all
+        .excerpts
+        .iter()
+        .find(|excerpt| excerpt.id.ends_with("budget-q1"))
+        .expect("the budget meeting matches")
+        .id
+        .clone();
+    let without = search(
+        &allowed(),
+        &fixtures().without(Kind::Meeting, &budget),
+        &intent,
+        &[],
+        Budget::LARGE,
+        now(),
+        &mut |_| {},
+    );
+    assert!(!without.excerpts.is_empty());
+    assert!(without.excerpts.iter().all(|excerpt| excerpt.id != budget));
+    // Only a meeting's own id is left out: a file of that id would stay.
+    let file = fixtures().without(Kind::File, &budget);
+    assert_eq!(file.except(Kind::Meeting), None);
+}
+
+/// "На прошлых встречах", asked of the design review: the meetings before
+/// it that match, never the review itself.
+#[test]
+fn the_previous_meetings_are_those_before_this_one() {
+    let item = intent::beyond::Item {
+        kind: Kind::Meeting,
+        start_ms: 1_795_512_600_000,
+        end_ms: 1_795_512_600_000 + 1_800_000,
+        title: "Design review",
+        text: "Design review",
+    };
+    let intent = intent::beyond::read(
+        "Что мы решили по бюджету на прошлых встречах?",
+        &item,
+        now(),
+    )
+    .unwrap();
+    assert!(intent.sure && intent.kinds.meetings && !intent.kinds.dictations);
+    let found = search(
+        &allowed(),
+        &fixtures().without(Kind::Meeting, "1795512600000-design"),
+        &intent,
+        &[],
+        Budget::LARGE,
+        now(),
+        &mut |_| {},
+    );
+    assert!(
+        found
+            .excerpts
+            .iter()
+            .any(|excerpt| excerpt.id.ends_with("budget-q1"))
+    );
+    assert!(found.excerpts.iter().all(|excerpt| {
+        excerpt.kind == Kind::Meeting
+            && excerpt.at_ms < item.start_ms
+            && !excerpt.id.ends_with("design")
+    }));
+}

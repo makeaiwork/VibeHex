@@ -17,9 +17,11 @@ use crate::meeting::query::{Library, Meeting, search_passages};
 const NOTES_CHARS: usize = 1_500;
 const PASSAGE_CHARS: usize = 600;
 
-/// How many meetings were in range, and the excerpts of those read.
+/// How many meetings were in range, and the excerpts of those read;
+/// `except` is never read.
 pub(super) fn search(
     root: &Path,
+    except: Option<&str>,
     intent: &Intent,
     query: &Query,
     budget: Budget,
@@ -33,7 +35,7 @@ pub(super) fn search(
     let candidates: Vec<Arc<Meeting>> = scan
         .meetings
         .into_iter()
-        .filter(|meeting| !meeting.in_progress)
+        .filter(|meeting| !meeting.in_progress && Some(meeting.id.as_str()) != except)
         .filter(|meeting| overlaps(intent, meeting, now_ms))
         .collect();
     let searched = candidates.len();
