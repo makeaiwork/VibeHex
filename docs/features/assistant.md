@@ -156,9 +156,12 @@ Opened from an answer                            // rune_ui::assistant::jump
 ## Guided setup
 
 - "Помоги мне настроить VibeHex под меня", "Set VibeHex up for me", "What
-  should I turn on?" (`assistant::intent::setup`: a setting-up verb with
-  only small words around it, or asking what to turn on) start guided
-  setup; "Как настроить горячую клавишу?" stays a guide question.
+  should I turn on?", "Which Labs features are worth turning on for me?",
+  «Какие Labs мне стоит включить?», «Что посоветуешь настроить?»
+  (`assistant::intent::setup`: a setting-up verb with only small words
+  around it, or asking which ones to turn on or set up for them) start
+  guided setup; "Как настроить горячую клавишу?" and "What does Labs › Live
+  text turn on?" stay guide questions.
 - Three questions, with fixed ids (`assistant::setup`): `use` (several:
   `dictation_any`, `dictation_code`, `meetings`, `files`), `language`
   (`ru`, `en`, `mixed`), and `cloud` (`chatgpt`, `this_mac` ("Only on this
