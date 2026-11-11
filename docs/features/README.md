@@ -61,7 +61,9 @@ models another app already downloaded.
 source and developer.
 [Assistant](assistant.md) (every OS, on by default and not in Labs) answers
 questions about VibeHex from its guide, in a chat at the sidebar's bottom,
-and, once allowed, about the person's meetings, Files texts, and dictations.
+and, once allowed, about the person's meetings, Files texts, and dictations;
+a meeting's or a file's Requests is the Assistant tied to that item, and a
+question there that reaches past it reads the other recordings the same way.
 An answer may suggest setting changes and vocabulary terms as cards; nothing
 changes until the person presses one, and then only through the check
 `hex settings` uses (terms through `hex vocabulary add`'s). "Set VibeHex up

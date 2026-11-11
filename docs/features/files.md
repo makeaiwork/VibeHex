@@ -204,6 +204,14 @@ Sources: [files/playback.rs](../../src/files/playback.rs),
 `a_cleanups_sentences_are_links_from_their_first_word`; scenes
 `files-playback`, `files-playback-folded`, `files-playback-cleanup`.
 
+A request or follow-up that reaches past the file ("as in my previous
+interviews", «что я говорил об этом на встречах?») reads the person's other
+recordings as a meeting's Requests does (Meetings › Questions Past The
+Meeting): the consent card over the field (a new request) or in the chat, the
+steps, the folded grey line, [n] marks and chips, Back to Requests to this
+session. This file is left out of the search; the version and each follow-up
+keep `refs` and `steps`.
+
 Records: `<support>/files/<id>.json`, owner-only, one per file (name, path,
 length, versions with segments, model, window, parts, edited, note closed).
 Only the path is kept, never a copy of the file. No retention or caps: a file
@@ -214,7 +222,8 @@ Checks: `files::store`, `files::text`, `files::rewrite`
 three-step fake generator and its drafts, a draft's tail),
 `dictation::cleanup_server` (a streamed answer's text so far),
 `files::worker` (tab names), `files::requests` (a stop keeps what came, a
-follow-up carries the session); scenes `files`, `files-session` (a session on
+follow-up carries the session), `files::linked` (an answer keeps the places
+it cites); scenes `files`, `files-session` (a session on
 Codex with a follow-up streaming),
 `files-working`, `files-original`, `files-summary`, `files-versions` (the
 open tab's list), `files-more` (the … menu), `files-again` (Transcribe

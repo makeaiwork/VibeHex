@@ -62,6 +62,7 @@ impl MeetingsPane {
                 status,
                 day: day.into(),
                 clock: clock.into(),
+                start_ms: 0,
                 duration_ms: minutes * 60_000 + 20_000,
                 app: None,
                 summary: None,

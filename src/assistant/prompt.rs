@@ -79,6 +79,11 @@ are steps. No preamble.
 do something.
 - Use only the excerpts. When they don't answer the question, say the guide doesn't cover \
 it. Never invent settings, keys, buttons, or menus.
+- When the best choice depends on how the person uses VibeHex (Russian full of English \
+terms or plain Russian, say), ask one short question or name both cases instead of \
+recommending one.
+- Never suggest replacing a setting with one that is worse for what their settings show: \
+with Russian vibe coding on they dictate English terms in Russian, so not GigaAM v3.
 - You never change settings yourself; say where the person changes them.
 - For questions that are not about VibeHex, say in one sentence that you help with VibeHex.
 - End with one last line: `Sources:` and the ids of the articles you used, comma-separated \
@@ -115,6 +120,15 @@ per term in one block, after your answer, before the Sources line:
 - `term` spelled as it should be written; `sounds_like`: up to 5 ways a transcript gets it \
 wrong, in the language they speak. At most 8 terms, only ones the question is about.
 - You never see their vocabulary: the app leaves out a term it has.";
+
+/// With the person's settings sent: answers for them, not for anyone.
+const PERSONAL: &str = "
+
+The now column of <changeable_settings> shows the person's own settings. Answer for them:
+- A feature that does what they ask and is on comes first: say they have it on and how to \
+use it, with their own value as the now column shows it (their shortcut, not the default).
+- One that would help and is off: say what it does and offer it with a card.
+- What doesn't fit their setup (another system, a model they don't use) goes last or not at all.";
 
 /// Guided setup, a typed request: round one's four questions, in the
 /// message's language, as option chips the app preselects.
@@ -229,6 +243,10 @@ topic coming back, a decision that changed, one thing leading to another), and n
 [2.3], or a run of lines, [2.3-2.5]; an excerpt without numbered lines by its number, [1]. \
 Cite the fewest lines that say it, only ids in the block. No Sources line entry for them.
 - When the excerpts don't hold the answer, say so plainly. Never guess what was said.
+- When the latest question refers back (answer the earlier question, more, the others), the \
+excerpts were found again for the earlier question about recordings: answer that from them. \
+While this block is here you can read their recordings; if an earlier answer said you \
+couldn't, it was wrong.
 - Times are the person's local time; the block says when now is.";
 
 const DECLINED: &str = "
@@ -236,6 +254,34 @@ const DECLINED: &str = "
 This question seems to be about the person's own meetings, files, or dictations, which you \
 cannot read: they haven't allowed it. Say so in one sentence, and that Assistant › Settings › \
 Your meetings, files, and dictations allows it; then answer what the guide covers, if anything.";
+
+const LINKED: &str = "The person's question also reaches past this text, to their OTHER \
+recordings. The <other_recordings> block holds numbered excerpts from them, found on their \
+computer for this question: other meetings (notes and passages, Me is the person, Them the \
+others), Files texts, and dictations. A transcript excerpt has one numbered line per phrase: \
+[2.3] is line 3 of excerpt 2.
+- Answer from the text first. Where the question reaches past it, bring the excerpts in: say \
+which recording each fact is from and when, and how they connect with this text (the same \
+topic coming back, a decision that changed, one thing leading to another).
+- Cite every fact from an excerpt right after it, in square brackets: the lines that say it, \
+like [2.3], or a run of lines, [2.3-2.5]; an excerpt without numbered lines by its number, \
+[1]. Only ids in the block. Facts from this text keep their times as before, never a bracket.
+- When neither this text nor the excerpts hold the answer, say so plainly. Never guess what \
+was said.
+- Times are the person's local time; the block says when now is.";
+
+/// What a question in Requests is told when it reaches past its text and
+/// the person said not now to reading their other recordings.
+pub const LINKED_DECLINED: &str = "The question may be about the person's other meetings, \
+files, or dictations, which you cannot read: they said not now. Say so in one short sentence, \
+then answer from this text alone.";
+
+/// What a question in a meeting's or a file's Requests adds when it reaches
+/// past its own text: how to use and cite the other recordings `found`,
+/// and the block of them, numbered as the Assistant numbers its excerpts.
+pub fn linked(found: &Found, now_ms: u64) -> String {
+    format!("{LINKED}\n{}", tagged("other_recordings", found, now_ms))
+}
 
 /// The prompt for `question` after `earlier` turns, oldest first. With
 /// `changes`, the model may suggest setting changes from the catalog; a
@@ -278,6 +324,9 @@ pub fn build(
             && !since.trim().is_empty()
         {
             instructions.push_str(SETUP_SINCE);
+        }
+        if context.send && !plan {
+            instructions.push_str(PERSONAL);
         }
         let reading = catalog::Reading {
             // A plan reads every key, whatever the room.
@@ -412,7 +461,12 @@ fn excerpt(article: &Article) -> String {
 
 /// The excerpts as the model reads them: `[n]`, what and when, the text.
 fn recordings_block(found: &Found, now_ms: u64) -> String {
-    let mut block = format!("\n<recordings now=\"{}\">\n", stamp(now_ms));
+    tagged("recordings", found, now_ms)
+}
+
+/// The excerpts in a `<tag>` block.
+fn tagged(tag: &str, found: &Found, now_ms: u64) -> String {
+    let mut block = format!("\n<{tag} now=\"{}\">\n", stamp(now_ms));
     if found.excerpts.is_empty() {
         block.push_str("Nothing in the recordings matches this question.\n");
     }
@@ -427,7 +481,7 @@ fn recordings_block(found: &Found, now_ms: u64) -> String {
         }
         block.push('\n');
     }
-    block.push_str("</recordings>\n");
+    block.push_str(&format!("</{tag}>\n"));
     block
 }
 
@@ -525,6 +579,32 @@ fn without_open_citation(reply: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// "Which speech model is best for Russian?" depends on how they speak:
+    /// the article names both cases, and the model is told to ask or name
+    /// both, and never to trade a model for a worse one for their settings.
+    #[test]
+    fn a_choice_that_depends_on_how_they_work_is_asked_or_named_both_ways() {
+        for room in [Room::Small, Room::Large] {
+            let prompt = build(
+                "Which speech model is best for Russian?",
+                &[],
+                room,
+                Reach::Guide,
+                None,
+                &Stage::None,
+            );
+            assert_eq!(prompt.articles.first(), Some(&"topics/speech-models"));
+            assert!(prompt.input.contains("Russian with English tech terms"));
+            assert!(prompt.input.contains("GigaAM v3 only for"));
+            assert!(
+                prompt
+                    .instructions
+                    .contains("ask one short question or name both cases")
+            );
+            assert!(prompt.instructions.contains("so not GigaAM v3"));
+        }
+    }
 
     #[test]
     fn a_question_carries_the_contents_and_the_articles_search_found() {
@@ -736,6 +816,12 @@ mod tests {
         assert!(block.contains(", Notes\nApproved.\n"));
         assert!(block.contains(", Them\n[2.1] So.\n[2.2] The limit holds.\n"));
         assert!(!block.contains("So. The limit holds."));
+        // Requests read the same excerpts as other recordings.
+        let linked = linked(&found, 0);
+        assert!(linked.contains("OTHER recordings"));
+        assert!(linked.contains("<other_recordings now="));
+        assert!(linked.contains("[2.2] The limit holds.\n"));
+        assert!(linked.trim_end().ends_with("</other_recordings>"));
     }
 
     fn context(send: bool) -> changes::Context {
@@ -744,6 +830,41 @@ mod tests {
             send,
             state: catalog::State::default(),
         }
+    }
+
+    /// With the person's settings sent, the model is told to answer for
+    /// them: what is on first, with their own shortcut; what is off as a
+    /// card. "Some words come out wrong" reads the quick-add article.
+    #[test]
+    fn with_settings_sent_an_answer_is_for_the_person() {
+        let question = "Some words come out wrong. How do I fix that?";
+        let sent = build(
+            question,
+            &[],
+            Room::Large,
+            Reach::Guide,
+            Some(&context(true)),
+            &Stage::None,
+        );
+        assert!(sent.instructions.contains("Answer for them"));
+        assert!(
+            sent.instructions
+                .contains("their shortcut, not the default")
+        );
+        assert!(
+            sent.articles.contains(&"labs/vocabulary-quick-add"),
+            "{:?}",
+            sent.articles
+        );
+        let unsent = build(
+            question,
+            &[],
+            Room::Large,
+            Reach::Guide,
+            Some(&context(false)),
+            &Stage::None,
+        );
+        assert!(!unsent.instructions.contains("Answer for them"));
     }
 
     /// With changes on, the model reads how to write them and the

@@ -6,7 +6,8 @@ use crate::assistant::prompt::{Reach, Room, build};
 use crate::assistant::setup::Stage;
 
 /// The eval's recordings: ten meetings in October and November 2026, three
-/// Files texts, five dictations.
+/// Files texts, fifteen dictations (ten in November naming VibeHex, half
+/// of them as speech recognition writes it in Cyrillic, or not at all).
 fn fixtures() -> Sources {
     Sources::at(
         &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/assistant/recordings"),
@@ -28,7 +29,15 @@ fn allowed() -> Allowed {
 
 fn found(question: &str, budget: Budget) -> Found {
     let intent = intent::read(question, now()).unwrap_or_else(|| panic!("{question}"));
-    search(&allowed(), &fixtures(), &intent, budget, now(), &mut |_| {})
+    search(
+        &allowed(),
+        &fixtures(),
+        &intent,
+        &[],
+        budget,
+        now(),
+        &mut |_| {},
+    )
 }
 
 /// The recordings `question` reads, as `meeting:<slug>`, `file:<slug>`, or
@@ -209,6 +218,7 @@ fn the_search_reports_its_steps_as_it_goes() {
         &allowed(),
         &fixtures(),
         &intent,
+        &[],
         Budget::LARGE,
         now(),
         &mut |step| seen.push(step.clone()),
@@ -223,6 +233,78 @@ fn the_search_reports_its_steps_as_it_goes() {
         "three meetings last week, two with Anna"
     );
     assert!(matches!(seen[1], Step::Read { notes: 2, .. }));
+}
+
+/// The dictations `question` reads, by id, in the order read.
+fn dictations_read(question: &str) -> (Vec<String>, Vec<Step>) {
+    let found = found(question, Budget::LARGE);
+    let ids = found
+        .excerpts
+        .iter()
+        .filter(|excerpt| excerpt.kind == Kind::Dictation)
+        .map(|excerpt| excerpt.id.clone())
+        .collect();
+    (ids, found.steps)
+}
+
+#[test]
+fn the_last_few_that_match_are_the_newest_matches_of_all() {
+    let (ids, steps) =
+        dictations_read("А можешь найти последние мои диктовки, где я говорил о VibeHex?");
+    assert_eq!(
+        ids,
+        ["15", "11", "10", "9", "8"],
+        "the newest five of the ten that say it, however written"
+    );
+    assert_eq!(
+        steps,
+        [Step::Dictations {
+            searched: 15,
+            found: 5
+        }]
+    );
+    // Without words to search for, the last few are simply the newest.
+    let (ids, _) = dictations_read("Покажи мои последние диктовки");
+    assert_eq!(ids, ["2", "1", "15", "3", "14"]);
+    let (ids, _) = dictations_read("Покажи мою последнюю диктовку");
+    assert_eq!(ids, ["2"]);
+    // Meetings alike: the newest that name OpenRouter, not the newest five.
+    assert_eq!(
+        read("Что решили про OpenRouter на последних встречах?").unwrap(),
+        ["meeting:retro", "meeting:budget-q1"]
+    );
+}
+
+/// Speech recognition writes an English name in Cyrillic: a search for
+/// VibeHex finds «вайп хекс», «вайбхекс», «вайпхекс», «вайб хексе», and
+/// "vibe hex" too, and nothing else.
+#[test]
+fn a_name_is_found_however_speech_recognition_wrote_it() {
+    let (mut ids, _) = dictations_read("Найди мои диктовки, где я говорил про VibeHex");
+    ids.sort_by_key(|id| id.parse::<u32>().unwrap());
+    assert_eq!(ids, ["6", "7", "8", "9", "10", "11", "15"]);
+    // Asked in Cyrillic, with the person's Vocabulary, the same ones.
+    let vocabulary = [crate::dictation::vocabulary::VocabularyEntry {
+        term: "VibeHex".into(),
+        sounds_like: vec!["вайб хекс".into()],
+    }];
+    let intent = intent::read("Найди мои диктовки, где я говорил про вайб хекс", now()).unwrap();
+    let found = search(
+        &allowed(),
+        &fixtures(),
+        &intent,
+        &vocabulary,
+        Budget::LARGE,
+        now(),
+        &mut |_| {},
+    );
+    let mut ids: Vec<u32> = found
+        .excerpts
+        .iter()
+        .map(|e| e.id.parse().unwrap())
+        .collect();
+    ids.sort_unstable();
+    assert_eq!(ids, [6, 7, 8, 9, 10, 11, 15]);
 }
 
 #[test]
@@ -519,4 +601,146 @@ fn the_eval_finds_what_each_question_is_about() {
     for question in GUIDE {
         assert_eq!(intent::read(question, now()), None, "{question} would ask");
     }
+}
+
+/// Follow-ups that only refer back: the earlier question, the follow-up,
+/// and what it should read again.
+const FOLLOW_UPS: &[(&str, &str, &[&str])] = &[
+    (
+        "А можешь найти последние мои диктовки, где я говорил о VibeHex?",
+        "А можешь ответить также на последний вопрос, который я задал?",
+        &["dictation:15", "dictation:11"],
+    ),
+    (
+        "Summarize my calls with Anna last week",
+        "and the other ones?",
+        &["meeting:sync-anna", "meeting:pricing-anna"],
+    ),
+    (
+        "Что мы решили по бюджету на встречах в ноябре?",
+        "Подробнее",
+        &["meeting:budget-q1"],
+    ),
+    (
+        "What did I dictate to Oleg?",
+        "Answer my last question",
+        &["dictation:2"],
+    ),
+];
+
+#[test]
+fn the_eval_follows_a_follow_up_back() {
+    for (asked, follow_up, want) in FOLLOW_UPS {
+        assert_eq!(intent::read(follow_up, now()), None, "{follow_up} alone");
+        let intent = intent::carried(follow_up, &[asked], now())
+            .unwrap_or_else(|| panic!("{follow_up} after {asked}"));
+        let found = search(
+            &allowed(),
+            &fixtures(),
+            &intent,
+            &[],
+            Budget::LARGE,
+            now(),
+            &mut |_| {},
+        );
+        for id in *want {
+            let (kind, slug) = id.split_once(':').unwrap();
+            assert!(
+                found.excerpts.iter().any(|excerpt| {
+                    let kind_matches = match excerpt.kind {
+                        Kind::Meeting => kind == "meeting",
+                        Kind::File => kind == "file",
+                        Kind::Dictation => kind == "dictation",
+                    };
+                    kind_matches
+                        && (excerpt.id == slug || excerpt.id.ends_with(&format!("-{slug}")))
+                }),
+                "{follow_up} after {asked}: {id}"
+            );
+        }
+    }
+    // After a guide question, or asked first, a follow-up stays with the guide.
+    for question in GUIDE {
+        for follow_up in ["Answer my last question", "ещё", "Подробнее"] {
+            assert_eq!(
+                intent::carried(follow_up, &[question], now()),
+                None,
+                "{follow_up} after {question}"
+            );
+        }
+        assert_eq!(
+            intent::carried(question, &[FOLLOW_UPS[0].0], now()),
+            None,
+            "{question} after a recordings question"
+        );
+    }
+}
+
+/// A question in one meeting's Requests reads the others, never itself.
+#[test]
+fn a_search_from_one_recording_leaves_it_out() {
+    let question = "Что мы решили по бюджету на встречах в ноябре?";
+    let intent = intent::read(question, now()).unwrap();
+    let all = found(question, Budget::LARGE);
+    let budget = all
+        .excerpts
+        .iter()
+        .find(|excerpt| excerpt.id.ends_with("budget-q1"))
+        .expect("the budget meeting matches")
+        .id
+        .clone();
+    let without = search(
+        &allowed(),
+        &fixtures().without(Kind::Meeting, &budget),
+        &intent,
+        &[],
+        Budget::LARGE,
+        now(),
+        &mut |_| {},
+    );
+    assert!(!without.excerpts.is_empty());
+    assert!(without.excerpts.iter().all(|excerpt| excerpt.id != budget));
+    // Only a meeting's own id is left out: a file of that id would stay.
+    let file = fixtures().without(Kind::File, &budget);
+    assert_eq!(file.except(Kind::Meeting), None);
+}
+
+/// "На прошлых встречах", asked of the design review: the meetings before
+/// it that match, never the review itself.
+#[test]
+fn the_previous_meetings_are_those_before_this_one() {
+    let item = intent::beyond::Item {
+        kind: Kind::Meeting,
+        start_ms: 1_795_512_600_000,
+        end_ms: 1_795_512_600_000 + 1_800_000,
+        title: "Design review",
+        text: "Design review",
+    };
+    let intent = intent::beyond::read(
+        "Что мы решили по бюджету на прошлых встречах?",
+        &item,
+        now(),
+    )
+    .unwrap();
+    assert!(intent.sure && intent.kinds.meetings && !intent.kinds.dictations);
+    let found = search(
+        &allowed(),
+        &fixtures().without(Kind::Meeting, "1795512600000-design"),
+        &intent,
+        &[],
+        Budget::LARGE,
+        now(),
+        &mut |_| {},
+    );
+    assert!(
+        found
+            .excerpts
+            .iter()
+            .any(|excerpt| excerpt.id.ends_with("budget-q1"))
+    );
+    assert!(found.excerpts.iter().all(|excerpt| {
+        excerpt.kind == Kind::Meeting
+            && excerpt.at_ms < item.start_ms
+            && !excerpt.id.ends_with("design")
+    }));
 }

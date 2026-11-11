@@ -63,7 +63,7 @@ Assistant                                        // rune_ui::assistant
     ├── Conversations   Keep on this computer; Clear conversations… then
     │                   Really clear all?
     └── What it reads   Your current settings (toggle, on: the model reads
-                        switches, choices, numbers, and speech models);
+                        switches, choices, numbers, shortcuts, and speech models);
                         Your meetings, files, and dictations (toggle)
 Opened from an answer                            // rune_ui::assistant::jump
 ├── Header      Back to Assistant (chevron, face, words) before the title
@@ -106,8 +106,13 @@ Opened from an answer                            // rune_ui::assistant::jump
   under the answer, or refuses it.
 - The prompt lists only the keys a card may change, with their values,
   where they live in the window, and, with `assistant.send_settings` on,
-  their value now (`assistant::changes::catalog`). A large model reads every
-  such key; a local one reads the keys its articles name and a core set.
+  their value now (`assistant::changes::catalog`; a shortcut as the
+  window's keycaps show it, ⌥⇧A, or none). A large model reads every
+  such key; a local one reads the keys its articles name, the shortcuts of
+  the Labs among them, and a core set. With the values sent, the prompt
+  asks for an answer for this person: a feature that does what they ask
+  and is on comes first, with their own shortcut or value; one that is off
+  is offered as a card; what doesn't fit their setup goes last or not at all.
   Never offered: the update channel, API keys, sign-ins, folders and paths,
   microphones, app and site lists, calendar ids, Assistant's own settings.
 - Pressing a card's button is the only way it changes anything. The save
@@ -164,9 +169,12 @@ Opened from an answer                            // rune_ui::assistant::jump
 ## Guided setup
 
 - "Помоги мне настроить VibeHex под меня", "Set VibeHex up for me", "What
-  should I turn on?" (`assistant::intent::setup`: a setting-up verb with
-  only small words around it, or asking what to turn on) start guided
-  setup; "Как настроить горячую клавишу?" stays a guide question.
+  should I turn on?", "Which Labs features are worth turning on for me?",
+  «Какие Labs мне стоит включить?», «Что посоветуешь настроить?»
+  (`assistant::intent::setup`: a setting-up verb with only small words
+  around it, or asking which ones to turn on or set up for them) start
+  guided setup; "Как настроить горячую клавишу?" and "What does Labs › Live
+  text turn on?" stay guide questions.
 - It opens with "**Now:** …" (`setup::now`): the speech model and its
   language, dictation cleanup (off, or its engine and model), the meeting
   notes writer, the Files cleanup engine (or "as dictation"), up to four
@@ -302,6 +310,12 @@ Opened from an answer                            // rune_ui::assistant::jump
   "что я диктовал вчера"). A question that only may be
   about recordings searches them (once allowed) and goes to the guide when
   nothing matches.
+- A follow-up that only refers back ("ответь на последний вопрос", «а там
+  ещё что-то?», "tell me more", "and the other ones") carries the newest
+  earlier question's intent, past other follow-ups (`intent::carried`): the
+  search runs again for that question, and the prompt tells the model the
+  excerpts answer it. One naming something new, asking how VibeHex works,
+  or following a guide question stays with the guide.
 - While `assistant.read_recordings` is not `true` such a question shows the
   consent card first; nothing is read. Allow sets it and asks; Answer
   without recordings answers from the guide, telling the model it may not
@@ -314,6 +328,19 @@ Opened from an answer                            // rune_ui::assistant::jump
   search), Files records, and the History snapshot, in the time asked about,
   within a budget: 3 meetings, 2 passages each, 5,000 characters for a
   built-in model; 6, 4, and 24,000 otherwise.
+- Everything in the time asked about is searched; "the last few" (a plural
+  «последние», "last few", five unless a number is given; «последнюю», one)
+  are the newest of the matches, newest first, and the step counts all it
+  searched. Without words to search for, the newest.
+- A word counts however a transcript writes it (`recordings::spoken`): a
+  Latin name apart at its capitals ("vibe hex") and as it sounds in
+  Cyrillic, joined and apart, with the last consonant voiced or not
+  (вайбхекс, вайп хекс), each also with a case ending (вайб хексе); and,
+  from the person's Vocabulary, the term and its "sounds like" spellings,
+  whichever of them was asked («кубер» finds Kubernetes, «вайб хекс» the
+  term it spells). They reach the meeting search as vocabulary aliases
+  (a several-word form as adjacent words). The Vocabulary is read only for
+  the search and never goes to the model.
 - The prompt carries them as a numbered `<recordings>` block. A transcript
   excerpt (a meeting passage, a Files stretch) has one numbered line per
   phrase, `[2.3]` being line 3 of excerpt 2; notes, whole texts, and
@@ -342,12 +369,19 @@ Opened from an answer                            // rune_ui::assistant::jump
   where it was scrolled; choosing another pane drops them. The mouse's back
   button doesn't yet (Rune gives other buttons only to elements that also
   take primary presses).
+- A meeting's or a file's Requests session is the Assistant tied to that
+  item: a question there that reaches past it (`intent::beyond`, read
+  against the item's time, title, and text) runs the same search with the
+  item left out (`Sources::without`), the same consent card, steps, marks,
+  and chips; Back to Requests returns to that session (`jump::Origin`). See
+  Meetings › Questions Past The Meeting.
 - Recordings eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
-  texts, five dictations), 28 questions with expected recordings (recall
+  texts, fifteen dictations, ten naming VibeHex, half in Cyrillic), 28 questions with expected recordings (recall
   must stay at 90% or more, now 100%), 8 questions whose cited line must be
   offered and map to its time (now 8 of 8; word-timed, segment-only, and
-  Files transcripts), and 13 guide questions that must not route
-  (`scripts/check assistant::recordings`).
+  Files transcripts), 13 guide questions that must not route, and 4
+  follow-ups that must read the earlier question's recordings again (the
+  guide questions, followed up, must not; `scripts/check assistant::recordings`).
 
 ## Settings keys
 
@@ -358,7 +392,7 @@ Opened from an answer                            // rune_ui::assistant::jump
 | `assistant.effort` | empty (medium) | Codex reasoning: low, medium, high |
 | `assistant.keep_conversations` | `true` | Keep conversations on this computer |
 | `assistant.read_recordings` | none | May search meetings, Files texts, and dictations for questions about them; none until first asked |
-| `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, and speech models with each question; never API keys, paths, or lists |
+| `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, shortcuts, and speech models with each question; never API keys, paths, or lists |
 
 ## Privacy
 

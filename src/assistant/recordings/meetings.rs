@@ -8,6 +8,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::super::intent::Intent;
+use super::spoken::Query;
 use super::{Budget, Excerpt, Kind, Line, clip, within};
 use crate::meeting::TranscriptEntry;
 use crate::meeting::query::{Library, Meeting, search_passages};
@@ -16,31 +17,31 @@ use crate::meeting::query::{Library, Meeting, search_passages};
 const NOTES_CHARS: usize = 1_500;
 const PASSAGE_CHARS: usize = 600;
 
-/// How many meetings were in range, and the excerpts of those read.
+/// How many meetings were in range, and the excerpts of those read;
+/// `except` is never read.
 pub(super) fn search(
     root: &Path,
+    except: Option<&str>,
     intent: &Intent,
+    query: &Query,
     budget: Budget,
     now_ms: u64,
 ) -> (usize, Vec<Excerpt>) {
     let Ok(scan) = Library::new(root).scan() else {
         return (0, Vec::new());
     };
-    let mut candidates: Vec<Arc<Meeting>> = scan
+    // Newest first, as the library lists them. Every meeting in range is
+    // searched; "the last few" are the newest of those that match.
+    let candidates: Vec<Arc<Meeting>> = scan
         .meetings
         .into_iter()
-        .filter(|meeting| !meeting.in_progress)
+        .filter(|meeting| !meeting.in_progress && Some(meeting.id.as_str()) != except)
         .filter(|meeting| overlaps(intent, meeting, now_ms))
         .collect();
-    if let Some(latest) = intent.latest {
-        candidates.truncate(latest);
-    }
     let searched = candidates.len();
-    let query = intent.terms.join(" ");
-    let hits = search_passages(&candidates, &query);
+    let hits = search_passages(&candidates, &query.text, &query.aliases);
     // Meetings in order of their best passage, a title naming the words
-    // first; with nothing to search for, or only a few meetings asked
-    // about, the newest.
+    // first; with nothing to search for, the newest.
     let mut picked: Vec<Arc<Meeting>> = Vec::new();
     let titled = |meeting: &Meeting| {
         let title = crate::meeting::query::fold(&meeting.title());
@@ -49,9 +50,11 @@ pub(super) fn search(
             .iter()
             .any(|term| title.contains(&crate::meeting::query::fold(term)))
     };
-    if query.is_empty() || intent.latest.is_some() {
+    let most = budget.meetings * 2;
+    if query.text.is_empty() {
         if intent.sure {
-            picked.extend(candidates.iter().take(budget.meetings * 2).cloned());
+            let latest = intent.latest.unwrap_or(budget.meetings).min(most);
+            picked.extend(candidates.iter().take(latest).cloned());
         }
     } else {
         for meeting in candidates.iter().filter(|meeting| titled(meeting)) {
@@ -62,15 +65,14 @@ pub(super) fn search(
                 picked.push(hit.meeting.clone());
             }
         }
+        match intent.latest {
+            Some(latest) => {
+                picked.sort_by_key(|meeting| std::cmp::Reverse(meeting.start_ms()));
+                picked.truncate(latest.min(most));
+            }
+            None => picked.truncate(budget.meetings),
+        }
     }
-    picked.truncate(if intent.latest.is_some() || query.is_empty() {
-        intent
-            .latest
-            .unwrap_or(budget.meetings)
-            .min(budget.meetings * 2)
-    } else {
-        budget.meetings
-    });
     let mut excerpts = Vec::new();
     for meeting in &picked {
         let title = meeting.title();

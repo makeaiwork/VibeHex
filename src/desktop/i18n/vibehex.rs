@@ -7,6 +7,7 @@ pub(super) mod assistant;
 pub(super) mod changes;
 pub(super) mod codex;
 pub(super) mod files;
+pub(super) mod linked;
 pub(super) mod russian;
 pub(super) mod setup;
 
@@ -20,6 +21,7 @@ pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static s
         .chain(assistant::TRANSLATIONS)
         .chain(changes::TRANSLATIONS)
         .chain(setup::TRANSLATIONS)
+        .chain(linked::TRANSLATIONS)
 }
 
 /// VibeHex's French rows: its own, then Assistant's.
@@ -29,6 +31,7 @@ pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static 
         .chain(assistant::FRENCH)
         .chain(changes::FRENCH)
         .chain(setup::FRENCH)
+        .chain(linked::FRENCH)
 }
 
 /// VibeHex's Brazilian Portuguese rows: its own, then Assistant's.
@@ -38,6 +41,7 @@ pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'sta
         .chain(assistant::PORTUGUESE)
         .chain(changes::PORTUGUESE)
         .chain(setup::PORTUGUESE)
+        .chain(linked::PORTUGUESE)
 }
 
 /// VibeHex's Russian rows: its own, then Assistant's.
@@ -47,6 +51,7 @@ pub(super) fn russian() -> impl Iterator<Item = &'static (&'static str, &'static
         .chain(assistant::RUSSIAN)
         .chain(changes::RUSSIAN)
         .chain(setup::RUSSIAN)
+        .chain(linked::RUSSIAN)
 }
 
 /// The interface's language code (`en`, `pl`, `zh-Hant`…).

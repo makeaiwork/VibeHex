@@ -1359,6 +1359,56 @@ cleanup in [files/tidy.rs](../../src/files/tidy.rs). Checks:
 `turns_go_in_pieces_and_a_long_turn_stands_alone`. Scenes: `meetings-requests`,
 `meetings-requests-sessions`.
 
+#### Questions Past The Meeting
+
+A Requests session is the Assistant tied to one meeting. A question that
+reaches past it ("what did we decide at the previous meeting?", «как обычно
+мы это решаем?», "compare with the other interviews") also reads the
+person's other meetings, Files texts, and dictations through the Assistant's
+search (`assistant::recordings`, the meeting itself left out), within the
+Assistant's budget for the session's model.
+
+```text
+Question in a session (typed, Ask again; a chip never reaches past)
+-> assistant::intent::beyond reads it against the meeting (its start, end,
+   title, transcript) -> stays: answers from the transcript alone, as before
+   | sure it reaches past | may (a name the transcript never has, "compare")
+-> not allowed yet (assistant.read_recordings) and sure: the question as a
+   bubble, then "This question reaches past this recording. To answer, I need
+   to read your other recordings." and the Assistant's consent card (the
+   passages' model named): Allow (remembered) | Not now (this meeting
+   alone; the answer says so in one line). A "may" never asks: it reads only
+   once allowed
+-> while it works: the search's steps (Meetings 9 searched, 2 found ...),
+   then the draft with its [n]
+-> the answer: its steps folded into one grey line over it ("Read 2 other
+   meetings and 1 dictation in 6 s ›", opens the steps), [n] marks, and
+   "From your other recordings" chips; facts from this meeting keep times
+-> a mark or a chip opens its place with the Assistant's jump light;
+   Back to Requests (Cmd+[) returns to this session where it was scrolled
+```
+
+"Previous", "last", «прошлой» bound the search to before this meeting (the
+newest one, or a few for a plural); "next", «следующей» to after it; "other",
+"all", «остальных», a kind this meeting isn't, or a habit ("as usual",
+«раньше») to everything else. "This meeting", «на этой встрече» stays. A
+follow-up that only refers back keeps the reach of the question before it.
+The turn keeps the places cited and the steps (`refs`, `steps` in
+`requests.json`; a turn without them writes neither). Sources:
+[intent/beyond.rs](../../src/assistant/intent/beyond.rs),
+[files/linked.rs](../../src/files/linked.rs),
+[rune_ui/files/linked.rs](../../src/rune_ui/files/linked.rs),
+[meeting_tabs/linked.rs](../../src/rune_ui/meeting_tabs/linked.rs). Checks:
+`questions_past_this_item_reach_the_other_recordings`,
+`questions_about_this_item_stay_with_it`,
+`the_previous_meeting_is_the_newest_before_this_one`,
+`a_search_from_one_recording_leaves_it_out`,
+`a_question_past_its_recording_waits_for_leave_to_read_others`,
+`an_answer_keeps_the_other_recordings_it_cites`, and
+`back_from_a_place_an_answer_cites_returns_to_its_requests_session`. Scenes:
+`meetings-requests-linked`, `meetings-requests-consent`,
+`meetings-cited-requests`.
+
 #### Listen To The Recording (Labs)
 
 Labs › Listen to the recording puts Play before the chips over the field of

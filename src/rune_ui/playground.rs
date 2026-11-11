@@ -369,6 +369,18 @@ const PATHS: &[(&str, &str)] = &[
         "meetings-requests-sessions",
         "Window/Meetings/Sessions about a meeting",
     ),
+    (
+        "meetings-requests-linked",
+        "Window/Meetings/Requests citing other recordings",
+    ),
+    (
+        "meetings-requests-consent",
+        "Window/Meetings/Requests asking to read other recordings",
+    ),
+    (
+        "meetings-cited-requests",
+        "Window/Meetings/A cited place opened from Requests",
+    ),
     ("meetings-summaries", "Window/Meetings/Summaries"),
     (
         "meetings-summaries-unavailable",

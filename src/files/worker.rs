@@ -16,6 +16,8 @@ use super::rewrite::{self, DraftKind, Drafts, Engine};
 use super::store::{self, Segment, Version, VersionKind};
 use super::text;
 use crate::app_settings::{AppSettings, CleanupServerSettings, DictationMode, FilesSettings};
+use crate::assistant::recordings::Step;
+use crate::assistant::worker::Recall;
 use crate::dictation::vocabulary::VocabularyEntry;
 use crate::transcription::models::TranscriptionSelection;
 
@@ -126,10 +128,16 @@ pub enum Job {
         titled: bool,
         engine: Option<String>,
         effort: Option<String>,
+        /// What it reads past the version: other recordings, or none.
+        recall: Recall,
     },
     /// Asks `question` in request `session`'s conversation, on the
     /// session's engine.
-    FollowUp { session: u32, question: String },
+    FollowUp {
+        session: u32,
+        question: String,
+        recall: Recall,
+    },
     /// Asks `question` in session `session` about a meeting, whose
     /// transcript (with its title and times) is `transcript`; the record is
     /// `meeting::requests::record`. Runs while Labs › AI cleanup server is
@@ -143,7 +151,21 @@ pub enum Job {
         prompt: Option<String>,
         transcript: String,
         tidy: Option<Vec<super::tidy::Line>>,
+        /// What it reads past the meeting: other recordings, or none.
+        recall: Recall,
     },
+}
+
+impl Job {
+    /// What a question reads past its own text.
+    fn recall(&self) -> Option<&Recall> {
+        match self {
+            Self::Request { recall, .. }
+            | Self::FollowUp { recall, .. }
+            | Self::Meeting { recall, .. } => Some(recall),
+            _ => None,
+        }
+    }
 }
 
 /// Where a job is.
@@ -183,6 +205,10 @@ pub struct Task {
     /// A follow-up's session and question.
     pub session: Option<u32>,
     pub question: Option<String>,
+    /// A question reaching past its text: the search of the person's
+    /// other recordings, step by step, and whether it still runs.
+    pub steps: Vec<Step>,
+    pub searching: bool,
 }
 
 /// The end of what a running cleanup or request has written.
@@ -311,7 +337,9 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
     let id = state.next;
     state.next += 1;
     let (session, question) = match &job {
-        Job::FollowUp { session, question }
+        Job::FollowUp {
+            session, question, ..
+        }
         | Job::Meeting {
             session, question, ..
         } => (Some(*session), Some(question.clone())),
@@ -338,6 +366,8 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
             draft: None,
             session,
             question,
+            steps: Vec::new(),
+            searching: matches!(job.recall(), Some(Recall::Search(_))),
         },
         job,
         config,
@@ -455,6 +485,7 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
             titled,
             engine,
             effort,
+            recall,
         } => super::requests::request(
             task,
             super::requests::Asked {
@@ -465,23 +496,28 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
                 engine: engine.as_deref(),
                 effort: effort.as_deref(),
             },
+            recall,
             config,
             cancel,
         ),
-        Job::FollowUp { session, question } => {
-            super::requests::follow_up(task, *session, question, config, cancel)
-        }
+        Job::FollowUp {
+            session,
+            question,
+            recall,
+        } => super::requests::follow_up(task, *session, question, recall, config, cancel),
         Job::Meeting {
             session,
             question,
             prompt,
             transcript,
             tidy,
+            recall,
         } => super::requests::meeting(
             task,
             *session,
             (question, prompt.as_deref()),
             (transcript, tidy.as_deref()),
+            recall,
             config,
             cancel,
         ),

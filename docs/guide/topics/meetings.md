@@ -31,6 +31,8 @@ On a Mac, **Settings › Calendar › Connect calendar** asks macOS for access o
 
 Tabs: **Transcript**, **Summary** (once there are notes; chapters come with **Labs › Live chapters**) and **Requests** (questions, with **Labs › Clean up on your own server** and Settings › Questions › Ask about a meeting on). The "…" menu regenerates the summary or deletes the meeting.
 
+A question in Requests that reaches past the meeting ("what did we decide at the previous meeting?") also reads your other meetings, Files texts and dictations once you allow it, citing them with [n] marks that open the place; **Back to Requests** returns to the session.
+
 ## Choose who writes the title and summary
 
 **Settings › After a meeting › Summaries** is a pop-up on a Mac: **Off**, **On this Mac** (Apple Intelligence, the default; macOS 26 or later; nothing leaves the Mac) or **OpenCode** (sends the transcript to your OpenCode model). With OpenCode, a **Model** row appears; left unset, VibeHex picks a fast model. OpenCode must be running. On Windows and Linux Summaries is a switch, off by default, and on means OpenCode. With Off, a meeting gets no title or summary on its own.

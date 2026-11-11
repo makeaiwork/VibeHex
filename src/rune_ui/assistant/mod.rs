@@ -24,7 +24,7 @@ pub(super) mod nav;
 mod picker;
 mod plan;
 mod preset;
-mod recall;
+pub(super) mod recall;
 mod returning;
 mod settings;
 pub(super) mod setup_fixture;
@@ -125,6 +125,14 @@ impl Default for ScrollAt {
 impl ScrollAt {
     pub(super) fn get(&self) -> f32 {
         self.0.get()
+    }
+
+    /// Keeps it at a scroll's offset, for `on_scroll_offset`.
+    pub(super) fn follow(&self) -> impl Fn(rune::ScrollPos) + 'static {
+        let at = self.0.clone();
+        move |pos: rune::ScrollPos| {
+            at.set(pos.offset[1]);
+        }
     }
 }
 

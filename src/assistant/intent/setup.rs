@@ -115,6 +115,43 @@ const WHAT_TO_TURN_ON: &[&str] = &[
     "что= мне= настроить=",
 ];
 
+/// Asking which ones, of what to turn on or set up for them: «какие Labs
+/// мне стоит включить», "which Labs features should I turn on", «что
+/// посоветуешь настроить». Each list must have a word in the message.
+const WHICH: &[&str] = &[
+    "какие=",
+    "какую=",
+    "какой=",
+    "каких=",
+    "что=",
+    "which=",
+    "what=",
+];
+const TURN_ON: &[&str] = &[
+    "включить=",
+    "включать=",
+    "настроить=",
+    "настраивать=",
+    "поменять=",
+    "turn= on=",
+    "turning= on=",
+    "switch= on=",
+    "enable",
+    "set= up=",
+];
+const ADVICE: &[&str] = &[
+    "стоит=",
+    "мне=",
+    "посовет",
+    "совету",
+    "порекоменд",
+    "рекоменд",
+    "should=",
+    "worth=",
+    "recommend",
+    "for= me=",
+];
+
 /// Whether `message` asks for VibeHex to be set up for the person.
 pub fn setup(message: &str) -> bool {
     let words = words(message);
@@ -122,6 +159,10 @@ pub fn setup(message: &str) -> bool {
         .iter()
         .any(|phrase| has_phrase(&words, phrase))
     {
+        return true;
+    }
+    let has = |list: &[&str]| list.iter().any(|phrase| has_phrase(&words, phrase));
+    if has(WHICH) && has(TURN_ON) && has(ADVICE) {
         return true;
     }
     let verb = |word: &String| VERBS.iter().any(|verb| starts(word, verb));
@@ -153,6 +194,14 @@ mod tests {
             "what should I enable?",
             "Что мне включить для созвонов?",
             "Что стоит включить?",
+            "Which Labs features are worth turning on for me?",
+            "Which Labs features should I turn on?",
+            "Какие Labs мне стоит включить?",
+            // The start's example, as the window asks it in Russian.
+            "Какие функции Лаборатории мне стоит включить?",
+            "Что мне включить?",
+            "Что посоветуешь настроить?",
+            "What do you recommend I set up?",
         ] {
             assert!(setup(message), "{message}");
         }
@@ -166,7 +215,9 @@ mod tests {
             "Set up for Russian programming",
             "How do I set up meetings?",
             "Help me configure the shortcut",
-            "Which Labs features are worth turning on for me?",
+            "What does Labs › Live text turn on?",
+            "Что включает Russian vibe coding?",
+            "Что мне делать, если не включается микрофон?",
             "Which speech model is best for Russian?",
             "Как включить запись встреч?",
             "Где настройки?",

@@ -13,6 +13,7 @@
 
 pub mod cite;
 mod meetings;
+mod spoken;
 mod texts;
 pub mod usage;
 
@@ -23,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use super::intent::Intent;
 use crate::app_settings::AssistantSettings;
+use crate::dictation::vocabulary::VocabularyEntry;
 
 /// Leave to read recordings: built only from the setting being on.
 #[derive(Clone, Debug)]
@@ -41,6 +43,9 @@ pub struct Sources {
     meetings: PathBuf,
     history: PathBuf,
     files: PathBuf,
+    /// The recording a question was asked about, which the search leaves
+    /// out: its own text is read already (a meeting's or a file's Requests).
+    except: Option<(Kind, String)>,
 }
 
 impl Sources {
@@ -51,7 +56,24 @@ impl Sources {
             meetings: crate::meeting::root().ok()?,
             history: support.join("history.json"),
             files: support.join("files"),
+            except: None,
         })
+    }
+
+    /// The same, leaving out recording `id` of `kind`.
+    pub fn without(self, kind: Kind, id: &str) -> Self {
+        Self {
+            except: Some((kind, id.to_owned())),
+            ..self
+        }
+    }
+
+    /// The id left out of `kind`'s, if one is.
+    fn except(&self, kind: Kind) -> Option<&str> {
+        self.except
+            .as_ref()
+            .filter(|(left, _)| *left == kind)
+            .map(|(_, id)| id.as_str())
     }
 
     /// The same layout under `root`, for tests.
@@ -61,6 +83,7 @@ impl Sources {
             meetings: root.join("meetings"),
             history: root.join("history.json"),
             files: root.join("files"),
+            except: None,
         }
     }
 }
@@ -288,12 +311,14 @@ impl Excerpt {
 }
 
 /// Searches the recordings `intent` asks about, reporting each step as it
-/// lands. A question that only may be about recordings finds nothing when
-/// nothing matches its words.
+/// lands; a word counts in every way speech recognition and the person's
+/// `vocabulary` spell it. A question that only may be about recordings
+/// finds nothing when nothing matches its words.
 pub fn search(
     _allowed: &Allowed,
     sources: &Sources,
     intent: &Intent,
+    vocabulary: &[VocabularyEntry],
     budget: Budget,
     now_ms: u64,
     step: &mut dyn FnMut(&Step),
@@ -303,9 +328,17 @@ pub fn search(
         step(&done);
         found.steps.push(done);
     };
+    let query = spoken::query(intent, vocabulary);
     let mut excerpts = Vec::new();
     if intent.kinds.meetings {
-        let (searched, picked) = meetings::search(&sources.meetings, intent, budget, now_ms);
+        let (searched, picked) = meetings::search(
+            &sources.meetings,
+            sources.except(Kind::Meeting),
+            intent,
+            &query,
+            budget,
+            now_ms,
+        );
         let read = picked
             .iter()
             .map(|excerpt| &excerpt.id)
@@ -334,7 +367,13 @@ pub fn search(
         excerpts.extend(picked);
     }
     if intent.kinds.files {
-        let (searched, picked) = texts::files(&sources.files, intent, budget);
+        let (searched, picked) = texts::files(
+            &sources.files,
+            sources.except(Kind::File),
+            intent,
+            &query,
+            budget,
+        );
         let read = distinct(&picked);
         record(
             &mut found,
@@ -346,7 +385,13 @@ pub fn search(
         excerpts.extend(picked);
     }
     if intent.kinds.dictations {
-        let (searched, picked) = texts::dictations(&sources.history, intent, budget);
+        let (searched, picked) = texts::dictations(
+            &sources.history,
+            sources.except(Kind::Dictation),
+            intent,
+            &query,
+            budget,
+        );
         let read = picked.len();
         record(
             &mut found,
@@ -389,6 +434,26 @@ fn clip(text: &str, chars: usize) -> String {
         }
         None => text,
     }
+}
+
+/// With several words to search for, a match scoring under this share of
+/// the best one is too weak to count among "the last few".
+const GOOD_SHARE: f32 = 0.4;
+
+/// The documents to read from `order` (best first, with scores): as they
+/// are, or, when the question asks for the latest few, the newest of them
+/// by `at`, most recent first.
+fn newest(mut order: Vec<(usize, f32)>, intent: &Intent, at: impl Fn(usize) -> u64) -> Vec<usize> {
+    if let Some(latest) = intent.latest {
+        if intent.terms.len() > 1
+            && let Some(best) = order.first().map(|(_, score)| *score)
+        {
+            order.retain(|(_, score)| *score >= best * GOOD_SHARE);
+        }
+        order.sort_by_key(|(index, _)| std::cmp::Reverse(at(*index)));
+        order.truncate(latest);
+    }
+    order.into_iter().map(|(index, _)| index).collect()
 }
 
 /// Whether `range` holds `at_ms`.

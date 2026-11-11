@@ -17,6 +17,7 @@ use super::setup::{self, Ask, Stage};
 use super::store::Turn;
 use crate::dictation::cleanup_pieces::Streamed;
 use crate::dictation::cleanup_server::engine;
+use crate::dictation::vocabulary::VocabularyEntry;
 use crate::files::rewrite::Engine;
 
 /// How often a growing draft reaches the pane.
@@ -55,8 +56,9 @@ pub enum Recall {
     Guide,
     /// About the person's recordings, which Assistant may not read.
     Declined,
-    /// About the person's recordings, which it may search.
-    Search(Search),
+    /// About the person's recordings, which it may search (boxed: it
+    /// carries the question's intent and the Vocabulary).
+    Search(Box<Search>),
 }
 
 /// A search of the person's recordings, possible only with their leave.
@@ -65,6 +67,9 @@ pub struct Search {
     pub allowed: Allowed,
     pub sources: Sources,
     pub intent: Intent,
+    /// The person's Vocabulary, so a term is found however it was
+    /// written; the search reads it, the model never does.
+    pub vocabulary: Vec<VocabularyEntry>,
     pub now_ms: u64,
 }
 
@@ -226,6 +231,7 @@ fn read(search: &Search, room: Room) -> Option<Found> {
         &search.allowed,
         &search.sources,
         &search.intent,
+        &search.vocabulary,
         budget,
         search.now_ms,
         &mut |step| {

@@ -14,12 +14,19 @@
 //!
 //! Times are read against a `now` passed in, in local time.
 
+pub mod beyond;
 mod day;
+mod follow;
 pub mod preset;
 mod setup;
+mod spoken;
+mod stop;
 
 use day::{Day, span};
+pub use follow::carried;
 pub use setup::setup;
+pub use spoken::forms as spoken_forms_of;
+use stop::STOP;
 
 /// Which recordings a question names; none named means all.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -49,6 +56,9 @@ pub struct Intent {
     /// The words to search for, without times, kinds, and question words;
     /// Russian words cut to a stem the search's prefix match extends.
     pub terms: Vec<String>,
+    /// For a Latin term, the ways speech recognition may write it
+    /// (`vibehex`: «вайб хекс», "vibe hex"), which the search counts too.
+    pub spoken: Vec<(String, Vec<String>)>,
     /// Surely about recordings; otherwise only if a search finds them.
     pub sure: bool,
 }
@@ -90,14 +100,33 @@ pub fn read(question: &str, now_ms: u64) -> Option<Intent> {
         return None;
     }
     let (since_ms, until_ms) = when.unzip();
+    let terms = terms(&words);
     Some(Intent {
         kinds: if named { kinds } else { Kinds::ALL },
         since_ms,
         until_ms,
         latest,
-        terms: terms(&words),
+        spoken: latin_forms(question, &terms),
+        terms,
         sure,
     })
+}
+
+/// Each Latin term's spoken forms, read from the word as written, so
+/// `VibeHex` comes apart at its capitals.
+fn latin_forms(question: &str, terms: &[String]) -> Vec<(String, Vec<String>)> {
+    let mut spoken: Vec<(String, Vec<String>)> = Vec::new();
+    for written in question.split(|c: char| !c.is_alphanumeric()) {
+        let term = written.to_lowercase();
+        if !terms.contains(&term) || spoken.iter().any(|(known, _)| *known == term) {
+            continue;
+        }
+        let forms = spoken::forms(written);
+        if !forms.is_empty() {
+            spoken.push((term, forms));
+        }
+    }
+    spoken
 }
 
 /// Lowercase words, `ё` read as `е`.
@@ -440,7 +469,11 @@ fn when(words: &[String], now_ms: u64) -> Option<(u64, u64)> {
     None
 }
 
-/// "The last five meetings", "последних трёх встреч", "my last call".
+/// How many "the last few" means when no number is given.
+const FEW: usize = 5;
+
+/// "The last five meetings", "последних трёх встреч", "my last call",
+/// "последние диктовки" (a few), "последнюю диктовку" (one).
 fn latest(words: &[String]) -> Option<usize> {
     for (index, word) in words.iter().enumerate() {
         if !(word == "last" || word == "latest" || word == "recent" || starts(word, "последн"))
@@ -461,6 +494,19 @@ fn latest(words: &[String]) -> Option<usize> {
         if let Some(count) = rest[..kind].iter().find_map(|word| number(word)) {
             return Some(count.clamp(1, 20));
         }
+        if rest[..kind].iter().any(|word| word == "few") {
+            return Some(FEW);
+        }
+        if rest[..kind].iter().any(|word| word == "couple") {
+            return Some(2);
+        }
+        // A Russian adjective says it: «последние» a few, «последнюю» one.
+        if PLURAL_LAST.contains(&word.as_str()) {
+            return Some(FEW);
+        }
+        if starts(word, "последн") {
+            return Some(1);
+        }
         let noun = &rest[kind];
         let plural = noun.ends_with('s')
             || [
@@ -472,13 +518,21 @@ fn latest(words: &[String]) -> Option<usize> {
                 "созвоны=",
                 "звонков=",
                 "звонки=",
+                "диктовок=",
+                "диктовках=",
+                "файлов=",
+                "файлы=",
+                "записей=",
             ]
             .iter()
             .any(|form| starts(noun, form));
-        return Some(if plural { 5 } else { 1 });
+        return Some(if plural { FEW } else { 1 });
     }
     None
 }
+
+/// «Последние» in its plural forms.
+const PLURAL_LAST: &[&str] = &["последние", "последних", "последним", "последними"];
 
 fn number(word: &str) -> Option<usize> {
     if let Ok(number) = word.parse::<usize>() {
@@ -561,6 +615,7 @@ fn terms(words: &[String]) -> Vec<String> {
             || weekday(word).is_some()
             || month(word, "in").is_some()
             || STOP.contains(&word.as_str())
+            || PERSONAL.contains(&word.as_str())
             || MEETINGS
                 .iter()
                 .chain(DICTATIONS)
@@ -627,165 +682,6 @@ const TIMES: &[&str] = &[
     "дней=",
     "дня=",
     "день=",
-];
-
-/// Question and filler words, English and Russian.
-const STOP: &[&str] = &[
-    "transcribed",
-    "recorded",
-    "the",
-    "and",
-    "about",
-    "what",
-    "which",
-    "who",
-    "when",
-    "where",
-    "how",
-    "did",
-    "does",
-    "was",
-    "were",
-    "with",
-    "from",
-    "for",
-    "that",
-    "this",
-    "these",
-    "those",
-    "there",
-    "they",
-    "them",
-    "have",
-    "has",
-    "had",
-    "all",
-    "any",
-    "into",
-    "out",
-    "together",
-    "everything",
-    "please",
-    "tell",
-    "give",
-    "show",
-    "find",
-    "me",
-    "my",
-    "our",
-    "you",
-    "your",
-    "his",
-    "her",
-    "its",
-    "can",
-    "could",
-    "would",
-    "should",
-    "will",
-    "been",
-    "being",
-    "are",
-    "is",
-    "on",
-    "in",
-    "at",
-    "of",
-    "to",
-    "up",
-    "again",
-    "most",
-    "more",
-    "some",
-    "kept",
-    "came",
-    "что",
-    "как",
-    "кто",
-    "где",
-    "когда",
-    "какие",
-    "какой",
-    "какая",
-    "каких",
-    "мы",
-    "вы",
-    "они",
-    "это",
-    "этот",
-    "эта",
-    "эти",
-    "этой",
-    "этом",
-    "все",
-    "всё",
-    "всех",
-    "вместе",
-    "мне",
-    "нам",
-    "нас",
-    "наши",
-    "наших",
-    "мои",
-    "моих",
-    "про",
-    "для",
-    "или",
-    "был",
-    "была",
-    "было",
-    "были",
-    "там",
-    "тут",
-    "так",
-    "уже",
-    "ещё",
-    "еще",
-    "его",
-    "её",
-    "ее",
-    "их",
-    "по",
-    "на",
-    "во",
-    "со",
-    "из",
-    "от",
-    "до",
-    "за",
-    "при",
-    "без",
-    "над",
-    "под",
-    "тоже",
-    "также",
-    "чтобы",
-    "ли",
-    "же",
-    "бы",
-    "не",
-    "нет",
-    "да",
-    "очень",
-    "кратко",
-    "коротко",
-    "пожалуйста",
-    "расскажи",
-    "напомни",
-    "покажи",
-    "найди",
-    "чем",
-    "кого",
-    "кому",
-    "который",
-    "которые",
-    "меня",
-    "мной",
-    "нами",
-    "свои",
-    "своих",
-    "сам",
-    "сами",
 ];
 
 #[cfg(test)]

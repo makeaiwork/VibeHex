@@ -94,6 +94,7 @@ pub(super) struct Meeting {
     pub(super) day: String,
     /// The start time, from `meeting::clock`.
     pub(super) clock: String,
+    pub(super) start_ms: u64,
     pub(super) duration_ms: u64,
     pub(super) app: Option<String>,
     pub(super) summary: Option<String>,
