@@ -1,7 +1,7 @@
 ---
 topic: opencode
 title: OpenCode
-keys: [dictation_processing.default_mode, dictation_processing.server.runs_on, meetings.summarize_with_opencode, meetings.opencode_model, labs.meeting_summary_model]
+keys: [dictation_processing.default_mode, dictation_processing.server.runs_on, meetings.summaries, meetings.opencode_model]
 os: every OS
 ---
 
@@ -14,7 +14,7 @@ OpenCode is a separate coding-agent app that connects to AI providers you alread
 VibeHex only uses an OpenCode that is already running. It never installs, starts or restarts OpenCode, and it talks to it only on your own computer. It is used for:
 
 - **AI cleanup**: without Labs, the rewrite of every dictation (the "Rewrite with OpenCode" step in Output) runs through OpenCode. With **Labs › Clean up on your own server**, **Output › AI cleanup › Runs on** can move it elsewhere (see AI cleanup and the models behind it). If a rewrite fails or runs too long, the text is pasted without AI cleanup.
-- **Meeting notes**: **Meetings › Settings › Advanced › Summarize with OpenCode** adds a title and short summary (on a Mac, when Apple Intelligence is off or missing). With Labs on, **Notes › Written by** also lists OpenCode (under Other) for full notes. This sends the transcript to the OpenCode model.
+- **Meeting notes**: set **Meetings › Settings › After a meeting › Summaries** to OpenCode for a title and short summary; On this Mac never falls back to OpenCode. **Notes › Written by** also lists OpenCode (under Other) for full notes. Either way the transcript goes to the OpenCode model.
 - **Annotate**: captures can be sent to your OpenCode sessions.
 
 ## "OpenCode isn't running"
@@ -28,7 +28,7 @@ VibeHex found no running OpenCode. To fix it:
 
 ## Choose its model
 
-The regular window has no OpenCode model picker now. If you set no model, VibeHex picks a fast one your OpenCode has connected. To choose one, use **Output › Edit with agent**, which copies a prompt for an AI agent to edit your settings, or set `model` in the rewrite part of `dictation_processing.default_mode` (a provider/model name, such as `openai/gpt-5.4-mini`) with the `hex settings` command. For meeting notes, turn on **Labs › Choose meeting summary model** (macOS) and fill **Summary model** under Meetings › Settings › Advanced (`meetings.opencode_model`); empty means the automatic choice.
+The regular window has no OpenCode model picker now. If you set no model, VibeHex picks a fast one your OpenCode has connected. To choose one, use **Output › Edit with agent**, which copies a prompt for an AI agent to edit your settings, or set `model` in the rewrite part of `dictation_processing.default_mode` (a provider/model name, such as `openai/gpt-5.4-mini`) with the `hex settings` command. For meeting notes, set Summaries to OpenCode and choose under it in **Model** (`meetings.opencode_model`), a list of the running OpenCode's models; "Hex picks a fast model" is the automatic choice.
 
 ## Good to know
 

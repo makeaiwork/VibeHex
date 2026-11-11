@@ -58,7 +58,7 @@ Meetings (recording calls, with calendar reminders), Files, the Built in AI
 cleanup models, Apple Intelligence meeting notes, and the Hex Microphone
 driver behind Voice Filter are for Mac. So are these Labs rows: Live
 chapters, Subtitle export, Stop when the call ends, Movable meeting capsules,
-Choose meeting summary model, Listen to the recording, Smart spacing, Copy
+Listen to the recording, Smart spacing, Copy
 dictation only, Keep dictation on clipboard, Copy recent dictations, Mouse
 shortcuts, Also pause the browser, Second dictation shortcut, Stop shortcut,
 Sided modifier chords, Tap or hold, Hide menu bar icon, Add to vocabulary from
