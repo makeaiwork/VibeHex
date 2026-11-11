@@ -276,6 +276,12 @@ Opened from an answer                            // rune_ui::assistant::jump
   where it was scrolled; choosing another pane drops them. The mouse's back
   button doesn't yet (Rune gives other buttons only to elements that also
   take primary presses).
+- A meeting's or a file's Requests session is the Assistant tied to that
+  item: a question there that reaches past it (`intent::beyond`, read
+  against the item's time, title, and text) runs the same search with the
+  item left out (`Sources::without`), the same consent card, steps, marks,
+  and chips; Back to Requests returns to that session (`jump::Origin`). See
+  Meetings › Questions Past The Meeting.
 - Recordings eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
   texts, fifteen dictations, ten naming VibeHex, half in Cyrillic), 28 questions with expected recordings (recall
   must stay at 90% or more, now 100%), 8 questions whose cited line must be

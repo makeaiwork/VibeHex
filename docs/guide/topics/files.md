@@ -23,7 +23,7 @@ Each result is a tab: **Original** (the transcript; switch Timestamps and Plain 
 
 ## Ask for something
 
-Under the text, tap **Structure**, **Summary** or **Action items**, pick one from **Recent**, or type your own in "Ask about this text". Each request becomes a chat in Requests, open to follow-ups.
+Under the text, tap **Structure**, **Summary** or **Action items**, pick one from **Recent**, or type your own in "Ask about this text". Each request becomes a chat in Requests, open to follow-ups. A request that reaches past the file ("as in my other interviews") also reads your other recordings once you allow it, and cites them.
 
 ## Choose which model answers
 
