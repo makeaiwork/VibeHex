@@ -2,7 +2,7 @@
 feature: voice-filter
 key: experimental.hex_microphone
 title: Voice Filter
-group: Sound and interface
+group: Dictation
 os: [macOS, Linux]
 vibehex: false
 ---
@@ -17,7 +17,7 @@ vibehex: false
 
 **Needs.** macOS or Linux (not Windows). On a Mac, installing the Hex Microphone driver in the Voice Filter pane, which asks for your administrator password. On Linux, PipeWire.
 
-**Good to know.** While the driver is installed the row stays on and can't be switched off: its text says "Uninstall the driver in Voice Filter to turn it off." An organization's lock can also hold the row off. Off hides the pane. The pane has a Try it check that plays what the call would hear.
+**Good to know.** While the driver is installed the row stays on and can't be switched off: its text says "Uninstall the driver in Voice Filter to turn it off." Only dev builds of VibeHex list this lab; a stable build keeps only the pane's Uninstall while the driver is installed. An organization's lock can also hold the row off. Off hides the pane. The pane has a Try it check that plays what the call would hear.
 
 **Where.** Labs › Voice Filter (`experimental.hex_microphone`), then the Voice Filter pane in the sidebar.
 

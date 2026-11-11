@@ -2,7 +2,7 @@
 feature: spoken-formatting
 key: labs.spoken_formatting
 title: Spoken formatting
-group: Text cleanup
+group: Output
 os: every OS
 vibehex: false
 ---

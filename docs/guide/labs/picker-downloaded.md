@@ -2,7 +2,7 @@
 feature: picker-downloaded
 key: labs.picker_downloaded
 title: Downloaded models only
-group: Speech models
+group: Models
 os: every OS
 vibehex: false
 ---

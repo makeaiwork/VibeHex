@@ -2,7 +2,7 @@
 feature: collapsible-sidebar
 key: labs.collapsible_sidebar
 title: Collapsible sidebar
-group: Sound and interface
+group: Dictation
 os: every OS
 vibehex: true
 ---

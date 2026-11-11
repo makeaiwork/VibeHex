@@ -2,7 +2,7 @@
 feature: filler-words
 key: labs.filler_words
 title: Remove filler words
-group: Text cleanup
+group: Output
 os: every OS
 vibehex: false
 ---

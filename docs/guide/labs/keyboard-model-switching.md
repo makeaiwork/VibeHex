@@ -2,7 +2,7 @@
 feature: keyboard-model-switching
 key: keyboard_model_switching.enabled
 title: Switch model with keyboard language
-group: Speech models
+group: Models
 os: [macOS, Windows, Linux (X11 only)]
 vibehex: false
 ---

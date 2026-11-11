@@ -2,7 +2,7 @@
 feature: recent-dictations
 key: labs.recent_dictations
 title: Copy recent dictations
-group: Pasting
+group: History
 os: macOS
 vibehex: false
 ---

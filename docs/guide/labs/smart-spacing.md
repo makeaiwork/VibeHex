@@ -2,7 +2,7 @@
 feature: smart-spacing
 key: labs.smart_spacing
 title: Smart spacing
-group: Pasting
+group: Output
 os: macOS
 vibehex: false
 ---

@@ -2,7 +2,7 @@
 feature: russian-vibe-coding
 key: labs.russian_vibe_coding
 title: Russian vibe coding
-group: Vocabulary
+group: Dictation
 os: every OS
 vibehex: true
 ---

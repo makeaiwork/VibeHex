@@ -2,7 +2,7 @@
 feature: keep-recordings
 key: labs.keep_recordings
 title: Keep recordings
-group: History and recording
+group: History
 os: every OS
 vibehex: false
 ---

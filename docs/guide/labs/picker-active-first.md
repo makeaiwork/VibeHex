@@ -2,7 +2,7 @@
 feature: picker-active-first
 key: labs.picker_active_first
 title: Model in use first
-group: Speech models
+group: Models
 os: every OS
 vibehex: false
 ---

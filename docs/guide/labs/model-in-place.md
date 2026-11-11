@@ -2,7 +2,7 @@
 feature: model-in-place
 key: labs.model_in_place
 title: Use model files where they are
-group: Speech models
+group: Models
 os: every OS
 vibehex: false
 ---

@@ -2,7 +2,7 @@
 feature: pause-browser
 key: pause_browser_media
 title: Also pause the browser
-group: Sound and interface
+group: Dictation
 os: macOS
 vibehex: false
 ---

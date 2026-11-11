@@ -2,7 +2,7 @@
 feature: playback
 key: labs.playback
 title: Listen to the recording
-group: History and recording
+group: Meetings
 os: macOS
 vibehex: true
 ---

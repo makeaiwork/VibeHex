@@ -2,7 +2,7 @@
 feature: files
 key: labs.files
 title: Files
-group: History and recording
+group: Dictation
 os: macOS
 vibehex: true
 ---

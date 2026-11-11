@@ -2,7 +2,7 @@
 feature: cleanup-progress
 key: labs.cleanup_progress
 title: Cleanup progress
-group: Text cleanup
+group: Output
 os: macOS
 vibehex: true
 ---

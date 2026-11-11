@@ -2,7 +2,7 @@
 feature: vocabulary-biasing
 key: labs.vocabulary_biasing
 title: Vocabulary biasing
-group: Vocabulary
+group: Dictation
 os: every OS
 vibehex: false
 ---
