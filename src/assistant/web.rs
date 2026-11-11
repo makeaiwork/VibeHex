@@ -53,12 +53,21 @@ pub struct Web {
     /// Searches and pages still under way, by item id, while it answers.
     #[serde(skip)]
     pub going: Vec<String>,
+    /// Web was on, yet this answer stayed off it: earlier answers in its
+    /// conversation carry the person's recordings, which never go online.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub held_back: bool,
 }
 
 impl Web {
-    /// It never searched the web.
+    /// Nothing to keep or show: it never searched, nor was held back.
     pub fn is_empty(&self) -> bool {
-        self.searches.is_empty() && self.pages.is_empty() && self.going.is_empty()
+        !self.went_online() && !self.held_back
+    }
+
+    /// It searched the web, or is searching.
+    pub fn went_online(&self) -> bool {
+        !self.searches.is_empty() || !self.pages.is_empty() || !self.going.is_empty()
     }
 
     /// A search or a page is under way.
@@ -133,7 +142,7 @@ impl Web {
     /// gave is no web source.
     pub fn cite(&mut self, answer: &str) {
         self.going.clear();
-        if self.is_empty() {
+        if !self.went_online() {
             return;
         }
         let cited = urls(answer);
@@ -359,11 +368,21 @@ mod tests {
             pages: vec!["https://lmstudio.ai/docs/app".into()],
             sources: vec!["https://lmstudio.ai/docs/app".into()],
             going: vec!["a".into()],
+            held_back: false,
         };
         let json = serde_json::to_string(&web).unwrap();
-        assert!(!json.contains("going"));
+        assert!(!json.contains("going") && !json.contains("held_back"));
         web.going.clear();
         assert_eq!(serde_json::from_str::<Web>(&json).unwrap(), web);
         assert_eq!(serde_json::to_string(&Web::default()).unwrap(), "{}");
+        // An answer held back from the web keeps that it was.
+        let held = Web {
+            held_back: true,
+            ..Web::default()
+        };
+        assert!(!held.is_empty() && !held.went_online());
+        let json = serde_json::to_string(&held).unwrap();
+        assert_eq!(json, r#"{"held_back":true}"#);
+        assert_eq!(serde_json::from_str::<Web>(&json).unwrap(), held);
     }
 }

@@ -64,6 +64,20 @@ pub struct Turn {
     pub web: Web,
 }
 
+impl Turn {
+    /// Its answer was written from recordings it found, so it may quote
+    /// them; a search that found nothing gave it nothing of theirs.
+    pub fn read_recordings(&self) -> bool {
+        !self.refs.is_empty()
+            || self.steps.iter().any(|step| match *step {
+                Step::Meetings { found, .. }
+                | Step::Files { found, .. }
+                | Step::Dictations { found, .. } => found > 0,
+                Step::Read { passages, .. } => passages > 0,
+            })
+    }
+}
+
 /// One conversation.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
@@ -401,6 +415,7 @@ mod tests {
             pages: vec!["https://lmstudio.ai/docs/app".into()],
             sources: vec!["https://lmstudio.ai/docs/developer/core/server".into()],
             going: Vec::new(),
+            held_back: false,
         };
         store.push(
             id,

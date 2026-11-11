@@ -26,6 +26,8 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("1 search", ["1 wyszukiwanie", "1 次搜索", "1 回検索", "1 Suche", "1 búsqueda", "1 пошук"]),
     ("{} searches", ["wyszukiwania: {}", "{} 次搜索", "{} 回検索", "{} Suchen", "{} búsquedas", "пошуків: {}"]),
     ("From the web", ["Z internetu", "来自网络", "ウェブより", "Aus dem Web", "De la web", "З інтернету"]),
+    ("Read the guide in {} s, not the web", ["Przeczytano przewodnik w {} s, bez internetu", "已在 {} 秒内阅读指南，未使用网络", "{} 秒でガイドを読みました（ウェブは使っていません）", "Leitfaden gelesen in {} s, ohne Web", "Leída la guía en {} s, sin la web", "Прочитано посібник за {} с, без інтернету"]),
+    ("The web stays off once a conversation has read your recordings", ["Internet pozostaje wyłączony, gdy rozmowa przeczytała Twoje nagrania", "对话读过你的录音后，网络会保持关闭", "会話で録音を読んだあとは、ウェブは使いません", "Sobald ein Gespräch deine Aufnahmen gelesen hat, bleibt das Web aus", "Cuando una conversación ha leído tus grabaciones, la web queda desactivada", "Щойно розмова прочитала ваші записи, інтернет лишається вимкненим"]),
 ];
 
 /// French.
@@ -50,6 +52,8 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("1 search", "1 recherche"),
     ("{} searches", "{} recherches"),
     ("From the web", "Du web"),
+    ("Read the guide in {} s, not the web", "Guide lu en {} s, sans le web"),
+    ("The web stays off once a conversation has read your recordings", "Le web reste coupé dès qu'une conversation a lu vos enregistrements"),
 ];
 
 /// Brazilian Portuguese.
@@ -74,6 +78,8 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("1 search", "1 busca"),
     ("{} searches", "{} buscas"),
     ("From the web", "Da web"),
+    ("Read the guide in {} s, not the web", "Leu o guia em {} s, sem a web"),
+    ("The web stays off once a conversation has read your recordings", "A web fica desligada depois que uma conversa leu suas gravações"),
 ];
 
 /// Russian.
@@ -98,4 +104,6 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("1 search", "1 запрос"),
     ("{} searches", "запросов: {}"),
     ("From the web", "Из интернета"),
+    ("Read the guide in {} s, not the web", "Прочитал руководство за {} с, без интернета"),
+    ("The web stays off once a conversation has read your recordings", "Когда разговор уже читал ваши записи, интернет остаётся выключен"),
 ];

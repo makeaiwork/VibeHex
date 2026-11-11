@@ -180,6 +180,7 @@ pub(super) fn ask_with(
             question: turn.question.clone(),
             answer: turn.answer.clone(),
             changes: prompt::changes_line(&turn.cards, &turn.refused),
+            recordings: turn.read_recordings(),
         })
         .collect();
     let engine = super::engine(

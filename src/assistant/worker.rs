@@ -58,6 +58,9 @@ pub struct Earlier {
     pub question: String,
     pub answer: String,
     pub changes: String,
+    /// Its answer was written from the person's recordings, so it may
+    /// quote them: the web stays off for the rest of the conversation.
+    pub recordings: bool,
 }
 
 /// What a question may read besides the guide.
@@ -166,9 +169,34 @@ pub fn ask(question: Question, engine: Engine) -> bool {
 }
 
 /// Whether `question`'s answer may search the web: its conversation's Web
-/// is on, it runs on Codex, and it isn't guided setup's.
+/// is on, it runs on Codex, and it isn't guided setup's. What it reads may
+/// still keep it off ([`offline`]).
 fn searches(question: &Question, engine: &Engine) -> bool {
     question.web && engine.searches_web() && question.setup == Stage::None
+}
+
+/// Why an answer that may search the web stays off it: its prompt holds
+/// the person's recordings (meetings, dictations, Files texts), and those
+/// never go online, whatever the model is told. The settings it reads
+/// carry no vocabulary, keys, or addresses, and may.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Offline {
+    /// The question is about their recordings, its own or carried over
+    /// from the one before: the web has nothing for it, and nothing is said.
+    Recordings,
+    /// An earlier answer quotes them; the question may need the web, so
+    /// the steps say it stayed off.
+    Earlier,
+}
+
+fn offline(question: &Question, found: Option<&Found>) -> Option<Offline> {
+    if found.is_some() || matches!(question.recall, Recall::Declined) {
+        Some(Offline::Recordings)
+    } else if question.earlier.iter().any(|earlier| earlier.recordings) {
+        Some(Offline::Earlier)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -225,6 +253,18 @@ fn start_with(
                 (Recall::Declined, _) => Reach::Declined,
                 (Recall::Search(search), Some(found)) => Reach::Recordings(found, search.now_ms),
                 _ => Reach::Guide,
+            };
+            let search = match search.as_ref().and(offline(&question, found.as_ref())) {
+                None => search,
+                Some(why) => {
+                    if why == Offline::Earlier {
+                        let mut state = state();
+                        if let Some(answering) = &mut state.answering {
+                            answering.web.held_back = true;
+                        }
+                    }
+                    None
+                }
             };
             let mut prompt = prompt::build(
                 &question.question,
@@ -588,6 +628,7 @@ mod tests {
                 question: "before".into(),
                 answer: "earlier answer".into(),
                 changes: String::new(),
+                recordings: false,
             }],
             recall: Recall::Guide,
             changes: None,
@@ -902,6 +943,112 @@ mod tests {
         assert!(!searches(&setup, &engine("codex")));
     }
 
+    /// Which call an answer made with Web on, once it is in: the one that
+    /// may search the web, or the plain one.
+    fn called_with_web(question: Question) -> (bool, Turn) {
+        let searched = Arc::new(AtomicBool::new(false));
+        let generate: Generate = Box::new(|instructions, _, _, _| {
+            assert!(!instructions.contains(super::super::web::RULES));
+            Ok("From the guide.\n\nSources: topics/assistant".into())
+        });
+        let flag = searched.clone();
+        let search: Searching = Box::new(move |_, _, _, _, _| {
+            flag.store(true, Ordering::SeqCst);
+            Ok("From the web.\n\nSources: topics/assistant".into())
+        });
+        assert!(start_with(
+            Question {
+                web: true,
+                ..question
+            },
+            Room::Large,
+            "GPT".into(),
+            (generate, Some(search)),
+            false
+        ));
+        let (_, turn) = finished();
+        (searched.load(Ordering::SeqCst), turn)
+    }
+
+    /// The person's recordings never go online, whatever the prompt says:
+    /// a question about them, Web on, makes the call without web search,
+    /// and says nothing of it; a guide question with Web on searches.
+    #[test]
+    fn a_recordings_answer_never_searches_the_web() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/assistant/recordings");
+        let now_ms =
+            crate::meeting::query::parse_time("2026-11-27", 0, false).unwrap() + 12 * 3_600_000;
+        let asked = "Summarize my calls with Anna last week";
+        let recordings = Question {
+            recall: Recall::Search(Search {
+                allowed: Allowed::from_settings(&crate::app_settings::AssistantSettings {
+                    read_recordings: Some(true),
+                    ..Default::default()
+                })
+                .unwrap(),
+                sources: Sources::at(&root),
+                intent: super::super::intent::read(asked, now_ms).unwrap(),
+                now_ms,
+            }),
+            ..question(asked)
+        };
+        let (searched, turn) = called_with_web(recordings);
+        assert!(!searched, "a recordings question went online");
+        assert!(!turn.refs.is_empty() || !turn.steps.is_empty());
+        assert!(
+            turn.web.is_empty(),
+            "nothing to say: it never needed the web"
+        );
+
+        let declined = Question {
+            recall: Recall::Declined,
+            ..question(asked)
+        };
+        assert!(!called_with_web(declined).0);
+
+        let (searched, turn) = called_with_web(question("How do I start LM Studio's server?"));
+        assert!(searched, "a guide question with Web on may search");
+        assert!(!turn.web.held_back);
+    }
+
+    /// After an answer from the recordings, the conversation's next answers
+    /// stay off the web, since the earlier answer goes with them; a
+    /// question that might have needed it says so in its steps.
+    #[test]
+    fn after_an_answer_from_the_recordings_the_web_stays_off() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut after = question("How do I start LM Studio's server?");
+        after.earlier[0].recordings = true;
+        let (searched, turn) = called_with_web(after);
+        assert!(!searched);
+        assert!(turn.web.held_back && !turn.web.went_online());
+        let stored: Turn = serde_json::from_str(&serde_json::to_string(&turn).unwrap()).unwrap();
+        assert!(stored.web.held_back);
+        assert!(!stored.read_recordings());
+        let quoted = Turn {
+            steps: vec![Step::Meetings {
+                searched: 3,
+                found: 2,
+            }],
+            ..Turn::default()
+        };
+        assert!(quoted.read_recordings());
+        let empty = Turn {
+            steps: vec![Step::Dictations {
+                searched: 5,
+                found: 0,
+            }],
+            ..Turn::default()
+        };
+        assert!(!empty.read_recordings(), "a search that found nothing");
+    }
+
     /// A searching answer reads the web rules; its searches land as steps
     /// while it streams, and with the turn, which keeps the pages it cites.
     #[test]
@@ -981,7 +1128,7 @@ mod tests {
         };
         eprintln!("live web steps (searches, pages, going): {live:?}\n{turn:#?}");
         assert!(turn.error.is_none(), "{:?}", turn.error);
-        assert!(!turn.web.is_empty(), "no web search arrived");
+        assert!(turn.web.went_online(), "no web search arrived");
     }
 
     #[test]

@@ -96,7 +96,7 @@ fn toggle(ui: &mut Ui, web: bool) {
 /// doing. None before it goes online.
 pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
     let web = &answering.web;
-    if web.is_empty() {
+    if !web.went_online() {
         return None;
     }
     let mut list = col().key("web-steps").gap(6.0);
@@ -127,8 +127,11 @@ pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
 }
 
 /// The folded line of an answer that went online: "Read the guide and 2
-/// web pages in 9 s".
+/// web pages in 9 s"; or of one Web was on for, kept off it.
 pub(super) fn folded(turn: &Turn, seconds: &str) -> String {
+    if !turn.web.went_online() {
+        return tr_fill("Read the guide in {} s, not the web", seconds);
+    }
     match turn.web.read() {
         0 => tr_fill("Read the guide and searched the web in {} s", seconds),
         1 => tr_fill("Read the guide and 1 web page in {} s", seconds),
@@ -141,6 +144,7 @@ pub(super) fn folded(turn: &Turn, seconds: &str) -> String {
 
 /// The open steps of an answer that went online: the guide it read, that
 /// the guide didn't cover it all, and what the web gave, with each search.
+/// One held back from the web: the guide it read, and why.
 pub(super) fn steps(p: Paint, turn: &Turn) -> Vec<El> {
     let web = &turn.web;
     if web.is_empty() {
@@ -166,6 +170,16 @@ pub(super) fn steps(p: Paint, turn: &Turn) -> Vec<El> {
             tr("Searched the guide:"),
             Some(titles.join(", ")),
         ));
+    }
+    if !web.went_online() {
+        lines.push(line(
+            p,
+            "held",
+            (&icons::GLOBE, c.icon_muted),
+            tr("The web stays off once a conversation has read your recordings"),
+            None,
+        ));
+        return lines;
     }
     lines.push(line(
         p,

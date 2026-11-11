@@ -289,10 +289,19 @@ Web on (assistant.web, or the field's Web toggle for one conversation)
 │              official sources, nothing of the person's in a search, no
 │              search for questions about their recordings unless asked,
 │              each page cited as a Markdown link
+├── Guard      worker::offline, in code, not the prompt: no web search
+│              when the prompt holds the person's recordings (meetings,
+│              dictations, Files texts). A recordings question, carried
+│              follow-up, or declined one: the plain call, nothing said.
+│              A later question in a conversation an earlier answer of
+│              which read them (Turn::read_recordings): the plain call,
+│              and Web {held_back} folds to "Read the guide in N s, not
+│              the web". The settings snapshot may go along
 ├── Steps      codex.rs passes each `webSearch` item (item/started,
 │              item/completed) to worker::seen → Answering.web → the
 │              pane's live steps; the turn keeps Web {guide, searches,
-│              pages, sources} (serde default, left out when empty)
+│              pages, sources, held_back} (serde default, left out when
+│              empty)
 └── Sources    the http(s) links the answer cites, one per site, else the
                pages it opened; only when it searched. Links in the answer
                open in the browser too
@@ -336,7 +345,7 @@ each with the parse it must make); scenes `assistant`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
 `assistant-change-both`, `assistant-change-coming`, setup's
 `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-result`,
-and their goldens; the web's `assistant-web`, `assistant-web-off`,
+and their goldens; the web's `assistant-web`, `assistant-web-off`, `assistant-web-held`,
 `assistant-web-answering` (no goldens yet); `scripts/check control::settings`
 for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and

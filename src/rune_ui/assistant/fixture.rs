@@ -113,6 +113,7 @@ pub(in super::super) fn web_answer(ui: &mut Ui) {
                 ],
                 sources: vec!["https://lmstudio.ai/docs/developer/core/server".into()],
                 going: Vec::new(),
+                held_back: false,
             },
             ..turn(
                 LM_STUDIO,
@@ -133,6 +134,32 @@ pub(in super::super) fn web_off(ui: &mut Ui) {
     if let Some(id) = ui.assistant.open {
         ui.assistant.store.set_web(id, Some(false));
     }
+}
+
+/// Web on, but the conversation has read the person's recordings: the
+/// answer came from the guide alone, and its open steps say why.
+pub(in super::super) fn web_held(ui: &mut Ui) {
+    open(ui);
+    let id = ui.assistant.store.start(LM_STUDIO, None, None);
+    ui.assistant.store.push(
+        id,
+        Turn {
+            seconds: 4.0,
+            web: Web {
+                guide: vec!["topics/ai-cleanup".into()],
+                held_back: true,
+                ..Web::default()
+            },
+            ..turn(
+                LM_STUDIO,
+                "Со стороны VibeHex нужен только адрес сервера: **Output › AI cleanup › Your server**. Как запустить сервер в самом LM Studio, руководство не говорит.",
+                &["topics/ai-cleanup", "labs/ai-cleanup-server"],
+                1,
+            )
+        },
+    );
+    ui.assistant.open = Some(id);
+    ui.assistant.unfolded = vec![(id, 0)];
 }
 
 /// A web answer coming: a search done, a page being read.

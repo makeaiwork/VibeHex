@@ -199,6 +199,10 @@ const PATHS: &[(&str, &str)] = &[
     ),
     ("assistant-web-off", "Window/Assistant/Web off in the field"),
     (
+        "assistant-web-held",
+        "Window/Assistant/Web held back after recordings",
+    ),
+    (
         "assistant-web-answering",
         "Window/Assistant/Searching the web",
     ),
