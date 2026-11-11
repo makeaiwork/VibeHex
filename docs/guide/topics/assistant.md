@@ -32,8 +32,9 @@ on a click. If the recordings don't say, the answer says so.
 
 Each numbered mark in the answer, and each chip under **From your
 recordings**, opens its place: a meeting on Transcript with the passage
-tinted and the searched words lit, a Files text on its Original, or the
-dictation in History. **Back to Assistant**, at the top of that pane, returns
+tinted and the phrases it cited lit, a Files text on its Original the same
+way (also while you listen to it), or the dictation in History, its row
+marked with the number. The place lands a third of the way down the window. **Back to Assistant**, at the top of that pane, returns
 to the same spot in the conversation; Cmd-[ on a Mac and Ctrl+[ elsewhere do
 the same.
 

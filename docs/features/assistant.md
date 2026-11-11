@@ -50,7 +50,9 @@ Opened from an answer                            // rune_ui::assistant::jump
 ├── Bar         an item cited more than once: "From the answer: <question>",
 │               "1 of 2", up and down between places, a cross to clear
 └── Place       tinted in the accent, round corners, the answer's [n] by the
-                speaker, the searched words lit; others cited fainter
+                speaker, the cited phrases lit inside; others cited fainter;
+                a third of the way down the pane. A dictation: its History
+                row tinted with the [n] before its title
 ```
 
 ## Behaviour
@@ -96,22 +98,40 @@ Opened from an answer                            // rune_ui::assistant::jump
   search), Files records, and the History snapshot, in the time asked about,
   within a budget: 3 meetings, 2 passages each, 5,000 characters for a
   built-in model; 6, 4, and 24,000 otherwise.
-- The prompt carries them as a numbered `<recordings>` block; the model
-  cites `[n]` inline, and says plainly, in the question's language, when the
-  recordings don't hold the answer. The streaming draft never shows a half
-  written `[n`. A turn keeps its steps, seconds, and the places it cited.
+- The prompt carries them as a numbered `<recordings>` block. A transcript
+  excerpt (a meeting passage, a Files stretch) has one numbered line per
+  phrase, `[2.3]` being line 3 of excerpt 2; notes, whole texts, and
+  dictations have none. The model cites the lines that say a fact, `[2.3]` or
+  `[2.3-2.5]`, or an excerpt without lines by `[n]` (`recordings::cite`
+  reads them; junk in brackets and Markdown links stay as written). The
+  answer still shows one `[n]` per excerpt where citations stand together,
+  and says plainly, in the question's language, when the recordings don't
+  hold the answer. The streaming draft never shows a half written `[2.3-`.
+- A cited line keeps its time and its words: it starts at its first timed
+  word (or its segment's start in a transcript without word times) and ends
+  with its segment, and its words are a byte range in the meeting's turns
+  (`meeting::coalesced_ranges`) or the Files Original
+  (`files::text::segment_ranges`). Unknown ids are dropped; a citation with
+  no valid lines tints its passage only. A turn keeps its steps, seconds,
+  and these places.
 - A mark or chip opens its place (`jump`): a meeting on Transcript, the
-  passage near the top, tinted, its words lit until the person leaves the
-  pane; a Files text on its Original, the paragraph lit the same way; a
-  dictation selected in History (History can't scroll to or light a range
-  yet). Back to Assistant and Cmd+[ (Ctrl+[) return to the conversation
+  passage tinted and exactly its cited phrases lit, until the person leaves
+  the pane; a Files text on its Original the same way, also while Listen to
+  the recording plays (the playing word underlined over the tint); a
+  dictation selected in History, its row tinted with the [n]. The lit
+  phrase lands about a third of the way down the pane, whatever its height
+  (measured from the panel), stopping at the text's start and end. No
+  searched words are lit. Several places of one item step through the bar.
+  Back to Assistant and Cmd+[ (Ctrl+[) return to the conversation
   where it was scrolled; choosing another pane drops them. The mouse's back
   button doesn't yet (Rune gives other buttons only to elements that also
   take primary presses).
 - Eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
   texts, five dictations), 26 questions with expected recordings (recall
-  must stay at 90% or more, now 100%) and 11 guide questions that must not
-  route (`scripts/check assistant::recordings`).
+  must stay at 90% or more, now 100%), 8 questions whose cited line must be
+  offered and map to its time (now 8 of 8; word-timed, segment-only, and
+  Files transcripts), and 11 guide questions that must not route
+  (`scripts/check assistant::recordings`).
 
 ## Settings keys
 
@@ -137,5 +157,7 @@ recordings and its eval, jump, settings keys); scenes `assistant`,
 `assistant-answering`, `assistant-start`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
 `assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
-`files-cited` and their goldens. Not yet verified
+`files-cited`, `files-cited-listening`, `history-cited` and their goldens;
+`rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
+Cmd+[, and the landing at two window heights. Not yet verified
 end to end by asking a real model from a running app.
