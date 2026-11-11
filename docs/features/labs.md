@@ -2065,8 +2065,9 @@ streams from `item/agentMessage/delta` and ends at `turn/completed`, and the
 thread is unsubscribed after. Hex's process overrides the person's
 `~/.codex/config.toml` with `-c` (`cleanup_server::isolation`): no `notify`
 command, project instructions, or web search, and hooks, memories, apps,
-plugins, multi-agent, shell, computer and browser use, image generation, goals,
-and the code-mode host off. Their MCP servers are turned off by name, since
+plugins, multi-agent, shell, computer and browser use, image generation and
+reading, goals, and the code-mode host off (Assistant's threads with Web on
+turn web search and code mode back on for themselves). Their MCP servers are turned off by name, since
 Codex merges `-c` into their config and `mcp_servers={}` removes nothing: each
 start passes `mcp_servers={"<name>"={enabled=false},…}` for the servers it
 knows of, then asks the running process `config/read` (every layer merged) and

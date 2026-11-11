@@ -14,7 +14,7 @@
 
 use std::sync::Mutex;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// Overrides for Hex's own app-server, besides the MCP servers. Feature
 /// flags go through `-c` because `--disable` refuses a flag a Codex
@@ -37,7 +37,21 @@ pub(super) const ISOLATION: &[&str] = &[
     "features.goals=false",
     "features.code_mode_host=false",
     "features.js_repl=false",
+    "features.view_image=false",
 ];
+
+/// What an Assistant thread with Web on sets for itself, over the
+/// process's isolation: live web search, and code mode, which Codex 0.167
+/// searches through. Code mode runs JavaScript in a V8 isolate with no
+/// Node, file system, network, or console of its own; it reaches only the
+/// thread's other tools, and with [`ISOLATION`] those are no shell, exec,
+/// MCP server, app, plugin, browser, computer use, or image reading; a
+/// patch can't write in the read-only sandbox, where no approval is ever
+/// given. Dotted keys only: an object under `features` would replace the
+/// process's whole `features` table.
+pub(super) fn searching() -> Value {
+    json!({ "web_search": "live", "features.code_mode_host": true })
+}
 
 /// The person's MCP servers Codex has reported on, by name, so the next
 /// start turns them off from the outset.
@@ -172,6 +186,29 @@ mod tests {
                 .iter()
                 .any(|setting| setting.starts_with("mcp_servers"))
         );
+    }
+
+    /// Only web search and code mode open up, each by its own key; the
+    /// process keeps both off, and everything else off, for every thread.
+    #[test]
+    fn a_searching_thread_opens_web_search_and_code_mode_alone() {
+        let config = searching();
+        let keys: Vec<&String> = config.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["features.code_mode_host", "web_search"]);
+        assert!(ISOLATION.contains(&"web_search=\"disabled\""));
+        assert!(ISOLATION.contains(&"features.code_mode_host=false"));
+        for off in [
+            "features.shell_tool=false",
+            "features.unified_exec=false",
+            "features.js_repl=false",
+            "features.apps=false",
+            "features.plugins=false",
+            "features.browser_use=false",
+            "features.computer_use=false",
+            "features.view_image=false",
+        ] {
+            assert!(ISOLATION.contains(&off), "{off}");
+        }
     }
 
     #[test]

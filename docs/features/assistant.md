@@ -279,9 +279,10 @@ Opened from an answer                            // rune_ui::assistant::jump
 
 ```ts
 Web on (assistant.web, or the field's Web toggle for one conversation)
-├── Engine     Codex only: its own thread/start carries
-│              config {"web_search": "live"}; every other ISOLATION
-│              override stays. Dictation cleanup, Files, meeting notes,
+├── Engine     Codex only: its own thread/start carries config
+│              {"web_search": "live", "features.code_mode_host": true}
+│              (isolation::searching; Codex 0.167 searches through code
+│              mode); every other isolation override stays. Dictation cleanup, Files, meeting notes,
 │              setup's questions and plan: never. Built in, OpenRouter,
 │              your server, OpenCode: no toggle, no search
 ├── Prompt     web::RULES after the rest: the guide first, the web only
@@ -311,15 +312,17 @@ Why Codex alone: OpenRouter's web plugin (`:online`) bills each search on the
 person's OpenRouter credits and streams its citations in another shape, and
 OpenCode answers through its own tools; neither is wired.
 
-Known gap, observed 11 November 2026 on Codex 0.167 (gpt-6.1-sol): the
-thread's `web_search` override reaches Codex (a thread's `config` beats the
-process's `-c`), yet the model searches through code mode (`exec`), which
-ISOLATION turns off (`features.code_mode_host=false`), so the live answer
-said it couldn't reach the web and no `webSearch` item came. Allowing code
-mode on these threads is the owner's call: the person's own MCP servers in
-`~/.codex/config.toml` (here `node_repl`) still start in Hex's threads
-despite `mcp_servers={}`, and code mode would let the model reach them.
-Live check: `cargo test --bin hex -- --ignored --nocapture
+Code mode, checked 12 November 2026 on Codex 0.167: its `exec` tool runs
+JavaScript "in a fresh V8 isolate … no Node, no file system, no network access,
+no console" (Codex's own tool description), reaching only the thread's other
+tools. With the isolation those are `apply_patch` (refused: read-only sandbox,
+approvals never given), the MCP resource tools (no MCP server runs), and the
+clock; shell, exec, apps, plugins, browser and computer use, and image reading
+(`features.view_image=false`, added for every thread) are off. The thread's
+`config` takes dotted keys only, since an object under `features` would replace
+the process's whole `features` table. Before this, the model's `exec` failed
+with "code-mode host is disabled" and no `webSearch` item came. Live check:
+`cargo test --bin hex -- --ignored --nocapture
 searches_the_web_on_the_installed_codex` (one paid request).
 
 ## Privacy

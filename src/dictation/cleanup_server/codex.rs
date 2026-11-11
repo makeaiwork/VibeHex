@@ -12,8 +12,9 @@
 //! never sees a password or key: Codex keeps its own sign-in in `~/.codex`.
 //!
 //! One exception: Assistant's answers, while its Web is on, start their
-//! thread with live web search allowed ([`generate_searching`]); dictation
-//! cleanup, Files, and meeting notes never do.
+//! thread with live web search and the code mode it searches through
+//! ([`generate_searching`]); dictation cleanup, Files, and meeting notes
+//! never do.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -343,8 +344,9 @@ pub fn generate_searching(
 }
 
 /// `thread/start`'s parameters: ephemeral and read-only in `cwd`, with
-/// Hex's instructions; live web search only when `web`, overriding the
-/// process's `web_search="disabled"` for this thread alone.
+/// Hex's instructions; live web search, through code mode, only when
+/// `web`, overriding the process's isolation for this thread alone
+/// ([`isolation::searching`]).
 fn thread_params(model: &str, instructions: &str, cwd: &Path, web: bool) -> Value {
     let mut params = json!({
         "model": non_empty(model),
@@ -355,7 +357,7 @@ fn thread_params(model: &str, instructions: &str, cwd: &Path, web: bool) -> Valu
         "baseInstructions": instructions,
     });
     if web {
-        params["config"] = json!({ "web_search": "live" });
+        params["config"] = isolation::searching();
     }
     params
 }
@@ -1095,8 +1097,12 @@ mod tests {
         let plain = thread_params("", "x", cwd, false);
         assert!(plain.get("config").is_none());
         assert_eq!(plain["sandbox"], "read-only");
+        assert!(isolation::ISOLATION.contains(&"features.code_mode_host=false"));
         let searching = thread_params("gpt-6.1-sol", "x", cwd, true);
-        assert_eq!(searching["config"], json!({ "web_search": "live" }));
+        assert_eq!(
+            searching["config"],
+            json!({ "web_search": "live", "features.code_mode_host": true })
+        );
         assert_eq!(searching["sandbox"], "read-only");
         assert_eq!(searching["ephemeral"], true);
     }
