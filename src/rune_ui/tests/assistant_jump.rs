@@ -85,7 +85,7 @@ fn a_long_passage_lands_on_its_cited_words_not_its_top() {
         (0.2..0.45).contains(&down),
         "lit words {down:.2} of the way down"
     );
-    let (_, top) = rt.find("turn4").expect("the long passage");
+    let top = element(&rt, "turn4").rect[1];
     assert!(top < panel[1], "the passage starts above the pane ({top})");
 }
 
