@@ -12,6 +12,8 @@
 //! passages found to the prompt.
 
 pub mod changes;
+#[cfg(test)]
+mod eval;
 pub mod guide;
 pub mod intent;
 pub mod prompt;
