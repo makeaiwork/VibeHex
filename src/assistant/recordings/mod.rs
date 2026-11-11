@@ -8,10 +8,14 @@
 //! meetings `Library` that `hex mcp` uses, the History snapshot, Files'
 //! records) and their search, on the answer's thread, never the window's;
 //! what it found goes to the model as numbered excerpts the answer cites.
+//! A transcript's excerpt numbers its lines too (`[2.3]`), so an answer
+//! cites the very lines it rests on and the place opens with them lit.
 
+pub mod cite;
 mod meetings;
 mod texts;
 
+use std::ops::Range;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -84,7 +88,39 @@ pub struct Excerpt {
     pub offset_ms: Option<u64>,
     /// `Notes`, `Me`, `Them`, or empty.
     pub label: String,
+    /// What the model reads: its lines joined, when it has them.
     pub text: String,
+    /// A transcript's lines, `[n.1]` on: none for notes, a dictation, or
+    /// a text read whole, which are cited whole.
+    pub lines: Vec<Line>,
+}
+
+/// One line of a transcript excerpt: a sentence or a segment, as the
+/// transcription model gave it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Line {
+    pub text: String,
+    /// From its first word to its last, into the recording: the word's
+    /// own times where the model kept them, else the segment's.
+    pub start_ms: u64,
+    pub end_ms: u64,
+    /// Its bytes in the item's text as its pane shows it: a meeting's
+    /// turns one per line, a Files Original's paragraphs.
+    pub at: Range<usize>,
+}
+
+impl Line {
+    /// `text` from `start_ms` to `end_ms`, at `at`, starting at its first
+    /// timed word when `words` time it.
+    fn new(text: &str, (start_ms, end_ms): (u64, u64), words: &[u64], at: Range<usize>) -> Self {
+        let first = crate::meeting::word_starts(text, words).and_then(|words| words.first());
+        Self {
+            text: text.trim().to_owned(),
+            start_ms: first.copied().unwrap_or(start_ms).max(start_ms),
+            end_ms: end_ms.max(start_ms),
+            at,
+        }
+    }
 }
 
 /// A place an answer cites, as the pane links it.
@@ -98,9 +134,27 @@ pub struct Ref {
     pub at_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset_ms: Option<u64>,
-    /// The words searched for, which the place lights when opened.
+    /// The lines its marks cite, which the place lights when opened; none
+    /// when they named no line it has, and then only the passage shows.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub words: Vec<String>,
+    pub lines: Vec<Lines>,
+}
+
+/// Lines `[n.first-n.last]` one of the answer's marks cites, mapped to
+/// where they are.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Lines {
+    /// Which of the answer's `[n]` for this excerpt cites them, from 0.
+    pub mark: u32,
+    pub first: u32,
+    pub last: u32,
+    /// From the first line's first word to the last line's last, into the
+    /// recording.
+    pub start_ms: u64,
+    pub end_ms: u64,
+    /// Their bytes in the item's text (see [`Line::at`]).
+    pub at: Range<usize>,
 }
 
 /// One step of the search, as the pane lists it.
@@ -156,56 +210,80 @@ impl Budget {
 pub struct Found {
     pub excerpts: Vec<Excerpt>,
     pub steps: Vec<Step>,
-    /// The words searched for.
-    pub terms: Vec<String>,
 }
 
 impl Found {
-    /// The excerpts `answer` cites as `[n]`, in the order first cited.
+    /// The excerpts `answer` cites, in the order first cited, each with
+    /// the lines its marks name. Lines an excerpt doesn't have are left
+    /// out, and so are excerpts the search didn't find.
     pub fn cited(&self, answer: &str) -> Vec<Ref> {
         let mut refs: Vec<Ref> = Vec::new();
-        for n in citations(answer) {
-            if refs.iter().any(|known| known.n == n) {
-                continue;
-            }
-            if let Some(excerpt) = self.excerpts.iter().find(|excerpt| excerpt.n == n) {
-                refs.push(Ref {
-                    n,
-                    kind: excerpt.kind,
-                    id: excerpt.id.clone(),
-                    title: excerpt.title.clone(),
-                    at_ms: excerpt.at_ms,
-                    offset_ms: excerpt.offset_ms,
-                    words: self.terms.clone(),
-                });
+        // How many marks each excerpt has had so far.
+        let mut marks: Vec<(u32, u32)> = Vec::new();
+        for run in cite::runs(answer) {
+            for n in run.numbers() {
+                let mark = match marks.iter_mut().find(|(known, _)| *known == n) {
+                    Some((_, count)) => {
+                        *count += 1;
+                        *count - 1
+                    }
+                    None => {
+                        marks.push((n, 1));
+                        0
+                    }
+                };
+                let Some(excerpt) = self.excerpts.iter().find(|excerpt| excerpt.n == n) else {
+                    continue;
+                };
+                let at = match refs.iter().position(|known| known.n == n) {
+                    Some(at) => at,
+                    None => {
+                        refs.push(Ref {
+                            n,
+                            kind: excerpt.kind,
+                            id: excerpt.id.clone(),
+                            title: excerpt.title.clone(),
+                            at_ms: excerpt.at_ms,
+                            offset_ms: excerpt.offset_ms,
+                            lines: Vec::new(),
+                        });
+                        refs.len() - 1
+                    }
+                };
+                for (first, last) in run
+                    .cites
+                    .iter()
+                    .filter(|c| c.n == n)
+                    .filter_map(|c| c.lines)
+                {
+                    if let Some(lines) = excerpt.lines_of(mark, first, last)
+                        && !refs[at].lines.contains(&lines)
+                    {
+                        refs[at].lines.push(lines);
+                    }
+                }
             }
         }
         refs
     }
 }
 
-/// Every `[n]` in `text`, also `[1, 3]` and `[1][3]`.
-pub fn citations(text: &str) -> Vec<u32> {
-    let mut found = Vec::new();
-    let mut rest = text;
-    while let Some(open) = rest.find('[') {
-        rest = &rest[open + 1..];
-        let Some(close) = rest.find(']') else { break };
-        let inside = &rest[..close];
-        if !inside.is_empty()
-            && inside
-                .chars()
-                .all(|c| c.is_ascii_digit() || c == ',' || c == ' ')
-        {
-            found.extend(
-                inside
-                    .split(',')
-                    .filter_map(|n| n.trim().parse::<u32>().ok()),
-            );
-        }
-        rest = &rest[close + 1..];
+impl Excerpt {
+    /// Its lines `first..=last` as one of the answer's marks cites them;
+    /// none when it hasn't them all.
+    fn lines_of(&self, mark: u32, first: u32, last: u32) -> Option<Lines> {
+        let index = |id: u32| id.checked_sub(1).map(|index| index as usize);
+        let from = self.lines.get(index(first)?)?;
+        let to = self.lines.get(index(last)?)?;
+        Some(Lines {
+            mark,
+            first,
+            last,
+            start_ms: from.start_ms,
+            end_ms: to.end_ms.max(from.start_ms),
+            at: from.at.start..to.at.end.max(from.at.start),
+        })
     }
-    found
 }
 
 /// Searches the recordings `intent` asks about, reporting each step as it
@@ -219,10 +297,7 @@ pub fn search(
     now_ms: u64,
     step: &mut dyn FnMut(&Step),
 ) -> Found {
-    let mut found = Found {
-        terms: intent.terms.clone(),
-        ..Found::default()
-    };
+    let mut found = Found::default();
     let mut record = |found: &mut Found, done: Step| {
         step(&done);
         found.steps.push(done);

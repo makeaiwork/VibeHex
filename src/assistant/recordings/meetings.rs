@@ -1,13 +1,15 @@
 //! Meetings, through the `Library` `hex mcp` reads: the ones in the time
 //! asked about, ranked by the meeting search when the question has words to
 //! search for, else the newest; each read as its notes and its best
-//! passages.
+//! passages, a passage line by line as the transcript keeps them.
 
+use std::ops::Range;
 use std::path::Path;
 use std::sync::Arc;
 
 use super::super::intent::Intent;
-use super::{Budget, Excerpt, Kind, clip, within};
+use super::{Budget, Excerpt, Kind, Line, clip, within};
+use crate::meeting::TranscriptEntry;
 use crate::meeting::query::{Library, Meeting, search_passages};
 
 /// How much of a meeting's notes, and of one passage, a model reads.
@@ -72,7 +74,7 @@ pub(super) fn search(
     let mut excerpts = Vec::new();
     for meeting in &picked {
         let title = meeting.title();
-        let mut push = |offset: Option<u64>, label: &str, text: String| {
+        let mut push = |offset: Option<u64>, label: &str, text: String, lines: Vec<Line>| {
             excerpts.push(Excerpt {
                 n: 0,
                 kind: Kind::Meeting,
@@ -82,6 +84,7 @@ pub(super) fn search(
                 offset_ms: offset,
                 label: label.to_owned(),
                 text,
+                lines,
             });
         };
         let notes = meeting
@@ -91,30 +94,63 @@ pub(super) fn search(
             .map(crate::meeting::notes_markdown)
             .filter(|notes| !notes.trim().is_empty());
         if let Some(notes) = &notes {
-            push(None, "Notes", clip(notes, NOTES_CHARS));
+            push(None, "Notes", clip(notes, NOTES_CHARS), Vec::new());
         }
         // Its best passages, in the order they were said; a meeting
         // without notes or matches opens with its first words.
-        let mut passages: Vec<_> = hits
+        let mut passages: Vec<(u64, &str, Range<usize>)> = hits
             .iter()
             .filter(|hit| hit.meeting.id == meeting.id && !hit.notes)
             .take(budget.passages)
-            .map(|hit| (hit.start_ms, hit.speaker, hit.text.clone()))
+            .map(|hit| (hit.start_ms, hit.speaker, hit.entries.clone()))
             .collect();
         if passages.is_empty() && notes.is_none() {
             passages = meeting
                 .entries
                 .iter()
+                .enumerate()
                 .take(budget.passages)
-                .map(|entry| (entry.start_ms, entry.source.label(), entry.text.clone()))
+                .map(|(index, entry)| (entry.start_ms, entry.source.label(), index..index + 1))
                 .collect();
         }
         passages.sort_by_key(|(start, _, _)| *start);
-        for (start, speaker, text) in passages {
-            push(Some(start), speaker, clip(&text, PASSAGE_CHARS));
+        let ranges = crate::meeting::coalesced_ranges(&meeting.entries);
+        for (start, speaker, entries) in passages {
+            let lines = lines(&meeting.entries, &ranges, entries);
+            if lines.is_empty() {
+                continue;
+            }
+            let text = lines
+                .iter()
+                .map(|line| line.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            push(Some(start), speaker, text, lines);
         }
     }
     (searched, excerpts)
+}
+
+/// A passage's lines, each transcript entry one, as many as a passage
+/// reads (at least one).
+fn lines(entries: &[TranscriptEntry], ranges: &[Range<usize>], taken: Range<usize>) -> Vec<Line> {
+    let mut lines: Vec<Line> = Vec::new();
+    let mut chars = 0;
+    for index in taken {
+        let (Some(entry), Some(at)) = (entries.get(index), ranges.get(index)) else {
+            break;
+        };
+        if entry.text.trim().is_empty() {
+            continue;
+        }
+        chars += entry.text.trim().chars().count();
+        if chars > PASSAGE_CHARS && !lines.is_empty() {
+            break;
+        }
+        let times = (entry.start_ms, entry.end_ms);
+        lines.push(Line::new(&entry.text, times, &entry.words, at.clone()));
+    }
+    lines
 }
 
 /// Whether the meeting was going on in the time asked about.

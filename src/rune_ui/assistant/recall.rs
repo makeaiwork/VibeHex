@@ -24,7 +24,7 @@ use super::super::files::session;
 use super::super::sidebar::Pane;
 use super::face::Mood;
 use crate::assistant::intent;
-use crate::assistant::recordings::{Allowed, Kind, Ref, Sources, Step};
+use crate::assistant::recordings::{Allowed, Kind, Ref, Sources, Step, cite};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::{Answering, Recall, Search};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
@@ -428,9 +428,12 @@ pub(super) fn answer(
         .link_style(move |url| url.starts_with(REF).then(|| (mark.clone(), hover)))
         .link_ring(move |url| url.starts_with(REF).then_some((ring, 1.0)))
         .on_link_tx(move |ui: &mut Ui, url: &str, tx: &mut Tx| {
-            let n = url.strip_prefix(REF).and_then(|n| n.parse::<u32>().ok());
-            if let (Some((conversation, index)), Some(n)) = (from, n) {
-                super::jump::open(ui, conversation, index, n, tx);
+            // `hex-ref:2.1`: the second of the answer's [2].
+            let Some((n, mark)) = url.strip_prefix(REF).and_then(|id| id.split_once('.')) else {
+                return;
+            };
+            if let (Some(from), Ok(n), Ok(mark)) = (from, n.parse(), mark.parse()) {
+                super::jump::open(ui, from, n, Some(mark), tx);
             }
         })
         .build(k)
@@ -439,24 +442,15 @@ pub(super) fn answer(
 
 const REF: &str = "hex-ref:";
 
-/// `[2]` and `[1, 3]` as links the marks are drawn for.
+/// `[2]` and `[1, 3]` as links the marks are drawn for, each excerpt once
+/// where they stand together; the k-th mark of `[2]` links `hex-ref:2.k`.
 fn marked(answer: &str) -> String {
     let mut out = String::with_capacity(answer.len());
-    let mut rest = answer;
-    while let Some(open) = rest.find('[') {
-        out.push_str(&rest[..open]);
-        rest = &rest[open..];
-        // `[2][3]`, `[2] [3]` and `[1, 4]` make one run of marks.
-        let mut numbers: Vec<&str> = Vec::new();
-        while let Some((inside, len)) = group(rest.trim_start_matches(' ')) {
-            numbers.extend(inside.split(',').map(str::trim).filter(|n| !n.is_empty()));
-            rest = &rest.trim_start_matches(' ')[len..];
-        }
-        if numbers.is_empty() {
-            out.push('[');
-            rest = &rest[1..];
-            continue;
-        }
+    let mut marks: Vec<(u32, u32)> = Vec::new();
+    let mut from = 0;
+    for run in cite::runs(answer) {
+        out.push_str(&answer[from..run.at.start]);
+        let rest = &answer[run.at.end..];
         // The sentence's own stop comes first, so a mark never sits in it:
         // "маркетингу.[1]".
         let stop = rest
@@ -468,20 +462,30 @@ fn marked(answer: &str) -> String {
             out.pop();
         }
         out.push_str(&rest[..stop]);
-        rest = &rest[stop..];
-        for n in numbers {
+        for n in run.numbers() {
+            let mark = match marks.iter_mut().find(|(known, _)| *known == n) {
+                Some((_, count)) => {
+                    *count += 1;
+                    *count - 1
+                }
+                None => {
+                    marks.push((n, 1));
+                    0
+                }
+            };
             // Kept on the line of what it follows, a little apart.
             if !out.is_empty() && !out.ends_with(char::is_whitespace) {
                 out.push_str(GAP);
             }
-            out.push_str(&format!("[{n}]({REF}{n})"));
+            out.push_str(&format!("[{n}]({REF}{n}.{mark})"));
         }
+        from = run.at.end + stop;
         // The badge's own padding takes up a plain space after it.
-        if rest.starts_with(' ') {
+        if answer[from..].starts_with(' ') {
             out.push('\u{202f}');
         }
     }
-    out.push_str(rest);
+    out.push_str(&answer[from..]);
     out
 }
 
@@ -489,18 +493,6 @@ fn marked(answer: &str) -> String {
 const GAP: &str = "\u{202f}\u{202f}";
 /// What a mark moves behind.
 const PUNCTUATION: &str = ".,;:!?…";
-
-/// `[2]` or `[1, 4]` at the start of `text`, not a Markdown link's text:
-/// what's inside and its length with the brackets.
-fn group(text: &str) -> Option<(&str, usize)> {
-    let after = text.strip_prefix('[')?;
-    let inside = &after[..after.find(']')?];
-    let numbers = !inside.is_empty()
-        && inside
-            .chars()
-            .all(|c| c.is_ascii_digit() || c == ',' || c == ' ');
-    (numbers && !after[inside.len() + 1..].starts_with('(')).then_some((inside, inside.len() + 2))
-}
 
 /// "From your recordings" and the places cited, each opening its place.
 pub(super) fn chips(
@@ -576,7 +568,7 @@ pub(super) fn chips(
                 )
                 .child(text(at).key("at").font(small).color(p.faint()).max_lines(1))
                 .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
-                    super::jump::open(ui, conversation, index, cited.n, tx);
+                    super::jump::open(ui, (conversation, index), cited.n, None, tx);
                 }),
         );
     }
@@ -593,12 +585,18 @@ mod tests {
         assert_eq!(
             marked("Cut by 15 % [2][3]. See [1, 4]."),
             format!(
-                "Cut by 15 %.{gap}[2](hex-ref:2){gap}[3](hex-ref:3)\u{202f} See.{gap}[1](hex-ref:1){gap}[4](hex-ref:4)"
+                "Cut by 15 %.{gap}[2](hex-ref:2.0){gap}[3](hex-ref:3.0)\u{202f} See.{gap}[1](hex-ref:1.0){gap}[4](hex-ref:4.0)"
             )
         );
         assert_eq!(
             marked("маркетингу [1], и бюджет [2]"),
-            format!("маркетингу,{gap}[1](hex-ref:1)\u{202f} и бюджет{gap}[2](hex-ref:2)")
+            format!("маркетингу,{gap}[1](hex-ref:1.0)\u{202f} и бюджет{gap}[2](hex-ref:2.0)")
+        );
+        // Each of an excerpt's marks opens its own place; one per excerpt
+        // where they stand together.
+        assert_eq!(
+            marked("A [2][2] b [2]."),
+            format!("A{gap}[2](hex-ref:2.0)\u{202f} b.{gap}[2](hex-ref:2.1)")
         );
         assert_eq!(
             marked("A [link](https://x) and [b]"),

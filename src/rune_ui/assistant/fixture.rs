@@ -2,6 +2,7 @@
 //! zero, so nothing here reads the clock, the disk, or a model. Times are a
 //! fixed day long past, so a golden reads the same on any day.
 
+use std::ops::Range;
 use std::time::Instant;
 
 use super::super::Ui;
@@ -9,7 +10,7 @@ use super::super::files::FilesPane;
 use super::super::scenes::mac_fixture;
 use super::super::sidebar::Pane;
 use super::View;
-use crate::assistant::recordings::{Kind, Ref, Step};
+use crate::assistant::recordings::{Kind, Lines, Ref, Step};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Answering;
 
@@ -157,7 +158,13 @@ fn place(n: u32, kind: Kind, id: &str, title: &str, at_ms: u64, offset: Option<u
         title: title.into(),
         at_ms,
         offset_ms: offset,
-        words: vec!["бюджет".into()],
+        lines: offset
+            .map(|start_ms| Lines {
+                start_ms,
+                ..Lines::default()
+            })
+            .into_iter()
+            .collect(),
     }
 }
 
@@ -211,33 +218,108 @@ pub(in super::super) fn steps_open(ui: &mut Ui) {
     ui.assistant.unfolded.push((id, 0));
 }
 
+/// Where `said` is in `text`, cited by `[n]` at `start_ms`, as a scene's
+/// place: the bytes an answer's cited lines map to.
+fn said(n: u32, start_ms: u64, text: &str, said: &str) -> (u32, Option<u64>, Option<Range<usize>>) {
+    let at = text.find(said).map(|at| at..at + said.len());
+    (n, Some(start_ms), at)
+}
+
 /// A meeting opened from an answer citing it twice: Back to Assistant,
-/// the bar, the place shown and the other one fainter, the words lit.
+/// the bar, the cited lines lit, the second landed on a third of the way
+/// down and the first fainter.
 pub(in super::super) fn meeting_cited(ui: &mut Ui) {
+    meeting_cited_on(ui, 1);
+}
+
+/// [`meeting_cited`] with its `current`-th place shown.
+pub(in super::super) fn meeting_cited_on(ui: &mut Ui, current: usize) {
     *ui = mac_fixture();
     ui.pane = Pane::Meetings;
     ui.meetings.select("preview-notes".into());
     ui.meetings.tab = Some(super::super::meeting_tabs::MeetingTab::Transcript);
+    let text = ui
+        .meetings
+        .meetings
+        .iter()
+        .find(|meeting| meeting.id == "preview-notes")
+        .map(|meeting| {
+            let turns = meeting.turns().iter().map(|turn| turn.text.as_str());
+            turns.collect::<Vec<_>>().join("\n")
+        })
+        .unwrap_or_default();
     ui.came_from = Some(super::jump::scene(
         Kind::Meeting,
         "preview-notes",
         "What did we decide about the build screen and games",
-        &[(2, 13_000, &["games"]), (3, 95_000, &["build", "proposal"])],
+        &[
+            said(2, 13_000, &text, "we could make twenty to thirty games."),
+            said(3, 95_000, &text, "We need a proposal for it."),
+        ],
+        current,
     ));
 }
 
-/// A Files text opened from an answer: its Original, the cited paragraph
-/// lit.
+/// The Files text the scenes open, and where `said` is in its Original.
+fn file_place(
+    ui: &Ui,
+    n: u32,
+    start_ms: u64,
+    words: &str,
+) -> (u32, Option<u64>, Option<Range<usize>>) {
+    let text = ui
+        .files
+        .record("preview-interview")
+        .and_then(|record| record.versions.first())
+        .map(|original| crate::files::text::plain(&original.segments))
+        .unwrap_or_default();
+    said(n, start_ms, &text, words)
+}
+
+/// A Files text opened from an answer: its Original, the cited sentence
+/// lit in its paragraph.
 pub(in super::super) fn file_cited(ui: &mut Ui) {
     *ui = mac_fixture();
     ui.settings.labs.files = true;
     ui.files = FilesPane::fixture();
     ui.files.tab = Some(super::super::files::Tab::Version(1));
     ui.pane = Pane::Files;
+    let place = file_place(
+        ui,
+        1,
+        48_000,
+        "The client will try it with one team if we show a prototype by the end of the month.",
+    );
     ui.came_from = Some(super::jump::scene(
         Kind::File,
         "preview-interview",
         "What does the client want",
-        &[(1, 48_000, &["prototype", "friday"])],
+        &[place],
+        0,
+    ));
+}
+
+/// The same with Labs › Listen to the recording on and the player in the
+/// cited sentence: the player's word lit over the cited one.
+pub(in super::super) fn file_cited_listening(ui: &mut Ui) {
+    file_cited(ui);
+    ui.settings.labs.playback = true;
+    let of = super::super::playback::Of::File("preview-interview".into());
+    ui.playback = super::super::playback::Playback::still(of, 54_500, 2_530_000, true, true);
+}
+
+/// History opened from an answer citing a dictation: its row tinted with
+/// the answer's [n], selected, and Back to Assistant.
+pub(in super::super) fn history_cited(ui: &mut Ui) {
+    *ui = mac_fixture();
+    ui.history = super::super::history::HistoryPane::fixture();
+    ui.history.selected = Some(1);
+    ui.pane = Pane::History;
+    ui.came_from = Some(super::jump::scene(
+        Kind::Dictation,
+        "1",
+        "What did I promise to review",
+        &[(2, None, None)],
+        0,
     ));
 }

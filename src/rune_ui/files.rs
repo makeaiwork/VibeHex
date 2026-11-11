@@ -918,6 +918,7 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
             selected: pane.selected.as_deref() == Some(record.id.as_str()),
             title_lines: 2,
             bar,
+            mark: None,
         },
         move |ui: &mut Ui| ui.files.select(id.clone()),
     )

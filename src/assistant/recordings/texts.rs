@@ -4,15 +4,17 @@
 use std::path::Path;
 
 use super::super::intent::Intent;
-use super::{Budget, Excerpt, Kind, clip, within};
+use super::{Budget, Excerpt, Kind, Line, clip, within};
 use crate::files::store::{FileRecord, VersionKind};
 use crate::meeting::query::search_texts;
 
 const TEXT_CHARS: usize = 900;
-const SEGMENT_CHARS: usize = 600;
+/// The most of a transcript one stretch reads.
+const STRETCH_CHARS: usize = 1_200;
 
 /// How many Files records were in range, and the excerpts of those read:
-/// for each, its best stretches of the transcript, with their times.
+/// for each, its best stretches of the transcript, segment by segment, with
+/// their times.
 pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<Excerpt>) {
     let mut records: Vec<FileRecord> = crate::files::store::list_in(dir)
         .into_iter()
@@ -56,7 +58,7 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
         let segments = original
             .map(|version| version.segments.as_slice())
             .unwrap_or(&[]);
-        let mut push = |offset: Option<u64>, text: String| {
+        let mut push = |offset: Option<u64>, text: String, lines: Vec<Line>| {
             excerpts.push(Excerpt {
                 n: 0,
                 kind: Kind::File,
@@ -66,6 +68,7 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
                 offset_ms: offset,
                 label: String::new(),
                 text,
+                lines,
             });
         };
         // The stretches that match, by the same search, in order.
@@ -89,17 +92,40 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
                 .last()
                 .map(|version| version.text.as_str())
                 .unwrap_or_default();
-            push(None, clip(text, TEXT_CHARS));
+            push(None, clip(text, TEXT_CHARS), Vec::new());
         }
+        // A sentence alone says little: the one before and after too, one
+        // stretch where they meet.
+        let ranges = crate::files::text::segment_ranges(segments);
+        let mut stretches: Vec<(u64, std::ops::Range<usize>)> = Vec::new();
         for index in best {
-            let segment = &segments[index];
-            // A sentence alone says little: the one before and after too.
-            let around = segments[index.saturating_sub(1)..(index + 2).min(segments.len())]
+            let around = index.saturating_sub(1)..(index + 2).min(segments.len());
+            match stretches.last_mut() {
+                Some((_, last)) if around.start <= last.end => last.end = around.end,
+                _ => stretches.push((segments[index].start_ms, around)),
+            }
+        }
+        for (offset, around) in stretches {
+            let mut lines: Vec<Line> = Vec::new();
+            let mut chars = 0;
+            for index in around {
+                let segment = &segments[index];
+                let Some(Some(at)) = ranges.get(index) else {
+                    continue;
+                };
+                chars += segment.text.trim().chars().count();
+                if chars > STRETCH_CHARS && !lines.is_empty() {
+                    break;
+                }
+                let times = (segment.start_ms, segment.end_ms);
+                lines.push(Line::new(&segment.text, times, &segment.words, at.clone()));
+            }
+            let text = lines
                 .iter()
-                .map(|segment| segment.text.as_str())
+                .map(|line| line.text.as_str())
                 .collect::<Vec<_>>()
                 .join(" ");
-            push(Some(segment.start_ms), clip(&around, SEGMENT_CHARS));
+            push(Some(offset), text, lines);
         }
     }
     (searched, excerpts)
@@ -146,6 +172,7 @@ pub(super) fn dictations(path: &Path, intent: &Intent, budget: Budget) -> (usize
                 offset_ms: None,
                 label: String::new(),
                 text: clip(&entry.final_text, TEXT_CHARS),
+                lines: Vec::new(),
             }
         })
         .collect();

@@ -198,6 +198,14 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Meeting opened from an answer",
     ),
     ("files-cited", "Window/Assistant/File opened from an answer"),
+    (
+        "files-cited-listening",
+        "Window/Assistant/File opened from an answer, listening",
+    ),
+    (
+        "history-cited",
+        "Window/Assistant/Dictation opened from an answer",
+    ),
     ("files", "Window/Files/Files"),
     (
         "files-engine-menu",

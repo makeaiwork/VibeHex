@@ -118,6 +118,8 @@ pub(super) struct Item {
     pub(super) title_lines: usize,
     /// A running job's progress, drawn as a thin bar under the meta line.
     pub(super) bar: Option<f32>,
+    /// Before the title: the `[n]` of an answer that cites it.
+    pub(super) mark: Option<El>,
 }
 
 /// A selectable list row hung past the gutter: a hover fill (and the row's
@@ -184,13 +186,17 @@ pub(super) fn item_with_icon(
                 .grow(1.0)
                 .shrink()
                 .a11y_hidden();
-            let top = row().key("top").gap(12.0).children(leading.map(|glyph| {
-                icon(glyph, LEADING_ICON)
-                    .key("leading-icon")
-                    .color(c.icon_faint)
-                    .mr(-6.0)
-                    .a11y_hidden()
-            }));
+            let top = row()
+                .key("top")
+                .gap(12.0)
+                .children(leading.map(|glyph| {
+                    icon(glyph, LEADING_ICON)
+                        .key("leading-icon")
+                        .color(c.icon_faint)
+                        .mr(-6.0)
+                        .a11y_hidden()
+                }))
+                .children(item.mark.map(|mark| mark.mr(-6.0)));
             if item.title_lines > 1 {
                 top.items_start()
                     .child(title.wrap_anywhere().max_lines(item.title_lines))

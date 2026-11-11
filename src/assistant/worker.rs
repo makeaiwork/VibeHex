@@ -265,8 +265,11 @@ fn finish(
             let (body, sources) = prompt::split_sources(&reply);
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
+            // The lines cited are kept with the places; the answer shows
+            // their excerpts' `[n]`.
             if let Some(found) = found {
                 turn.refs = found.cited(body);
+                turn.answer = recordings::cite::plain(body);
             }
         }
         Err(_) if cancel.load(Ordering::Acquire) => {

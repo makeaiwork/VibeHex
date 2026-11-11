@@ -757,6 +757,7 @@ fn recordings(ui: &Ui, p: Paint, layer: &mut Vec<El>, action: El) -> (Vec<El>, E
                         selected: pane.selected.as_deref() == Some(meeting.id.as_str()),
                         title_lines: 1,
                         bar: None,
+                        mark: None,
                     },
                     Some(platform_icon(meeting)),
                     move |ui: &mut Ui| ui.meetings.select(id.clone()),
@@ -1238,25 +1239,39 @@ fn transcript(ui: &Ui, p: Paint, meeting: &Meeting, stop_pending: bool) -> El {
     let playing = heard
         .and_then(|heard| heard.at_ms)
         .and_then(|at| super::playback::playing_line(turns.iter().map(|turn| turn.start_ms), at));
-    // Opened from an answer: the places it cites, lit.
+    // Opened from an answer: the places it cites, lit, over the player.
+    // Its turns are one per line in the text the citations point into.
     let cited = jump::cited(ui, Kind::Meeting, &meeting.id);
-    let starts: Vec<u64> = turns.iter().map(|turn| turn.start_ms).collect();
-    let marks = cited.map(|cited| cited.marks(&starts)).unwrap_or_default();
+    let texts: Vec<(u64, &str)> = turns
+        .iter()
+        .map(|t| (t.start_ms, t.text.as_str()))
+        .collect();
+    let marks = cited
+        .map(|cited| cited.marks(&texts, 1))
+        .unwrap_or_default();
     if cited.is_some() {
         lines = lines.px(jump::INSET);
     }
     for (index, turn) in turns.iter().enumerate() {
+        // Over cited words, the word playing is underlined to stand out.
+        let cited_here = marks.get(index).is_some_and(Option::is_some);
         let listened = heard.map(|heard| {
             let at = heard.at_ms.unwrap_or(turn.start_ms);
-            let lit = (Some(turn.start_ms) == playing).then_some((at, heard.marked));
+            let marked = heard.marked || cited_here;
+            let lit = (Some(turn.start_ms) == playing).then_some((at, marked));
             (&of, lit)
         });
         let mut shown = turn_line(p, index, turn, meeting.imported, listened);
         if let Some(Some(mark)) = marks.get(index) {
-            let head = speaker(p, turn, meeting.imported, false);
+            let head = speaker(
+                p,
+                turn,
+                meeting.imported,
+                matches!(listened, Some((_, Some(_)))),
+            );
             shown.pop();
-            let key = format!("turn{index}");
-            shown.push(jump::line(p, key, *mark, (Some(head), None), &turn.text));
+            let (key, words) = (format!("turn{index}"), turn_words(p, turn, listened));
+            shown.push(jump::line(p, key, mark, (Some(head), None), words));
         }
         lines = lines.children(shown);
     }
@@ -1302,21 +1317,31 @@ pub(super) fn turn_line(
                 matches!(listened, Some((_, Some(_)))),
             ))
             .child(
-                match listened {
-                    Some((of, lit)) => {
-                        let times = (turn.start_ms, turn.end_ms);
-                        let words = (turn.text.clone(), turn.words.as_slice());
-                        super::playback::meeting_turn(p, of, words, times, lit)
-                    }
-                    None => text(turn.text.clone()),
-                }
-                .key("text")
-                .font(p.k.ty.body)
-                .color(p.reading())
-                .wrap(),
+                turn_words(p, turn, listened)
+                    .key("text")
+                    .font(p.k.ty.body)
+                    .color(p.reading())
+                    .wrap(),
             ),
     );
     els
+}
+
+/// A turn's words: links that play from its start while it can be listened
+/// to, the word playing lit.
+fn turn_words(
+    p: Paint,
+    turn: &Turn,
+    listened: Option<(&super::playback::Of, Option<(u64, bool)>)>,
+) -> El {
+    match listened {
+        Some((of, lit)) => {
+            let times = (turn.start_ms, turn.end_ms);
+            let words = (turn.text.clone(), turn.words.as_slice());
+            super::playback::meeting_turn(p, of, words, times, lit)
+        }
+        None => text(turn.text.clone()),
+    }
 }
 
 /// Who spoke and when, the time in the accent while it plays.

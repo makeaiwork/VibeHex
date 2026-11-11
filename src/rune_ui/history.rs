@@ -11,6 +11,7 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use rune::{El, TextEdit, Tx, col, el, row, text};
 use rune_kit::{Menu as KitMenu, MenuItem, Placement, Select, SelectAppearance, TextInput};
 
+use super::assistant::jump;
 use super::controls::{ButtonKind, Paint, button, modal_scrim_transition, modal_transition};
 use super::list_detail::{self as ld, Item};
 use super::lists::{Tone, error_panel, section_label};
@@ -99,6 +100,16 @@ impl HistoryPane {
             store,
             ..Self::default()
         }
+    }
+
+    /// Shows entry `id` selected, clearing a search that would hide it.
+    pub(super) fn reveal(&mut self, id: u64) {
+        if !self.searched.trim().is_empty() {
+            self.search = TextEdit::default();
+            self.reload();
+        }
+        self.selected = Some(id);
+        self.clear_armed = false;
     }
 
     /// Refreshes the bounded snapshot for the current query, and the stats.
@@ -514,27 +525,33 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
                     meta.push_str(" · ");
                     meta.push_str(application);
                 }
-                list = list.child(
-                    ld::item(
-                        p,
-                        Item {
-                            key: format!("history-entry{id}"),
-                            title: entry.final_text.replace('\n', " "),
-                            meta,
-                            meta_ink: None,
-                            time: event_age(entry.timestamp_ms),
-                            hover: vec![copy_action(ui, p, id, true)],
-                            selected: pane.selected == Some(id),
-                            title_lines: 1,
-                            bar: None,
-                        },
-                        move |ui: &mut Ui| {
-                            ui.history.selected = Some(id);
-                            ui.history.clear_armed = false;
-                        },
-                    )
-                    .position_in_set(index + 1, count),
-                );
+                // Opened from an answer: the dictation it cites, tinted with
+                // its [n] (`jump` lands it a third of the way down).
+                let (tint, mark) = jump::row_mark(ui, p, &id.to_string()).unzip();
+                let shown = ld::item(
+                    p,
+                    Item {
+                        key: format!("history-entry{id}"),
+                        title: entry.final_text.replace('\n', " "),
+                        meta,
+                        meta_ink: None,
+                        time: event_age(entry.timestamp_ms),
+                        hover: vec![copy_action(ui, p, id, true)],
+                        selected: pane.selected == Some(id),
+                        title_lines: 1,
+                        bar: None,
+                        mark,
+                    },
+                    move |ui: &mut Ui| {
+                        ui.history.selected = Some(id);
+                        ui.history.clear_armed = false;
+                    },
+                )
+                .position_in_set(index + 1, count);
+                list = list.child(match tint {
+                    Some(tint) => shown.fill(tint),
+                    None => shown,
+                });
             }
             let search = TextInput::new(&pane.search)
                 .placeholder(tr("Search history"))

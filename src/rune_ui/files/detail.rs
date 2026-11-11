@@ -580,19 +580,22 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
                 .color(p.faint());
         }
         let shown = timestamps(ui);
-        // Opened from an answer: the places it cites, lit, over the player.
+        // Opened from an answer: the places it cites, lit, with the player's
+        // word over them. The paragraphs make the text they point into.
         let id = ui.files.selected.as_deref().unwrap_or_default();
         let cited = jump::cited(ui, Kind::File, id);
-        let starts: Vec<u64> = paragraphs
+        let texts: Vec<(u64, &str)> = paragraphs
             .iter()
-            .map(|paragraph| paragraph.start_ms)
+            .map(|paragraph| (paragraph.start_ms, paragraph.text.as_str()))
             .collect();
-        let marks = cited.map(|cited| cited.marks(&starts)).unwrap_or_default();
+        let gap = file_text::PARAGRAPH_BREAK.len();
+        let marks = cited
+            .map(|cited| cited.marks(&texts, gap))
+            .unwrap_or_default();
         let listened = ui.files.selected.clone().map(Of::File);
         if let Some((of, heard)) = listened.and_then(|of| playback::heard(ui, &of).map(|h| (of, h)))
-            && cited.is_none()
         {
-            return playback::file_original(p, &of, &version.segments, heard, shown);
+            return playback::file_original(p, &of, &version.segments, heard, shown, &marks);
         }
         let mut lines = col().key("paragraphs").gap(12.0);
         if cited.is_some() {
@@ -608,7 +611,7 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
                     .pt(1.0);
                 let key = format!("paragraph{index}");
                 let beside = (None, shown.then_some(clock));
-                lines = lines.child(jump::line(p, key, *mark, beside, &paragraph.text));
+                lines = lines.child(jump::line(p, key, mark, beside, text(paragraph.text)));
                 continue;
             }
             let words = text(paragraph.text)

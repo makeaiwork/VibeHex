@@ -1431,6 +1431,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
     let panel = col()
         .key("panel")
         .role("main")
+        .on_layout_tx(assistant::jump::panel_laid_out)
         .grow(1.0)
         .shrink()
         .mt(8.0)

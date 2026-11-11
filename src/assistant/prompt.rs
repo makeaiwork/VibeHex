@@ -5,7 +5,7 @@
 //! which the pane turns into "From the guide" chips and never shows.
 
 use super::guide::{self, Article};
-use super::recordings::{Excerpt, Found, Kind};
+use super::recordings::{Excerpt, Found, Kind, cite};
 use super::retrieve;
 
 /// How many articles a model reads: a small local one has a short window.
@@ -93,11 +93,13 @@ const RECORDINGS: &str = "
 
 The person also asked about their own recordings. The <recordings> block holds numbered \
 excerpts from their meetings (notes and passages, Me is the person, Them the others), their \
-Files texts, and their dictations, found on their computer for this question.
+Files texts, and their dictations, found on their computer for this question. A transcript \
+excerpt has one numbered line per phrase: [2.3] is line 3 of excerpt 2.
 - Answer from the excerpts. Bring several together: sum up, say how they connect (the same \
 topic coming back, a decision that changed, one thing leading to another), and name when.
-- Cite every fact from them right after it with its number in square brackets, like [2] or \
-[1][3]. Cite only numbers in the block. No Sources line entry for them.
+- Cite every fact from them right after it, in square brackets: the lines that say it, like \
+[2.3], or a run of lines, [2.3-2.5]; an excerpt without numbered lines by its number, [1]. \
+Cite the fewest lines that say it, only ids in the block. No Sources line entry for them.
 - When the excerpts don't hold the answer, say so plainly. Never guess what was said.
 - Times are the person's local time; the block says when now is.";
 
@@ -165,12 +167,15 @@ fn recordings_block(found: &Found, now_ms: u64) -> String {
         block.push_str("Nothing in the recordings matches this question.\n");
     }
     for excerpt in &found.excerpts {
-        block.push_str(&format!(
-            "[{}] {}\n{}\n\n",
-            excerpt.n,
-            heading(excerpt),
-            excerpt.text
-        ));
+        block.push_str(&format!("[{}] {}\n", excerpt.n, heading(excerpt)));
+        if excerpt.lines.is_empty() {
+            block.push_str(&excerpt.text);
+            block.push('\n');
+        }
+        for (index, line) in excerpt.lines.iter().enumerate() {
+            block.push_str(&format!("[{}.{}] {}\n", excerpt.n, index + 1, line.text));
+        }
+        block.push('\n');
     }
     block.push_str("</recordings>\n");
     block
@@ -231,8 +236,12 @@ pub fn split_sources(reply: &str) -> (&str, Vec<&'static str>) {
 }
 
 /// While a reply streams, the part to show: never a half-written
-/// `Sources:` line.
-pub fn draft(reply: &str) -> &str {
+/// `Sources:` line or citation, and lines cited as their excerpt's `[n]`.
+pub fn draft(reply: &str) -> String {
+    cite::plain(streamed(reply))
+}
+
+fn streamed(reply: &str) -> &str {
     let reply = without_open_citation(reply);
     let (body, last) = reply.rsplit_once('\n').unwrap_or(("", reply));
     let head: String = last
@@ -248,16 +257,10 @@ pub fn draft(reply: &str) -> &str {
     }
 }
 
-/// `reply` without a `[1` still being written at its end.
+/// `reply` without a `[1` or `[2.3-` still being written at its end.
 fn without_open_citation(reply: &str) -> &str {
     match reply.rfind('[') {
-        Some(open)
-            if reply[open + 1..]
-                .chars()
-                .all(|c| c.is_ascii_digit() || c == ',' || c == ' ') =>
-        {
-            &reply[..open]
-        }
+        Some(open) if cite::unfinished(&reply[open + 1..]) => &reply[..open],
         _ => reply,
     }
 }
@@ -402,6 +405,54 @@ mod tests {
         assert_eq!(draft("Cut [2][3"), "Cut [2]");
         assert_eq!(draft("Cut [2]"), "Cut [2]");
         assert_eq!(draft("A [link"), "A [link");
+        // Lines never show as ids, whole or half written.
+        for partial in ["[2", "[2.", "[2.3", "[2.3-", "[2.3-2.", "[2.3, 4"] {
+            assert_eq!(draft(&format!("Cut {partial}")), "Cut ", "{partial}");
+        }
+        assert_eq!(draft("Cut [2.3-2.5][4.1"), "Cut [2]");
+        assert_eq!(draft("Cut [2.3-2.5][4.1]."), "Cut [2][4].");
+    }
+
+    #[test]
+    fn a_transcript_excerpt_numbers_its_lines() {
+        use crate::assistant::recordings::{Excerpt, Line};
+        let line = |text: &str| Line {
+            text: text.into(),
+            start_ms: 0,
+            end_ms: 0,
+            at: 0..0,
+        };
+        let found = Found {
+            excerpts: vec![
+                Excerpt {
+                    n: 1,
+                    kind: Kind::Meeting,
+                    id: "m".into(),
+                    title: "Budget".into(),
+                    at_ms: 0,
+                    offset_ms: None,
+                    label: "Notes".into(),
+                    text: "Approved.".into(),
+                    lines: Vec::new(),
+                },
+                Excerpt {
+                    n: 2,
+                    kind: Kind::Meeting,
+                    id: "m".into(),
+                    title: "Budget".into(),
+                    at_ms: 0,
+                    offset_ms: Some(0),
+                    label: "Them".into(),
+                    text: "So. The limit holds.".into(),
+                    lines: vec![line("So."), line("The limit holds.")],
+                },
+            ],
+            steps: Vec::new(),
+        };
+        let block = recordings_block(&found, 0);
+        assert!(block.contains(", Notes\nApproved.\n"));
+        assert!(block.contains(", Them\n[2.1] So.\n[2.2] The limit holds.\n"));
+        assert!(!block.contains("So. The limit holds."));
     }
 
     #[test]

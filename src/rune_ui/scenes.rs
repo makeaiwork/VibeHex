@@ -701,6 +701,11 @@ pub(super) const SCENES: &[Scene] = &[
     ("assistant-steps-open", assistant::fixture::steps_open),
     ("meetings-cited", assistant::fixture::meeting_cited),
     ("files-cited", assistant::fixture::file_cited),
+    (
+        "files-cited-listening",
+        assistant::fixture::file_cited_listening,
+    ),
+    ("history-cited", assistant::fixture::history_cited),
     ("files-playback", |ui| files_playback(ui, true)),
     ("files-playback-folded", |ui| files_playback(ui, false)),
     ("files-playback-cleanup", |ui| {

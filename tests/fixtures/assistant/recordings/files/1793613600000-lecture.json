@@ -14,17 +14,43 @@
         {
           "start_ms": 0,
           "end_ms": 5000,
-          "text": "Today we cover gradient descent."
+          "text": "Today we cover gradient descent.",
+          "words": [
+            0,
+            1000,
+            2000,
+            3000,
+            4000
+          ]
         },
         {
           "start_ms": 6000,
           "end_ms": 11000,
-          "text": "The learning rate controls the step size."
+          "text": "The learning rate controls the step size.",
+          "words": [
+            6300,
+            7014,
+            7728,
+            8442,
+            9156,
+            9870,
+            10584
+          ]
         },
         {
           "start_ms": 12000,
           "end_ms": 17000,
-          "text": "Too large a rate and the loss diverges."
+          "text": "Too large a rate and the loss diverges.",
+          "words": [
+            12000,
+            12625,
+            13250,
+            13875,
+            14500,
+            15125,
+            15750,
+            16375
+          ]
         }
       ],
       "model": "Parakeet",

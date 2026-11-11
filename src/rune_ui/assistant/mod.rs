@@ -67,6 +67,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) unfolded: Vec<(u32, usize)>,
     /// How far the conversation is scrolled, to come back to.
     pub(super) scroll_y: ScrollAt,
+    /// The pane's height as last laid out, where a cited place lands by.
+    pub(super) panel_h: f32,
     /// Clear conversations… was pressed once.
     pub(super) clear_armed: bool,
     /// The face's blink, squish, and reading eyes.
@@ -248,7 +250,7 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         .as_ref()
         .filter(|_| !ui.is_fixture())
         .map(|answering| answering.started);
-    let mut changed = ui.assistant.face.poll(reading, tx);
+    let mut changed = ui.assistant.face.poll(reading, tx) | jump::poll(ui, tx);
     if ui.is_fixture() || ui.assistant.fixture {
         return changed;
     }

@@ -204,6 +204,8 @@ struct Passage {
     kind: PassageKind,
     start_ms: u64,
     text: String,
+    /// The transcript entries it joins; none for notes.
+    entries: std::ops::Range<usize>,
     tokens: Vec<Token>,
     frequencies: HashMap<String, u32>,
 }
@@ -225,6 +227,7 @@ impl Passage {
             kind,
             start_ms,
             text,
+            entries: 0..0,
             tokens,
             frequencies,
         }
@@ -810,11 +813,12 @@ fn file_name(path: &Path) -> String {
 }
 
 fn passages(manifest: &MeetingManifest, entries: &[TranscriptEntry]) -> Vec<Passage> {
-    let mut groups: Vec<(MeetingSource, u64, u64, usize, String)> = Vec::new();
-    for entry in entries {
+    // Each group's first entry is last: the entries it joins run to the next's.
+    let mut groups: Vec<(MeetingSource, u64, u64, usize, String, usize)> = Vec::new();
+    for (index, entry) in entries.iter().enumerate() {
         let text = entry.text.trim();
         let words = text.split_whitespace().count();
-        if let Some((source, _, end, count, joined)) = groups.last_mut()
+        if let Some((source, _, end, count, joined, _)) = groups.last_mut()
             && *source == entry.source
             && entry.start_ms.saturating_sub(*end) <= TURN_GAP_MS
             && *count + words <= PASSAGE_WORDS
@@ -830,12 +834,18 @@ fn passages(manifest: &MeetingManifest, entries: &[TranscriptEntry]) -> Vec<Pass
                 entry.end_ms,
                 words,
                 text.into(),
+                index,
             ));
         }
     }
+    let ends: Vec<usize> = groups.iter().skip(1).map(|group| group.5).collect();
     let mut passages = groups
         .into_iter()
-        .map(|(source, start, _, _, text)| Passage::new(PassageKind::Speech(source), start, text))
+        .zip(ends.into_iter().chain([entries.len()]))
+        .map(|((source, start, _, _, text, first), end)| Passage {
+            entries: first..end,
+            ..Passage::new(PassageKind::Speech(source), start, text)
+        })
         .collect::<Vec<_>>();
     if let Some(notes) = &manifest.notes {
         let text = format!("{}. {}", notes.title.trim(), notes.summary.trim());
@@ -1570,7 +1580,8 @@ pub struct PassageHit {
     pub notes: bool,
     /// `Me`, `Them`, or `Notes`.
     pub speaker: &'static str,
-    pub text: String,
+    /// The meeting's transcript entries it joins; none for its notes.
+    pub entries: std::ops::Range<usize>,
 }
 
 /// The passages of `meetings` that match `query`, best first, with the
@@ -1588,7 +1599,7 @@ pub fn search_passages(meetings: &[Arc<Meeting>], query: &str) -> Vec<PassageHit
                 start_ms: passage.start_ms,
                 notes: passage.kind == PassageKind::Notes,
                 speaker: passage.speaker(),
-                text: passage.text.clone(),
+                entries: passage.entries.clone(),
                 meeting: hit.meeting.clone(),
             }
         })

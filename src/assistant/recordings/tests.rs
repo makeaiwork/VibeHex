@@ -69,15 +69,6 @@ fn only_a_yes_allows_reading() {
 }
 
 #[test]
-fn citations_are_read_in_every_form() {
-    assert_eq!(
-        citations("Budget [1], hiring [2, 4] and [3][5]."),
-        [1, 2, 4, 3, 5]
-    );
-    assert_eq!(citations("[see below] [x] [] [12"), Vec::<u32>::new());
-}
-
-#[test]
 fn an_answer_cites_only_what_was_found_once_each() {
     let found = found(
         "Что мы решили по бюджету на встречах в ноябре?",
@@ -87,6 +78,126 @@ fn an_answer_cites_only_what_was_found_once_each() {
     let refs = found.cited("Лимит утвердили [2], до этого переносили [1][2]. [99]");
     assert_eq!(refs.iter().map(|r| r.n).collect::<Vec<_>>(), [2, 1]);
     assert_eq!(refs[0].id, found.excerpts[1].id);
+    assert!(refs.iter().all(|r| r.lines.is_empty()), "no lines named");
+}
+
+/// The words of the item `excerpt` comes from, as its pane shows them: a
+/// meeting's turns one per line, a Files Original's paragraphs.
+fn item_text(excerpt: &Excerpt) -> String {
+    let root = fixtures();
+    match excerpt.kind {
+        Kind::Meeting => {
+            let scan = crate::meeting::query::Library::new(root.meetings)
+                .scan()
+                .unwrap();
+            let meeting = scan.meetings.iter().find(|m| m.id == excerpt.id).unwrap();
+            crate::meeting::coalesce_transcript(meeting.entries.iter().cloned())
+                .into_iter()
+                .map(|turn| turn.text)
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+        Kind::File => {
+            let record = crate::files::store::list_in(&root.files)
+                .into_iter()
+                .find(|record| record.id == excerpt.id)
+                .unwrap();
+            crate::files::text::plain(&record.versions[0].segments)
+        }
+        Kind::Dictation => String::new(),
+    }
+}
+
+/// The excerpt of `item` (its slug) and the id of its line holding `said`.
+fn line_of<'a>(found: &'a Found, item: &str, said: &str) -> Option<(&'a Excerpt, u32)> {
+    found
+        .excerpts
+        .iter()
+        .filter(|excerpt| excerpt.id.ends_with(item))
+        .find_map(|excerpt| {
+            let index = excerpt
+                .lines
+                .iter()
+                .position(|line| line.text.contains(said))?;
+            Some((excerpt, index as u32 + 1))
+        })
+}
+
+#[test]
+fn cited_lines_map_to_their_times_and_words_with_word_times() {
+    let found = found(
+        "Что мы решили по бюджету на встречах в ноябре?",
+        Budget::LARGE,
+    );
+    // Budget Q1 keeps Parakeet's word times: the passage is two sentences,
+    // the second the one that says what was decided.
+    let (excerpt, line) = line_of(&found, "budget-q1", "две десятых").unwrap();
+    assert_eq!(line, 2, "{:?}", excerpt.lines);
+    let n = excerpt.n;
+    let refs = found.cited(&format!("Утвердили 1,2 млн [{n}.{line}]."));
+    let lines = &refs[0].lines;
+    assert_eq!(lines.len(), 1);
+    assert_eq!((lines[0].first, lines[0].last), (2, 2));
+    assert_eq!((lines[0].start_ms, lines[0].end_ms), (3_000, 8_500));
+    let text = item_text(excerpt);
+    assert_eq!(
+        &text[lines[0].at.clone()],
+        "Лимит на первый квартал — один и две десятых миллиона рублей."
+    );
+    // A run of lines spans from the first's first word to the last's end.
+    let refs = found.cited(&format!("По бюджету [{n}.1-{n}.2]."));
+    let run = &refs[0].lines[0];
+    assert_eq!((run.start_ms, run.end_ms), (0, 8_500));
+    assert!(text[run.at.clone()].starts_with("Итак, по бюджету. Лимит"));
+}
+
+#[test]
+fn a_files_line_starts_at_its_first_timed_word() {
+    let found = found(
+        "What did the lecture say about the learning rate?",
+        Budget::LARGE,
+    );
+    let (excerpt, line) = line_of(&found, "lecture", "step size").unwrap();
+    let refs = found.cited(&format!("It sets the step [{}.{line}].", excerpt.n));
+    let lines = &refs[0].lines[0];
+    assert_eq!((lines.start_ms, lines.end_ms), (6_300, 11_000));
+    assert_eq!(
+        &item_text(excerpt)[lines.at.clone()],
+        "The learning rate controls the step size."
+    );
+}
+
+#[test]
+fn cited_lines_map_to_their_segments_without_word_times() {
+    let found = found("Когда на встречах переносили релиз?", Budget::LARGE);
+    let (excerpt, line) = line_of(&found, "planerka", "двигаем на декабрь").unwrap();
+    let refs = found.cited(&format!("На декабрь [{}.{line}].", excerpt.n));
+    let lines = &refs[0].lines[0];
+    assert_eq!((lines.start_ms, lines.end_ms), (69_000, 75_340));
+    assert_eq!(
+        &item_text(excerpt)[lines.at.clone()],
+        "Релиз двигаем на декабрь."
+    );
+}
+
+/// Ids an excerpt hasn't are dropped without a word: the place then shows
+/// only its passage, and an unknown excerpt isn't a place at all.
+#[test]
+fn unknown_lines_fall_back_to_the_passage() {
+    let found = found("Когда на встречах переносили релиз?", Budget::LARGE);
+    let (excerpt, _) = line_of(&found, "planerka", "двигаем на декабрь").unwrap();
+    let n = excerpt.n;
+    let refs = found.cited(&format!(
+        "A [{n}.0], b [{n}.99], c [{n}.1-{n}.99], d [99.1]."
+    ));
+    assert_eq!(refs.len(), 1);
+    assert_eq!(refs[0].n, n);
+    assert!(refs[0].lines.is_empty(), "{:?}", refs[0].lines);
+    assert_eq!(refs[0].offset_ms, excerpt.offset_ms);
+    // Each of the answer's marks for an excerpt keeps its own lines.
+    let refs = found.cited(&format!("A [{n}.1]. B [{n}.2][{n}.1]. C [{n}]."));
+    let marks: Vec<(u32, u32)> = refs[0].lines.iter().map(|l| (l.mark, l.first)).collect();
+    assert_eq!(marks, [(0, 1), (1, 2), (1, 1)]);
 }
 
 #[test]
@@ -140,7 +251,11 @@ fn no_recording_enters_the_prompt_without_consent() {
     let private: Vec<&str> = found
         .excerpts
         .iter()
-        .flat_map(|e| e.text.split(['.', ',', ':']))
+        .flat_map(|e| match e.lines.as_slice() {
+            [] => vec![e.text.as_str()],
+            lines => lines.iter().map(|line| line.text.as_str()).collect(),
+        })
+        .flat_map(|text| text.split(['.', ',', ':']))
         .map(str::trim)
         .filter(|piece| piece.chars().count() > 20)
         .collect();
@@ -255,6 +370,98 @@ const ASKED: &[(&str, &[&str])] = &[
         &["meeting:planerka", "meeting:budget-q1"],
     ),
 ];
+
+/// Questions and the line each should cite: the recording, then words of
+/// the line that says it, which must be offered as a line of its own and
+/// map back to exactly those words in the transcript. Word-timed (Budget
+/// Q1, the lecture) and segment-only transcripts both.
+const LINES: &[(&str, &str, &str)] = &[
+    (
+        "Что мы решили по бюджету на встречах в ноябре?",
+        "budget-q1",
+        "две десятых миллиона",
+    ),
+    (
+        "Что мы решили по бюджету на встречах в ноябре?",
+        "planerka",
+        "перенесём на следующую неделю",
+    ),
+    (
+        "Когда на встречах переносили релиз?",
+        "planerka",
+        "двигаем на декабрь",
+    ),
+    (
+        "What did we decide about pricing with Anna?",
+        "pricing-anna",
+        "starter plan at twelve dollars",
+    ),
+    (
+        "What did Acme ask for on the sales call?",
+        "acme",
+        "single sign-on with Okta",
+    ),
+    (
+        "Кто ведёт найм бэкенда по итогам встречи?",
+        "hiring",
+        "Найм ведёт Олег",
+    ),
+    (
+        "What did the lecture say about the learning rate?",
+        "lecture",
+        "controls the step size",
+    ),
+    (
+        "When did we decide to move the release in meetings last week?",
+        "sync-anna",
+        "December third",
+    ),
+];
+
+#[test]
+fn the_eval_offers_and_maps_the_line_each_question_cites() {
+    let mut hit = 0;
+    let mut misses = Vec::new();
+    for (question, item, said) in LINES {
+        let found = found(question, Budget::LARGE);
+        let fold = |text: &str| text.to_lowercase();
+        let Some((excerpt, line)) = found.excerpts.iter().find_map(|excerpt| {
+            let index = excerpt
+                .lines
+                .iter()
+                .position(|line| fold(&line.text).contains(&fold(said)))?;
+            excerpt
+                .id
+                .ends_with(item)
+                .then_some((excerpt, index as u32 + 1))
+        }) else {
+            misses.push(format!("{question}: no line of {item} says {said:?}"));
+            continue;
+        };
+        let refs = found.cited(&format!("So [{}.{line}].", excerpt.n));
+        let Some(cited) = refs.first().and_then(|r| r.lines.first()) else {
+            misses.push(format!("{question}: [{}.{line}] cited nothing", excerpt.n));
+            continue;
+        };
+        let text = item_text(excerpt);
+        let shown = text.get(cited.at.clone()).unwrap_or_default();
+        let offered = &excerpt.lines[line as usize - 1];
+        if fold(shown).contains(&fold(said))
+            && shown == offered.text
+            && (cited.start_ms, cited.end_ms) == (offered.start_ms, offered.end_ms)
+        {
+            hit += 1;
+        } else {
+            misses.push(format!("{question}: [{}.{line}] lit {shown:?}", excerpt.n));
+        }
+    }
+    let recall = f64::from(hit) / LINES.len() as f64;
+    eprintln!("line recall {recall:.2} ({hit}/{})", LINES.len());
+    for miss in &misses {
+        eprintln!("missed {miss}");
+    }
+    assert!(misses.is_empty(), "{misses:?}");
+}
 
 /// Questions about VibeHex: none may bring up the consent card.
 const GUIDE: &[&str] = &[
