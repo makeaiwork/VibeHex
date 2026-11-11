@@ -23,6 +23,7 @@
 pub mod engines;
 pub mod follow;
 pub mod now;
+pub mod past;
 pub mod plan;
 pub mod preset;
 

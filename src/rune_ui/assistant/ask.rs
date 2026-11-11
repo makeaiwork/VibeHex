@@ -19,7 +19,8 @@ use rune_theme_opencode::icons as theme;
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::composer;
-use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow};
+use crate::assistant::changes::CardKind;
+use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow, past};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Recall;
 use crate::desktop::i18n::tr;
@@ -536,16 +537,22 @@ fn plan(ui: &mut Ui, conversation: u32) {
         } else {
             tr("Everything already fits how you work.")
         };
+        let settled = card.is_none();
         ui.assistant.store.push(
             conversation,
             Turn {
                 answer: answer.to_owned(),
-                answers,
+                answers: answers.clone(),
                 cards: card.into_iter().collect(),
                 created_ms: now,
                 ..Turn::default()
             },
         );
+        if settled {
+            // Nothing to decide: the setup is finished as it is.
+            let setup = past::finished(&asked, &answers, None, &ui.settings, now);
+            ui.assistant.store.finish(setup);
+        }
         return;
     }
     if ui.assistant.answering.is_some() {
@@ -558,6 +565,41 @@ fn plan(ui: &mut Ui, conversation: u32) {
         Recall::Guide,
         Stage::Plan { answers, line },
     );
+}
+
+/// A setup's plan was applied or put off: the setup is finished, and kept
+/// with what it applied and what the person declined (`setup::past`).
+pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
+    let Some(open) = ui.assistant.store.get(at.conversation) else {
+        return;
+    };
+    let Some(turn) = open.turns.get(at.turn) else {
+        return;
+    };
+    let Some(card) = turn.cards.get(at.card) else {
+        return;
+    };
+    if turn.answers.is_empty() || turn.follow || card.kind != CardKind::Plan {
+        return;
+    }
+    let done = ui
+        .assistant
+        .store
+        .setups()
+        .iter()
+        .any(|setup| setup.at_ms == turn.created_ms);
+    if done {
+        return;
+    }
+    let asked = asked(ui, at.conversation);
+    let setup = past::finished(
+        &asked,
+        &turn.answers,
+        Some(card),
+        &ui.settings,
+        turn.created_ms,
+    );
+    ui.assistant.store.finish(setup);
 }
 
 /// Asks an answers turn again: its follow-ups, or its plan.

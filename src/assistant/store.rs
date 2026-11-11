@@ -1,7 +1,8 @@
 //! Assistant's conversations. While Assistant › Settings keeps them they
 //! live in `<support>/assistant/conversations.json`, readable only by this
 //! account; otherwise only in memory until VibeHex quits. They hold
-//! questions about VibeHex and their answers, nothing else.
+//! questions about VibeHex and their answers, and the guided setups
+//! finished (`setup::past`), nothing else.
 
 use std::path::{Path, PathBuf};
 
@@ -10,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::changes::{Card, Refused};
 use super::recordings::{Ref, Step};
+use super::setup::past::{self, Setup};
 use super::setup::{Answer, Ask};
 
 /// The most conversations kept; the least recently used go first.
@@ -103,6 +105,8 @@ impl Conversation {
 #[serde(default)]
 struct File {
     conversations: Vec<Conversation>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    setups: Vec<Setup>,
 }
 
 /// The conversations, and where they are saved while they are kept.
@@ -110,6 +114,8 @@ struct File {
 pub struct Store {
     path: Option<PathBuf>,
     conversations: Vec<Conversation>,
+    /// The guided setups finished, oldest first.
+    setups: Vec<Setup>,
 }
 
 impl Store {
@@ -125,16 +131,32 @@ impl Store {
     }
 
     fn at(path: &Path, keep: bool) -> Self {
-        let conversations = if keep { read(path) } else { Vec::new() };
+        let file = if keep { read(path) } else { File::default() };
         Self {
             path: keep.then(|| path.to_owned()),
-            conversations,
+            conversations: file.conversations,
+            setups: file.setups,
         }
     }
 
     /// Every conversation, the most recently used last.
     pub fn conversations(&self) -> &[Conversation] {
         &self.conversations
+    }
+
+    /// The guided setups finished, oldest first.
+    pub fn setups(&self) -> &[Setup] {
+        &self.setups
+    }
+
+    /// Keeps a finished setup.
+    pub fn finish(&mut self, setup: Setup) {
+        self.setups.push(setup);
+        if self.setups.len() > past::MAX {
+            let extra = self.setups.len() - past::MAX;
+            self.setups.drain(..extra);
+        }
+        self.save();
     }
 
     pub fn get(&self, id: u32) -> Option<&Conversation> {
@@ -249,30 +271,29 @@ impl Store {
         let Some(path) = &self.path else {
             return;
         };
-        if let Err(error) = write(path, &self.conversations) {
+        if let Err(error) = write(path, &self.conversations, &self.setups) {
             tracing::warn!("couldn't save Assistant's conversations: {error:#}");
         }
     }
 }
 
-fn read(path: &Path) -> Vec<Conversation> {
+fn read(path: &Path) -> File {
     match std::fs::read(path) {
-        Ok(bytes) => serde_json::from_slice::<File>(&bytes)
-            .map(|file| file.conversations)
-            .unwrap_or_else(|error| {
-                tracing::warn!("couldn't read Assistant's conversations: {error}");
-                Vec::new()
-            }),
-        Err(_) => Vec::new(),
+        Ok(bytes) => serde_json::from_slice::<File>(&bytes).unwrap_or_else(|error| {
+            tracing::warn!("couldn't read Assistant's conversations: {error}");
+            File::default()
+        }),
+        Err(_) => File::default(),
     }
 }
 
-fn write(path: &Path, conversations: &[Conversation]) -> Result<()> {
+fn write(path: &Path, conversations: &[Conversation], setups: &[Setup]) -> Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
     let json = serde_json::to_vec_pretty(&File {
         conversations: conversations.to_vec(),
+        setups: setups.to_vec(),
     })?;
     crate::durable::write(path, &json).wrap_err("couldn't write the file")?;
     #[cfg(unix)]
@@ -332,8 +353,13 @@ mod tests {
             None,
         );
         store.push(id, turn("Can Zoom calls record by themselves?"));
+        store.finish(Setup {
+            at_ms: 7,
+            ..Setup::default()
+        });
         let again = Store::at(&path, true);
         assert_eq!(again.conversations(), store.conversations());
+        assert_eq!(again.setups(), store.setups());
         assert_eq!(again.get(id).unwrap().turns[0].sources, ["labs/meetings"]);
         #[cfg(unix)]
         {

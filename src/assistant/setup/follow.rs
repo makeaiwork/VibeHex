@@ -14,7 +14,7 @@
 use serde_json::{Map, Value};
 
 use super::plan::{self, tech};
-use super::{Answer, Ask, Choice, picked};
+use super::{Answer, Ask, Choice, past, picked};
 use crate::app_settings::AppSettings;
 use crate::assistant::changes::catalog::{self, Class, State};
 use crate::assistant::changes::vocab::{self, Term};
@@ -200,12 +200,20 @@ pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> 
     let asked: Vec<&str> = answers.iter().map(|answer| answer.id.as_str()).collect();
     let mut asks = Vec::new();
     let code = picked(answers, "use").any(|id| id == "dictation_code");
-    if code && tech(answers) && !after.labs.russian_vibe_coding && !asked.contains(&OWN[0].id) {
+    let declined = |key: &str| state.declined.iter().any(|line| line.key == key);
+    if code
+        && tech(answers)
+        && !after.labs.russian_vibe_coding
+        && !asked.contains(&OWN[0].id)
+        && !declined(vocab::KEY)
+    {
         asks.push(terms_ask());
     }
     for key in relevant(answers, settings) {
+        // Declined before, while it is still as it was then.
         if asked.contains(&key.as_str())
             || changes::current(&after, &key) == Some(Value::Bool(true))
+            || past::held(&state.declined, &key, &Value::Bool(true), settings)
         {
             continue;
         }

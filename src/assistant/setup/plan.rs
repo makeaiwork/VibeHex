@@ -19,7 +19,7 @@
 
 use serde_json::Value;
 
-use super::{Answer, engines, follow, picked};
+use super::{Answer, engines, follow, past, picked};
 use crate::app_settings::AppSettings;
 use crate::assistant::changes::catalog::{self, State};
 use crate::assistant::changes::parse::Proposal;
@@ -407,6 +407,9 @@ pub fn plan(
             item.included = false;
         }
     }
+    // What an earlier setup offered and the person declined, while the
+    // setting is still as it was then.
+    items.retain(|item| !past::held(&state.declined, &item.key, &item.to, settings));
     items.sort_by_key(|item| area(&item.key));
     items.truncate(PLAN_LINES);
     // Every term in one row: checked when a follow-up asked for them.

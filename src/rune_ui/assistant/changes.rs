@@ -56,6 +56,7 @@ pub(super) fn context(ui: &Ui) -> Context {
             } else {
                 crate::assistant::setup::engines::installed_servers()
             },
+            declined: crate::assistant::setup::past::declined(ui.assistant.store.setups()),
         },
     }
 }
@@ -255,6 +256,7 @@ pub(super) fn decide(ui: &mut Ui, at: At, mut card: Card, decision: Result<Decis
     if applied && !ui.assistant.undo.contains(&at) {
         ui.assistant.undo.push(at);
     }
+    super::ask::decided(ui, at);
     super::preset::decided(ui, at);
 }
 
@@ -373,6 +375,7 @@ pub(super) fn decline(ui: &mut Ui, at: At) {
         ui.assistant.editing = None;
     }
     set(ui, at, |card| card.decision = Decision::Declined);
+    super::ask::decided(ui, at);
     super::preset::decided(ui, at);
 }
 

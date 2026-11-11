@@ -201,6 +201,9 @@ pub struct State {
     pub openrouter_key: Option<bool>,
     /// The local servers installed (LM Studio, Ollama), for setup to name.
     pub servers: Vec<&'static str>,
+    /// What earlier setups offered and the person declined: not offered
+    /// again while the setting is as it was (`setup::past`).
+    pub declined: Vec<crate::assistant::setup::past::Line>,
 }
 
 /// How much of the catalog a model reads.

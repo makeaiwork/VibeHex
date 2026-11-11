@@ -552,3 +552,59 @@ fn now_says_what_is_set() {
         assert!(now.contains(words), "{words}: {now}");
     }
 }
+
+/// What an earlier setup offered and the person declined (a follow-up's
+/// "No", a row left unticked) isn't offered again while the setting is
+/// as it was then; once it changed, it may be.
+#[test]
+fn a_declined_line_is_not_offered_again() {
+    let settings = AppSettings::default();
+    let answers = owners_answers();
+    let asks = follow::candidates(&answers, &settings, &mac());
+    let first = asks
+        .iter()
+        .find(|ask| ask.id.starts_with("labs."))
+        .expect("a Labs follow-up")
+        .id
+        .clone();
+    let card = plan::plan(Vec::new(), &answers, &settings, &mac()).unwrap();
+    let row = card
+        .items
+        .iter()
+        .find(|item| item.key != changes::vocab::KEY)
+        .unwrap()
+        .clone();
+    let line = |key: &str, to: Value| past::Line {
+        key: key.into(),
+        from: current(&settings, key).unwrap_or(Value::Null),
+        to,
+    };
+    let state = State {
+        declined: vec![
+            line(&first, Value::Bool(true)),
+            line(&row.key, row.to.clone()),
+        ],
+        ..mac()
+    };
+    let again = follow::candidates(&answers, &settings, &state);
+    assert!(
+        again.iter().all(|ask| ask.id != first),
+        "{first} asked again"
+    );
+    let card = plan::plan(Vec::new(), &answers, &settings, &state).unwrap();
+    assert!(
+        card.items.iter().all(|item| item.key != row.key),
+        "{} offered again",
+        row.key
+    );
+    // Changed since: offered again.
+    let state = State {
+        declined: vec![past::Line {
+            from: Value::from("something else"),
+            ..line(&row.key, row.to.clone())
+        }],
+        ..mac()
+    };
+    let card = plan::plan(Vec::new(), &answers, &settings, &state).unwrap();
+    assert!(card.items.iter().any(|item| item.key == row.key));
+}
