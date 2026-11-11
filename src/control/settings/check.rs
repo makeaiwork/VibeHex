@@ -64,12 +64,34 @@ pub fn diff(before: &AppSettings, after: &AppSettings) -> Vec<(String, Value, Va
         .collect()
 }
 
-/// Every registry key's value, as `hex settings get` shows it.
-fn values(settings: &AppSettings) -> Vec<(&'static str, Value)> {
+/// Every registry key's value, as `hex settings get` shows it, without the
+/// API keys (no keychain is read).
+pub fn values(settings: &AppSettings) -> Vec<(&'static str, Value)> {
     let json = serde_json::to_value(settings).unwrap_or(Value::Null);
     super::keys()
         .map(|key| (key.key, super::value_of(key, &json).value))
         .collect()
+}
+
+/// Every registry key with its kind (`bool`, `choice`, …), its choices,
+/// and whether it can be set at all, without the API keys.
+pub fn kinds() -> impl Iterator<Item = (&'static str, &'static str, Vec<&'static str>, bool)> {
+    super::keys().map(|key| {
+        let choices = match key.kind {
+            super::Kind::Choice(choices) => choices.to_vec(),
+            _ => Vec::new(),
+        };
+        (key.key, key.kind.name(), choices, key.read_only.is_none())
+    })
+}
+
+/// The range a number or whole-number key accepts.
+pub fn bounds(name: &str) -> Option<(f64, f64)> {
+    match super::keys().find(|key| key.key == name)?.kind {
+        super::Kind::Number { min, max } => Some((min, max)),
+        super::Kind::Integer { min, max } => Some((min as f64, max as f64)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

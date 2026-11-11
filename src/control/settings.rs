@@ -14,7 +14,7 @@ mod check;
 mod hotkeys;
 mod requires;
 
-pub use check::{check, check_one, diff};
+pub use check::{bounds, check, check_one, diff, kinds, values};
 use hotkeys::special_key_refusal;
 pub use hotkeys::{format_hotkey, parse_hotkey};
 pub use requires::{missing, requires};

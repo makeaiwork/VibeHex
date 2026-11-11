@@ -11,6 +11,7 @@
 //! (`recordings::Allowed`) does `recordings` search them and hand the
 //! passages found to the prompt.
 
+pub mod changes;
 pub mod guide;
 pub mod intent;
 pub mod prompt;

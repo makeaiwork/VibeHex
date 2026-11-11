@@ -61,7 +61,7 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             p,
             "assistant-reads",
             tr("What it reads"),
-            vec![recordings_row(ui, p)],
+            vec![send_settings_row(ui, p), recordings_row(ui, p)],
         ))
 }
 
@@ -92,6 +92,22 @@ fn effort_row(ui: &Ui, p: Paint) -> El {
                 }
             },
         ),
+    )
+}
+
+/// Whether the model reads the person's switches and choices with each
+/// question (never keys, paths, or lists).
+fn send_settings_row(ui: &Ui, p: Paint) -> El {
+    let on = ui.settings.assistant.send_settings;
+    toggle_row(
+        p,
+        "assistant-send-settings",
+        tr("Your current settings"),
+        tr("So it knows what is already on. API keys are never sent"),
+        on,
+        move |ui: &mut Ui| {
+            ui.update(|settings| settings.assistant.send_settings = !on);
+        },
     )
 }
 

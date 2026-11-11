@@ -44,7 +44,9 @@ Assistant                                        // rune_ui::assistant
     │                   while it runs on Codex
     ├── Conversations   Keep on this computer; Clear conversations… then
     │                   Really clear all?
-    └── What it reads   Your meetings, files, and dictations (toggle)
+    └── What it reads   Your current settings (toggle, on: the model reads
+                        switches, choices, numbers, and speech models);
+                        Your meetings, files, and dictations (toggle)
 Opened from an answer                            // rune_ui::assistant::jump
 ├── Header      Back to Assistant (chevron, face, words) before the title
 ├── Bar         an item cited more than once: "From the answer: <question>",
@@ -146,6 +148,7 @@ Opened from an answer                            // rune_ui::assistant::jump
 | `assistant.effort` | empty (medium) | Codex reasoning: low, medium, high |
 | `assistant.keep_conversations` | `true` | Keep conversations on this computer |
 | `assistant.read_recordings` | none | May search meetings, Files texts, and dictations for questions about them; none until first asked |
+| `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, and speech models with each question; never API keys, paths, or lists |
 
 ## Privacy
 

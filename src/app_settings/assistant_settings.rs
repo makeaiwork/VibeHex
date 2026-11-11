@@ -28,6 +28,10 @@ pub struct AssistantSettings {
     /// lets anything be read (`assistant::recordings::Allowed`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_recordings: Option<bool>,
+    /// The model reads the person's current switches, choices, numbers,
+    /// and speech models with each question, so it suggests only what
+    /// isn't on yet; never a path, a key, or a list.
+    pub send_settings: bool,
 }
 
 impl Default for AssistantSettings {
@@ -38,6 +42,7 @@ impl Default for AssistantSettings {
             effort: String::new(),
             keep_conversations: true,
             read_recordings: None,
+            send_settings: true,
         }
     }
 }
@@ -50,10 +55,10 @@ mod tests {
     fn assistant_is_on_and_keeps_conversations_by_default() {
         let settings: AssistantSettings = serde_json::from_str("{}").unwrap();
         assert_eq!(settings, AssistantSettings::default());
-        assert!(settings.enabled && settings.keep_conversations);
+        assert!(settings.enabled && settings.keep_conversations && settings.send_settings);
         assert_eq!(
             serde_json::to_string(&settings).unwrap(),
-            r#"{"enabled":true,"keep_conversations":true}"#
+            r#"{"enabled":true,"keep_conversations":true,"send_settings":true}"#
         );
     }
 }

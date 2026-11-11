@@ -4,6 +4,7 @@
 //! Spanish, Ukrainian), then French and Brazilian Portuguese.
 
 pub(super) mod assistant;
+pub(super) mod changes;
 pub(super) mod codex;
 pub(super) mod files;
 pub(super) mod russian;
@@ -16,21 +17,31 @@ pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static s
         .chain(files::TRANSLATIONS)
         .chain(codex::TRANSLATIONS)
         .chain(assistant::TRANSLATIONS)
+        .chain(changes::TRANSLATIONS)
 }
 
 /// VibeHex's French rows: its own, then Assistant's.
 pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    FRENCH.iter().chain(assistant::FRENCH)
+    FRENCH
+        .iter()
+        .chain(assistant::FRENCH)
+        .chain(changes::FRENCH)
 }
 
 /// VibeHex's Brazilian Portuguese rows: its own, then Assistant's.
 pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    PORTUGUESE.iter().chain(assistant::PORTUGUESE)
+    PORTUGUESE
+        .iter()
+        .chain(assistant::PORTUGUESE)
+        .chain(changes::PORTUGUESE)
 }
 
 /// VibeHex's Russian rows: its own, then Assistant's.
 pub(super) fn russian() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    russian::TRANSLATIONS.iter().chain(assistant::RUSSIAN)
+    russian::TRANSLATIONS
+        .iter()
+        .chain(assistant::RUSSIAN)
+        .chain(changes::RUSSIAN)
 }
 
 /// The interface's language code (`en`, `pl`, `zh-Hant`…).
