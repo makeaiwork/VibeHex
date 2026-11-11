@@ -183,10 +183,21 @@ fn web_url(url: &str) -> Option<&str> {
     (url.starts_with("https://") || url.starts_with("http://")).then_some(url)
 }
 
-/// The web pages `answer` links or names, in order, each once.
+/// The web pages `answer` links or names, in order, each once; never an
+/// address in code (`http://127.0.0.1:1234/v1` is a setting's value).
 fn urls(answer: &str) -> Vec<&str> {
     let mut found: Vec<&str> = Vec::new();
-    let mut rest = answer;
+    for (index, prose) in answer.split('`').enumerate() {
+        // Odd pieces are inside code spans and blocks.
+        if index % 2 == 0 {
+            prose_urls(prose, &mut found);
+        }
+    }
+    found
+}
+
+fn prose_urls<'a>(prose: &'a str, found: &mut Vec<&'a str>) {
+    let mut rest = prose;
     while let Some(at) = rest.find("http") {
         let tail = &rest[at..];
         let end = tail
@@ -203,11 +214,11 @@ fn urls(answer: &str) -> Vec<&str> {
         }
         rest = &tail[end.max(4)..];
     }
-    found
 }
 
 /// A page's site as a chip names it: `https://www.lmstudio.ai/docs` →
-/// `lmstudio.ai`.
+/// `lmstudio.ai`. Empty for what isn't a public site: no dot, an IP
+/// address, `localhost`, or a local name.
 pub fn site(url: &str) -> &str {
     let rest = url
         .trim()
@@ -218,7 +229,15 @@ pub fn site(url: &str) -> &str {
     let host = host.rsplit('@').next().unwrap_or(host);
     let host = host.split(':').next().unwrap_or(host);
     let host = host.strip_prefix("www.").unwrap_or(host);
-    if host.contains('.') { host } else { "" }
+    let address = host.starts_with('[') || host.chars().all(|c| c.is_ascii_digit() || c == '.');
+    let local = [".local", ".localhost", ".internal", ".lan", ".home.arpa"]
+        .iter()
+        .any(|suffix| host.ends_with(suffix));
+    if host.contains('.') && !address && !local {
+        host
+    } else {
+        ""
+    }
 }
 
 #[cfg(test)]
@@ -358,6 +377,30 @@ mod tests {
             "docs.ollama.com"
         );
         assert_eq!(site("ftp://example.com"), "");
+        assert_eq!(site("http://127.0.0.1:1234/v1"), "");
+        assert_eq!(site("http://[::1]:11434"), "");
+        assert_eq!(site("http://studio.local:1234"), "");
+    }
+
+    /// The live answer of 11 November 2026: its link to LM Studio's docs is
+    /// a source; the server address it gives in code, and a local one in
+    /// prose, are not.
+    #[test]
+    fn an_address_in_code_or_on_this_computer_is_no_web_source() {
+        let mut web = Web {
+            searches: vec!["lm studio start local server".into()],
+            ..Web::default()
+        };
+        web.cite(
+            "1. In LM Studio, open **Developer** and turn on **Start server**. This step comes \
+             from the web: [LM Studio’s official documentation](https://lmstudio.ai/docs/developer/core/server).\n\
+             3. Enter `http://127.0.0.1:1234/v1`, or http://localhost:1234/v1.\n\
+             ```\ncurl https://example.com/in-a-block\n```",
+        );
+        assert_eq!(
+            web.sources,
+            ["https://lmstudio.ai/docs/developer/core/server"]
+        );
     }
 
     #[test]
