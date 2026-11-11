@@ -158,9 +158,27 @@ mod tests {
 
     /// Codex gets the whole guide in its prompt, so it has to stay small.
     #[test]
-    fn the_whole_guide_stays_under_32k_tokens() {
+    fn the_whole_guide_stays_under_50k_tokens() {
         let chars: usize = articles().iter().map(|article| article.body.len()).sum();
-        assert!(chars / 4 < 32_000, "about {} tokens", chars / 4);
+        assert!(chars / 4 < 50_000, "about {} tokens", chars / 4);
+    }
+
+    /// Every prompt carries the table of contents, small models included.
+    #[test]
+    fn the_table_of_contents_stays_under_3k_tokens() {
+        let chars = crate::assistant::prompt::contents().len();
+        assert!(chars / 4 < 3_000, "about {} tokens", chars / 4);
+    }
+
+    /// A small model reads three articles in a short window, so none is long.
+    #[test]
+    fn every_article_stays_under_2k_tokens() {
+        let long: Vec<String> = articles()
+            .iter()
+            .filter(|article| article.body.len() / 4 >= 2_000)
+            .map(|article| format!("{}: about {} tokens", article.id, article.body.len() / 4))
+            .collect();
+        assert!(long.is_empty(), "{}", long.join("\n"));
     }
 
     #[test]

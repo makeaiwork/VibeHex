@@ -117,14 +117,7 @@ pub fn build(question: &str, earlier: &[Turn], room: Room, reach: Reach) -> Prom
         None => question.to_owned(),
     };
     let found = retrieve::search(&query, room.articles());
-    let mut input = String::from("<guide_contents>\n");
-    for article in guide::articles() {
-        input.push_str(&format!(
-            "{}: {} ({})\n",
-            article.id, article.title, article.os
-        ));
-    }
-    input.push_str("</guide_contents>\n");
+    let mut input = contents();
     for article in &found {
         input.push_str(&excerpt(article));
     }
@@ -151,6 +144,20 @@ pub fn build(question: &str, earlier: &[Turn], room: Room, reach: Reach) -> Prom
         input,
         articles: found.iter().map(|article| article.id).collect(),
     }
+}
+
+/// The guide's table of contents as every prompt carries it: one line per
+/// article, its id, title, and systems.
+pub(super) fn contents() -> String {
+    let mut contents = String::from("<guide_contents>\n");
+    for article in guide::articles() {
+        contents.push_str(&format!(
+            "{}: {} ({})\n",
+            article.id, article.title, article.os
+        ));
+    }
+    contents.push_str("</guide_contents>\n");
+    contents
 }
 
 fn excerpt(article: &Article) -> String {
