@@ -40,14 +40,14 @@ enum Shell {
 
 /// How a card's button looks.
 #[derive(Clone, Copy)]
-enum Look {
+pub(super) enum Look {
     Primary,
     Secondary,
     Ghost,
     Danger,
 }
 
-fn push(
+pub(super) fn push(
     p: Paint,
     key: &str,
     label: &str,
@@ -447,7 +447,7 @@ fn header_in(p: Paint, path: &str, name: &str, chips: Option<El>, ink: rune::Col
 }
 
 /// From → to.
-fn change_chips(p: Paint, key: &str, from: &Value, to: &Value, struck: bool) -> El {
+pub(super) fn change_chips(p: Paint, key: &str, from: &Value, to: &Value, struck: bool) -> El {
     row()
         .key("values")
         .gap(6.0)
@@ -619,18 +619,14 @@ fn also_row(ui: &Ui, p: Paint, index: usize, key: &str, value: &Value) -> El {
 
 /// What a shorter retention removes, said plainly (owner decision 4).
 fn warning(p: Paint, shorter: Shorter) -> El {
-    let words = match shorter {
-        Shorter::Meetings => tr("Meetings older than this will move to the Trash"),
-        Shorter::MeetingAudio => {
-            tr("Older meetings will lose their audio. Notes and transcripts stay")
-        }
-        Shorter::History => tr("Older dictations will be deleted from History"),
-        Shorter::CaptureMedia => tr("Older captures will lose their video and audio"),
-        Shorter::Captures => tr("Older captures will be deleted"),
-    };
+    warned(p, warning_words(shorter)).pl(INDENT)
+}
+
+/// A shorter retention's warning: an icon and the words, in the warning
+/// tone.
+pub(super) fn warned(p: Paint, words: &str) -> El {
     row()
         .key("warning")
-        .pl(INDENT)
         .gap(6.0)
         .items_start()
         .child(
@@ -640,13 +636,26 @@ fn warning(p: Paint, shorter: Shorter) -> El {
                 .mt(2.0),
         )
         .child(
-            text(words)
+            text(words.to_owned())
                 .key("words")
                 .font(DESCRIPTION)
                 .color(p.warning())
                 .wrap()
                 .shrink(),
         )
+}
+
+/// What a shorter retention removes.
+pub(super) fn warning_words(shorter: Shorter) -> &'static str {
+    match shorter {
+        Shorter::Meetings => tr("Meetings older than this will move to the Trash"),
+        Shorter::MeetingAudio => {
+            tr("Older meetings will lose their audio. Notes and transcripts stay")
+        }
+        Shorter::History => tr("Older dictations will be deleted from History"),
+        Shorter::CaptureMedia => tr("Older captures will lose their video and audio"),
+        Shorter::Captures => tr("Older captures will be deleted"),
+    }
 }
 
 /// A refused line, never an action: muted, with what was wrong.
@@ -729,7 +738,7 @@ fn text_of(value: &Value) -> &str {
 }
 
 /// A value as the window names it, in the window's language.
-fn label(key: &str, value: &Value) -> String {
+pub(super) fn label(key: &str, value: &Value) -> String {
     tr(&names::label(key, value)).to_owned()
 }
 

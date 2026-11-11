@@ -192,7 +192,13 @@ fn decide(ui: &mut Ui, allow: bool) {
     } else {
         Recall::Declined
     };
-    super::composer::ask_with(ui, pending.conversation, pending.question, recall);
+    super::composer::ask_with(
+        ui,
+        pending.conversation,
+        pending.question,
+        recall,
+        crate::assistant::setup::Stage::None,
+    );
 }
 
 /// While it works: each step with a check, then the current one.

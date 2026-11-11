@@ -16,6 +16,7 @@ use crate::assistant::changes::names::{self, Home};
 use crate::assistant::changes::state::{self, Live, Shown};
 use crate::assistant::changes::{self, Card, CardKind, Context, Decision};
 use crate::control::settings::{self, Effect};
+use crate::desktop::i18n::tr;
 use crate::transcription::models::{self as transcription_models, TranscriptionModelId};
 
 /// Where a card is: its conversation, turn, and place among the turn's.
@@ -40,7 +41,7 @@ pub(super) fn context(ui: &Ui) -> Context {
         settings: ui.drafted(),
         send: ui.settings.assistant.send_settings,
         state: catalog::State {
-            os: std::env::consts::OS,
+            os: super::ask::os(ui),
             installed,
             codex_signed_in: super::super::output::codex_signed_in(ui),
             opencode_running: ui.assistant.reach.opencode,
@@ -134,14 +135,22 @@ fn set(ui: &mut Ui, at: At, change: impl FnOnce(&mut Card)) {
         .set_card(at.conversation, at.turn, at.card, card);
 }
 
+/// A speech model, which the service downloads and then switches to.
+fn is_download(item: &changes::Item) -> bool {
+    item.class == Class::Download && item.key.starts_with("transcription.")
+}
+
 /// Saves the card's change: what it needs first and the change itself, in
 /// one save, or nothing.
 pub(super) fn apply(ui: &mut Ui, at: At) {
     let Some(card) = card(ui, at).cloned() else {
         return;
     };
+    if card.kind == CardKind::Plan {
+        return apply_plan(ui, at, card);
+    }
     let decision = match card.items.first() {
-        Some(item) if item.class == Class::Download && item.key.starts_with("transcription.") => {
+        Some(item) if is_download(item) => {
             let to = chosen(&card).cloned().unwrap_or(Value::Null);
             prepare(ui, &item.key, &to).map(|()| Decision::Applied {
                 before: Map::from_iter([(item.key.clone(), item.from.clone())]),
@@ -160,6 +169,70 @@ pub(super) fn apply(ui: &mut Ui, at: At) {
     if applied && !ui.assistant.undo.contains(&at) {
         ui.assistant.undo.push(at);
     }
+}
+
+/// Saves a plan's checked rows. Each is checked on its own against what
+/// the rows before it make, so a failing one is left out with why and the
+/// rest go in one save; the speech model downloads after it, and a failed
+/// download takes nothing back.
+fn apply_plan(ui: &mut Ui, at: At, mut card: Card) {
+    let before = ui.drafted();
+    let rules = super::super::shortcut_rules();
+    let mut candidate = before.clone();
+    let mut effects = Vec::new();
+    for item in &mut card.items {
+        item.failed = None;
+        if !item.included || is_download(item) {
+            continue;
+        }
+        let one = Card {
+            items: vec![item.clone()],
+            ..Card::default()
+        };
+        let checked = changes::values(&one, &candidate).and_then(|values| {
+            settings::check(&candidate, &values, &rules).map_err(|error| error.message)
+        });
+        match checked {
+            Ok(change) => {
+                candidate = change.settings;
+                effects.extend(change.effects);
+            }
+            Err(why) => item.failed = Some(why),
+        }
+    }
+    let mut decision = commit(ui, &before, candidate, effects);
+    for index in 0..card.items.len() {
+        let item = &card.items[index];
+        if !item.included || !is_download(item) || decision.is_err() {
+            continue;
+        }
+        let (key, to) = (item.key.clone(), item.to.clone());
+        if let Err(why) = prepare(ui, &key, &to) {
+            card.items[index].failed = Some(why);
+        }
+    }
+    let (done, _) = state::applied_count(&card);
+    if done == 0 && decision.is_ok() {
+        let why = card.items.iter().find_map(|item| item.failed.clone());
+        decision = Err(why.unwrap_or_else(|| tr("Nothing was selected").to_owned()));
+    }
+    let applied = decision.is_ok();
+    card.decision = decision.unwrap_or_else(|why| Decision::Failed { why });
+    ui.assistant
+        .store
+        .set_card(at.conversation, at.turn, at.card, card);
+    if applied && !ui.assistant.undo.contains(&at) {
+        ui.assistant.undo.push(at);
+    }
+}
+
+/// Checks or unchecks row `index` of a plan.
+pub(super) fn toggle(ui: &mut Ui, at: At, index: usize) {
+    set(ui, at, |card| {
+        if let Some(item) = card.items.get_mut(index) {
+            item.included = !item.included;
+        }
+    });
 }
 
 /// The value a card's first item goes to: a choice's chosen option.
@@ -198,11 +271,22 @@ fn save(ui: &mut Ui, values: &Map<String, Value>) -> Result<Decision, String> {
     let before = ui.drafted();
     let change = settings::check(&before, values, &super::super::shortcut_rules())
         .map_err(|error| error.message)?;
-    let after = change.settings.clone();
-    if !ui.update(|settings| *settings = change.settings) {
+    commit(ui, &before, change.settings, change.effects)
+}
+
+/// Saves `after`, checked already, as the window saves a switch, and
+/// carries out `effects`.
+fn commit(
+    ui: &mut Ui,
+    before: &crate::app_settings::AppSettings,
+    after: crate::app_settings::AppSettings,
+    effects: Vec<Effect>,
+) -> Result<Decision, String> {
+    let saved = after.clone();
+    if !ui.update(|settings| *settings = saved) {
         return Err(ui.error.clone().unwrap_or_default());
     }
-    for effect in change.effects {
+    for effect in effects {
         match effect {
             Effect::HistoryRetention(retention) => history::adopt_retention(ui, retention),
             // The host shows or hides the Dock icon as it saves; a card
@@ -211,7 +295,7 @@ fn save(ui: &mut Ui, values: &Map<String, Value>) -> Result<Decision, String> {
         }
     }
     Ok(changes::applied(
-        settings::diff(&before, &after),
+        settings::diff(before, &after),
         ui.assistant.now_ms(),
     ))
 }
@@ -234,8 +318,22 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
         return;
     };
     let done = match card.items.first() {
-        Some(item) if item.class == Class::Download && item.key.starts_with("transcription.") => {
+        Some(item) if card.kind != CardKind::Plan && is_download(item) => {
             prepare(ui, &item.key, &item.from)
+        }
+        _ if card.kind == CardKind::Plan => {
+            let saved = if before.is_empty() {
+                Ok(())
+            } else {
+                save(ui, before).map(|_| ())
+            };
+            // The speech model it downloaded goes back to the one before.
+            for item in &card.items {
+                if item.included && item.failed.is_none() && is_download(item) {
+                    let _ = prepare(ui, &item.key, &item.from);
+                }
+            }
+            saved
         }
         _ => save(ui, before).map(|_| ()),
     };
@@ -453,6 +551,61 @@ mod tests {
             ui.settings.history_retention,
             crate::history::HistoryRetention::Week
         );
+    }
+
+    /// A plan's rows are checked one by one: a failing row is left out
+    /// with why, the rest save together, and Undo takes them back.
+    #[test]
+    fn a_plan_saves_what_passes_and_names_what_failed() {
+        let (mut ui, at) = with_card("labs.spoken_formatting", json!(false), json!(true));
+        ui.settings.labs.spoken_formatting = false;
+        ui.settings.labs.smart_spacing = false;
+        set(&mut ui, at, |card| {
+            card.kind = CardKind::Plan;
+            card.items.push(Item {
+                key: "recording_duck_volume".into(),
+                from: json!(0.2),
+                to: json!(1.4),
+                included: true,
+                ..Item::default()
+            });
+            card.items.push(Item {
+                key: "labs.smart_spacing".into(),
+                from: json!(false),
+                to: json!(true),
+                included: true,
+                ..Item::default()
+            });
+            card.items.push(Item {
+                key: "labs.files".into(),
+                from: json!(false),
+                to: json!(true),
+                included: false,
+                ..Item::default()
+            });
+        });
+        let files = ui.settings.labs.files;
+        apply(&mut ui, at);
+        assert!(ui.settings.labs.spoken_formatting && ui.settings.labs.smart_spacing);
+        assert_eq!(ui.settings.labs.files, files, "an unchecked row stays");
+        let plan = card(&ui, at).unwrap().clone();
+        assert!(matches!(plan.decision, Decision::Applied { .. }));
+        assert!(plan.items[1].failed.is_some());
+        assert_eq!(state::applied_count(&plan), (2, 3));
+        assert_eq!(shown(&ui, at), Some(Shown::Applied { undo: true }));
+        undo(&mut ui, at);
+        assert!(!ui.settings.labs.spoken_formatting && !ui.settings.labs.smart_spacing);
+        // Nothing checked: nothing saved, and the plan says so.
+        let (mut ui, at) = with_card("labs.spoken_formatting", json!(false), json!(true));
+        set(&mut ui, at, |card| {
+            card.kind = CardKind::Plan;
+            card.items[0].included = false;
+        });
+        apply(&mut ui, at);
+        assert!(matches!(
+            card(&ui, at).unwrap().decision,
+            Decision::Failed { .. }
+        ));
     }
 
     #[test]

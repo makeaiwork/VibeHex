@@ -8,8 +8,9 @@ use rune::{El, TextEdit, row};
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::super::files::composer::{self as files, MAX_LINES, SEND_ICON, STOP_ICON};
-use crate::assistant::prompt;
+use crate::assistant::setup::Stage;
 use crate::assistant::worker::{self, Earlier, Question, Recall};
+use crate::assistant::{intent, prompt};
 use crate::desktop::i18n::tr;
 
 pub(super) const MODEL_MENU: &str = "assistant-model";
@@ -20,7 +21,12 @@ pub(super) fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let c = &p.k.c;
     let pane = &ui.assistant;
     let edit = &pane.ask;
-    let placeholder = tr("Ask about VibeHex or your recordings");
+    // Under a plan still to decide, the field is for questions about it.
+    let placeholder = if super::plan::waiting(ui) {
+        tr("Ask about these changes")
+    } else {
+        tr("Ask about VibeHex or your recordings")
+    };
     let input = rune::text_input(edit, p.k.ty.ui)
         .key("input")
         .label(placeholder)
@@ -117,8 +123,9 @@ fn send(ui: &mut Ui) {
 
 /// Asks `question` in the open conversation, or in a new one named by it.
 /// False when it wasn't asked: another answer is coming, or this is a
-/// scene. A question about the person's recordings that may not read them
-/// yet waits for the consent card (and counts as asked).
+/// scene. A request to set VibeHex up asks setup's questions; a question
+/// about the person's recordings that may not read them yet waits for the
+/// consent card (and counts as asked).
 pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     if ui.is_fixture() || ui.assistant.fixture || worker::answering().is_some() {
         return false;
@@ -133,14 +140,24 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     };
     pane.open = Some(id);
     pane.error = None;
+    if intent::setup(&question) {
+        return ask_with(ui, id, question, Recall::Guide, Stage::Ask);
+    }
     match super::recall::recall(ui, id, &question) {
-        Some(recall) => ask_with(ui, id, question, recall),
+        Some(recall) => ask_with(ui, id, question, recall, Stage::None),
         None => true,
     }
 }
 
-/// Asks `question` in conversation `id`, reading what `recall` allows.
-pub(super) fn ask_with(ui: &mut Ui, id: u32, question: String, recall: Recall) -> bool {
+/// Asks `question` in conversation `id`, reading what `recall` allows, at
+/// setup's `stage` if it is one.
+pub(super) fn ask_with(
+    ui: &mut Ui,
+    id: u32,
+    question: String,
+    recall: Recall,
+    setup: Stage,
+) -> bool {
     let pane = &mut ui.assistant;
     let Some(conversation) = pane.store.get(id) else {
         return false;
@@ -172,6 +189,7 @@ pub(super) fn ask_with(ui: &mut Ui, id: u32, question: String, recall: Recall) -
             earlier,
             recall,
             changes: Some(changes),
+            setup,
         },
         engine,
     );

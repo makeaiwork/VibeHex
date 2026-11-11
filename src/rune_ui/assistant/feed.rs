@@ -14,6 +14,7 @@ use super::super::lists::small_button;
 use super::changes::At;
 use super::composer::ask;
 use super::face::{Mood, face};
+use crate::assistant::changes::CardKind;
 use crate::assistant::guide;
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Answering;
@@ -50,9 +51,11 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
         return if greet { feed.child(start(p)) } else { feed };
     }
     for (index, turn) in conversation.turns.iter().enumerate() {
-        feed = feed
-            .child(session::bubble(p, &format!("asked{index}"), &turn.question))
-            .child(reply(ui, p, conversation.id, index, turn));
+        // Setup's own questions and the answers to them have no bubble.
+        if !turn.question.trim().is_empty() && turn.answers.is_empty() {
+            feed = feed.child(session::bubble(p, &format!("asked{index}"), &turn.question));
+        }
+        feed = feed.child(reply(ui, p, conversation.id, index, turn));
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
@@ -89,16 +92,84 @@ fn start(p: Paint) -> El {
         )
         .child(
             text(tr(
-                "Whether it can do something, how to set it up, which model to use",
+                "Whether it can do something, how to set it up, which model to use. When a setting should change, you see the change and decide.",
             ))
             .key("lead")
             .font(DESCRIPTION)
             .color(p.muted())
             .wrap(),
         )
-        .child(grid.mt(12.0))
+        .child(setup(p).mt(12.0))
+        .child(grid.mt(8.0))
         .child(knows(p))
 }
+
+/// "Set VibeHex up for me": setup's questions, at once.
+fn setup(p: Paint) -> El {
+    let c = &p.k.c;
+    let title = tr("Set VibeHex up for me");
+    row()
+        .key("setup")
+        .role("button")
+        .label(title)
+        .focusable(true)
+        .focus_ring(2.0, 0.0, c.border_focus)
+        .gap(12.0)
+        .px(14.0)
+        .py(12.0)
+        .center_y()
+        .radius(p.k.radius.md)
+        .fill(p.k.alpha(p.accent(), 0.08))
+        .border(p.hair, p.k.alpha(p.accent(), 0.4))
+        .hover(c.hover)
+        .press(c.pressed)
+        .child(
+            rune::el()
+                .key("tile")
+                .size(30.0, 30.0)
+                .center()
+                .radius(p.k.radius.sm)
+                .fill(p.k.alpha(p.accent(), 0.14))
+                .child(icon(&SLIDERS, 15.0).key("glyph").color(p.accent())),
+        )
+        .child(
+            col()
+                .key("words")
+                .grow(1.0)
+                .shrink()
+                .min_w(0.0)
+                .gap(2.0)
+                .child(
+                    text(title)
+                        .key("title")
+                        .font(p.k.ty.body_medium)
+                        .color(p.text()),
+                )
+                .child(
+                    text(tr(
+                        "A few questions about how you work, then one list of changes to apply",
+                    ))
+                    .key("lead")
+                    .font(p.k.ty.small)
+                    .color(p.muted())
+                    .wrap(),
+                ),
+        )
+        .child(icon(&CHEVRON, 14.0).key("chevron").color(p.accent()))
+        .on_press(super::ask::begin)
+}
+
+static SLIDERS: rune::Icon = rune::Icon {
+    name: "hex-assistant-setup",
+    view: 16.0,
+    body: r#"<path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="4.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="11.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>"#,
+};
+
+static CHEVRON: rune::Icon = rune::Icon {
+    name: "hex-assistant-chevron",
+    view: 16.0,
+    body: r#"<path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>"#,
+};
 
 /// What the guide covers, under the examples.
 fn knows(p: Paint) -> El {
@@ -175,8 +246,9 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
             false,
         ));
     }
+    words = words.children(super::ask::view(ui, p, conversation, index, turn));
     if let Some(error) = &turn.error {
-        let question = turn.question.clone();
+        let again = turn.clone();
         words = words.child(
             row()
                 .key("failed")
@@ -191,7 +263,7 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
                         .shrink(),
                 )
                 .child(small_button(p, "retry", tr("Try again"), move |ui, _| {
-                    ask(ui, question.clone());
+                    retry(ui, conversation, &again);
                 })),
         );
     }
@@ -210,12 +282,19 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
             turn: index,
             card,
         };
-        words = words.children(super::card::view(ui, p, at, newest == Some(at)));
+        let primary = newest == Some(at);
+        words = words.children(if turn.cards[card].kind == CardKind::Plan {
+            super::plan::view(ui, p, at, primary)
+        } else {
+            super::card::view(ui, p, at, primary)
+        });
     }
     for (number, refused) in turn.refused.iter().enumerate() {
         words = words.children(super::card::refused(ui, p, number, refused));
     }
-    if turn.error.is_none() {
+    // The app's own questions have no model, and no row.
+    if turn.error.is_none() && !turn.model.is_empty() {
+        let again = turn.clone();
         words = words.child(session::answer_row(
             p,
             &Answered {
@@ -227,12 +306,19 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
                 now_ms,
                 stopped: turn.stopped,
             },
-            |ui: &mut Ui, question| {
-                ask(ui, question);
-            },
+            move |ui: &mut Ui, _| retry(ui, conversation, &again),
         ));
     }
     beside_face(p, &format!("answer{index}"), Mood::default(), words)
+}
+
+/// Asks a turn again: setup's answers as its plan, else its question.
+fn retry(ui: &mut Ui, conversation: u32, turn: &Turn) {
+    if turn.answers.is_empty() {
+        ask(ui, turn.question.clone());
+    } else {
+        super::ask::again(ui, conversation, turn);
+    }
 }
 
 /// `words` with the face at their left, which says who wrote them.
@@ -317,9 +403,11 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
             .font(DESCRIPTION)
             .color(p.faint())
     });
-    vec![
-        session::bubble(p, "asking", &answering.question),
-        beside_face(
+    let bubble = (!answering.question.trim().is_empty())
+        .then(|| session::bubble(p, "asking", &answering.question));
+    bubble
+        .into_iter()
+        .chain([beside_face(
             p,
             "answering",
             mood,
@@ -332,6 +420,6 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
                 .children(steps)
                 .children(words)
                 .children(preparing),
-        ),
-    ]
+        )])
+        .collect()
 }

@@ -8,6 +8,7 @@ pub(super) mod changes;
 pub(super) mod codex;
 pub(super) mod files;
 pub(super) mod russian;
+pub(super) mod setup;
 
 /// VibeHex's rows for the six-column table: its own, then Files', Codex's,
 /// and Assistant's.
@@ -18,6 +19,7 @@ pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static s
         .chain(codex::TRANSLATIONS)
         .chain(assistant::TRANSLATIONS)
         .chain(changes::TRANSLATIONS)
+        .chain(setup::TRANSLATIONS)
 }
 
 /// VibeHex's French rows: its own, then Assistant's.
@@ -26,6 +28,7 @@ pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static 
         .iter()
         .chain(assistant::FRENCH)
         .chain(changes::FRENCH)
+        .chain(setup::FRENCH)
 }
 
 /// VibeHex's Brazilian Portuguese rows: its own, then Assistant's.
@@ -34,6 +37,7 @@ pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'sta
         .iter()
         .chain(assistant::PORTUGUESE)
         .chain(changes::PORTUGUESE)
+        .chain(setup::PORTUGUESE)
 }
 
 /// VibeHex's Russian rows: its own, then Assistant's.
@@ -42,6 +46,7 @@ pub(super) fn russian() -> impl Iterator<Item = &'static (&'static str, &'static
         .iter()
         .chain(assistant::RUSSIAN)
         .chain(changes::RUSSIAN)
+        .chain(setup::RUSSIAN)
 }
 
 /// The interface's language code (`en`, `pl`, `zh-Hant`…).

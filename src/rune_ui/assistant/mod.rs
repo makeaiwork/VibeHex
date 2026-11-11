@@ -9,6 +9,7 @@
 //! The model is Assistant's own: choosing one here never changes what
 //! dictation's AI cleanup runs on.
 
+mod ask;
 mod card;
 mod card_diff;
 mod changes;
@@ -21,6 +22,7 @@ pub(super) mod fixture_cards;
 pub(super) mod jump;
 pub(super) mod nav;
 mod picker;
+mod plan;
 mod recall;
 mod settings;
 

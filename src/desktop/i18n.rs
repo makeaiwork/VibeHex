@@ -1676,7 +1676,10 @@ mod tests {
         include_str!("../rune_ui/meeting_tabs/mod.rs"),
         include_str!("../rune_ui/meeting_tabs/requests.rs"),
         include_str!("../rune_ui/assistant/mod.rs"),
+        include_str!("../rune_ui/assistant/ask.rs"),
         include_str!("../rune_ui/assistant/card.rs"),
+        include_str!("../rune_ui/assistant/plan.rs"),
+        include_str!("../assistant/setup.rs"),
         include_str!("../rune_ui/assistant/changes.rs"),
         include_str!("../rune_ui/assistant/composer.rs"),
         include_str!("../rune_ui/assistant/connect.rs"),
@@ -1827,6 +1830,22 @@ mod tests {
             .flat_map(|set| [set.name(), set.character()])
             .chain(Cue::ALL.into_iter().map(Cue::name));
         for english in strings {
+            let translations = table
+                .get(english)
+                .unwrap_or_else(|| panic!("{english:?} has no translations"));
+            assert!(
+                translations
+                    .iter()
+                    .all(|translation| !translation.is_empty())
+            );
+        }
+    }
+
+    /// Setup's own questions name their words in a table, not at `tr`.
+    #[test]
+    fn every_setup_question_word_has_every_language() {
+        let table: std::collections::HashMap<_, _> = all_translations().copied().collect();
+        for english in crate::assistant::setup::own_words() {
             let translations = table
                 .get(english)
                 .unwrap_or_else(|| panic!("{english:?} has no translations"));
