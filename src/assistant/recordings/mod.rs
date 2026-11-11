@@ -390,6 +390,26 @@ fn clip(text: &str, chars: usize) -> String {
     }
 }
 
+/// With several words to search for, a match scoring under this share of
+/// the best one is too weak to count among "the last few".
+const GOOD_SHARE: f32 = 0.4;
+
+/// The documents to read from `order` (best first, with scores): as they
+/// are, or, when the question asks for the latest few, the newest of them
+/// by `at`, most recent first.
+fn newest(mut order: Vec<(usize, f32)>, intent: &Intent, at: impl Fn(usize) -> u64) -> Vec<usize> {
+    if let Some(latest) = intent.latest {
+        if intent.terms.len() > 1
+            && let Some(best) = order.first().map(|(_, score)| *score)
+        {
+            order.retain(|(_, score)| *score >= best * GOOD_SHARE);
+        }
+        order.sort_by_key(|(index, _)| std::cmp::Reverse(at(*index)));
+        order.truncate(latest);
+    }
+    order.into_iter().map(|(index, _)| index).collect()
+}
+
 /// Whether `range` holds `at_ms`.
 fn within(intent: &Intent, at_ms: u64) -> bool {
     intent.since_ms.is_none_or(|since| at_ms >= since)

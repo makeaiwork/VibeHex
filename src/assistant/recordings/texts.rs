@@ -4,9 +4,9 @@
 use std::path::Path;
 
 use super::super::intent::Intent;
-use super::{Budget, Excerpt, Kind, Line, clip, within};
+use super::{Budget, Excerpt, Kind, Line, clip, newest, within};
 use crate::files::store::{FileRecord, VersionKind};
-use crate::meeting::query::search_texts;
+use crate::meeting::query::{TextHit, search_texts};
 
 const TEXT_CHARS: usize = 900;
 /// The most of a transcript one stretch reads.
@@ -16,19 +16,17 @@ const STRETCH_CHARS: usize = 1_200;
 /// for each, its best stretches of the transcript, segment by segment, with
 /// their times.
 pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<Excerpt>) {
-    let mut records: Vec<FileRecord> = crate::files::store::list_in(dir)
+    // Newest first, as Files lists them.
+    let records: Vec<FileRecord> = crate::files::store::list_in(dir)
         .into_iter()
         .filter(|record| within(intent, record.added_ms))
         .filter(|record| !record.versions.is_empty())
         .collect();
-    if let Some(latest) = intent.latest {
-        records.truncate(latest);
-    }
     let searched = records.len();
     let query = intent.terms.join(" ");
-    let order: Vec<usize> = if query.is_empty() {
+    let order: Vec<(usize, f32)> = if query.is_empty() {
         if intent.sure {
-            (0..records.len()).collect()
+            (0..records.len()).map(|index| (index, 0.0)).collect()
         } else {
             Vec::new()
         }
@@ -41,10 +39,9 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
                 texts
             })
             .collect();
-        search_texts(&documents, &query, &[])
-            .map(|hits| hits.into_iter().map(|hit| hit.index).collect())
-            .unwrap_or_default()
+        hits(search_texts(&documents, &query, &[]))
     };
+    let order = newest(order, intent, |index| records[index].added_ms);
     let mut excerpts = Vec::new();
     for record in order
         .into_iter()
@@ -138,14 +135,13 @@ pub(super) fn dictations(path: &Path, intent: &Intent, budget: Budget) -> (usize
     };
     entries.retain(|entry| within(intent, entry.timestamp_ms));
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp_ms));
-    if let Some(latest) = intent.latest {
-        entries.truncate(latest);
-    }
+    // Every dictation in range is searched; "the last few" are the newest
+    // of those that match, not the newest few searched.
     let searched = entries.len();
     let query = intent.terms.join(" ");
-    let order: Vec<usize> = if query.is_empty() {
+    let order: Vec<(usize, f32)> = if query.is_empty() {
         if intent.sure {
-            (0..entries.len()).collect()
+            (0..entries.len()).map(|index| (index, 0.0)).collect()
         } else {
             Vec::new()
         }
@@ -154,10 +150,9 @@ pub(super) fn dictations(path: &Path, intent: &Intent, budget: Budget) -> (usize
             .iter()
             .map(|entry| vec![entry.final_text.as_str(), entry.raw_text.as_str()])
             .collect();
-        search_texts(&documents, &query, &[])
-            .map(|hits| hits.into_iter().map(|hit| hit.index).collect())
-            .unwrap_or_default()
+        hits(search_texts(&documents, &query, &[]))
     };
+    let order = newest(order, intent, |index| entries[index].timestamp_ms);
     let excerpts = order
         .into_iter()
         .take(budget.texts * 2)
@@ -177,4 +172,11 @@ pub(super) fn dictations(path: &Path, intent: &Intent, budget: Budget) -> (usize
         })
         .collect();
     (searched, excerpts)
+}
+
+/// The documents a search found, best first, with their scores.
+fn hits(found: color_eyre::eyre::Result<Vec<TextHit>>) -> Vec<(usize, f32)> {
+    found
+        .map(|hits| hits.into_iter().map(|hit| (hit.index, hit.score)).collect())
+        .unwrap_or_default()
 }

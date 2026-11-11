@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "next_id": 6,
+  "next_id": 16,
   "entries": [
     {
       "id": 1,
@@ -41,6 +41,86 @@
       "raw_text": "Reminder to renew the Okta contract before the Acme deal.",
       "final_text": "Reminder to renew the Okta contract before the Acme deal.",
       "application": "Slack"
+    },
+    {
+      "id": 6,
+      "timestamp_ms": 1794466800000,
+      "kind": "dictation",
+      "raw_text": "Нужно обновить иконку VibeHex в доке.",
+      "final_text": "Нужно обновить иконку VibeHex в доке.",
+      "application": "Notes"
+    },
+    {
+      "id": 7,
+      "timestamp_ms": 1794553200000,
+      "kind": "dictation",
+      "raw_text": "В вайп хекс поиск по истории работает быстрее.",
+      "final_text": "В вайп хекс поиск по истории работает быстрее.",
+      "application": "Notes"
+    },
+    {
+      "id": 8,
+      "timestamp_ms": 1794812400000,
+      "kind": "dictation",
+      "raw_text": "Запиши идею: вайбхекс должен показывать время записи.",
+      "final_text": "Запиши идею: вайбхекс должен показывать время записи.",
+      "application": "Notes"
+    },
+    {
+      "id": 9,
+      "timestamp_ms": 1794898800000,
+      "kind": "dictation",
+      "raw_text": "The vibe hex sidebar needs a narrower rail.",
+      "final_text": "The vibe hex sidebar needs a narrower rail.",
+      "application": "Slack"
+    },
+    {
+      "id": 10,
+      "timestamp_ms": 1794985200000,
+      "kind": "dictation",
+      "raw_text": "Сделай так, чтобы вайпхекс открывался по горячей клавише.",
+      "final_text": "Сделай так, чтобы вайпхекс открывался по горячей клавише.",
+      "application": "Cursor"
+    },
+    {
+      "id": 11,
+      "timestamp_ms": 1795071600000,
+      "kind": "dictation",
+      "raw_text": "Скажи Пете, что в вайб хексе новая сборка.",
+      "final_text": "Скажи Пете, что в вайб хексе новая сборка.",
+      "application": "Telegram"
+    },
+    {
+      "id": 12,
+      "timestamp_ms": 1795158000000,
+      "kind": "dictation",
+      "raw_text": "Купить молоко и хлеб.",
+      "final_text": "Купить молоко и хлеб.",
+      "application": "Notes"
+    },
+    {
+      "id": 13,
+      "timestamp_ms": 1795248000000,
+      "kind": "dictation",
+      "raw_text": "Позвонить в банк насчёт карты.",
+      "final_text": "Позвонить в банк насчёт карты.",
+      "application": "Notes"
+    },
+    {
+      "id": 14,
+      "timestamp_ms": 1795338000000,
+      "kind": "dictation",
+      "raw_text": "Список дел на выходные: уборка, спортзал.",
+      "final_text": "Список дел на выходные: уборка, спортзал.",
+      "application": "Notes"
+    },
+    {
+      "id": 15,
+      "timestamp_ms": 1795521600000,
+      "kind": "dictation",
+      "raw_text": "Напиши Ване, что VibeHex теперь умеет искать по истории.",
+      "final_text": "Напиши Ване, что VibeHex теперь умеет искать по истории.",
+      "application": "Telegram"
     }
   ]
 }

@@ -6,7 +6,8 @@ use crate::assistant::prompt::{Reach, Room, build};
 use crate::assistant::setup::Stage;
 
 /// The eval's recordings: ten meetings in October and November 2026, three
-/// Files texts, five dictations.
+/// Files texts, fifteen dictations (ten in November naming VibeHex, half
+/// of them as speech recognition writes it in Cyrillic, or not at all).
 fn fixtures() -> Sources {
     Sources::at(
         &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/assistant/recordings"),
@@ -223,6 +224,42 @@ fn the_search_reports_its_steps_as_it_goes() {
         "three meetings last week, two with Anna"
     );
     assert!(matches!(seen[1], Step::Read { notes: 2, .. }));
+}
+
+/// The dictations `question` reads, by id, in the order read.
+fn dictations_read(question: &str) -> (Vec<String>, Vec<Step>) {
+    let found = found(question, Budget::LARGE);
+    let ids = found
+        .excerpts
+        .iter()
+        .filter(|excerpt| excerpt.kind == Kind::Dictation)
+        .map(|excerpt| excerpt.id.clone())
+        .collect();
+    (ids, found.steps)
+}
+
+#[test]
+fn the_last_few_that_match_are_the_newest_matches_of_all() {
+    let (ids, steps) =
+        dictations_read("А можешь найти последние мои диктовки, где я говорил о VibeHex?");
+    assert_eq!(ids, ["15", "6"], "newest first, every dictation searched");
+    assert_eq!(
+        steps,
+        [Step::Dictations {
+            searched: 15,
+            found: 2
+        }]
+    );
+    // Without words to search for, the last few are simply the newest.
+    let (ids, _) = dictations_read("Покажи мои последние диктовки");
+    assert_eq!(ids, ["2", "1", "15", "3", "14"]);
+    let (ids, _) = dictations_read("Покажи мою последнюю диктовку");
+    assert_eq!(ids, ["2"]);
+    // Meetings alike: the newest that name OpenRouter, not the newest five.
+    assert_eq!(
+        read("Что решили про OpenRouter на последних встречах?").unwrap(),
+        ["meeting:retro", "meeting:budget-q1"]
+    );
 }
 
 #[test]

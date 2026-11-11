@@ -71,6 +71,29 @@ fn the_last_few_meetings_are_counted() {
 }
 
 #[test]
+fn the_last_few_without_a_number_are_a_few_and_the_last_one_is_one() {
+    let latest = |question: &str| read(question, now()).unwrap().latest;
+    let intent = read(
+        "А можешь найти последние моей диктовки, где я говорил о VibeHex?",
+        now(),
+    )
+    .unwrap();
+    assert!(intent.sure && intent.kinds.dictations && !intent.kinds.meetings);
+    assert_eq!(intent.latest, Some(5));
+    assert_eq!(intent.terms, ["vibehex"]);
+    assert_eq!(latest("Найди последних диктовках про релиз"), Some(5));
+    assert_eq!(
+        latest("Find my last few dictations about the release"),
+        Some(5)
+    );
+    assert_eq!(latest("Summarize my recent calls about pricing"), Some(5));
+    assert_eq!(latest("Найди последнюю диктовку про релиз"), Some(1));
+    assert_eq!(latest("Что решили на последней встрече?"), Some(1));
+    assert_eq!(latest("Find my last dictation about the release"), Some(1));
+    assert_eq!(latest("Сведи последние три встречи"), Some(3));
+}
+
+#[test]
 fn terms_keep_the_topic_and_drop_the_rest() {
     let intent = read(
         "Что мы решили по бюджету на встречах в ноябре? Сведи всё вместе.",
