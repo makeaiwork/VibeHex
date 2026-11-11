@@ -313,7 +313,7 @@ fn reply(
         now_ms,
         (conversation, index),
     ));
-    words = words.children(sources(p, &turn.sources));
+    words = words.children(sources(p, &turn.sources, &turn.web.sources));
     // The changes it suggested, then the lines the app refused.
     let newest = super::changes::newest(ui, conversation);
     for card in 0..turn.cards.len() {
@@ -372,27 +372,31 @@ pub(super) fn beside_face(p: Paint, key: &str, mood: Mood, words: El) -> El {
         .child(words)
 }
 
-/// "From the guide" and the articles a reply names, by their titles.
-fn sources(p: Paint, ids: &[String]) -> Option<El> {
+/// "From the guide" and the articles a reply names, by their titles, then
+/// "From the web" and the sites it cites.
+fn sources(p: Paint, ids: &[String], web: &[String]) -> Option<El> {
     let c = &p.k.c;
     let titles: Vec<&str> = ids
         .iter()
         .filter_map(|id| guide::article(id))
         .map(|article| article.title.as_str())
         .collect();
-    if titles.is_empty() {
+    if titles.is_empty() && web.is_empty() {
         return None;
     }
     let small = rune::TextStyle {
         size: 12.0,
         ..p.k.ty.ui
     };
-    let mut line = row().key("sources").gap(6.0).center_y().flex_wrap().child(
-        text(tr("From the guide"))
-            .key("label")
-            .font(small)
-            .color(p.faint()),
-    );
+    let mut line = row().key("sources").gap(6.0).center_y().flex_wrap();
+    if !titles.is_empty() {
+        line = line.child(
+            text(tr("From the guide"))
+                .key("label")
+                .font(small)
+                .color(p.faint()),
+        );
+    }
     for (index, title) in titles.into_iter().enumerate() {
         line = line.child(
             row()
@@ -415,17 +419,18 @@ fn sources(p: Paint, ids: &[String]) -> Option<El> {
                 ),
         );
     }
-    Some(line)
+    Some(line.children(super::web::chips(p, web)))
 }
 
 /// The question being answered and what came so far, the face reading.
 fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
     let steps = super::recall::live(p, answering);
+    let web = super::web::live(p, answering);
     let words = if !answering.draft.trim().is_empty() {
         let mut draft = answering.draft.trim_end().to_owned();
         draft.push('▌');
         Some(super::recall::answer(p, &draft, None, None, (true, true)))
-    } else if steps.is_none() {
+    } else if steps.is_none() && web.is_none() {
         Some(
             text(tr("Looking in the guide…"))
                 .key("looking")
@@ -458,6 +463,7 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
                 .min_w(0.0)
                 .gap(10.0)
                 .children(steps)
+                .children(web)
                 .children(words)
                 .children(preparing),
         )])

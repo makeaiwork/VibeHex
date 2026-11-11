@@ -13,6 +13,7 @@ use super::changes::{Card, Refused};
 use super::recordings::{Ref, Step};
 use super::setup::past::{self, Setup};
 use super::setup::{Answer, Ask};
+use super::web::Web;
 
 /// The most conversations kept; the least recently used go first.
 const MAX_CONVERSATIONS: usize = 50;
@@ -86,6 +87,24 @@ pub struct Turn {
     /// as a plan, `done` once the person kept their own.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub preset: String,
+    /// What it searched on the web and the pages it cites; empty when it
+    /// never went online.
+    #[serde(skip_serializing_if = "Web::is_empty")]
+    pub web: Web,
+}
+
+impl Turn {
+    /// Its answer was written from recordings it found, so it may quote
+    /// them; a search that found nothing gave it nothing of theirs.
+    pub fn read_recordings(&self) -> bool {
+        !self.refs.is_empty()
+            || self.steps.iter().any(|step| match *step {
+                Step::Meetings { found, .. }
+                | Step::Files { found, .. }
+                | Step::Dictations { found, .. } => found > 0,
+                Step::Read { passages, .. } => passages > 0,
+            })
+    }
 }
 
 /// One conversation.
@@ -101,6 +120,9 @@ pub struct Conversation {
     pub engine: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<String>,
+    /// Its Web toggle, when it isn't Assistant › Settings' one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web: Option<bool>,
     pub created_ms: u64,
 }
 
@@ -186,6 +208,7 @@ impl Store {
             turns: Vec::new(),
             engine,
             effort,
+            web: None,
             created_ms: now_ms(),
         });
         if self.conversations.len() > MAX_CONVERSATIONS {
@@ -261,6 +284,15 @@ impl Store {
         if let Some(conversation) = self.conversations.iter_mut().find(|c| c.id == id) {
             conversation.engine = engine;
             conversation.effort = effort;
+            self.save();
+        }
+    }
+
+    /// Whether conversation `id` may search the web next; `None` follows
+    /// Assistant › Settings.
+    pub fn set_web(&mut self, id: u32, web: Option<bool>) {
+        if let Some(conversation) = self.conversations.iter_mut().find(|c| c.id == id) {
+            conversation.web = web;
             self.save();
         }
     }
@@ -433,6 +465,48 @@ mod tests {
         };
         store.set_card(id, 0, 0, declined.clone());
         assert_eq!(store.get(id).unwrap().turns[0].cards, [declined]);
+    }
+
+    /// A web answer's searches and sources, and a conversation's Web
+    /// toggle, come back; a file from before them still reads.
+    #[test]
+    fn a_web_answer_and_the_web_toggle_are_kept() {
+        let dir = scratch("web");
+        let path = dir.join("assistant/conversations.json");
+        let mut store = Store::at(&path, true);
+        let id = store.start("LM Studio?", Some("codex".into()), None);
+        store.set_web(id, Some(false));
+        let web = Web {
+            guide: vec!["topics/ai-cleanup".into()],
+            searches: vec!["LM Studio start local server".into()],
+            pages: vec!["https://lmstudio.ai/docs/app".into()],
+            sources: vec!["https://lmstudio.ai/docs/developer/core/server".into()],
+            going: Vec::new(),
+            held_back: false,
+        };
+        store.push(
+            id,
+            Turn {
+                web: web.clone(),
+                ..turn("LM Studio?")
+            },
+        );
+        store.push(id, turn("And Ollama?"));
+        let again = Store::at(&path, true);
+        let conversation = again.get(id).unwrap();
+        assert_eq!(conversation.web, Some(false));
+        assert_eq!(conversation.turns[0].web, web);
+        assert!(conversation.turns[1].web.is_empty());
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            saved.matches("\"web\"").count(),
+            2,
+            "an empty one is left out"
+        );
+        let old = r#"{"conversations":[{"id":1,"name":"q","turns":[{"question":"q","answer":"a"}],"created_ms":5}]}"#;
+        let file: File = serde_json::from_str(old).unwrap();
+        assert_eq!(file.conversations[0].web, None);
+        assert!(file.conversations[0].turns[0].web.is_empty());
     }
 
     #[test]

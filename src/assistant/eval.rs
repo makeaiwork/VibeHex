@@ -167,6 +167,7 @@ fn ask(case: &Case, engine: &Engine) -> Option<(Turn, f32)> {
         recall: Recall::Guide,
         changes: Some(context),
         setup: case.setup.clone(),
+        web: false,
     };
     let started = Instant::now();
     if !worker::ask(question, engine.clone()) {

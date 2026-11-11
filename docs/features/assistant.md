@@ -24,8 +24,15 @@ Assistant                                        // rune_ui::assistant
 │   │           (quiet text under it), four example questions, and what
 │   │           the guide holds (Labs features and topics)
 │   ├── Feed    the person's bubble; the answer as Markdown beside the face,
-│   │           then "From the guide" chips naming the articles it drew on,
-│   │           then Copy, Ask again, the model, Stopped, the time.
+│   │           then "From the guide" chips naming the articles it drew on
+│   │           and "From the web" chips (one per site it cites, warm tint;
+│   │           a press opens the page), then Copy, Ask again, the model,
+│   │           Stopped, the time.
+│   │           From the web: "Read the guide and 2 web pages in 9 s ›"
+│   │           over the answer; open, the guide it read, that the guide
+│   │           didn't cover it all, "Searched the web: 2 pages read", and
+│   │           each search's words. While it searches: "Searched the web
+│   │           for “…”", "Read lmstudio.ai", "Searching the web".
 │   │           A failed answer says why and offers Try again.
 │   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
 │   │           the answer (a click lists the steps), [n] marks inline, and
@@ -467,6 +474,67 @@ Opened from a place link                         // rune_ui::assistant::places
 | `assistant.keep_conversations` | `true` | Keep conversations on this computer |
 | `assistant.read_recordings` | none | May search meetings, Files texts, and dictations for questions about them; none until first asked |
 | `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, shortcuts, and speech models with each question; never API keys, paths, or lists |
+| `assistant.web` | `true` | Codex may search the web when the guide has no answer; a conversation's Web toggle overrides it |
+
+## The web
+
+```ts
+Web on (assistant.web, or the field's Web toggle for one conversation)
+├── Engine     Codex only, on a second app-server of its own
+│              (codex::running_as(true)) started with web_search="live"
+│              and features.code_mode_host=true (isolation::SEARCHING;
+│              Codex 0.167 searches through code mode, whose host Codex
+│              runs per process); every other isolation override, and
+│              the person's MCP servers off, stay. Dictation cleanup,
+│              Files, meeting notes, other answers, setup's questions and
+│              plan: the first app-server, where both are off. Built in,
+│              OpenRouter, your server, OpenCode: no toggle, no search
+├── Prompt     web::RULES after the rest: the guide first, the web only
+│              for what it doesn't cover (LM Studio, Ollama, OpenRouter),
+│              official sources, nothing of the person's in a search, no
+│              search for questions about their recordings unless asked,
+│              each page cited as a Markdown link
+├── Guard      worker::offline, in code, not the prompt: no web search
+│              when the prompt holds the person's recordings (meetings,
+│              dictations, Files texts). A recordings question, carried
+│              follow-up, or declined one: the plain call, nothing said.
+│              A later question in a conversation an earlier answer of
+│              which read them (Turn::read_recordings): the plain call,
+│              and Web {held_back} folds to "Read the guide in N s, not
+│              the web". The settings snapshot may go along
+├── Steps      codex.rs passes each `webSearch` item (item/started,
+│              item/completed) to worker::seen → Answering.web → the
+│              pane's live steps; the turn keeps Web {guide, searches,
+│              pages, sources, held_back} (serde default, left out when
+│              empty)
+└── Sources    the http(s) links the answer cites, one per site, else the
+               pages it opened; only when it searched. Links in the answer
+               open in the browser too
+```
+
+Why Codex alone: OpenRouter's web plugin (`:online`) bills each search on the
+person's OpenRouter credits and streams its citations in another shape, and
+OpenCode answers through its own tools; neither is wired.
+
+Code mode, checked 12 November 2026 on Codex 0.167: its `exec` tool runs
+JavaScript "in a fresh V8 isolate … no Node, no file system, no network access,
+no console" (Codex's own tool description), reaching only the thread's other
+tools. With the isolation those are `web__run` (the search), `apply_patch`
+(refused: read-only sandbox, approvals never given), the MCP resource tools (no
+MCP server runs), and the clock; shell, exec, apps, plugins, browser and
+computer use, and image reading (`features.view_image=false`, added for every
+thread) are off. A thread's own `config` can't turn code mode on: with
+`"features.code_mode_host": true` there, the model's `exec` still failed with
+"code-mode host is disabled", hence the second process. Live check, 12 November
+2026: `cargo test --bin hex -- --ignored --nocapture
+searches_the_web_on_the_installed_codex` (one paid request) streamed a
+`webSearch` item (`exec-…` id, query "site.lmstudio.ai/docs start local server
+Developer Start server"), and the answer cited lmstudio.ai's server docs as a
+link. `the_persons_mcp_servers_never_start` (free) checks both processes.
+
+"From the web" takes only Markdown links and bare addresses in prose, never one
+in code, and only public sites: `http://127.0.0.1:1234/v1`, `localhost`, IP
+addresses and local names are a setting's value, not a source.
 
 ## Privacy
 
@@ -495,7 +563,8 @@ each with the parse it must make); scenes `assistant`,
 `assistant-setup-ask`, `assistant-setup-follow`, `assistant-setup-plan`,
 `assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
 `assistant-setup-preset-shortcuts`,
-and their goldens; `scripts/check control::settings`
+and their goldens; the web's `assistant-web`, `assistant-web-off`, `assistant-web-held`,
+`assistant-web-answering`; `scripts/check control::settings`
 for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
 Cmd+[, and the landing at two window heights.

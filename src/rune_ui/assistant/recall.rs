@@ -272,7 +272,7 @@ pub(in super::super) fn live_steps(
 }
 
 /// One step: a check when done, three dots while it goes on.
-fn step_line(p: Paint, key: &str, done: bool, words: &str) -> El {
+pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str) -> El {
     let c = &p.k.c;
     let mark = if done {
         icon(&rune_theme_opencode::icons::CHECK_SMALL, 14.0)
@@ -374,6 +374,7 @@ pub(super) fn folded(
     steps_folded(
         p,
         (&turn.steps, false),
+        Some(turn),
         turn.seconds,
         open,
         move |ui: &mut Ui| {
@@ -390,15 +391,17 @@ pub(super) fn folded(
 
 /// `steps` folded into one line, "Read 4 meetings and 1 file in 9 s ›"
 /// ("2 other meetings" when they are `other` than the item asked about),
-/// listed under it while `open`; a press calls `toggle`.
+/// listed under it while `open`; a press calls `toggle`. `web`: the turn
+/// whose web search shows too ("Read the guide and 2 web pages in 9 s").
 pub(in super::super) fn steps_folded(
     p: Paint,
     (steps, other): (&[Step], bool),
+    web: Option<&Turn>,
     seconds: f32,
     open: bool,
     toggle: impl Fn(&mut Ui) + 'static,
 ) -> Option<El> {
-    if steps.is_empty() {
+    if steps.is_empty() && web.is_none_or(|turn| turn.web.is_empty()) {
         return None;
     }
     let c = &p.k.c;
@@ -418,17 +421,19 @@ pub(in super::super) fn steps_folded(
         }
     }
     let seconds = format!("{:.0}", seconds.max(1.0));
-    let line = match read.as_slice() {
-        [] => tr_fill("Found nothing in your recordings in {} s", &seconds),
-        [one] => tr_named(
+    let line = match (read.as_slice(), web) {
+        // An answer from the guide and the web.
+        ([], Some(turn)) if steps.is_empty() => super::web::folded(turn, &seconds),
+        ([], _) => tr_fill("Found nothing in your recordings in {} s", &seconds),
+        ([one], _) => tr_named(
             "Read {what} in {seconds} s",
             &[("what", one), ("seconds", &seconds)],
         ),
-        [first, second] => tr_named(
+        ([first, second], _) => tr_named(
             "Read {first} and {second} in {seconds} s",
             &[("first", first), ("second", second), ("seconds", &seconds)],
         ),
-        [first, second, third, ..] => tr_named(
+        ([first, second, third, ..], _) => tr_named(
             "Read {first}, {second}, and {third} in {seconds} s",
             &[
                 ("first", first),
@@ -473,6 +478,7 @@ pub(in super::super) fn steps_folded(
         for (index, step) in steps.iter().enumerate() {
             list = list.child(step_line(p, &format!("step{index}"), true, &say(step)));
         }
+        list = list.children(web.into_iter().flat_map(|turn| super::web::steps(p, turn)));
         shown = shown.child(list);
     }
     Some(shown)
@@ -572,6 +578,11 @@ pub(in super::super) fn answer_with(
                 if let Some(name) = n.parse::<usize>().ok().and_then(|n| names.get(n)) {
                     super::places::open_named(ui, name, tx);
                 }
+                return;
+            }
+            // A web page it cites opens in the browser.
+            if url.starts_with("https://") || url.starts_with("http://") {
+                let _ = tx.open_url(url);
                 return;
             }
             // `hex-ref:2.1`: the second of the answer's [2].

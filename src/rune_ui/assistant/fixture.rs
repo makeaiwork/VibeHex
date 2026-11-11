@@ -12,6 +12,7 @@ use super::super::sidebar::Pane;
 use super::View;
 use crate::assistant::recordings::{Kind, Lines, Ref, Step};
 use crate::assistant::store::Turn;
+use crate::assistant::web::Web;
 use crate::assistant::worker::Answering;
 
 /// 14 March 2025, 10:40 UTC.
@@ -85,6 +86,101 @@ pub(in super::super) fn answering(ui: &mut Ui) {
         steps: Vec::new(),
         searching: false,
         cards_coming: false,
+        web: Default::default(),
+    });
+}
+
+const LM_STUDIO: &str =
+    "У меня стоит LM Studio. Как сделать, чтобы VibeHex чистил диктовку через него?";
+
+/// An answer from the guide and the web: its steps open (the guide it
+/// read, what it didn't cover, the pages the web gave), and both rows of
+/// sources. Web is on in the field.
+pub(in super::super) fn web_answer(ui: &mut Ui) {
+    open(ui);
+    let store = &mut ui.assistant.store;
+    let id = store.start(LM_STUDIO, None, None);
+    store.push(
+        id,
+        Turn {
+            seconds: 9.0,
+            web: Web {
+                guide: vec!["topics/ai-cleanup".into(), "labs/ai-cleanup-server".into()],
+                searches: vec!["LM Studio start local server".into()],
+                pages: vec![
+                    "https://lmstudio.ai/docs/developer/core/server".into(),
+                    "https://lmstudio.ai/docs/app/basics".into(),
+                ],
+                sources: vec!["https://lmstudio.ai/docs/developer/core/server".into()],
+                going: Vec::new(),
+                held_back: false,
+            },
+            ..turn(
+                LM_STUDIO,
+                "Со стороны VibeHex всё есть, нужен только адрес сервера: **Output › AI cleanup › Your server**. Со стороны LM Studio, по [его документации](https://lmstudio.ai/docs/developer/core/server):\n\n1. Откройте вкладку **Developer** и включите **Start server**.\n2. Загрузите модель, например Qwen3 4B Instruct.\n3. Сервер будет слушать `localhost:1234`.",
+                &["topics/ai-cleanup", "labs/ai-cleanup-server"],
+                1,
+            )
+        },
+    );
+    ui.assistant.open = Some(id);
+    ui.assistant.unfolded.push((id, 0));
+}
+
+/// The same answer folded, its conversation's Web turned off in the field.
+pub(in super::super) fn web_off(ui: &mut Ui) {
+    web_answer(ui);
+    ui.assistant.unfolded.clear();
+    if let Some(id) = ui.assistant.open {
+        ui.assistant.store.set_web(id, Some(false));
+    }
+}
+
+/// Web on, but the conversation has read the person's recordings: the
+/// answer came from the guide alone, and its open steps say why.
+pub(in super::super) fn web_held(ui: &mut Ui) {
+    open(ui);
+    let id = ui.assistant.store.start(LM_STUDIO, None, None);
+    ui.assistant.store.push(
+        id,
+        Turn {
+            seconds: 4.0,
+            web: Web {
+                guide: vec!["topics/ai-cleanup".into()],
+                held_back: true,
+                ..Web::default()
+            },
+            ..turn(
+                LM_STUDIO,
+                "Со стороны VibeHex нужен только адрес сервера: **Output › AI cleanup › Your server**. Как запустить сервер в самом LM Studio, руководство не говорит.",
+                &["topics/ai-cleanup", "labs/ai-cleanup-server"],
+                1,
+            )
+        },
+    );
+    ui.assistant.open = Some(id);
+    ui.assistant.unfolded = vec![(id, 0)];
+}
+
+/// A web answer coming: a search done, a page being read.
+pub(in super::super) fn web_answering(ui: &mut Ui) {
+    open(ui);
+    let id = ui.assistant.store.start(LM_STUDIO, None, None);
+    ui.assistant.store.date(id, AT + MINUTE);
+    ui.assistant.open = Some(id);
+    ui.assistant.answering = Some(Answering {
+        conversation: id,
+        question: LM_STUDIO.into(),
+        draft: String::new(),
+        started: Instant::now(),
+        steps: Vec::new(),
+        searching: false,
+        cards_coming: false,
+        web: Web {
+            searches: vec!["LM Studio start local server".into()],
+            going: vec!["ws_2".into()],
+            ..Web::default()
+        },
     });
 }
 
@@ -175,6 +271,7 @@ pub(in super::super) fn steps(ui: &mut Ui) {
         ],
         searching: true,
         cards_coming: false,
+        web: Default::default(),
     });
 }
 

@@ -2063,10 +2063,19 @@ data folder as its `cwd`) whose base instructions are the system message,
 then one turn with the transcript block and the chosen effort; the answer
 streams from `item/agentMessage/delta` and ends at `turn/completed`, and the
 thread is unsubscribed after. Hex's process overrides the person's
-`~/.codex/config.toml` with `-c`: no `notify` command, MCP servers, project
-instructions, or web search, and hooks, memories, apps, plugins, multi-agent,
-shell, computer and browser use, image generation, goals, and the code-mode
-host off. Codex asks no approvals in that setup; any server request it sends
+`~/.codex/config.toml` with `-c` (`cleanup_server::isolation`): no `notify`
+command, project instructions, or web search, and hooks, memories, apps,
+plugins, multi-agent, shell, computer and browser use, image generation and
+reading, goals, and the code-mode host off (Assistant's answers with Web on
+run on a second app-server with web search and code mode on). Their MCP
+servers are turned off by name, since
+Codex merges `-c` into their config and `mcp_servers={}` removes nothing: each
+start passes `mcp_servers={"<name>"={enabled=false},…}` for the servers it
+knows of, then asks the running process `config/read` (every layer merged) and
+starts again while one is still on; MCP servers start only with a thread, so
+none runs in between, and a Codex without `config/read` doesn't start for Hex.
+`the_persons_mcp_servers_never_start` (ignored; no model call) checks it on the
+installed Codex. Codex asks no approvals in that setup; any server request it sends
 is refused. Cancellation and the mode's deadline send `turn/interrupt` and
 paste the corrected transcript, as for any server. A usage limit reads "your
 ChatGPT plan's Codex limit is reached". Measured in the owner's Codex 0.164 on

@@ -32,6 +32,10 @@ pub struct AssistantSettings {
     /// shortcuts, and speech models with each question, so it suggests
     /// only what isn't on yet; never a path, a key, or a list.
     pub send_settings: bool,
+    /// Codex may search the web when the guide has no answer, on the
+    /// person's ChatGPT plan; a conversation's Web toggle overrides it.
+    /// Built-in models never go online.
+    pub web: bool,
 }
 
 impl Default for AssistantSettings {
@@ -43,6 +47,7 @@ impl Default for AssistantSettings {
             keep_conversations: true,
             read_recordings: None,
             send_settings: true,
+            web: true,
         }
     }
 }
@@ -56,9 +61,12 @@ mod tests {
         let settings: AssistantSettings = serde_json::from_str("{}").unwrap();
         assert_eq!(settings, AssistantSettings::default());
         assert!(settings.enabled && settings.keep_conversations && settings.send_settings);
+        assert!(settings.web, "the web is on by default");
         assert_eq!(
             serde_json::to_string(&settings).unwrap(),
-            r#"{"enabled":true,"keep_conversations":true,"send_settings":true}"#
+            r#"{"enabled":true,"keep_conversations":true,"send_settings":true,"web":true}"#
         );
+        let off: AssistantSettings = serde_json::from_str(r#"{"web":false}"#).unwrap();
+        assert!(!off.web);
     }
 }

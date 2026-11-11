@@ -34,4 +34,9 @@ pub(super) const ASSISTANT_KEYS: &[Key] = &[
         Kind::Bool,
         "Assistant: the model reads your current switches, choices, shortcuts, and speech models, so it knows what is already on; never API keys, folders, or lists",
     ),
+    key(
+        "assistant.web",
+        Kind::Bool,
+        "Assistant: Codex may search the web when the guide has no answer, through OpenAI on your ChatGPT plan; never with your recordings or settings. A conversation's Web toggle overrides it; built-in models never go online",
+    ),
 ];

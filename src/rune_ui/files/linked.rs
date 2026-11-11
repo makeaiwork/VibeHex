@@ -172,6 +172,7 @@ pub(in super::super) fn answer(
         .children(recall::steps_folded(
             p,
             (&linked.steps, true),
+            None,
             seconds as f32,
             unfolded,
             toggle,

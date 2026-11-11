@@ -1,0 +1,23 @@
+{
+  "config": {
+    "model": "gpt-6.1-sol",
+    "mcp_servers": {
+      "node_repl": {
+        "command": "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl",
+        "args": [],
+        "enabled": true,
+        "startup_timeout_sec": 120
+      },
+      "computer-use": {
+        "command": "./Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient",
+        "args": ["mcp"],
+        "enabled": false
+      },
+      "odd.name": {
+        "url": "https://mcp.example.com/sse"
+      }
+    }
+  },
+  "origins": {},
+  "layers": null
+}

@@ -1,5 +1,6 @@
 //! Assistant › Settings: the model a new conversation asks and how hard it
-//! thinks, and whether conversations are kept. Only rows that work now.
+//! thinks, whether conversations are kept, and what it reads (the
+//! person's settings and recordings, the web). Only rows that work now.
 
 use rune::El;
 
@@ -61,7 +62,11 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             p,
             "assistant-reads",
             tr("What it reads"),
-            vec![send_settings_row(ui, p), recordings_row(ui, p)],
+            vec![
+                send_settings_row(ui, p),
+                recordings_row(ui, p),
+                web_row(ui, p),
+            ],
         ))
 }
 
@@ -124,6 +129,23 @@ fn recordings_row(ui: &Ui, p: Paint) -> El {
         on,
         move |ui: &mut Ui| {
             ui.update(|settings| settings.assistant.read_recordings = Some(!on));
+        },
+    )
+}
+
+/// Whether Codex may search the web when the guide has no answer.
+fn web_row(ui: &Ui, p: Paint) -> El {
+    let on = ui.settings.assistant.web;
+    toggle_row(
+        p,
+        "assistant-web",
+        tr("The web"),
+        tr(
+            "On Codex only, when the guide has no answer. Searches go through OpenAI, Codex's provider, and never carry your recordings or settings",
+        ),
+        on,
+        move |ui: &mut Ui| {
+            ui.update(|settings| settings.assistant.web = !on);
         },
     )
 }

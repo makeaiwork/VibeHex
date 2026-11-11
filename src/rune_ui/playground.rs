@@ -196,6 +196,19 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Answer with its steps open",
     ),
     (
+        "assistant-web",
+        "Window/Assistant/Answer from the guide and the web",
+    ),
+    ("assistant-web-off", "Window/Assistant/Web off in the field"),
+    (
+        "assistant-web-held",
+        "Window/Assistant/Web held back after recordings",
+    ),
+    (
+        "assistant-web-answering",
+        "Window/Assistant/Searching the web",
+    ),
+    (
         "assistant-cards",
         "Window/Assistant/Cards/Suggested and decided",
     ),
