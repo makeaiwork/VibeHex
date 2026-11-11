@@ -69,6 +69,13 @@ impl Config {
         )
     }
 
+    /// Where cleanup runs and how hard Codex thinks for it: Files' own
+    /// reasoning, else dictation's AI cleanup's; `choice` overrides
+    /// Settings' engine.
+    pub fn cleanup_engine(&self, choice: Option<&str>) -> Engine {
+        self.engine(choice).with_effort(&self.files.cleanup_effort)
+    }
+
     /// Where a request runs and how hard Codex thinks: `engine` and
     /// `effort` override Settings' choice.
     pub fn request_engine(&self, engine: Option<&str>, effort: Option<&str>) -> Engine {
@@ -609,7 +616,7 @@ fn cleanup(
 ) -> Result<()> {
     let record = store::load(&task.record)?;
     let input = source(&record, from)?;
-    let engine = config.engine(choice);
+    let engine = config.cleanup_engine(choice);
     update_task(task.id, |task| {
         task.stage = Stage::CleaningUp;
         task.model = Some(engine.model_name());
@@ -681,6 +688,48 @@ mod tests {
         );
         assert_eq!(request_name("переведи"), "Переведи");
         assert_eq!(request_name("  "), "Request");
+    }
+
+    fn on_codex(effort: &str) -> AppSettings {
+        let mut settings = AppSettings::default();
+        settings.labs.ai_cleanup_server = true;
+        settings.dictation_processing.server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        settings.dictation_processing.server.codex_effort = effort.into();
+        settings
+    }
+
+    #[test]
+    fn cleanup_reasons_as_dictation_until_files_chooses() {
+        let mut settings = on_codex("high");
+        let config = Config::from_settings(&settings);
+        assert_eq!(config.cleanup_engine(None).effort(), Some("high"));
+        assert_eq!(config.cleanup_engine(Some("codex")).effort(), Some("high"));
+
+        settings.files.cleanup_effort = "low".into();
+        let config = Config::from_settings(&settings);
+        assert_eq!(config.cleanup_engine(None).effort(), Some("low"));
+        assert_eq!(
+            config.cleanup_engine(Some("codex:gpt-6-luna")).effort(),
+            Some("low")
+        );
+        // Requests keep their own reasoning, medium until chosen.
+        assert_eq!(config.request_engine(None, None).effort(), Some("medium"));
+    }
+
+    #[test]
+    fn cleanup_reasoning_leaves_other_engines_alone() {
+        let mut settings = on_codex("");
+        settings.files.cleanup_effort = "high".into();
+        let config = Config::from_settings(&settings);
+        for choice in ["opencode", "openrouter", "custom", "local:qwen"] {
+            let engine = config.cleanup_engine(Some(choice));
+            assert_eq!(engine.effort(), None, "{choice}");
+            assert_eq!(
+                engine.model_name(),
+                config.engine(Some(choice)).model_name(),
+                "{choice}"
+            );
+        }
     }
 
     #[test]

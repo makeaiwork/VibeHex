@@ -1743,6 +1743,7 @@ mod tests {
                 transcription: Some(Default::default()),
                 language: Some("ru".into()),
                 cleanup_engine: Some("opencode".into()),
+                cleanup_effort: "low".into(),
                 request_engine: Some("openrouter".into()),
                 request_effort: "high".into(),
                 last_folder: Some("/tmp".into()),

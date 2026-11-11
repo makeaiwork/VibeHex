@@ -853,6 +853,17 @@ pub(super) const SCENES: &[Scene] = &[
         ui.files.view = files::View::Settings;
         ui.open = Some(Menu::Pick("files-request-engine"));
     }),
+    // Cleanup on dictation's Codex, its Reasoning following dictation's.
+    ("files-settings-codex", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.ai_cleanup_server = true;
+        let server = &mut ui.settings.dictation_processing.server;
+        server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        server.codex_model = "gpt-6-luna".into();
+        server.codex_effort = "high".into();
+        ui.files.codex_models = files::FilesPane::fixture_codex_models();
+        ui.files.view = files::View::Settings;
+    }),
     ("files-settings-prompt", |ui| {
         files_scene(ui, files::FilesPane::fixture());
         ui.settings.files.use_default_prompt = false;

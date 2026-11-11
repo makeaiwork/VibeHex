@@ -301,6 +301,10 @@ const PATHS: &[(&str, &str)] = &[
     ("files-settings-prompt", "Window/Files/Settings, own prompt"),
     ("files-quick", "Window/Files/Settings, quick requests"),
     ("files-settings", "Window/Files/Settings"),
+    (
+        "files-settings-codex",
+        "Window/Files/Settings, cleanup on Codex",
+    ),
     ("meetings", "Window/Meetings/Meetings"),
     ("meetings-recording", "Window/Meetings/Recording"),
     ("meetings-chapters", "Window/Meetings/Chapters"),

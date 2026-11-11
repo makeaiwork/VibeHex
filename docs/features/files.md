@@ -114,7 +114,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
              its languages; a new model choice clears it), Use vocabulary, Show
              timestamps; Cleanup: Clean up after transcription, Runs on (Same
              as dictation / built in / OpenRouter / Your server / Codex once
-             Output › AI cleanup chose it / OpenCode),
+             Output › AI cleanup chose it / OpenCode), Reasoning
+             (files.cleanup_effort, only while cleanup runs on Codex; unset it
+             follows Output › AI cleanup's Reasoning, which it shows selected),
              Use the Default mode's prompt (its start in italics while on;
              off, Files' own prompt); Requests › Runs on (files.request_engine:
              Same as cleanup or any of those; both Runs on menus are 300 pt
@@ -123,7 +125,9 @@ Labs › Files on (macOS)                         // labs::Feature::Files, rune_
              Other with names only, so a model's name shows whole; a Codex
              engine reads "Codex: <model>"),
              Reasoning (files.request_effort,
-             only while requests run on Codex; Medium when unset); Quick requests
+             only while requests run on Codex; Medium when unset, whatever
+             cleanup's is); both Reasoning rows are one segmented Low /
+             Medium / High row; Quick requests
              (the chips' names and the prompts' language, Default or Edited,
              Edit…) -> its own page: ‹ Settings, the language as a tag with
              why (the speech model's language: chosen, or the only one the

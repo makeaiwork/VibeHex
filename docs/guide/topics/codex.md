@@ -1,7 +1,7 @@
 ---
 topic: codex
 title: Codex, your ChatGPT plan as the writer
-keys: [labs.ai_cleanup_server, dictation_processing.server.runs_on, dictation_processing.server.codex_model, dictation_processing.server.codex_effort, dictation_processing.server.codex_wait_seconds, meetings.notes.writer, meetings.notes.effort, meetings.questions.engine, meetings.questions.effort, files.cleanup_engine, files.request_engine, files.request_effort]
+keys: [labs.ai_cleanup_server, dictation_processing.server.runs_on, dictation_processing.server.codex_model, dictation_processing.server.codex_effort, dictation_processing.server.codex_wait_seconds, meetings.notes.writer, meetings.notes.effort, meetings.questions.engine, meetings.questions.effort, files.cleanup_engine, files.cleanup_effort, files.request_engine, files.request_effort]
 os: every OS (Files: macOS)
 ---
 
@@ -27,7 +27,7 @@ All of these need **Labs › Clean up on your own server** and Codex set up abov
 
 ## Model and Reasoning
 
-**Reasoning** (Low, Medium, High): Low answers soonest, higher levels think longer. Meeting notes and questions have their own Reasoning, and Files has one under Requests. **Wait for Codex** (30 s, 1 min, 2 min; 1 min by default) is how long a dictation waits before it is pasted without AI cleanup.
+**Reasoning** (Low, Medium, High): Low answers soonest, higher levels think longer. Meeting notes and questions have their own Reasoning, and Files has one under Cleanup (following dictation's until you pick) and one under Requests. **Wait for Codex** (30 s, 1 min, 2 min; 1 min by default) is how long a dictation waits before it is pasted without AI cleanup.
 
 ## Plan limits
 

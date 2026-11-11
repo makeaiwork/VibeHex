@@ -382,6 +382,15 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             ),
         ),
     ];
+    if let Some(effort) = config.cleanup_engine(None).effort() {
+        cleanup_rows.push(effort_row(
+            p,
+            "files-cleanup-effort",
+            effort,
+            |settings| &settings.files.cleanup_effort,
+            |settings, effort| settings.files.cleanup_effort = effort,
+        ));
+    }
     let prompt_preview = files.use_default_prompt.then(|| {
         let prompt = ui
             .settings
@@ -449,26 +458,39 @@ pub(super) fn view(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
             layer,
         ),
     )];
-    if config.request_engine(None, None).effort().is_some() {
-        request_rows.push(effort_row(ui, p));
+    if let Some(effort) = config.request_engine(None, None).effort() {
+        request_rows.push(effort_row(
+            p,
+            "files-request-effort",
+            effort,
+            |settings| &settings.files.request_effort,
+            |settings, effort| settings.files.request_effort = effort,
+        ));
     }
     request_rows.push(super::quick::settings_row(ui, p));
     let requests = section(p, "files-requests", tr("Requests"), request_rows);
     vec![transcription, cleanup, requests]
 }
 
-/// Codex's reasoning for requests, while they run on Codex. A session's
-/// field can still choose its own.
-fn effort_row(ui: &Ui, p: Paint) -> El {
+/// Codex's reasoning for cleanup or requests, while they run on Codex:
+/// `shown` is the level the engine resolves to (a request's field can
+/// still choose its own), `saved` and `set` read and write the setting.
+fn effort_row(
+    p: Paint,
+    key: &str,
+    shown: &str,
+    saved: fn(&crate::app_settings::AppSettings) -> &str,
+    set: fn(&mut crate::app_settings::AppSettings, String),
+) -> El {
     const EFFORTS: [&str; 3] = ["low", "medium", "high"];
-    let saved = match ui.settings.files.request_effort.trim() {
-        "" => "medium",
-        effort => effort,
-    };
-    let selected = EFFORTS.iter().position(|e| *e == saved).unwrap_or(1);
+    // Empty is the model's default, which Output's row shows as Low.
+    let selected = EFFORTS
+        .iter()
+        .position(|effort| *effort == shown.trim())
+        .unwrap_or(0);
     icon_row(
         p,
-        "files-request-effort",
+        key,
         &icons::SPARKLES,
         tr("Reasoning"),
         Some(tr(
@@ -476,13 +498,13 @@ fn effort_row(ui: &Ui, p: Paint) -> El {
         )),
         segmented(
             p,
-            "files-request-effort-picker",
+            &format!("{key}-picker"),
             &[tr("Low"), tr("Medium"), tr("High")],
             selected,
-            |ui: &mut Ui, index| {
+            move |ui: &mut Ui, index| {
                 let effort = EFFORTS[index.min(EFFORTS.len() - 1)];
-                if ui.settings.files.request_effort != effort {
-                    ui.update(|settings| settings.files.request_effort = effort.into());
+                if saved(&ui.settings) != effort {
+                    ui.update(|settings| set(settings, effort.into()));
                 }
             },
         ),

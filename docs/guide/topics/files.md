@@ -1,7 +1,7 @@
 ---
 topic: files
 title: Files
-keys: [labs.files, files.transcription, files.language, files.cleanup_after, files.cleanup_engine, files.request_engine, files.request_effort, files.quick_prompts]
+keys: [labs.files, files.transcription, files.language, files.cleanup_after, files.cleanup_engine, files.cleanup_effort, files.request_engine, files.request_effort, files.quick_prompts]
 os: macOS (Labs)
 ---
 
@@ -29,7 +29,7 @@ Under the text, tap **Structure**, **Summary** or **Action items**, pick one fro
 
 Open the header switch **Settings**:
 - **Transcription › Model** (Same as dictation or any downloaded model), Language, Use vocabulary, Show timestamps.
-- **Cleanup**: **Clean up after transcription**, and **Runs on**. Cleanup uses your Default mode's prompt unless you turn **Use the Default mode's prompt** off.
+- **Cleanup**: **Clean up after transcription**, and **Runs on**. On Codex, **Reasoning** picks how long it thinks; until you pick, it follows Output › AI cleanup's. Cleanup uses your Default mode's prompt unless you turn **Use the Default mode's prompt** off.
 - **Requests › Runs on**: Same as cleanup, or another. **Reasoning** shows for Codex. **Quick requests › Edit…** changes the chips.
 
 Engines: Built in (a downloaded model, offline), OpenCode, and, with **Labs › Clean up on your own server** set up in Output › AI cleanup, Codex, OpenRouter or Your server. Codex, OpenRouter, Your server and OpenCode send the text to that service.

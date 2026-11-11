@@ -38,6 +38,11 @@ pub(super) const FILES_KEYS: &[Key] = &[
         Kind::Text,
         "Labs › Files: where cleanup runs: local:<model id>, openrouter, custom, codex (dictation's Codex model) or codex:<model id>, or opencode; none follows dictation's AI cleanup",
     ),
+    key(
+        "files.cleanup_effort",
+        Kind::Text,
+        "Labs › Files: how hard a Codex model thinks for cleanup: low, medium, or high; empty follows dictation's AI cleanup",
+    ),
     optional(
         "files.request_engine",
         Kind::Text,
