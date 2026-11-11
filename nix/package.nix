@@ -100,8 +100,11 @@ rustPlatform.buildRustPackage (finalAttrs: {
       ../.cargo
       ../build.rs
       ../crates
-      # Assistant's guide, compiled in by build.rs.
+      # Assistant's guide and VibeHex's release notes, compiled in by build.rs.
       ../docs/guide
+      ../docs/releases
+      # Russian vibe coding's terms, fixes, and instructions (dictation::presets).
+      ../docs/vocabulary
       # "Set me up like Denis", compiled in (assistant::setup::preset).
       ../presets
       ../src
