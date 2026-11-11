@@ -180,7 +180,10 @@ overrides only the language, and must be one the model supports.
 `vocabulary` edits the [shared vocabulary](features/vocabulary.md) through the
 running Hex, which saves settings and reloads them as a window edit would.
 Terms match in any case; `add` of a term already listed only merges new
-spellings, and replies `changed: false` when there are none.
+spellings, and replies `changed: false` when there are none. Assistant's vocabulary card adds its terms through this same code
+(`control::edit_vocabulary`), but leaves out a term already listed instead of
+merging into it, so its Undo removes exactly what it added; its setting cards
+save through `hex settings set`'s check.
 
 `quit` and `restart` without `--force` are refused with `busy` when the
 listener doesn't answer whether it's recording; no listener, or one waiting for

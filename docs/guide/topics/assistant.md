@@ -1,7 +1,7 @@
 ---
 topic: assistant
 title: Assistant
-keys: [assistant.enabled, assistant.engine, assistant.read_recordings, assistant.keep_conversations]
+keys: [assistant.enabled, assistant.engine, assistant.read_recordings, assistant.keep_conversations, assistant.send_settings]
 os: every OS
 ---
 
@@ -12,6 +12,40 @@ this guide, and, once you allow it, questions about your own meetings, Files
 texts, and dictations: "What did we decide about the budget in November?",
 "Summarize my calls with Anna last week", "What did I dictate about the
 release yesterday?".
+
+## Changes it suggests
+
+When a setting would do what you asked, the answer ends with a card: where
+the setting lives, its value now and the one suggested, and why. Nothing
+changes until you press the card's button; **Not now** leaves it as it is.
+What the change needs first, a Labs feature or Meetings, is turned on in the
+same save ("Also turns on…"), and a shorter retention says what it removes
+before you press it. A new speech model downloads first and switches when
+it is ready.
+
+**Undo** puts back everything a card changed, while the conversation stays
+open; after that the card offers **Show in…** instead. A card follows your
+settings: changed by hand since, it says so.
+
+For the AI cleanup instructions, the card shows the lines that change.
+**Edit first** opens the new text in the card itself, to adjust before
+**Save instructions**; **Cancel edit** goes back to the lines.
+
+Names your dictation gets wrong come as one **Add 3 terms** card: each term
+with what it sounds like, a checkbox, and **Edit** to fix the spelling or the
+spellings. Terms already in your Vocabulary are left out; Assistant never
+sees your vocabulary. Undo takes out exactly the terms it added.
+
+## Set VibeHex up for you
+
+**Set VibeHex up for me**, on the Assistant's start screen, or asking "help me
+set VibeHex up", starts three questions: what you use VibeHex for, which
+language you speak, and whether text may go to a cloud model through your
+ChatGPT. Then comes one list of changes, each with a checkbox, what it
+changes from and to, and what it takes: a download and its size, a ChatGPT
+sign-in, or a macOS permission. Untick what you don't need and press
+**Apply 5 changes**. A change that can't be made says why, and the rest
+still apply; **Undo** takes the whole list back.
 
 ## Ask about your recordings
 
@@ -58,7 +92,9 @@ what Assistant keeps.
 (`assistant.enabled`).
 
 **Asked as.** "Can it search my meetings?"; "Does Assistant read my
-dictations?"; «Может ли ассистент искать по моим встречам?»; «Как запретить
-ассистенту читать мои записи?».
+dictations?"; "Can Assistant change settings for me?"; "Set VibeHex up for
+me"; «Может ли ассистент искать по моим встречам?»; «Как запретить
+ассистенту читать мои записи?»; «Помоги мне настроить VibeHex под меня»;
+«Добавь Kubernetes в словарь».
 
-<!-- sources: docs/features/assistant.md; src/assistant/intent/mod.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->
+<!-- sources: docs/features/assistant.md; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup.rs; src/assistant/changes/vocab.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->

@@ -16,8 +16,10 @@ Sidebar                                          // rune_ui::sidebar, rune_ui::a
 Assistant                                        // rune_ui::assistant
 ├── Header      Chat | Settings; in Chat, the conversation picker and +
 ├── Chat
-│   ├── New     "Ask anything about VibeHex", four example questions, and
-│   │           what the guide holds (Labs features and topics)
+│   ├── New     "Ask anything about VibeHex", "Set VibeHex up for me" (an
+│   │           accent-tinted row: a sliders tile, a line on what it does,
+│   │           a chevron), four example questions, and what the guide
+│   │           holds (Labs features and topics)
 │   ├── Feed    the person's bubble; the answer as Markdown beside the face,
 │   │           then "From the guide" chips naming the articles it drew on,
 │   │           then Copy, Ask again, the model, Stopped, the time.
@@ -30,6 +32,14 @@ Assistant                                        // rune_ui::assistant
 │   │           the passages go to, Allow or Answer without recordings
 │   ├── Steps   while it searches: one line per step, a check when done,
 │   │           three dots on the current one, the face reading
+│   ├── Setup   setup's questions one at a time beside the face: the
+│   │           question, its hint, option chips (a chosen one tinted with
+│   │           a check); Continue under one that takes several. Answered
+│   │           ones stay as small chosen chips. Then "Suggested changes,
+│   │           6 changes, 5 selected": a row per change (checkbox, name,
+│   │           where, why, from → to, what it takes), Not now, and
+│   │           "Apply 5 changes"; after, a mark per row and "4 of 5
+│   │           changes applied" with Undo
 │   ├── Coming  "Looking in the guide…", then the draft as it streams;
 │   │           the face reads (eyes drift along a line) until it lands
 │   ├── Field   "Ask about VibeHex or your recordings", the model and reasoning menus (for this
@@ -109,8 +119,81 @@ Opened from an answer                            // rune_ui::assistant::jump
 - A line the app refuses (no such key, a value it doesn't take, a key
   never changed from a card) shows as a muted row, never an action. Codex,
   OpenCode, OpenRouter, and your own server get one silent round to fix
-  their refused lines; a built-in model doesn't. The next question tells
-  the model what became of each card.
+  their refused lines (terms included); a built-in model doesn't. The next
+  question tells the model what became of each card.
+- The instructions card (the Global mode's prompt) shows the change line by
+  line, with Save instructions, Edit first, and Not now. Edit first opens
+  the proposed text in the card's own text box (never Output's editor);
+  Save instructions then saves the edited text through the same check, and
+  Cancel edit goes back to the lines changed. Undo is as for any card.
+- Two parts of the Global mode are keys of their own for cards:
+  `dictation_processing.default_mode.prompt` (its instructions) and
+  `dictation_processing.default_mode.cleanup` (Clean up with AI), each read
+  from and written back into the mode (`changes::parts`).
+
+## Vocabulary terms as a card
+
+- To add names a transcript gets wrong, the model writes a `hex-vocab`
+  block, one JSON line per term:
+  `{"term":"Kubernetes","sounds_like":["кубернетис","кубер"],"why":"…"}`
+  (`{"vocabulary_add":[…]}`, the older shape, reads too). Each term is
+  checked as `hex vocabulary add` checks it (`changes::vocab`); an empty or
+  too long one is refused like any line.
+- The model never sees the vocabulary (`assistant.send_settings` leaves it
+  out), so a term the vocabulary has, in any case, is dropped by the app
+  and never named back to the model.
+- The card, "General › Vocabulary, Add 3 terms", lists each term with
+  "sounds like: …", a checkbox, and Edit, which renames the term and
+  changes its spellings in the row (two fields and Done). "Add N terms"
+  counts the checked ones, beside Not now.
+- Add goes through `control::edit_vocabulary`, the code `hex vocabulary
+  add` runs. A term the list has by then is left out ("Already in
+  Vocabulary"), never merged into, so Undo takes out exactly the terms
+  the card added, wherever they are in the list by then; it holds as long
+  as a settings card's Undo. After: "Added to Vocabulary" (or "2 of 3
+  terms added"), Show in Vocabulary (General with the sheet open), Undo.
+
+## Guided setup
+
+- "Помоги мне настроить VibeHex под меня", "Set VibeHex up for me", "What
+  should I turn on?" (`assistant::intent::setup`: a setting-up verb with
+  only small words around it, or asking what to turn on) start guided
+  setup; "Как настроить горячую клавишу?" stays a guide question.
+- Three questions, with fixed ids (`assistant::setup`): `use` (several:
+  `dictation_any`, `dictation_code`, `meetings`, `files`), `language`
+  (`ru`, `en`, `mixed`), and `cloud` (`chatgpt`, `this_mac` ("Only on this
+  computer" off macOS), `no_cleanup`).
+  - The Start row draws them at once, in the window's language, with no model.
+  - A typed request asks the model (`SETUP_ASK`) to write them as `hex-ask`
+    lines in the message's language. Missing, broken, or with unknown ids,
+    the app's own questions show under its words.
+- A single choice answers on a click; several wait for Continue. The
+  answers become one turn with `answers` (shown as chips, never a bubble),
+  and the model is asked (`SETUP_PLAN`) for at most 8 `hex-plan` lines.
+- Without a usable plan, the rules make one (`setup::baseline`), each
+  checked against real keys, models, and this OS:
+  - a speech model for the language when the one in use doesn't suit it
+    (GigaAM v3 for Russian, Parakeet v3 for mixed);
+  - Russian vibe coding for dictating code in Russian or mixed, with
+    ChatGPT allowed;
+  - with ChatGPT and dictation: cleanup on Codex, and Clean up with AI on;
+  - No cleanup: Clean up with AI off;
+  - Meetings on, and with ChatGPT its notes on Codex;
+  - Files;
+  - for dictation: Smart spacing, and Quick add to Vocabulary (unchecked);
+  - code in Russian or mixed without vibe coding: one unchecked Vocabulary
+    row of tech terms (GitHub, Claude Code, pull request, TypeScript,
+    Docker) less those the vocabulary has.
+  Rows already set are left out.
+- The plan is one card (`CardKind::Plan`). A row the OS or an organization
+  holds is left out; a shorter retention and a Codex row while signed out
+  start unchecked (the latter with Sign in with ChatGPT in the row).
+  Downloads show their size and the OS permission a row needs is named in
+  the footer before anything is applied.
+- Apply checks each checked row on its own against the rows before it: a
+  failing one gets why ("Not changed: …") and the rest save together; the
+  speech model then downloads. Undo puts back the save, the model, and the
+  terms added.
 
 ## Questions about recordings
 
@@ -166,7 +249,7 @@ Opened from an answer                            // rune_ui::assistant::jump
   where it was scrolled; choosing another pane drops them. The mouse's back
   button doesn't yet (Rune gives other buttons only to elements that also
   take primary presses).
-- Eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
+- Recordings eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
   texts, five dictations), 28 questions with expected recordings (recall
   must stay at 90% or more, now 100%), 8 questions whose cited line must be
   offered and map to its time (now 8 of 8; word-timed, segment-only, and
@@ -194,15 +277,30 @@ by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.
 
 Checks: `scripts/check assistant` (store, worker, retrieve, prompt, intent,
-recordings and its eval, jump, settings keys, changes and their cards); scenes `assistant`,
+recordings and its eval, jump, settings keys, changes and their cards,
+setup, vocabulary terms, and the reply corpus
+`tests/fixtures/assistant/replies`: replies strong and weak models write,
+each with the parse it must make); scenes `assistant`,
 `assistant-answering`, `assistant-start`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
 `assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
 `files-cited`, `files-cited-listening`, `history-cited`, the cards'
 `assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,
-`assistant-cards-prompt`, `assistant-applied`, `assistant-change-both`,
-`assistant-change-coming`, and their goldens; `scripts/check control::settings`
+`assistant-cards-prompt`, `assistant-cards-prompt-edit`,
+`assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
+`assistant-change-both`, `assistant-change-coming`, setup's
+`assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-result`,
+and their goldens; `scripts/check control::settings`
 for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
-Cmd+[, and the landing at two window heights. Not yet verified
-end to end by asking a real model from a running app.
+Cmd+[, and the landing at two window heights.
+
+The live eval, `scripts/assistant-eval`, is opt in and never in CI: with
+`HEX_ASSISTANT_EVAL_ENGINE` set (`codex`, `codex:<model>`, `local:<id>`,
+`openrouter`, `custom`, `opencode`) it asks that engine the guide questions
+of `tests/fixtures/assistant/questions.jsonl`, then setup's questions, a
+plan for fixed answers, and a vocabulary request, through `worker::ask`
+with the repair round, and reports what each reply made: its cards, what
+was refused, and the expected changes it missed. A remote engine is paid
+per request. Not yet verified end to end by asking a real model from a
+running app.

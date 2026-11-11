@@ -62,8 +62,10 @@ source and developer.
 [Assistant](assistant.md) (every OS, on by default and not in Labs) answers
 questions about VibeHex from its guide, in a chat at the sidebar's bottom,
 and, once allowed, about the person's meetings, Files texts, and dictations.
-An answer may suggest setting changes as cards; nothing changes until the
-person presses one, and then only through the check `hex settings` uses.
+An answer may suggest setting changes and vocabulary terms as cards; nothing
+changes until the person presses one, and then only through the check
+`hex settings` uses (terms through `hex vocabulary add`'s). "Set VibeHex up
+for me" asks three questions and offers one list of changes.
 [Annotate](capture.md) (macOS, Linux,
 and Windows) records the screen while you draw and talk and sends it to an agent.
 [Screenshots](labs.md) (Labs, macOS) takes CleanShot-style ⌘⇧4 area and
