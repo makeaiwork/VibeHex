@@ -358,4 +358,6 @@ pub fn applied(diff: Vec<(String, Value, Value)>, at_ms: u64) -> Decision {
 }
 
 #[cfg(test)]
+mod corpus;
+#[cfg(test)]
 mod tests;
