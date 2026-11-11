@@ -6,7 +6,8 @@
 #
 # Tests run through cargo-nextest (.config/nextest.toml): each test is its own
 # process, and one that hangs is killed and reported by name. Exit codes:
-# 10 fmt, 11 clippy, 12 tests, 13 code-shape, 14 Nix pins. NEXTEST_PROFILE=ci
+# 10 fmt, 11 clippy, 12 tests, 13 code-shape, 14 Nix pins, 15 the preset
+# export's allow-list (scripts/test-export-preset.py). NEXTEST_PROFILE=ci
 # selects CI's profile.
 # Tests build with the `capture` feature, so the debug-only capture
 # experiment's code (macOS) is tested too. `crates/capture` and
@@ -38,6 +39,9 @@ python3 scripts/code-shape.py --check || exit 13
 stage "nix pins"
 python3 scripts/test-check-nix-git-pins.py || exit 14
 python3 scripts/check-nix-git-pins.py || exit 14
+
+stage "preset export"
+python3 -I scripts/test-export-preset.py || exit 15
 
 if [[ $# -eq 0 ]]; then
     stage "clippy"

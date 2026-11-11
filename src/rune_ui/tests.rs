@@ -2917,6 +2917,8 @@ fn goldens() {
         "assistant-setup-plan",
         "assistant-setup-kept",
         "assistant-setup-result",
+        "assistant-setup-preset",
+        "assistant-setup-preset-shortcuts",
     ] {
         check_golden(scene, false, PANE_SIZE);
         check_golden(scene, true, PANE_SIZE);

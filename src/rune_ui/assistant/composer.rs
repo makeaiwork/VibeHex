@@ -140,6 +140,10 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     };
     pane.open = Some(id);
     pane.error = None;
+    if intent::preset::preset(&question) {
+        super::preset::begin(ui, question);
+        return true;
+    }
     if intent::setup(&question) {
         return ask_with(ui, id, question, Recall::Guide, Stage::Ask);
     }

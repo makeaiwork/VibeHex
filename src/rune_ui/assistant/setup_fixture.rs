@@ -381,6 +381,35 @@ pub(in super::super) fn setup_result(ui: &mut Ui) {
     conversation(ui, "Set up for me", turns, &[(1, 0)]);
 }
 
+/// "Set me up like Denis" typed on a fresh install: his settings as one
+/// plan, what fits folded, the keep-meetings time unchecked.
+pub(in super::super) fn setup_preset(ui: &mut Ui) {
+    open(ui);
+    super::preset::begin(ui, "Сделай настройки как у Дениса".into());
+    dated(ui);
+}
+
+/// His plan put off, then his shortcuts and whether they suit.
+pub(in super::super) fn setup_preset_shortcuts(ui: &mut Ui) {
+    open(ui);
+    super::preset::begin(ui, String::new());
+    if let Some(conversation) = ui.assistant.open {
+        let at = At {
+            conversation,
+            turn: 0,
+            card: 0,
+        };
+        super::changes::decline(ui, at);
+    }
+    dated(ui);
+}
+
+fn dated(ui: &mut Ui) {
+    if let Some(id) = ui.assistant.open {
+        ui.assistant.store.date(id, AT);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -389,8 +418,10 @@ mod tests {
 
     #[test]
     fn every_setup_scene_has_nothing_left_to_save() {
-        let scenes: [Scene; 5] = [
+        let scenes: [Scene; 7] = [
             ("setup-ask", setup_ask),
+            ("setup-preset", setup_preset),
+            ("setup-preset-shortcuts", setup_preset_shortcuts),
             ("setup-follow", setup_follow),
             ("setup-plan", setup_plan),
             ("setup-kept", setup_kept),

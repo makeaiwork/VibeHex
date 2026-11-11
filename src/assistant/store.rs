@@ -67,6 +67,11 @@ pub struct Turn {
     /// A follow-up round a model wrote: asking again asks it again.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub follow: bool,
+    /// A preset's step ("Set me up like Denis"): `settings` its plan,
+    /// `shortcuts` the question about its shortcuts, `shortcuts-plan` them
+    /// as a plan, `done` once the person kept their own.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub preset: String,
 }
 
 /// One conversation.

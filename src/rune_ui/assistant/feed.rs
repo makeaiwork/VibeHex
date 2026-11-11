@@ -100,6 +100,7 @@ fn start(p: Paint) -> El {
             .wrap(),
         )
         .child(setup(p).mt(12.0))
+        .child(like_denis(p))
         .child(grid.mt(8.0))
         .child(knows(p))
 }
@@ -157,6 +158,27 @@ fn setup(p: Paint) -> El {
         )
         .child(icon(&CHEVRON, 14.0).key("chevron").color(p.accent()))
         .on_press(super::ask::begin)
+}
+
+/// A quiet second way in: the owner's own settings.
+fn like_denis(p: Paint) -> El {
+    let c = &p.k.c;
+    let title = tr("Or set it up like Denis, who makes VibeHex");
+    row()
+        .key("like-denis")
+        .role("button")
+        .label(title)
+        .focusable(true)
+        .focus_ring(2.0, 0.0, c.border_focus)
+        .gap(4.0)
+        .px(2.0)
+        .py(2.0)
+        .center_y()
+        .radius(p.k.radius.sm)
+        .hover(c.hover)
+        .child(text(title).key("title").font(p.k.ty.small).color(p.muted()))
+        .child(icon(&CHEVRON, 12.0).key("chevron").color(p.faint()))
+        .on_press(|ui: &mut Ui| super::preset::begin(ui, String::new()))
 }
 
 static SLIDERS: rune::Icon = rune::Icon {
@@ -247,6 +269,7 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
         ));
     }
     words = words.children(super::ask::view(ui, p, conversation, index, turn));
+    words = words.children(super::preset::view(ui, p, conversation, index, turn));
     if let Some(error) = &turn.error {
         let again = turn.clone();
         words = words.child(

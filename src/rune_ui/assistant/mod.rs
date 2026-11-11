@@ -23,6 +23,7 @@ pub(super) mod jump;
 pub(super) mod nav;
 mod picker;
 mod plan;
+mod preset;
 mod recall;
 mod settings;
 pub(super) mod setup_fixture;

@@ -24,6 +24,7 @@ pub mod engines;
 pub mod follow;
 pub mod now;
 pub mod plan;
+pub mod preset;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

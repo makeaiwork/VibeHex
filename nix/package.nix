@@ -102,6 +102,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
       ../crates
       # Assistant's guide, compiled in by build.rs.
       ../docs/guide
+      # "Set me up like Denis", compiled in (assistant::setup::preset).
+      ../presets
       ../src
       ../tests
       ../native

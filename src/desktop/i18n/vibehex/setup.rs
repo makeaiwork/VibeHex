@@ -116,6 +116,18 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("may take longer", ["może potrwać dłużej", "可能需要更久", "時間がかかってもよい", "darf länger dauern", "puede tardar más", "може тривати довше"]),
     ("none", ["brak", "无", "なし", "keine", "ninguna", "немає"]),
     ("you wait for it", ["czekasz na to", "你会等待它", "待つことになります", "du wartest darauf", "esperas a que termine", "ви на це чекаєте"]),
+    ("Everything already matches how Denis has it.", ["Wszystko już jest tak, jak ma Denis.", "一切都已和 Denis 的设置一致。", "すべて Denis の設定と同じです。", "Alles ist schon so, wie Denis es hat.", "Todo ya está como lo tiene Denis.", "Усе вже так, як у Дениса."]),
+    ("Here is how Denis has VibeHex set up. Untick what you don't need.", ["Tak Denis ma ustawiony VibeHex. Odznacz, czego nie potrzebujesz.", "这是 Denis 的 VibeHex 设置。取消勾选不需要的项。", "Denis の VibeHex の設定です。不要なものはチェックを外してください。", "So hat Denis VibeHex eingerichtet. Entferne die Haken bei dem, was du nicht brauchst.", "Así tiene Denis configurado VibeHex. Desmarca lo que no necesites.", "Ось як VibeHex налаштовано в Дениса. Зніміть позначки з непотрібного."]),
+    ("Here they are. Untick any you'd rather keep as they are.", ["Oto one. Odznacz te, które wolisz zostawić bez zmian.", "就是这些。取消勾选你想保持不变的项。", "こちらです。今のままにしたいものはチェックを外してください。", "Hier sind sie. Entferne den Haken bei denen, die du lieber behältst.", "Aquí están. Desmarca los que prefieras dejar como están.", "Ось вони. Зніміть позначки з тих, які хочете залишити як є."]),
+    ("Keep mine", ["Zostaw moje", "保留我的", "自分のままにする", "Meine behalten", "Mantener los míos", "Залишити мої"]),
+    ("Not available here: {}", ["Niedostępne tutaj: {}", "此处不可用：{}", "ここでは使えません：{}", "Hier nicht verfügbar: {}", "No disponible aquí: {}", "Тут недоступно: {}"]),
+    ("Or set it up like Denis, who makes VibeHex", ["Albo ustaw jak Denis, twórca VibeHex", "或者按 VibeHex 的作者 Denis 的方式设置", "または VibeHex の作者 Denis と同じ設定に", "Oder so einrichten wie Denis, der VibeHex macht", "O configúralo como Denis, quien hace VibeHex", "Або налаштувати як у Дениса, автора VibeHex"]),
+    ("Set up like Denis", ["Jak u Denisa", "按 Denis 的方式设置", "Denis と同じ設定", "Wie bei Denis einrichten", "Configurar como Denis", "Як у Дениса"]),
+    ("These are Denis's shortcuts — do they suit you?", ["To skróty Denisa — pasują ci?", "这些是 Denis 的快捷键，适合你吗？", "Denis のショートカットです。これで合いますか？", "Das sind Denis' Tastenkürzel — passen sie dir?", "Estos son los atajos de Denis — ¿te sirven?", "Це гарячі клавіші Дениса — вам підходять?"]),
+    ("Use these", ["Użyj tych", "使用这些", "これを使う", "Diese nehmen", "Usar estos", "Взяти ці"]),
+    ("Your shortcuts already match Denis's.", ["Twoje skróty już są takie jak u Denisa.", "你的快捷键已与 Denis 的一致。", "ショートカットはもう Denis と同じです。", "Deine Tastenkürzel sind schon wie bei Denis.", "Tus atajos ya son como los de Denis.", "Ваші гарячі клавіші вже як у Дениса."]),
+    ("Your shortcuts stay as they are.", ["Twoje skróty zostają bez zmian.", "你的快捷键保持不变。", "ショートカットは今のままです。", "Deine Tastenkürzel bleiben, wie sie sind.", "Tus atajos se quedan como están.", "Ваші гарячі клавіші залишаються як є."]),
+    ("or type the key you'd like instead", ["albo wpisz klawisz, który wolisz", "或输入你想用的按键", "または使いたいキーを入力", "oder tippe die Taste, die du lieber willst", "o escribe la tecla que prefieras", "або напишіть, яку клавішу хочете"]),
 ];
 
 /// French.
@@ -230,6 +242,18 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("may take longer", "peut prendre plus de temps"),
     ("none", "aucune"),
     ("you wait for it", "vous l'attendez"),
+    ("Everything already matches how Denis has it.", "Tout est déjà comme chez Denis."),
+    ("Here is how Denis has VibeHex set up. Untick what you don't need.", "Voici comment Denis a réglé VibeHex. Décochez ce dont vous n'avez pas besoin."),
+    ("Here they are. Untick any you'd rather keep as they are.", "Les voici. Décochez ceux que vous préférez garder tels quels."),
+    ("Keep mine", "Garder les miens"),
+    ("Not available here: {}", "Indisponible ici : {}"),
+    ("Or set it up like Denis, who makes VibeHex", "Ou le régler comme Denis, qui fait VibeHex"),
+    ("Set up like Denis", "Comme chez Denis"),
+    ("These are Denis's shortcuts — do they suit you?", "Voici les raccourcis de Denis — vous conviennent-ils ?"),
+    ("Use these", "Utiliser ceux-ci"),
+    ("Your shortcuts already match Denis's.", "Vos raccourcis sont déjà comme ceux de Denis."),
+    ("Your shortcuts stay as they are.", "Vos raccourcis restent tels quels."),
+    ("or type the key you'd like instead", "ou tapez la touche que vous préférez"),
 ];
 
 /// Brazilian Portuguese.
@@ -344,6 +368,18 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("may take longer", "pode demorar mais"),
     ("none", "nenhuma"),
     ("you wait for it", "você espera por ela"),
+    ("Everything already matches how Denis has it.", "Tudo já está como o Denis tem."),
+    ("Here is how Denis has VibeHex set up. Untick what you don't need.", "Assim o Denis configurou o VibeHex. Desmarque o que não precisar."),
+    ("Here they are. Untick any you'd rather keep as they are.", "Aqui estão. Desmarque os que prefere manter como estão."),
+    ("Keep mine", "Manter os meus"),
+    ("Not available here: {}", "Indisponível aqui: {}"),
+    ("Or set it up like Denis, who makes VibeHex", "Ou configure como o Denis, que faz o VibeHex"),
+    ("Set up like Denis", "Como o Denis"),
+    ("These are Denis's shortcuts — do they suit you?", "Estes são os atalhos do Denis — servem para você?"),
+    ("Use these", "Usar estes"),
+    ("Your shortcuts already match Denis's.", "Seus atalhos já são como os do Denis."),
+    ("Your shortcuts stay as they are.", "Seus atalhos ficam como estão."),
+    ("or type the key you'd like instead", "ou digite a tecla que prefere"),
 ];
 
 /// Russian.
@@ -458,4 +494,16 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("may take longer", "может занять больше времени"),
     ("none", "нет"),
     ("you wait for it", "вы ждёте результата"),
+    ("Everything already matches how Denis has it.", "Всё уже как у Дениса."),
+    ("Here is how Denis has VibeHex set up. Untick what you don't need.", "Вот как VibeHex настроен у Дениса. Снимите галочки с лишнего."),
+    ("Here they are. Untick any you'd rather keep as they are.", "Вот они. Снимите галочки с тех, что хотите оставить как есть."),
+    ("Keep mine", "Оставить мои"),
+    ("Not available here: {}", "Здесь недоступно: {}"),
+    ("Or set it up like Denis, who makes VibeHex", "Или настроить как у Дениса, автора VibeHex"),
+    ("Set up like Denis", "Как у Дениса"),
+    ("These are Denis's shortcuts — do they suit you?", "Это горячие клавиши Дениса — вам подходят?"),
+    ("Use these", "Взять эти"),
+    ("Your shortcuts already match Denis's.", "Ваши горячие клавиши уже как у Дениса."),
+    ("Your shortcuts stay as they are.", "Ваши горячие клавиши остаются как есть."),
+    ("or type the key you'd like instead", "или напишите, какую клавишу хотите"),
 ];

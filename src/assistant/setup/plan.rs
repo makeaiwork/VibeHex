@@ -200,7 +200,7 @@ pub fn rules(answers: &[Answer], settings: &AppSettings, state: &State) -> Rules
     rules
 }
 
-fn line_key(key: &str, settings: &AppSettings) -> String {
+pub(super) fn line_key(key: &str, settings: &AppSettings) -> String {
     match parts::part(key, settings) {
         Some(part) => part.parent().to_owned(),
         None => key.to_owned(),

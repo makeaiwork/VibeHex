@@ -403,6 +403,54 @@ pub const WHERE: &[(&str, &str, &str, Home)] = &[
         "Runs on",
         Home::Files,
     ),
+    (
+        "files.transcription",
+        "Files › Settings › Transcription",
+        "Speech model",
+        Home::Files,
+    ),
+    (
+        "files.use_vocabulary",
+        "Files › Settings › Transcription",
+        "Use vocabulary",
+        Home::Files,
+    ),
+    (
+        "files.show_timestamps",
+        "Files › Settings › Transcription",
+        "Show timestamps",
+        Home::Files,
+    ),
+    (
+        "files.cleanup_after",
+        "Files › Settings › Cleanup",
+        "Clean up after transcription",
+        Home::Files,
+    ),
+    (
+        "files.use_default_prompt",
+        "Files › Settings › Cleanup",
+        "Use the Default mode's prompt",
+        Home::Files,
+    ),
+    (
+        "files.cleanup_effort",
+        "Files › Settings › Cleanup",
+        "Reasoning",
+        Home::Files,
+    ),
+    (
+        "files.request_engine",
+        "Files › Settings › Requests",
+        "Runs on",
+        Home::Files,
+    ),
+    (
+        "files.request_effort",
+        "Files › Settings › Requests",
+        "Reasoning",
+        Home::Files,
+    ),
     ("files.", "Labs › Files", "Files", Home::Files),
 ];
 
@@ -519,6 +567,9 @@ pub fn label(key: &str, value: &Value) -> String {
             }
         }
         Value::String(text) if text.is_empty() => "Empty".into(),
+        // A shortcut as `hex settings` writes it: `right-option` reads
+        // Right Option, `option+shift+v` Option+Shift+V.
+        Value::String(text) if key.ends_with("hotkey") => shortcut(text),
         // An engine with its model: `codex:gpt-5.5`, `local:qwen3`.
         Value::String(text) if text.starts_with("codex:") => "Codex".into(),
         Value::String(text) if text.starts_with("local:") => "Built in".into(),
@@ -533,6 +584,19 @@ pub fn label(key: &str, value: &Value) -> String {
         }
         other => other.to_string(),
     }
+}
+
+fn shortcut(text: &str) -> String {
+    let word = |word: &str| {
+        let mut chars = word.chars();
+        chars.next().map_or_else(String::new, |first| {
+            first.to_uppercase().chain(chars).collect::<String>()
+        })
+    };
+    text.split('+')
+        .map(|part| part.split('-').map(word).collect::<Vec<_>>().join(" "))
+        .collect::<Vec<_>>()
+        .join("+")
 }
 
 /// A speech or built-in cleanup model's name, by its id.
