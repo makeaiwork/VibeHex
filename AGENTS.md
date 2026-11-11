@@ -647,6 +647,10 @@ substitute for source inspection or a second roadmap.
   `assistant::recordings`, through `recordings::Allowed` (the person's yes,
   `assistant.read_recordings`), reads meetings, Files texts, and History and
   adds the passages found (a test holds the rest of both folders to that).
+  `assistant::releases` carries VibeHex's release notes (`docs/releases/
+  <X.Y.Z-vibe.N>.md`, `next.md`) and the versions this install ran, for
+  "what's new"; `scripts/publish-vibehex.sh notes` turns `next.md` into a
+  release's notes.
 - `labs`: the Labs feature registry (`labs::Feature`: name, settings key,
   description, audience, group), the runtime gates (`labs::live_text`, `live_chapters`,
   `playground`, `vocabulary_biasing`, `mouse_shortcuts`), and

@@ -16,7 +16,9 @@ Sidebar                                          // rune_ui::sidebar, rune_ui::a
 Assistant                                        // rune_ui::assistant
 ├── Header      Chat | Settings; in Chat, the conversation picker and +
 ├── Chat
-│   ├── New     "Ask anything about VibeHex", "Set VibeHex up for me" (an
+│   ├── New     "Ask anything about VibeHex", after an update "Updated to
+│   │           <version>" (a neutral row: a sparkles tile, "Ask me what's
+│   │           new…", a chevron), "Set VibeHex up for me" (an
 │   │           accent-tinted row: a sliders tile, a line on what it does,
 │   │           a chevron), four example questions, and what the guide
 │   │           holds (Labs features and topics)
@@ -195,6 +197,46 @@ Opened from an answer                            // rune_ui::assistant::jump
   speech model then downloads. Undo puts back the save, the model, and the
   terms added.
 
+## What's new
+
+- VibeHex's own release notes ship in the app: `docs/releases/<X.Y.Z-vibe.N>.md`
+  and `next.md` (not released yet), embedded by `build.rs` (Hex's notes in
+  that folder stay out). Front matter: `version`, `date`, `labs:` (the `hex
+  labs` names a release added or changed) and `keys:` (other `hex settings`
+  keys); the body is short New, Changed, and Fixed lines. Tests hold each
+  file to its name, real features and keys, two lines an item, no commit or
+  PR numbers, under 1.5k tokens, and every `v*-vibe.*` tag to its notes.
+- A release notes itself once per new version as the window's app starts
+  (`releases::history`, `<support>/assistant/versions.json`: version and
+  first run, the newest 20). A development build (`HEX_LOCAL_BUILD`, debug,
+  or a version that isn't `X.Y.Z-vibe.N`) never does.
+- `assistant::intent::releases` reads from the words alone whether a
+  question asks what's new or changed ("Что нового в последнем релизе?",
+  "What changed in the latest update?", "changelog", "release notes"), names
+  a version ("что появилось в версии 3.3.0-vibe.5", "vibe.4"), or asks when
+  something came ("When was Files added?"). It is checked before the
+  recordings, and `intent::read` never takes such a question. One that names
+  meetings, calls, or dictations without a version stays with them;
+  updating and which version they run stay with the guide.
+- `releases::select` picks the notes, newest first: every release since the
+  version run before; the one running when that is unknown; the one named;
+  every release for "when"; on a development build, Next and the latest
+  release; the latest when the running version has none.
+- The prompt adds a `<releases>` block saying which and why, and the rule:
+  one sentence on what it covers (a development build says so), then New,
+  Changed, Fixed in the question's language, then For you: up to three
+  things from those releases that fit the person's settings (the catalog's
+  now column, with `assistant.send_settings`) and are off, each with a
+  `hex-change` card, never one already on, and a word when a change touches
+  something they use. The keys those releases name join the catalog a small
+  model reads.
+- After an update (two weeks from the first run of a new release, when an
+  earlier one ran here) a new conversation shows "Updated to <version>"
+  over Set VibeHex up for me (`rune_ui::assistant::whats_new`). A press
+  asks "What's new since my last version?" in the window's language,
+  answered from the notes whatever its words; once such a question is asked
+  the row goes. There is no speech bubble on the face to put it in.
+
 ## Questions about recordings
 
 - `assistant::intent` reads from the question's words alone, against a
@@ -277,6 +319,7 @@ by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.
 
 Checks: `scripts/check assistant` (store, worker, retrieve, prompt, intent,
+releases and their notes,
 recordings and its eval, jump, settings keys, changes and their cards,
 setup, vocabulary terms, and the reply corpus
 `tests/fixtures/assistant/replies`: replies strong and weak models write,
@@ -288,7 +331,8 @@ each with the parse it must make); scenes `assistant`,
 `assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,
 `assistant-cards-prompt`, `assistant-cards-prompt-edit`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
-`assistant-change-both`, `assistant-change-coming`, setup's
+`assistant-change-both`, `assistant-change-coming`, `assistant-whats-new`
+and `assistant-updated` (no goldens yet), setup's
 `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-result`,
 and their goldens; `scripts/check control::settings`
 for `check` and what a key needs;
