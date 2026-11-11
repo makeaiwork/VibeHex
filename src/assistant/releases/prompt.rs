@@ -17,8 +17,9 @@ say it is one and that Next is not released yet.
 heading with nothing under it and what doesn't concern their system. Name Labs features and \
 settings as the notes write them.
 - Asked when something came: name the release, its version and date.
-- Then a bold heading For you (Для вас): up to three things from these notes that fit how \
-they use VibeHex, judged by the now column of <changeable_settings>, and that are off. One \
+- Then a bold heading For you (Для вас): every thing from these notes that fits how \
+they use VibeHex, as many as truly fit, no fixed number (the at-most-3 card limit doesn't \
+apply here), judged by the now column of <changeable_settings>, and that are off. One \
 line each on why it fits, and a ```hex-change line for each. Never suggest what is already \
 on. Say so when a change in the notes touches something they have on. Without a now column, \
 offer the likeliest and say they may have it already. Nothing fits: no For you.

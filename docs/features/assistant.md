@@ -224,8 +224,8 @@ Opened from an answer                            // rune_ui::assistant::jump
   release; the latest when the running version has none.
 - The prompt adds a `<releases>` block saying which and why, and the rule:
   one sentence on what it covers (a development build says so), then New,
-  Changed, Fixed in the question's language, then For you: up to three
-  things from those releases that fit the person's settings (the catalog's
+  Changed, Fixed in the question's language, then For you: every one of
+  the things from those releases that fit the person's settings (the catalog's
   now column, with `assistant.send_settings`) and are off, each with a
   `hex-change` card, never one already on, and a word when a change touches
   something they use. The keys those releases name join the catalog a small
