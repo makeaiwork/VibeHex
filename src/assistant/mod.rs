@@ -9,7 +9,8 @@
 //! `intent` reads from a question's words alone whether it asks about the
 //! person's own recordings, and only once they have allowed it
 //! (`recordings::Allowed`) does `recordings` search them and hand the
-//! passages found to the prompt.
+//! passages found to the prompt. `releases` holds VibeHex's own release
+//! notes and the versions this install has run, for "what's new".
 
 pub mod changes;
 #[cfg(test)]
@@ -18,6 +19,7 @@ pub mod guide;
 pub mod intent;
 pub mod prompt;
 pub mod recordings;
+pub mod releases;
 pub mod retrieve;
 pub mod setup;
 pub mod store;

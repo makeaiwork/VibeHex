@@ -6,6 +6,7 @@ fn main() {
     build_version();
     test_build_commit();
     embed_guide();
+    embed_releases();
     // `hex_capture`: the `capture` experiment's code, in every macOS, Linux,
     // and Windows build (`scrawl-capture` is their dependency).
     println!("cargo::rustc-check-cfg=cfg(hex_capture)");
@@ -198,6 +199,48 @@ fn embed_guide() {
     out.push_str("];\n");
     let output_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     std::fs::write(output_dir.join("guide_files.rs"), out).unwrap();
+}
+
+/// Assistant tells what changed from VibeHex's own release notes, so the
+/// binary carries them: `release_files.rs` lists docs/releases'
+/// `<X.Y.Z-vibe.N>.md` and `next.md` as (name, text). Hex's own notes
+/// there stay out.
+fn embed_releases() {
+    let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let root = manifest_dir.join("docs/releases");
+    println!("cargo:rerun-if-changed={}", root.display());
+    let mut files = Vec::new();
+    for path in std::fs::read_dir(&root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+    {
+        let Some(stem) = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .filter(|_| path.extension().and_then(|extension| extension.to_str()) == Some("md"))
+        else {
+            continue;
+        };
+        if stem == "next" || stem.contains("-vibe.") {
+            files.push((stem.to_owned(), path));
+        }
+    }
+    files.sort();
+    let mut out = String::from(
+        "/// docs/releases' VibeHex notes as (name, text), sorted by name.\n\
+         pub(super) const FILES: &[(&str, &str)] = &[\n",
+    );
+    for (name, path) in &files {
+        out.push_str(&format!(
+            "    ({name:?}, include_str!({:?})),\n",
+            path.display().to_string()
+        ));
+    }
+    out.push_str("];\n");
+    let output_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    std::fs::write(output_dir.join("release_files.rs"), out).unwrap();
 }
 
 /// A test or local build carries its commit (`HEX_COMMIT`), which the sidebar shows
