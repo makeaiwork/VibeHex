@@ -91,6 +91,15 @@ impl Again {
 }
 
 impl HistoryPane {
+    /// How many entries History keeps, up to `most`: a count only, for
+    /// Assistant's returning setup.
+    pub(super) fn kept(&self, most: usize) -> usize {
+        match &self.store {
+            Some(store) => store.recent(most).len(),
+            None => self.entries.len().min(most),
+        }
+    }
+
     /// The host's store; `None` when it could not open one.
     pub(super) fn shared(store: Option<History>) -> Self {
         Self {

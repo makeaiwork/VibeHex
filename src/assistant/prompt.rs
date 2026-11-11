@@ -196,6 +196,15 @@ to a slower engine than they picked.
 has, with the same value, to give its reason in that language. Never say you changed \
 anything.";
 
+const SETUP_SINCE: &str = "
+
+They set VibeHex up before, or have used it a while: <since_last_setup> holds what the app \
+knows of it. Their answers and what that setup applied and declined; what is new in VibeHex \
+since; and what their own use shows, worked out by the app as counts, shares, and single \
+words (never their text), or that it wasn't read. Let it decide what fits: never offer again \
+what they declined then, prefer what is new and fits, and name a fact from it in a few words \
+at most.";
+
 /// What a question may read besides the guide.
 #[derive(Clone, Copy, Debug)]
 pub enum Reach<'a> {
@@ -265,6 +274,11 @@ pub fn build(
             Stage::Plan { .. } => instructions.push_str(SETUP_PLAN),
             _ => instructions.push_str(CHANGES),
         }
+        if let Stage::Plan { since, .. } | Stage::Follow { since, .. } = stage
+            && !since.trim().is_empty()
+        {
+            instructions.push_str(SETUP_SINCE);
+        }
         let reading = catalog::Reading {
             // A plan reads every key, whatever the room.
             every: plan || room == Room::Large,
@@ -305,7 +319,13 @@ pub fn build(
         ));
     }
     match stage {
-        Stage::Plan { line, .. } | Stage::Follow { line, .. } => {
+        Stage::Plan { line, since, .. } | Stage::Follow { line, since, .. } => {
+            if !since.trim().is_empty() {
+                input.push_str(&format!(
+                    "\n<since_last_setup>\n{}\n</since_last_setup>\n",
+                    since.trim()
+                ));
+            }
             input.push_str(&format!("\n<answers>\n{}\n</answers>\n", line.trim()));
         }
         _ => input.push_str(&format!("\n<question>\n{}\n</question>\n", question.trim())),
@@ -867,6 +887,7 @@ mod tests {
                     ..Default::default()
                 }],
                 line: "language: ru (Русский)".into(),
+                since: String::new(),
             },
         );
         assert!(plan.instructions.contains("```hex-plan"));
@@ -882,6 +903,51 @@ mod tests {
             "{:?}",
             plan.articles
         );
+    }
+
+    /// A returning setup's prompt carries what came since: the use's
+    /// aggregates and the last setup, never a dictation's text.
+    #[test]
+    fn a_returning_setups_prompt_has_no_recording_text() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/assistant/recordings/history.json");
+        let entries = crate::history::read_snapshot(&root).unwrap();
+        let usage = crate::assistant::recordings::usage::from_entries(&entries, &[], u64::MAX / 2);
+        let since = setup::since::Since {
+            usage: Some(usage),
+            ..Default::default()
+        };
+        let facts = setup::since::prompt(&since);
+        let plan = build(
+            "",
+            &[],
+            Room::Small,
+            Reach::Guide,
+            Some(&context(true)),
+            &Stage::Plan {
+                answers: Vec::new(),
+                line: "use: dictation_any (Dictation into any app)".into(),
+                since: facts.clone(),
+            },
+        );
+        assert!(plan.instructions.contains("never offer again"));
+        let block = plan
+            .input
+            .split("<since_last_setup>")
+            .nth(1)
+            .and_then(|rest| rest.split("</since_last_setup>").next())
+            .unwrap();
+        assert!(block.contains("dictations kept:"), "{block}");
+        for entry in &entries {
+            for text in [&entry.raw_text, &entry.final_text] {
+                assert!(!plan.input.contains(text.as_str()), "{text}");
+                let words: Vec<&str> = text.split_whitespace().collect();
+                for three in words.windows(3) {
+                    let three = three.join(" ");
+                    assert!(!block.contains(&three), "{three} in {block}");
+                }
+            }
+        }
     }
 
     #[test]

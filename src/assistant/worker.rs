@@ -701,6 +701,7 @@ mod tests {
                 },
             ],
             line: "use: dictation_code, meetings; language: ru; cleanup: codex".into(),
+            since: String::new(),
         }
     }
 

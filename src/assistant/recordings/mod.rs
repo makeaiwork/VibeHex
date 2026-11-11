@@ -14,6 +14,7 @@
 pub mod cite;
 mod meetings;
 mod texts;
+pub mod usage;
 
 use std::ops::Range;
 use std::path::PathBuf;

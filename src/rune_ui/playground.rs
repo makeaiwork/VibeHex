@@ -254,6 +254,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/Denis's shortcuts",
     ),
     (
+        "assistant-setup-returning",
+        "Window/Assistant/Setup/Returning",
+    ),
+    (
         "assistant-setup-plan",
         "Window/Assistant/Setup/Suggested changes",
     ),

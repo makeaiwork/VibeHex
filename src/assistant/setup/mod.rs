@@ -26,6 +26,7 @@ pub mod now;
 pub mod past;
 pub mod plan;
 pub mod preset;
+pub mod since;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -102,14 +103,21 @@ pub enum Stage {
     Ask,
     /// Round one is answered: a remote model rewords, drops, or adds to
     /// the follow-up questions the app picked (`candidates`).
+    /// `since` is what a returning setup knows came since the last one
+    /// (`since::prompt`), empty for a first one.
     Follow {
         answers: Vec<Answer>,
         line: String,
         candidates: Vec<Ask>,
+        since: String,
     },
     /// Every round is answered: the model writes the plan. `line` is the
     /// answers as the model reads them, with the labels the person saw.
-    Plan { answers: Vec<Answer>, line: String },
+    Plan {
+        answers: Vec<Answer>,
+        line: String,
+        since: String,
+    },
 }
 
 impl Stage {
@@ -248,6 +256,7 @@ pub fn own_words() -> Vec<&'static str> {
     words.extend(follow::words());
     words.extend(engines::words());
     words.extend(plan::words());
+    words.extend(since::words());
     for (_, q, hint, _, options) in QUESTIONS {
         words.extend([q, hint].into_iter().filter(|word| !word.is_empty()));
         for (_, label, note) in options {

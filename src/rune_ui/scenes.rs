@@ -743,6 +743,10 @@ pub(super) const SCENES: &[Scene] = &[
         "assistant-setup-preset-shortcuts",
         assistant::setup_fixture::setup_preset_shortcuts,
     ),
+    (
+        "assistant-setup-returning",
+        assistant::setup_fixture::setup_returning,
+    ),
     ("meetings-cited", assistant::fixture::meeting_cited),
     ("files-cited", assistant::fixture::file_cited),
     (

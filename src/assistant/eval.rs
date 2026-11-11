@@ -100,6 +100,7 @@ fn cases() -> Vec<Case> {
                 line: setup_line(&answers).unwrap_or_default(),
                 answers: answers.clone(),
                 candidates,
+                since: String::new(),
             },
             keys: Vec::new(),
             terms: Vec::new(),
@@ -110,6 +111,7 @@ fn cases() -> Vec<Case> {
             setup: Stage::Plan {
                 line: setup_line(&answers).unwrap_or_default(),
                 answers,
+                since: String::new(),
             },
             // Code in Russian: Parakeet v3, never GigaAM.
             keys: vec![

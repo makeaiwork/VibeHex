@@ -25,6 +25,7 @@ mod picker;
 mod plan;
 mod preset;
 mod recall;
+mod returning;
 mod settings;
 pub(super) mod setup_fixture;
 mod tick;

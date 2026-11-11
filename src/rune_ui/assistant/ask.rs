@@ -20,6 +20,7 @@ use super::super::Ui;
 use super::super::controls::Paint;
 use super::composer;
 use crate::assistant::changes::CardKind;
+use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow, past};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Recall;
@@ -27,9 +28,9 @@ use crate::desktop::i18n::tr;
 
 /// Where a round is: its conversation and turn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct At {
-    conversation: u32,
-    turn: usize,
+pub(super) struct At {
+    pub(super) conversation: u32,
+    pub(super) turn: usize,
 }
 
 /// The OS a question names: a scene plays a Mac.
@@ -42,14 +43,31 @@ pub(super) fn os(ui: &Ui) -> &'static str {
 }
 
 /// "Set VibeHex up for me": what is set now, and round one's questions
-/// preselected from it, in a new conversation (or the empty one open).
+/// preselected from it, in a new conversation (or the empty one open). A
+/// returning setup says what came since and folds round one to a row.
 pub(super) fn begin(ui: &mut Ui) {
     if ui.assistant.answering.is_some() {
         return;
     }
+    let since = super::returning::since(ui);
+    start(ui, since);
+}
+
+/// Opens setup: a first one with round one's questions, a returning one
+/// (`since`) with what came since, round one folded, and the terms the
+/// use shows Vocabulary lacks.
+pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
     let context = super::changes::context(ui);
     let mut asks = setup::questions(os(ui));
     setup::preselect(&mut asks, &context.settings, &context.state);
+    if let Some(since) = &since {
+        since::preselect(&mut asks, since);
+        setup::preselect(&mut asks, &context.settings, &context.state);
+    }
+    let terms = since
+        .as_ref()
+        .and_then(|since| since.usage.as_ref())
+        .and_then(|usage| since::terms_card(usage, &context.settings));
     let now = ui.assistant.now_ms();
     let pane = &mut ui.assistant;
     pane.consent = None;
@@ -64,6 +82,10 @@ pub(super) fn begin(ui: &mut Ui) {
         Turn {
             asks,
             now: setup::now::now(&context.settings),
+            since: since.as_ref().map(since::paragraph).unwrap_or_default(),
+            facts: since.as_ref().map(since::prompt).unwrap_or_default(),
+            folded: since.is_some(),
+            cards: terms.into_iter().collect(),
             created_ms: now,
             ..Turn::default()
         },
@@ -96,6 +118,9 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
     if !turn.now.trim().is_empty() {
         shown.push(super::recall::answer(p, &turn.now, None, false, false).key("now"));
     }
+    if !turn.since.trim().is_empty() {
+        shown.push(super::recall::answer(p, &turn.since, None, false, false).key("since"));
+    }
     if turn.asks.is_empty() {
         return shown;
     }
@@ -110,6 +135,8 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
     };
     if turn.asks.iter().all(|ask| ask.done) {
         shown.extend(past(p, index, &turn.asks));
+    } else if last && turn.folded {
+        shown.push(super::returning::folded(p, at, &turn.asks));
     } else if last {
         shown.push(open(p, at, &turn.asks));
     }
@@ -281,7 +308,7 @@ fn past(p: Paint, index: usize, asks: &[Ask]) -> Option<El> {
 
 /// One option: outlined, or on a soft accent tint with a check when
 /// chosen, its caption under its label. `small` for an answered round's.
-fn chip(p: Paint, key: &str, ask: &Ask, option: &Choice, on: bool, small: bool) -> El {
+pub(super) fn chip(p: Paint, key: &str, ask: &Ask, option: &Choice, on: bool, small: bool) -> El {
     let c = &p.k.c;
     let label = label(ask, option);
     let font = rune::TextStyle {
@@ -393,7 +420,7 @@ fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
 
 /// The round is answered (or skipped, `skip`): the next round, or the
 /// plan.
-fn answered(ui: &mut Ui, at: At, skip: bool) {
+pub(super) fn answered(ui: &mut Ui, at: At, skip: bool) {
     let Some(mut asks) = round(ui, at) else {
         return;
     };
@@ -420,7 +447,7 @@ fn answered(ui: &mut Ui, at: At, skip: bool) {
 }
 
 /// The turns of the open setup, from its round one.
-fn setup_turns(turns: &[Turn]) -> &[Turn] {
+pub(super) fn setup_turns(turns: &[Turn]) -> &[Turn] {
     let from = turns
         .iter()
         .rposition(|turn| first(&turn.asks))
@@ -501,6 +528,7 @@ fn next(ui: &mut Ui, at: At) {
             answers,
             line,
             candidates,
+            since: super::returning::facts(ui, at.conversation),
         },
     );
 }
@@ -563,7 +591,11 @@ fn plan(ui: &mut Ui, conversation: u32) {
         conversation,
         line.clone(),
         Recall::Guide,
-        Stage::Plan { answers, line },
+        Stage::Plan {
+            answers,
+            line,
+            since: super::returning::facts(ui, conversation),
+        },
     );
 }
 
@@ -613,11 +645,13 @@ pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
             candidates: follow::candidates(&turn.answers, &context.settings, &context.state),
             answers: turn.answers.clone(),
             line: turn.question.clone(),
+            since: super::returning::facts(ui, conversation),
         }
     } else {
         Stage::Plan {
             answers: turn.answers.clone(),
             line: turn.question.clone(),
+            since: super::returning::facts(ui, conversation),
         }
     };
     composer::ask_with(

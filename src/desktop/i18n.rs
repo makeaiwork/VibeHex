@@ -1687,6 +1687,7 @@ mod tests {
         include_str!("../assistant/setup/now.rs"),
         include_str!("../assistant/setup/plan.rs"),
         include_str!("../rune_ui/assistant/preset.rs"),
+        include_str!("../rune_ui/assistant/returning.rs"),
         include_str!("../rune_ui/assistant/changes.rs"),
         include_str!("../rune_ui/assistant/composer.rs"),
         include_str!("../rune_ui/assistant/connect.rs"),

@@ -69,6 +69,18 @@ pub struct Turn {
     /// A follow-up round a model wrote: asking again asks it again.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub follow: bool,
+    /// A returning setup's paragraph of what came since the last one, in
+    /// the window's language (`setup::since`).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub since: String,
+    /// The same, as the model reads it: the last setup, the releases
+    /// since, and the use's aggregates, never a recording's text.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub facts: String,
+    /// A returning setup's round one, folded to one row until the person
+    /// says something changed.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub folded: bool,
     /// A preset's step ("Set me up like Denis"): `settings` its plan,
     /// `shortcuts` the question about its shortcuts, `shortcuts-plan` them
     /// as a plan, `done` once the person kept their own.
@@ -211,6 +223,20 @@ impl Store {
             .and_then(|turn| turn.cards.get_mut(card));
         if let Some(slot) = slot {
             *slot = value;
+            self.save();
+        }
+    }
+
+    /// Unfolds a returning setup's round one, turn `turn` of conversation
+    /// `id`.
+    pub fn unfold(&mut self, id: u32, turn: usize) {
+        let slot = self
+            .conversations
+            .iter_mut()
+            .find(|c| c.id == id)
+            .and_then(|conversation| conversation.turns.get_mut(turn));
+        if let Some(slot) = slot {
+            slot.folded = false;
             self.save();
         }
     }

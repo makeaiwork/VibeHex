@@ -15,6 +15,9 @@ use super::fixture::{AT, MINUTE, open};
 use super::fixture_cards::{conversation, item};
 use crate::assistant::changes::catalog::{Class, State};
 use crate::assistant::changes::{Card, CardKind, Decision, Item, current, parts};
+use crate::assistant::recordings::usage::{self, Usage};
+use crate::assistant::setup::past::Setup;
+use crate::assistant::setup::since::Since;
 use crate::assistant::setup::{self, Ask, follow};
 use crate::assistant::store::Turn;
 use crate::dictation::ShortcutMode;
@@ -404,6 +407,79 @@ pub(in super::super) fn setup_preset_shortcuts(ui: &mut Ui) {
     dated(ui);
 }
 
+/// A returning setup: the owner set up a month ago and declined a Labs
+/// feature then; what is set now, what his use shows since, round one
+/// folded with his answers, and the terms Vocabulary lacks as one card.
+pub(in super::super) fn setup_returning(ui: &mut Ui) {
+    open(ui);
+    let state = sample(ui);
+    // The pane reads the settings as drafted: its Vocabulary too.
+    let terms = ui.settings.vocabulary.clone();
+    ui.vocabulary.reload(&terms);
+    let asks = answered(ui, &state, "codex");
+    let last = Setup {
+        at_ms: AT - 30 * 24 * 60 * MINUTE,
+        answers: setup::answers(&asks),
+        declined: vec![setup::past::Line {
+            key: "labs.playback".into(),
+            to: Value::Bool(true),
+            from: Value::Bool(false),
+        }],
+        ..Setup::default()
+    };
+    ui.assistant.store.finish(last.clone());
+    let usage = Usage {
+        dictations: 412,
+        last_30_days: 138,
+        apps: vec![
+            ("Ghostty".into(), 160),
+            ("Cursor".into(), 31),
+            ("Telegram".into(), 88),
+        ],
+        code_share: 46,
+        long_share: 27,
+        median_words: 34,
+        terms: vec![
+            usage::Term {
+                word: "GitHub".into(),
+                count: 21,
+                heard: vec!["гитхаб".into()],
+            },
+            usage::Term {
+                word: "Claude Code".into(),
+                count: 14,
+                heard: vec!["клод код".into()],
+            },
+            usage::Term {
+                word: "Supabase".into(),
+                count: 6,
+                heard: vec!["супабейс".into()],
+            },
+        ],
+        fixes: vec![
+            usage::Fix {
+                heard: "гитхаб".into(),
+                written: "GitHub".into(),
+                count: 21,
+            },
+            usage::Fix {
+                heard: "клод код".into(),
+                written: "Claude Code".into(),
+                count: 14,
+            },
+        ],
+        meetings: 23,
+        meeting_languages: vec![(usage::Language::Russian, 19), (usage::Language::Latin, 4)],
+    };
+    let since = Since {
+        last: Some(last),
+        releases: Vec::new(),
+        usage: Some(usage),
+    };
+    super::ask::start(ui, Some(since));
+    dated(ui);
+}
+
 fn dated(ui: &mut Ui) {
     if let Some(id) = ui.assistant.open {
         ui.assistant.store.date(id, AT);
@@ -418,7 +494,7 @@ mod tests {
 
     #[test]
     fn every_setup_scene_has_nothing_left_to_save() {
-        let scenes: [Scene; 7] = [
+        let scenes: [Scene; 8] = [
             ("setup-ask", setup_ask),
             ("setup-preset", setup_preset),
             ("setup-preset-shortcuts", setup_preset_shortcuts),
@@ -426,6 +502,7 @@ mod tests {
             ("setup-plan", setup_plan),
             ("setup-kept", setup_kept),
             ("setup-result", setup_result),
+            ("setup-returning", setup_returning),
         ];
         for (name, scene) in scenes {
             let mut ui = super::super::super::scenes::mac_fixture();
