@@ -64,6 +64,7 @@ PY
 ---
 version: next
 date: unreleased
+title: Nothing new yet
 labs: []
 keys: []
 ---

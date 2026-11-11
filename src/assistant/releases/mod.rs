@@ -25,6 +25,8 @@ pub struct Note {
     pub version: String,
     /// `2026-11-04`, or `unreleased` for Next.
     pub date: String,
+    /// One line of what it brings, in English (`title:`).
+    pub title: String,
     /// The Labs features it added or changed, by `hex labs` name.
     pub labs: Vec<String>,
     /// Other settings keys it added or changed.
@@ -36,6 +38,24 @@ pub struct Note {
 impl Note {
     pub fn is_next(&self) -> bool {
         self.version == NEXT
+    }
+
+    /// Its `title:`, else its first item's first sentence.
+    pub fn headline(&self) -> String {
+        if !self.title.is_empty() {
+            return self.title.clone();
+        }
+        let first = self
+            .body
+            .lines()
+            .find_map(|line| line.strip_prefix("- "))
+            .unwrap_or_default();
+        let first = first.split_once(": ").map_or(first, |(_, rest)| rest);
+        first
+            .split_once(". ")
+            .map_or(first, |(head, _)| head)
+            .trim_end_matches('.')
+            .to_owned()
     }
 
     /// Every settings key it names: its Labs features' keys, then its own.
@@ -134,6 +154,7 @@ fn parse(text: &str) -> Note {
     Note {
         version: field("version").unwrap_or_default(),
         date: field("date").unwrap_or_default(),
+        title: field("title").unwrap_or_default(),
         labs: list("labs"),
         keys: list("keys"),
         body: body.trim().to_owned(),

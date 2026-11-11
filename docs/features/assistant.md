@@ -287,7 +287,9 @@ Opened from a place link                         // rune_ui::assistant::places
   answers preselected (else the settings'), Continue and "Change
   answers". Above it, after "Now:", "**Since your last setup (date):**"
   (or "What your use shows:"): releases since
-  (`since::releases_after`, a stub until the releases notes land), and,
+  (`since::releases_after`: the notes dated after the last setup's day, or
+  every one without a setup, up to the version running, each as its title
+  and the keys it names; Next only on a development build), and,
   only while `assistant.read_recordings` is on, the use
   (`recordings::usage`, computed by the app: dictations kept and in 30
   days, top apps, terminal or editor share (30%+ adds code to `use`),
@@ -335,11 +337,12 @@ Opened from a place link                         // rune_ui::assistant::places
 
 - VibeHex's own release notes ship in the app: `docs/releases/<X.Y.Z-vibe.N>.md`
   and `next.md` (not released yet), embedded by `build.rs` (Hex's notes in
-  that folder stay out). Front matter: `version`, `date`, `labs:` (the `hex
-  labs` names a release added or changed) and `keys:` (other `hex settings`
-  keys); the body is short New, Changed, and Fixed lines. Tests hold each
-  file to its name, real features and keys, two lines an item, no commit or
-  PR numbers, under 1.5k tokens, and every `v*-vibe.*` tag to its notes.
+  that folder stay out). Front matter: `version`, `date`, `title` (one
+  line of what it brings), `labs:` (the `hex labs` names a release added or
+  changed) and `keys:` (other `hex settings` keys); the body is short New,
+  Changed, and Fixed lines. Tests hold each file to its name, a title, real
+  features and keys, two lines an item, no commit or PR numbers, under 1.5k
+  tokens, and every `v*-vibe.*` tag to its notes.
 - A release notes itself once per new version as the window's app starts
   (`releases::history`, `<support>/assistant/versions.json`: version and
   first run, the newest 20). A development build (`HEX_LOCAL_BUILD`, debug,

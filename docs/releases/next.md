@@ -1,6 +1,7 @@
 ---
 version: next
 date: unreleased
+title: Assistant, VibeHex in Russian, Screenshots, and more speech models
 labs: [screenshots, notch-indicator, caps-lock-dictation, lower-every-app, more-call-apps, settings-search, failure-notices, follow-live-transcript, expire-meeting-audio, meeting-descriptive-filenames, meeting-notes-vocabulary, keep-recordings, history-stats, files]
 keys: [assistant.enabled, assistant.send_settings, assistant.read_recordings, ui_language, history_retention, meetings.summaries, meetings.audio_retention, files.cleanup_effort]
 ---

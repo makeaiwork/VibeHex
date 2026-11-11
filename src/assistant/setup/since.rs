@@ -13,6 +13,7 @@ use crate::app_settings::AppSettings;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::{Card, vocab};
 use crate::assistant::recordings::usage::{self, Language, Usage};
+use crate::assistant::releases;
 use crate::desktop::i18n::{tr, tr_fill};
 
 /// This many dictations kept makes an install one used a while.
@@ -37,12 +38,75 @@ pub struct Release {
     pub keys: Vec<String>,
 }
 
-/// The releases after `after_ms`, oldest first.
-// TODO(feat/assistant-releases): the releases branch adds
-// `docs/releases/<version>.md`; read them here (version, date, a title,
-// and the `keys:` they bring) once it lands. Until then nothing is new.
-pub fn releases_after(_after_ms: u64) -> Vec<Release> {
-    Vec::new()
+/// The releases after `after_ms`, oldest first: VibeHex's own notes
+/// (`releases::notes`) dated after that day, up to the version running
+/// (a newer one isn't here yet). Next, the work not released yet, only on
+/// a development build, which runs it.
+pub fn releases_after(after_ms: u64) -> Vec<Release> {
+    releases_from(
+        releases::notes(),
+        after_ms,
+        &releases::Running::here(),
+        now_ms(),
+    )
+}
+
+fn releases_from(
+    notes: &[releases::Note],
+    after_ms: u64,
+    running: &releases::Running,
+    now_ms: u64,
+) -> Vec<Release> {
+    let after = (after_ms > 0).then(|| date(after_ms));
+    let up_to = releases::order(&running.version);
+    notes
+        .iter()
+        .filter(|note| {
+            if note.is_next() {
+                return running.dev;
+            }
+            let Some(at) = releases::order(&note.version) else {
+                return false;
+            };
+            let here = running.dev || up_to.is_some_and(|up_to| at <= up_to);
+            // A release the same day as the setup was most likely in it.
+            here && after.as_ref().is_none_or(|after| note.date > *after)
+        })
+        .map(|note| Release {
+            version: note.version.clone(),
+            date_ms: day_ms(&note.date).unwrap_or(now_ms),
+            title: note.headline(),
+            keys: note
+                .settings_keys()
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        })
+        .collect()
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_millis() as u64)
+}
+
+/// `2026-11-06` as its first millisecond, in UTC; `None` for anything else.
+fn day_ms(day: &str) -> Option<u64> {
+    let mut parts = day.splitn(3, '-').map(|part| part.parse::<i64>().ok());
+    let (year, month, day) = (parts.next()??, parts.next()??, parts.next()??);
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    // Howard Hinnant's days_from_civil.
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = year.div_euclid(400);
+    let yoe = year.rem_euclid(400);
+    let mp = if month > 2 { month - 3 } else { month + 9 };
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    u64::try_from(days).ok().map(|days| days * 86_400_000)
 }
 
 /// What a returning setup opens with.
@@ -409,6 +473,76 @@ mod tests {
         assert!(paragraph(&unread).contains("Assistant › Settings"));
         assert!(prompt(&unread).contains("not read"));
         assert!(!returning(&[], 49, 0) && returning(&[], 50, 0) && returning(&[], 0, 1));
+    }
+
+    fn note(version: &str, date: &str) -> releases::Note {
+        releases::Note {
+            version: version.into(),
+            date: date.into(),
+            title: format!("What {version} brings"),
+            labs: vec!["files".into()],
+            keys: vec!["ui_language".into()],
+            body: String::new(),
+        }
+    }
+
+    fn running(version: &str, dev: bool) -> releases::Running {
+        releases::Running {
+            version: version.into(),
+            dev,
+            previous: None,
+        }
+    }
+
+    /// The releases dated after the setup's day, oldest first, up to the
+    /// one running; Next only on a development build.
+    #[test]
+    fn the_releases_since_are_those_after_its_day_and_here() {
+        let notes = [
+            note("3.3.0-vibe.4", "2026-11-04"),
+            note("3.3.0-vibe.5", "2026-11-05"),
+            note("3.3.0-vibe.6", "2026-11-06"),
+            note("next", "unreleased"),
+        ];
+        let setup = day_ms("2026-11-04").unwrap() + 15 * 3_600_000;
+        let versions = |releases: Vec<Release>| -> Vec<String> {
+            releases
+                .into_iter()
+                .map(|release| release.version)
+                .collect()
+        };
+        let running5 = running("3.3.0-vibe.5", false);
+        assert_eq!(
+            versions(releases_from(&notes, setup, &running5, 9)),
+            ["3.3.0-vibe.5"]
+        );
+        let released = releases_from(&notes, 0, &running("3.3.0-vibe.6", false), 9);
+        assert_eq!(released.len(), 3, "every release, never Next");
+        assert_eq!(released[2].title, "What 3.3.0-vibe.6 brings");
+        assert_eq!(released[2].keys, ["labs.files", "ui_language"]);
+        assert_eq!(released[0].date_ms, day_ms("2026-11-04").unwrap());
+        assert_eq!(
+            versions(releases_from(&notes, setup, &running("3.3.0", true), 9)),
+            ["3.3.0-vibe.5", "3.3.0-vibe.6", "next"]
+        );
+        assert_eq!(date(day_ms("2026-11-26").unwrap()), "2026-11-26");
+        assert_eq!(day_ms("unreleased"), None);
+    }
+
+    /// The real notes give each release a title.
+    #[test]
+    fn the_shipped_releases_have_titles() {
+        let all = releases_from(releases::notes(), 0, &running("3.3.0", true), 9);
+        assert!(all.len() >= 2);
+        for release in &all {
+            assert!(
+                !release.title.is_empty(),
+                "{} has no title",
+                release.version
+            );
+            assert!(!release.title.contains('\n'), "{}", release.version);
+        }
+        assert_eq!(all.last().unwrap().version, releases::NEXT);
     }
 
     #[test]

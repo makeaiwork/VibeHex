@@ -215,6 +215,9 @@ fn every_release_note_is_well_formed() {
                 problem(format!("{key} isn't a `hex settings` key"));
             }
         }
+        if note.title.is_empty() || note.title.len() > 100 {
+            problem(format!("title {:?} isn't one short line", note.title));
+        }
         if !note.body.starts_with("# VibeHex ") {
             problem("has no `# VibeHex <version>` title".into());
         }
