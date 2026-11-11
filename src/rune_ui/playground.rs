@@ -218,6 +218,14 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Cards/Applied with Undo",
     ),
     (
+        "assistant-whats-new",
+        "Window/Assistant/What's new, with For you cards",
+    ),
+    (
+        "assistant-updated",
+        "Window/Assistant/New conversation after an update",
+    ),
+    (
         "assistant-vocab-card",
         "Window/Assistant/Cards/Vocabulary terms",
     ),

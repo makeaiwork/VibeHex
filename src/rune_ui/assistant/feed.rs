@@ -45,10 +45,18 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
         );
     }
     let Some(conversation) = pane.conversation() else {
-        return if greet { feed.child(start(p)) } else { feed };
+        return if greet {
+            feed.child(start(ui, p))
+        } else {
+            feed
+        };
     };
     if conversation.turns.is_empty() && pane.consent.is_none() && pane.answering.is_none() {
-        return if greet { feed.child(start(p)) } else { feed };
+        return if greet {
+            feed.child(start(ui, p))
+        } else {
+            feed
+        };
     }
     for (index, turn) in conversation.turns.iter().enumerate() {
         // Setup's own questions and the answers to them have no bubble.
@@ -70,8 +78,9 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     feed
 }
 
-/// A greeting and the example questions, two by two.
-fn start(p: Paint) -> El {
+/// A greeting, a way into what changed after an update, setup, and the
+/// example questions, two by two.
+fn start(ui: &Ui, p: Paint) -> El {
     let mut grid = col().key("examples").gap(8.0);
     for (index, pair) in EXAMPLES.chunks(2).enumerate() {
         let mut line = row().key(format!("line{index}")).gap(8.0);
@@ -99,7 +108,8 @@ fn start(p: Paint) -> El {
             .color(p.muted())
             .wrap(),
         )
-        .child(setup(p).mt(12.0))
+        .children(super::whats_new::row_for(ui, p).map(|row| row.mt(12.0)))
+        .child(setup(p).mt(if ui.assistant.updated.is_some() { 8.0 } else { 12.0 }))
         .child(grid.mt(8.0))
         .child(knows(p))
 }

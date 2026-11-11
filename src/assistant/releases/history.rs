@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 /// The most versions kept.
 const MAX: usize = 20;
 
+/// How long after an update Assistant offers to tell what's new.
+const FRESH_MS: u64 = 14 * 24 * 3_600_000;
+
 /// A version and when this install first ran it.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Seen {
@@ -94,6 +97,20 @@ pub fn updated_at(seen: &[Seen], running: &str) -> Option<u64> {
         .map(|entry| entry.first_ms)
 }
 
+/// The version this install updated to in the last two weeks and when,
+/// if it ran another one before: a release only.
+pub fn fresh(now_ms: u64) -> Option<(String, u64)> {
+    if crate::dev_build::is_dev_build() || super::order(crate::VERSION).is_none() {
+        return None;
+    }
+    fresh_in(&read(), crate::VERSION, now_ms)
+}
+
+fn fresh_in(seen: &[Seen], running: &str, now_ms: u64) -> Option<(String, u64)> {
+    let at = updated_at(seen, running)?;
+    (now_ms.saturating_sub(at) < FRESH_MS).then(|| (running.to_owned(), at))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +150,17 @@ mod tests {
         assert_eq!(previous(&seen, "3.3.0-vibe.4"), None, "the first one run");
         assert_eq!(updated_at(&seen, "3.3.0-vibe.4"), None);
         assert_eq!(previous(&seen, "3.3.0-vibe.9"), None, "never run");
+        let day = 24 * 3_600_000;
+        assert_eq!(
+            fresh_in(&seen, "3.3.0-vibe.6", 3_000 + 13 * day),
+            Some(("3.3.0-vibe.6".into(), 3_000))
+        );
+        assert_eq!(fresh_in(&seen, "3.3.0-vibe.6", 3_000 + 15 * day), None);
+        assert_eq!(
+            fresh_in(&seen, "3.3.0-vibe.4", 1_500),
+            None,
+            "a first install"
+        );
     }
 
     #[test]

@@ -209,6 +209,9 @@ mod tests {
             "Release notes",
             "Какие нововведения в последней версии?",
             "Что добавили в новой версии?",
+            // What "Updated to <version>" asks, in English and Russian.
+            "What's new since my last version?",
+            "Что нового с моей прошлой версии?",
         ] {
             let asked = asked(question);
             assert_eq!(asked.version, None, "{question}");

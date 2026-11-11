@@ -127,19 +127,9 @@ fn send(ui: &mut Ui) {
 /// about the person's recordings that may not read them yet waits for the
 /// consent card (and counts as asked).
 pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
-    if ui.is_fixture() || ui.assistant.fixture || worker::answering().is_some() {
+    let Some(id) = conversation_for(ui, &question) else {
         return false;
-    }
-    let pane = &mut ui.assistant;
-    pane.consent = None;
-    let id = match pane.conversation() {
-        Some(conversation) => conversation.id,
-        None => pane
-            .store
-            .start(&question, pane.engine.take(), pane.effort.take()),
     };
-    pane.open = Some(id);
-    pane.error = None;
     if intent::setup(&question) {
         return ask_with(ui, id, question, Recall::Guide, Stage::Ask);
     }
@@ -151,6 +141,35 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
         Some(recall) => ask_with(ui, id, question, recall, Stage::None),
         None => true,
     }
+}
+
+/// Asks `question`, in the window's language, about what changed since
+/// the version run before, from the release notes whatever its words.
+pub(super) fn ask_releases(ui: &mut Ui, question: String) -> bool {
+    let Some(id) = conversation_for(ui, &question) else {
+        return false;
+    };
+    let asked = intent::releases(&question).unwrap_or_default();
+    ask_with(ui, id, question, Recall::Releases(asked), Stage::None)
+}
+
+/// The conversation `question` goes to, opened: the open one, or a new one
+/// named by it. None while another answer comes, or in a scene.
+fn conversation_for(ui: &mut Ui, question: &str) -> Option<u32> {
+    if ui.is_fixture() || ui.assistant.fixture || worker::answering().is_some() {
+        return None;
+    }
+    let pane = &mut ui.assistant;
+    pane.consent = None;
+    let id = match pane.conversation() {
+        Some(conversation) => conversation.id,
+        None => pane
+            .store
+            .start(question, pane.engine.take(), pane.effort.take()),
+    };
+    pane.open = Some(id);
+    pane.error = None;
+    Some(id)
 }
 
 /// Asks `question` in conversation `id`, reading what `recall` allows, at

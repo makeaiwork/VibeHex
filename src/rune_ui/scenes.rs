@@ -711,6 +711,8 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::fixture_cards::cards_prompt_edit,
     ),
     ("assistant-applied", assistant::fixture_cards::applied),
+    ("assistant-whats-new", assistant::fixture_cards::whats_new),
+    ("assistant-updated", assistant::fixture_cards::updated),
     ("assistant-vocab-card", assistant::fixture_cards::vocab_card),
     (
         "assistant-vocab-applied",

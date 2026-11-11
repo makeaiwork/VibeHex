@@ -525,3 +525,55 @@ mod tests {
         }
     }
 }
+
+/// «Что нового?» after an update from 3.3.0-vibe.4: the releases since,
+/// grouped, then For you with two Labs cards that fit how the person works
+/// (they record meetings; both are off).
+pub(in super::super) fn whats_new(ui: &mut Ui) {
+    open(ui);
+    ui.settings.meetings.enabled = true;
+    ui.settings.labs.playback = false;
+    ui.settings.labs.stop_shortcut = false;
+    let question = "Что нового?";
+    let answer = turn(
+        question,
+        "С версии 3.3.0-vibe.4, которая стояла у вас раньше, вышли 3.3.0-vibe.5 и 3.3.0-vibe.6.\n\n\
+         **Новое**\n\
+         - **Labs › Files**: расшифровка аудио и видео, версии текста вкладками.\n\
+         - **Labs › Stop shortcut**: закончить диктовку другой клавишей, по умолчанию Return.\n\
+         - **Labs › Listen to the recording**: плеер в Files и Meetings.\n\
+         - AI cleanup на **Codex** по вашей подписке ChatGPT.\n\n\
+         **Изменилось**\n\
+         - У встречи теперь вкладки Summary, Transcript и Requests. Вы записываете встречи, так что это про вас.\n\
+         - Add to vocabulary подставляет в Heard то, что услышала модель.\n\n\
+         **Исправлено**\n\
+         - Загрузку модели показывает только её строка.\n\n\
+         **Для вас**\n\
+         - **Listen to the recording**: сверять расшифровку встречи с голосом.\n\
+         - **Stop shortcut**: заканчивать диктовку клавишей Return.",
+        &[],
+        1,
+    );
+    let cards = vec![
+        single(
+            "labs.playback",
+            json!(false),
+            json!(true),
+            "Сверять расшифровку встреч с записью",
+        ),
+        single(
+            "labs.stop_shortcut",
+            json!(false),
+            json!(true),
+            "Заканчивать диктовку клавишей Return",
+        ),
+    ];
+    conversation(ui, question, vec![with_cards(answer, cards)], &[]);
+}
+
+/// A new conversation two weeks or less after an update: "Updated to
+/// 3.3.0-vibe.7" over Set VibeHex up for me.
+pub(in super::super) fn updated(ui: &mut Ui) {
+    open(ui);
+    ui.assistant.updated = Some(("3.3.0-vibe.7".into(), AT));
+}
