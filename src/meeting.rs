@@ -1411,6 +1411,22 @@ fn final_transcript_exists(directory: &Path) -> bool {
     directory.join("transcript.ndjson").exists() && directory.join("transcript.md").exists()
 }
 
+/// A meeting folder's transcript as its views read it: the final one once
+/// published, else the rolling one, else none.
+pub fn transcript_entries(directory: &Path) -> Result<Vec<TranscriptEntry>> {
+    if final_transcript_exists(directory) {
+        return read_ndjson(&directory.join("transcript.ndjson"));
+    }
+    let path = directory.join(transcript::ROLLING_FILE);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    Ok(read_ndjson::<transcript::RollingLine>(&path)?
+        .into_iter()
+        .collect::<transcript::RollingView>()
+        .entries)
+}
+
 fn recover_final_publication(directory: &Path) -> Result<()> {
     if meeting_is_active(directory) != Some(false) {
         return Ok(());

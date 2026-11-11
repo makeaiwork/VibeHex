@@ -5,7 +5,8 @@
 //! Another speed plays at the voice's own pitch (`stretch`).
 //!
 //! A file plays its source, decoded again through AVFoundation; a meeting
-//! plays both its tracks mixed, each placed where it started.
+//! plays both its tracks mixed, each placed where it started, the
+//! microphone only around the user's own lines (`own_voice`).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicUsize, Ordering};
@@ -377,26 +378,104 @@ fn decode_meeting(directory: &Path) -> Result<Vec<i16>> {
     .flatten()
     .min()
     .unwrap_or_default();
+    let voice = own_voice(directory);
     let mut mixed: Vec<f32> = Vec::new();
     let mut found = 0;
-    for track in [&manifest.system, &manifest.microphone] {
+    for (track, microphone) in [(&manifest.system, false), (&manifest.microphone, true)] {
         let path = directory.join(&track.file);
         if !path.is_file() {
             continue;
         }
-        let samples = read_track(&path)?;
+        let mut samples = read_track(&path)?;
         let offset_ms = track
             .first_arrival_us
             .unwrap_or(origin)
             .saturating_sub(origin)
             / 1_000;
-        mix_into(&mut mixed, &samples, ms_samples(offset_ms));
+        let offset = ms_samples(offset_ms);
+        if microphone && let Some(voice) = &voice {
+            keep_only(&mut samples, offset, voice);
+        }
+        mix_into(&mut mixed, &samples, offset);
         found += 1;
     }
     if found == 0 {
         return Err(eyre!("This meeting kept no audio."));
     }
     Ok(to_pcm(&mixed))
+}
+
+/// How far before a You line the microphone opens, and how long after it
+/// stays open: line times can start a word late and end on its last sound.
+const VOICE_LEAD_MS: u64 = 300;
+const VOICE_TAIL_MS: u64 = 500;
+/// The microphone fades in and out over this many samples (30 ms).
+const VOICE_FADE: usize = RATE as usize * 30 / 1_000;
+
+/// Where on the meeting's timeline the microphone carries the user's own
+/// voice: around the transcript's You lines, which echo suppression already
+/// kept apart from the speakers' sound. On speakers the microphone hears the
+/// call too, a fraction of a second after the system track, so mixing it in
+/// everywhere plays every remote word twice. `None` while there is no
+/// transcript to tell, so the whole microphone plays.
+fn own_voice(directory: &Path) -> Option<Vec<std::ops::Range<usize>>> {
+    let entries = match crate::meeting::transcript_entries(directory) {
+        Ok(entries) => entries,
+        Err(error) => {
+            tracing::warn!("couldn't read the meeting's transcript to play it: {error:#}");
+            return None;
+        }
+    };
+    (!entries.is_empty()).then(|| voice_spans(&entries))
+}
+
+/// The You lines' times, widened and joined, in samples.
+fn voice_spans(entries: &[crate::meeting::TranscriptEntry]) -> Vec<std::ops::Range<usize>> {
+    let mut spans = entries
+        .iter()
+        .filter(|entry| entry.source == crate::meeting::MeetingSource::Microphone)
+        .map(|entry| {
+            ms_samples(entry.start_ms.saturating_sub(VOICE_LEAD_MS))
+                ..ms_samples(entry.end_ms.max(entry.start_ms) + VOICE_TAIL_MS)
+        })
+        .collect::<Vec<_>>();
+    spans.sort_by_key(|span| span.start);
+    let mut joined: Vec<std::ops::Range<usize>> = Vec::with_capacity(spans.len());
+    for span in spans {
+        match joined.last_mut() {
+            Some(last) if span.start <= last.end + 2 * VOICE_FADE => {
+                last.end = last.end.max(span.end);
+            }
+            _ => joined.push(span),
+        }
+    }
+    joined
+}
+
+/// Silences `samples`, placed at `offset` on the timeline, outside `spans`
+/// (sorted, apart), fading at each edge so no cut clicks.
+fn keep_only(samples: &mut [f32], offset: usize, spans: &[std::ops::Range<usize>]) {
+    let presence = |span: &std::ops::Range<usize>, at: usize| {
+        let away = if at < span.start {
+            span.start - at
+        } else {
+            at.saturating_sub(span.end - 1)
+        };
+        (1.0 - away as f32 / VOICE_FADE as f32).max(0.0)
+    };
+    let mut next = 0;
+    for (index, sample) in samples.iter_mut().enumerate() {
+        let at = offset + index;
+        while next < spans.len() && spans[next].end + VOICE_FADE <= at {
+            next += 1;
+        }
+        let gain = spans[next..]
+            .iter()
+            .take(2)
+            .map(|span| presence(span, at))
+            .fold(0.0, f32::max);
+        *sample *= gain;
+    }
 }
 
 /// Adds `samples` to `mixed` from `offset`, growing it as needed.
@@ -459,6 +538,77 @@ fn to_pcm(samples: &[f32]) -> Vec<i16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn line(
+        source: crate::meeting::MeetingSource,
+        start_ms: u64,
+        end_ms: u64,
+    ) -> crate::meeting::TranscriptEntry {
+        crate::meeting::TranscriptEntry {
+            source,
+            start_ms,
+            end_ms,
+            text: "line".into(),
+            words: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_microphone_plays_only_around_the_users_own_lines() {
+        use crate::meeting::MeetingSource::{Microphone, System};
+        let entries = [
+            line(System, 0, 4_000),
+            line(Microphone, 5_000, 6_000),
+            // Close enough to the line before that the two play as one.
+            line(Microphone, 6_200, 7_000),
+            line(Microphone, 10_000, 11_000),
+        ];
+        let spans = voice_spans(&entries);
+        assert_eq!(
+            spans,
+            vec![
+                ms_samples(4_700)..ms_samples(7_500),
+                ms_samples(9_700)..ms_samples(11_500),
+            ]
+        );
+
+        // The microphone track starts 1 s into the meeting.
+        let offset = ms_samples(1_000);
+        let mut microphone = vec![1.0; ms_samples(12_000)];
+        keep_only(&mut microphone, offset, &spans);
+        let at = |ms: u64| microphone[ms_samples(ms) - offset];
+        // The speakers' echo of the remote line is gone.
+        assert_eq!(at(2_000), 0.0);
+        assert_eq!(at(8_500), 0.0);
+        // The user's voice plays whole, between its lines too.
+        assert_eq!(at(4_700), 1.0);
+        assert_eq!(at(6_100), 1.0);
+        assert_eq!(at(11_499), 1.0);
+        // The edges fade instead of cutting.
+        let fading = microphone[ms_samples(4_700) - offset - VOICE_FADE / 2];
+        assert!(fading > 0.0 && fading < 1.0, "{fading}");
+        assert_eq!(microphone[ms_samples(11_500) - offset + VOICE_FADE], 0.0);
+    }
+
+    #[test]
+    fn no_transcript_plays_the_whole_microphone_and_no_you_line_mutes_it() {
+        let directory = std::env::temp_dir().join(format!(
+            "hex-playback-voice-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        assert_eq!(own_voice(&directory), None);
+        std::fs::write(
+            directory.join("transcript.ndjson"),
+            "{\"source\":\"system\",\"start_ms\":0,\"end_ms\":900,\"text\":\"Hi.\"}\n",
+        )
+        .unwrap();
+        std::fs::write(directory.join("transcript.md"), "**Them** Hi.\n").unwrap();
+        assert_eq!(own_voice(&directory), Some(Vec::new()));
+        let _ = std::fs::remove_dir_all(&directory);
+    }
 
     #[test]
     fn tracks_mix_where_each_started() {

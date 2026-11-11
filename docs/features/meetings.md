@@ -1395,7 +1395,18 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 The sound is the meeting's two tracks, `system.wav` and `microphone.wav`,
 mixed where each started (`first_arrival_us` in `manifest.json`), the
 origin the transcript's clocks count from, so a turn plays from its own
-time. Each transcript entry keeps its words' starts (`words` in
+time. The microphone plays only around the transcript's You lines (300 ms
+before, 500 ms after, 30 ms fades; `own_voice`), which echo suppression
+already kept apart from the speakers' sound: on speakers the microphone
+hears the call too, and mixing it in everywhere played every remote word
+twice. In the 2026-11-11 call (88 min, external speakers) the microphone
+heard the remote side about 250 ms late and only about 4 dB quieter than
+the system track. Counting from that transcript, the microphone is open for 77% of the call,
+and 21% of the remote speech still plays twice: where the two sides talk over
+each other or within half a second of a You line. A meeting with no
+transcript yet plays its whole microphone. Checks:
+`the_microphone_plays_only_around_the_users_own_lines`,
+`no_transcript_plays_the_whole_microphone_and_no_you_line_mutes_it`. Each transcript entry keeps its words' starts (`words` in
 `TranscriptEntry`, from the sentence's timed words, `meeting::sentence_entry`);
 a turn joins them while every entry it joins has them, else its words
 spread over its start and end. Models that time words: Parakeet (word times) and
