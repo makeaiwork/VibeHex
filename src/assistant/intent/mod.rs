@@ -16,10 +16,12 @@
 
 mod day;
 mod setup;
+mod spoken;
 mod stop;
 
 use day::{Day, span};
 pub use setup::setup;
+pub use spoken::forms as spoken_forms_of;
 use stop::STOP;
 
 /// Which recordings a question names; none named means all.
@@ -50,6 +52,9 @@ pub struct Intent {
     /// The words to search for, without times, kinds, and question words;
     /// Russian words cut to a stem the search's prefix match extends.
     pub terms: Vec<String>,
+    /// For a Latin term, the ways speech recognition may write it
+    /// (`vibehex`: «вайб хекс», "vibe hex"), which the search counts too.
+    pub spoken: Vec<(String, Vec<String>)>,
     /// Surely about recordings; otherwise only if a search finds them.
     pub sure: bool,
 }
@@ -91,14 +96,33 @@ pub fn read(question: &str, now_ms: u64) -> Option<Intent> {
         return None;
     }
     let (since_ms, until_ms) = when.unzip();
+    let terms = terms(&words);
     Some(Intent {
         kinds: if named { kinds } else { Kinds::ALL },
         since_ms,
         until_ms,
         latest,
-        terms: terms(&words),
+        spoken: latin_forms(question, &terms),
+        terms,
         sure,
     })
+}
+
+/// Each Latin term's spoken forms, read from the word as written, so
+/// `VibeHex` comes apart at its capitals.
+fn latin_forms(question: &str, terms: &[String]) -> Vec<(String, Vec<String>)> {
+    let mut spoken: Vec<(String, Vec<String>)> = Vec::new();
+    for written in question.split(|c: char| !c.is_alphanumeric()) {
+        let term = written.to_lowercase();
+        if !terms.contains(&term) || spoken.iter().any(|(known, _)| *known == term) {
+            continue;
+        }
+        let forms = spoken::forms(written);
+        if !forms.is_empty() {
+            spoken.push((term, forms));
+        }
+    }
+    spoken
 }
 
 /// Lowercase words, `ё` read as `е`.

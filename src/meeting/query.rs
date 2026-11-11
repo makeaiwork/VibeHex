@@ -1584,14 +1584,17 @@ pub struct PassageHit {
     pub entries: std::ops::Range<usize>,
 }
 
-/// The passages of `meetings` that match `query`, best first, with the
-/// meeting search's ranking (for Assistant, which builds its own view).
-pub fn search_passages(meetings: &[Arc<Meeting>], query: &str) -> Vec<PassageHit> {
+/// The passages of `meetings` matching `query` or `vocabulary`'s spellings, best first (for Assistant).
+pub fn search_passages(
+    meetings: &[Arc<Meeting>],
+    query: &str,
+    vocabulary: &[VocabularyEntry],
+) -> Vec<PassageHit> {
     let parsed = ParsedQuery::parse(query);
     if parsed.is_empty() {
         return Vec::new();
     }
-    rank(meetings, &parsed, true, &[])
+    rank(meetings, &parsed, true, vocabulary)
         .into_iter()
         .map(|hit| {
             let passage = &hit.meeting.passages[hit.passage];

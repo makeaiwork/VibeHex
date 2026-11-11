@@ -29,7 +29,15 @@ fn allowed() -> Allowed {
 
 fn found(question: &str, budget: Budget) -> Found {
     let intent = intent::read(question, now()).unwrap_or_else(|| panic!("{question}"));
-    search(&allowed(), &fixtures(), &intent, budget, now(), &mut |_| {})
+    search(
+        &allowed(),
+        &fixtures(),
+        &intent,
+        &[],
+        budget,
+        now(),
+        &mut |_| {},
+    )
 }
 
 /// The recordings `question` reads, as `meeting:<slug>`, `file:<slug>`, or
@@ -210,6 +218,7 @@ fn the_search_reports_its_steps_as_it_goes() {
         &allowed(),
         &fixtures(),
         &intent,
+        &[],
         Budget::LARGE,
         now(),
         &mut |step| seen.push(step.clone()),
@@ -242,12 +251,16 @@ fn dictations_read(question: &str) -> (Vec<String>, Vec<Step>) {
 fn the_last_few_that_match_are_the_newest_matches_of_all() {
     let (ids, steps) =
         dictations_read("А можешь найти последние мои диктовки, где я говорил о VibeHex?");
-    assert_eq!(ids, ["15", "6"], "newest first, every dictation searched");
+    assert_eq!(
+        ids,
+        ["15", "11", "10", "9", "8"],
+        "the newest five of the ten that say it, however written"
+    );
     assert_eq!(
         steps,
         [Step::Dictations {
             searched: 15,
-            found: 2
+            found: 5
         }]
     );
     // Without words to search for, the last few are simply the newest.
@@ -260,6 +273,38 @@ fn the_last_few_that_match_are_the_newest_matches_of_all() {
         read("Что решили про OpenRouter на последних встречах?").unwrap(),
         ["meeting:retro", "meeting:budget-q1"]
     );
+}
+
+/// Speech recognition writes an English name in Cyrillic: a search for
+/// VibeHex finds «вайп хекс», «вайбхекс», «вайпхекс», «вайб хексе», and
+/// "vibe hex" too, and nothing else.
+#[test]
+fn a_name_is_found_however_speech_recognition_wrote_it() {
+    let (mut ids, _) = dictations_read("Найди мои диктовки, где я говорил про VibeHex");
+    ids.sort_by_key(|id| id.parse::<u32>().unwrap());
+    assert_eq!(ids, ["6", "7", "8", "9", "10", "11", "15"]);
+    // Asked in Cyrillic, with the person's Vocabulary, the same ones.
+    let vocabulary = [crate::dictation::vocabulary::VocabularyEntry {
+        term: "VibeHex".into(),
+        sounds_like: vec!["вайб хекс".into()],
+    }];
+    let intent = intent::read("Найди мои диктовки, где я говорил про вайб хекс", now()).unwrap();
+    let found = search(
+        &allowed(),
+        &fixtures(),
+        &intent,
+        &vocabulary,
+        Budget::LARGE,
+        now(),
+        &mut |_| {},
+    );
+    let mut ids: Vec<u32> = found
+        .excerpts
+        .iter()
+        .map(|e| e.id.parse().unwrap())
+        .collect();
+    ids.sort_unstable();
+    assert_eq!(ids, [6, 7, 8, 9, 10, 11, 15]);
 }
 
 #[test]

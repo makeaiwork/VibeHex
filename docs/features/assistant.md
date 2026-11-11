@@ -221,6 +221,19 @@ Opened from an answer                            // rune_ui::assistant::jump
   search), Files records, and the History snapshot, in the time asked about,
   within a budget: 3 meetings, 2 passages each, 5,000 characters for a
   built-in model; 6, 4, and 24,000 otherwise.
+- Everything in the time asked about is searched; "the last few" (a plural
+  «последние», "last few", five unless a number is given; «последнюю», one)
+  are the newest of the matches, newest first, and the step counts all it
+  searched. Without words to search for, the newest.
+- A word counts however a transcript writes it (`recordings::spoken`): a
+  Latin name apart at its capitals ("vibe hex") and as it sounds in
+  Cyrillic, joined and apart, with the last consonant voiced or not
+  (вайбхекс, вайп хекс), each also with a case ending (вайб хексе); and,
+  from the person's Vocabulary, the term and its "sounds like" spellings,
+  whichever of them was asked («кубер» finds Kubernetes, «вайб хекс» the
+  term it spells). They reach the meeting search as vocabulary aliases
+  (a several-word form as adjacent words). The Vocabulary is read only for
+  the search and never goes to the model.
 - The prompt carries them as a numbered `<recordings>` block. A transcript
   excerpt (a meeting passage, a Files stretch) has one numbered line per
   phrase, `[2.3]` being line 3 of excerpt 2; notes, whole texts, and
@@ -250,7 +263,7 @@ Opened from an answer                            // rune_ui::assistant::jump
   button doesn't yet (Rune gives other buttons only to elements that also
   take primary presses).
 - Recordings eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
-  texts, five dictations), 28 questions with expected recordings (recall
+  texts, fifteen dictations, ten naming VibeHex, half in Cyrillic), 28 questions with expected recordings (recall
   must stay at 90% or more, now 100%), 8 questions whose cited line must be
   offered and map to its time (now 8 of 8; word-timed, segment-only, and
   Files transcripts), and 13 guide questions that must not route

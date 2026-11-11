@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use super::super::intent::Intent;
+use super::spoken::Query;
 use super::{Budget, Excerpt, Kind, Line, clip, newest, within};
 use crate::files::store::{FileRecord, VersionKind};
 use crate::meeting::query::{TextHit, search_texts};
@@ -15,7 +16,12 @@ const STRETCH_CHARS: usize = 1_200;
 /// How many Files records were in range, and the excerpts of those read:
 /// for each, its best stretches of the transcript, segment by segment, with
 /// their times.
-pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<Excerpt>) {
+pub(super) fn files(
+    dir: &Path,
+    intent: &Intent,
+    query: &Query,
+    budget: Budget,
+) -> (usize, Vec<Excerpt>) {
     // Newest first, as Files lists them.
     let records: Vec<FileRecord> = crate::files::store::list_in(dir)
         .into_iter()
@@ -23,8 +29,7 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
         .filter(|record| !record.versions.is_empty())
         .collect();
     let searched = records.len();
-    let query = intent.terms.join(" ");
-    let order: Vec<(usize, f32)> = if query.is_empty() {
+    let order: Vec<(usize, f32)> = if query.text.is_empty() {
         if intent.sure {
             (0..records.len()).map(|index| (index, 0.0)).collect()
         } else {
@@ -39,7 +44,7 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
                 texts
             })
             .collect();
-        hits(search_texts(&documents, &query, &[]))
+        hits(search_texts(&documents, &query.text, &query.aliases))
     };
     let order = newest(order, intent, |index| records[index].added_ms);
     let mut excerpts = Vec::new();
@@ -73,10 +78,10 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
             .iter()
             .map(|segment| vec![segment.text.as_str()])
             .collect();
-        let mut best: Vec<usize> = if query.is_empty() {
+        let mut best: Vec<usize> = if query.text.is_empty() {
             Vec::new()
         } else {
-            search_texts(&documents, &query, &[])
+            search_texts(&documents, &query.text, &query.aliases)
                 .map(|hits| hits.into_iter().map(|hit| hit.index).collect())
                 .unwrap_or_default()
         };
@@ -129,7 +134,12 @@ pub(super) fn files(dir: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<
 }
 
 /// How many dictations were in range, and the ones read.
-pub(super) fn dictations(path: &Path, intent: &Intent, budget: Budget) -> (usize, Vec<Excerpt>) {
+pub(super) fn dictations(
+    path: &Path,
+    intent: &Intent,
+    query: &Query,
+    budget: Budget,
+) -> (usize, Vec<Excerpt>) {
     let Ok(mut entries) = crate::history::read_snapshot(path) else {
         return (0, Vec::new());
     };
@@ -138,8 +148,7 @@ pub(super) fn dictations(path: &Path, intent: &Intent, budget: Budget) -> (usize
     // Every dictation in range is searched; "the last few" are the newest
     // of those that match, not the newest few searched.
     let searched = entries.len();
-    let query = intent.terms.join(" ");
-    let order: Vec<(usize, f32)> = if query.is_empty() {
+    let order: Vec<(usize, f32)> = if query.text.is_empty() {
         if intent.sure {
             (0..entries.len()).map(|index| (index, 0.0)).collect()
         } else {
@@ -150,7 +159,7 @@ pub(super) fn dictations(path: &Path, intent: &Intent, budget: Budget) -> (usize
             .iter()
             .map(|entry| vec![entry.final_text.as_str(), entry.raw_text.as_str()])
             .collect();
-        hits(search_texts(&documents, &query, &[]))
+        hits(search_texts(&documents, &query.text, &query.aliases))
     };
     let order = newest(order, intent, |index| entries[index].timestamp_ms);
     let excerpts = order

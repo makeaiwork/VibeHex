@@ -8,6 +8,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::super::intent::Intent;
+use super::spoken::Query;
 use super::{Budget, Excerpt, Kind, Line, clip, within};
 use crate::meeting::TranscriptEntry;
 use crate::meeting::query::{Library, Meeting, search_passages};
@@ -20,6 +21,7 @@ const PASSAGE_CHARS: usize = 600;
 pub(super) fn search(
     root: &Path,
     intent: &Intent,
+    query: &Query,
     budget: Budget,
     now_ms: u64,
 ) -> (usize, Vec<Excerpt>) {
@@ -35,8 +37,7 @@ pub(super) fn search(
         .filter(|meeting| overlaps(intent, meeting, now_ms))
         .collect();
     let searched = candidates.len();
-    let query = intent.terms.join(" ");
-    let hits = search_passages(&candidates, &query);
+    let hits = search_passages(&candidates, &query.text, &query.aliases);
     // Meetings in order of their best passage, a title naming the words
     // first; with nothing to search for, the newest.
     let mut picked: Vec<Arc<Meeting>> = Vec::new();
@@ -48,7 +49,7 @@ pub(super) fn search(
             .any(|term| title.contains(&crate::meeting::query::fold(term)))
     };
     let most = budget.meetings * 2;
-    if query.is_empty() {
+    if query.text.is_empty() {
         if intent.sure {
             let latest = intent.latest.unwrap_or(budget.meetings).min(most);
             picked.extend(candidates.iter().take(latest).cloned());

@@ -51,12 +51,13 @@ pub(super) fn recall(ui: &mut Ui, conversation: u32, question: &str) -> Option<R
     };
     match Allowed::from_settings(&ui.settings.assistant) {
         Some(allowed) => Some(match Sources::here() {
-            Some(sources) => Recall::Search(Search {
+            Some(sources) => Recall::Search(Box::new(Search {
                 allowed,
                 sources,
                 intent,
+                vocabulary: ui.settings.vocabulary.clone(),
                 now_ms: now,
-            }),
+            })),
             None => Recall::Guide,
         }),
         None if intent.sure => {
