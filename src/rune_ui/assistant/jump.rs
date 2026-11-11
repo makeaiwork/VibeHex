@@ -44,13 +44,25 @@ const LINE_KEY: &str = "cited-line";
 /// The answer a pane was opened from.
 #[derive(Clone, Debug)]
 pub(in super::super) struct CameFrom {
-    conversation: u32,
+    pub(in super::super) origin: Origin,
     /// How far the conversation was scrolled.
     scroll_y: f32,
     /// The places lit, until the cross clears them.
     pub(in super::super) cited: Option<Cited>,
     /// The current place still has to land, once its item shows.
     land: bool,
+}
+
+/// Where the answer was: an Assistant conversation, or a session in a
+/// meeting's or a file's Requests, where Back returns.
+#[derive(Clone, Debug, PartialEq)]
+pub(in super::super) enum Origin {
+    Assistant(u32),
+    Requests {
+        kind: Kind,
+        id: String,
+        session: u32,
+    },
 }
 
 /// The places one answer cites in one item.
@@ -184,11 +196,26 @@ pub(super) fn open(
     else {
         return;
     };
-    let Some(target) = turn.refs.iter().find(|cited| cited.n == n).cloned() else {
+    let (question, refs) = (turn.question.clone(), turn.refs.clone());
+    let scroll_y = ui.assistant.scroll_y.get();
+    let origin = Origin::Assistant(conversation);
+    open_from(ui, (origin, scroll_y), (&question, &refs), n, mark, tx);
+}
+
+/// Opens place `n` of an answer to `question` citing `refs`, read at
+/// `origin` scrolled to `scroll_y`, where Back returns.
+pub(in super::super) fn open_from(
+    ui: &mut Ui,
+    (origin, scroll_y): (Origin, f32),
+    (question, refs): (&str, &[Ref]),
+    n: u32,
+    mark: Option<u32>,
+    tx: &mut Tx,
+) {
+    let Some(target) = refs.iter().find(|cited| cited.n == n).cloned() else {
         return;
     };
-    let cited = places(&turn.question, &turn.refs, &target, mark);
-    let scroll_y = ui.assistant.scroll_y.get();
+    let cited = places(question, refs, &target, mark);
     match target.kind {
         Kind::Meeting => {
             ui.select_pane(Pane::Meetings, tx);
@@ -213,7 +240,7 @@ pub(super) fn open(
     let lit = !cited.places.is_empty();
     let lands = landing(&cited);
     ui.came_from = Some(CameFrom {
-        conversation,
+        origin,
         scroll_y,
         cited: lit.then_some(cited),
         land: lit,
@@ -365,7 +392,7 @@ pub(super) fn scene(
     current: usize,
 ) -> CameFrom {
     CameFrom {
-        conversation: 1,
+        origin: Origin::Assistant(1),
         scroll_y: 0.0,
         cited: Some(Cited {
             kind,
@@ -391,13 +418,34 @@ pub(in super::super) fn back(ui: &mut Ui, tx: &mut Tx) {
     let Some(from) = ui.came_from.take() else {
         return;
     };
+    let conversation = match from.origin {
+        Origin::Assistant(conversation) => conversation,
+        Origin::Requests {
+            kind: Kind::Meeting,
+            id,
+            session,
+        } => {
+            return super::super::meeting_tabs::linked::reopen(ui, &id, session, from.scroll_y, tx);
+        }
+        Origin::Requests { id, session, .. } => {
+            return super::super::files::linked::reopen(ui, &id, session, from.scroll_y, tx);
+        }
+    };
     ui.select_pane(Pane::Assistant, tx);
     let pane = &mut ui.assistant;
-    if pane.store.get(from.conversation).is_some() {
-        pane.open = Some(from.conversation);
+    if pane.store.get(conversation).is_some() {
+        pane.open = Some(conversation);
         pane.view = super::View::Chat;
         tx.scroll_to_y("assistant-scroll", from.scroll_y);
     }
+}
+
+/// The Requests session the open pane came from, if it did.
+pub(in super::super) fn from_requests(ui: &Ui) -> Option<&Origin> {
+    ui.came_from
+        .as_ref()
+        .map(|from| &from.origin)
+        .filter(|origin| matches!(origin, Origin::Requests { .. }))
 }
 
 /// ⌘[ (Ctrl+[ off macOS) goes back while there is somewhere to go.
@@ -423,7 +471,13 @@ pub(in super::super) fn back_button(ui: &Ui, p: Paint) -> Option<El> {
     }
     let c = &p.k.c;
     let accent = p.accent();
-    let label = tr("Back to Assistant");
+    // From a meeting's or a file's Requests: back there, without the face.
+    let requests = from_requests(ui).is_some();
+    let label = if requests {
+        tr("Back to Requests")
+    } else {
+        tr("Back to Assistant")
+    };
     Some(
         row()
             .key("back-to-assistant")
@@ -443,13 +497,15 @@ pub(in super::super) fn back_button(ui: &Ui, p: Paint) -> Option<El> {
             .press(p.k.alpha(accent, 0.22))
             .on_press_tx(back)
             .child(icon(&CHEVRON_LEFT, 14.0).key("chevron").color(accent))
-            .child(face(
-                "face",
-                16.0,
-                accent,
-                accent,
-                ui.assistant.face.mood(false, true),
-            ))
+            .children((!requests).then(|| {
+                face(
+                    "face",
+                    16.0,
+                    accent,
+                    accent,
+                    ui.assistant.face.mood(false, true),
+                )
+            }))
             .child(
                 text(label)
                     .key("label")

@@ -323,6 +323,7 @@ fn floating(p: Paint, pane: &super::FilesPane, body: El, ask: El) -> El {
     let bg = p.k.c.bg_base;
     let body = body.child(rune::el().key("field-room").h(room));
     let text = ld::card_scroll(p, "file-text", body)
+        .on_scroll_offset(pane.scroll_y.follow())
         .on_at_bottom(|ui: &mut Ui, at: bool| ui.files.text_under = !at);
     let veil = rune::el()
         .key("field-veil")

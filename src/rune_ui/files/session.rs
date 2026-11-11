@@ -48,32 +48,55 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
         chat = chat.child(bubble(p, "asked0", first));
     }
     let session = version.id;
-    chat = chat.child(answer(
-        p,
-        Answered {
-            key: "answer0".into(),
-            question: first,
-            answer: &version.text,
-            model: &version.model,
-            created_ms: version.created_ms,
-            now_ms: crate::files::store::now_ms(),
-            stopped: version.stopped,
-        },
-        move |ui: &mut Ui, question| ask_again(ui, session, question),
-    ));
-    for (index, asked) in version.follow_ups.iter().enumerate() {
-        chat = chat.child(bubble(p, &format!("asked{}", index + 1), &asked.question));
-        chat = chat.child(answer(
+    let first_turn = (first, &version.text, &version.model, version.created_ms);
+    let turns = std::iter::once((
+        first_turn,
+        version.stopped,
+        &version.linked,
+        version.seconds,
+    ))
+    .chain(version.follow_ups.iter().map(|asked| {
+        let turn = (
+            asked.question.as_str(),
+            &asked.answer,
+            &asked.model,
+            asked.created_ms,
+        );
+        (turn, asked.stopped, &asked.linked, asked.seconds)
+    }));
+    for (index, ((question, answer, model, created_ms), stopped, reached, seconds)) in
+        turns.enumerate()
+    {
+        if index > 0 {
+            chat = chat.child(bubble(p, &format!("asked{index}"), question));
+        }
+        let origin = super::super::assistant::jump::Origin::Requests {
+            kind: crate::assistant::recordings::Kind::File,
+            id: record.id.clone(),
+            session,
+        };
+        let unfolded = ui.files.unfolded.contains(&(session, index));
+        chat = chat.child(super::linked::answer(
             p,
             Answered {
-                key: format!("answer{}", index + 1),
-                question: &asked.question,
-                answer: &asked.answer,
-                model: &asked.model,
-                created_ms: asked.created_ms,
+                key: format!("answer{index}"),
+                question,
+                answer,
+                model,
+                created_ms,
                 now_ms: crate::files::store::now_ms(),
-                stopped: asked.stopped,
+                stopped,
             },
+            (reached, seconds),
+            ((origin, index), unfolded, move |ui: &mut Ui| {
+                let unfolded = &mut ui.files.unfolded;
+                match unfolded.iter().position(|at| *at == (session, index)) {
+                    Some(at) => {
+                        unfolded.remove(at);
+                    }
+                    None => unfolded.push((session, index)),
+                }
+            }),
             move |ui: &mut Ui, question| ask_again(ui, session, question),
         ));
     }
@@ -82,9 +105,10 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
         .tasks_of(&record.id)
         .find(|task| task.session == Some(version.id))
     {
-        chat = chat.children(answering(p, task));
+        let coming = super::linked::coming(p, task);
+        chat = chat.children(coming.unwrap_or_else(|| answering(p, task)));
     }
-    chat
+    chat.children(super::linked::waiting(ui, p, Some(session)))
 }
 
 /// Room a question's bubble always leaves on its left, so in a narrow
@@ -268,15 +292,20 @@ fn ask_again(ui: &mut Ui, session: u32, question: String) {
     if super::composer::running(ui, Target::Session(session)).is_some() {
         return;
     }
-    let Some(record) = ui.files.selected.clone() else {
+    let Some(record) = ui.files.selected().cloned() else {
+        return;
+    };
+    let from = super::linked::source(&record, session);
+    let Some(recall) = super::linked::files_recall(ui, &record, (Some(session), from), &question)
+    else {
         return;
     };
     let job = Job::FollowUp {
         session,
         question,
-        recall: crate::assistant::worker::Recall::Guide,
+        recall,
     };
-    submit(ui, &record, job);
+    submit(ui, &record.id, job);
     ui.files.stale = true;
 }
 

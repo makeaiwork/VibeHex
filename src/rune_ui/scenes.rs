@@ -637,6 +637,23 @@ pub(super) const SCENES: &[Scene] = &[
         ui.open = Some(super::Menu::Pick("meeting-sessions"));
         ui.pane = Pane::Meetings;
     }),
+    // A question that read other recordings, and one waiting for leave.
+    ("meetings-requests-linked", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::linked::fixture(ui, "preview-notes", false);
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-requests-consent", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::linked::fixture(ui, "preview-notes", true);
+        ui.pane = Pane::Meetings;
+    }),
     ("meetings-prompt", |ui| {
         *ui = mac_fixture();
         meetings_on_codex(ui);
@@ -731,6 +748,17 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::setup_fixture::setup_result,
     ),
     ("meetings-cited", assistant::fixture::meeting_cited),
+    // Opened from a meeting's Requests: Back to Requests.
+    ("meetings-cited-requests", |ui| {
+        assistant::fixture::meeting_cited(ui);
+        if let Some(from) = ui.came_from.as_mut() {
+            from.origin = assistant::jump::Origin::Requests {
+                kind: crate::assistant::recordings::Kind::Meeting,
+                id: "preview-arcade".into(),
+                session: 3,
+            };
+        }
+    }),
     ("files-cited", assistant::fixture::file_cited),
     (
         "files-cited-listening",

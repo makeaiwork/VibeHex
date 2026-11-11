@@ -4,6 +4,7 @@
 //! has no notes yet, opens on its transcript.
 
 mod chips;
+pub(super) mod linked;
 pub(super) mod requests;
 
 use rune::{El, Shadow, TextStyle, col, el, row, text};

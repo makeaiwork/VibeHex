@@ -16,6 +16,8 @@
 //! What a question may read is decided here (`recall`): only the question's
 //! words before the person has agreed (`assistant::intent`).
 
+use std::rc::Rc;
+
 use rune::{El, Icon, LinkPaint, Span, Tx, col, el, icon, row, text};
 
 use super::super::Ui;
@@ -88,7 +90,6 @@ pub(super) fn recall(ui: &mut Ui, conversation: u32, question: &str) -> Option<R
 
 /// The question waiting, the face saying why, and the card.
 pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
-    let c = &p.k.c;
     let engine = super::engine(&ui.settings, None, None);
     let engine = match ui.assistant.store.get(pending.conversation) {
         Some(conversation) => super::engine(
@@ -98,6 +99,44 @@ pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
         ),
         None => engine,
     };
+    let card = consent_card(
+        p,
+        &engine,
+        tr("Answer without recordings"),
+        |ui: &mut Ui, allow| decide(ui, allow),
+    );
+    let words = col()
+        .key("words")
+        .grow(1.0)
+        .shrink()
+        .min_w(0.0)
+        .gap(10.0)
+        .child(
+            text(tr(
+                "This is a question about your recordings. To answer, I need to read them.",
+            ))
+            .key("why")
+            .font(p.k.ty.ui)
+            .color(p.reading())
+            .wrap(),
+        )
+        .child(card);
+    vec![
+        session::bubble(p, "waiting", &pending.question),
+        super::feed::beside_face(p, "consent-face", Mood::default(), words),
+    ]
+}
+
+/// The card asking to read the person's recordings: what goes to the
+/// model `engine` names, Allow, and `without` (answering without them);
+/// `decide` takes the choice. Requests show it too.
+pub(in super::super) fn consent_card(
+    p: Paint,
+    engine: &crate::files::rewrite::Engine,
+    without: &str,
+    decide: impl Fn(&mut Ui, bool) + Clone + 'static,
+) -> El {
+    let c = &p.k.c;
     let goes = if engine.is_local() {
         tr("VibeHex searches them on this computer. The model that reads the passages runs here too.")
             .to_owned()
@@ -107,7 +146,8 @@ pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
             &engine.model_name(),
         )
     };
-    let card = row()
+    let refuse = decide.clone();
+    row()
         .key("consent")
         .gap(12.0)
         .items_start()
@@ -161,37 +201,17 @@ pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
                             "allow",
                             tr("Allow"),
                             ButtonKind::Primary,
-                            |ui, _| decide(ui, true),
+                            move |ui, _| decide(ui, true),
                         ))
                         .child(button(
                             p,
                             "without",
-                            tr("Answer without recordings"),
+                            without,
                             ButtonKind::Secondary,
-                            |ui, _| decide(ui, false),
+                            move |ui, _| refuse(ui, false),
                         )),
                 ),
-        );
-    let words = col()
-        .key("words")
-        .grow(1.0)
-        .shrink()
-        .min_w(0.0)
-        .gap(10.0)
-        .child(
-            text(tr(
-                "This is a question about your recordings. To answer, I need to read them.",
-            ))
-            .key("why")
-            .font(p.k.ty.ui)
-            .color(p.reading())
-            .wrap(),
         )
-        .child(card);
-    vec![
-        session::bubble(p, "waiting", &pending.question),
-        super::feed::beside_face(p, "consent-face", Mood::default(), words),
-    ]
 }
 
 /// Allow (remembered) or answer from the guide alone; then asks.
@@ -219,16 +239,28 @@ fn decide(ui: &mut Ui, allow: bool) {
 
 /// While it works: each step with a check, then the current one.
 pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
-    if answering.steps.is_empty() && !answering.searching {
+    let drafted = !answering.draft.trim().is_empty();
+    live_steps(p, &answering.steps, answering.searching, drafted)
+}
+
+/// The search's `steps` so far, each with a check, then what goes on: the
+/// search while `searching`, else the answer until it is `drafted`.
+pub(in super::super) fn live_steps(
+    p: Paint,
+    steps: &[Step],
+    searching: bool,
+    drafted: bool,
+) -> Option<El> {
+    if steps.is_empty() && !searching {
         return None;
     }
     let mut list = col().key("steps").gap(6.0);
-    for (index, step) in answering.steps.iter().enumerate() {
+    for (index, step) in steps.iter().enumerate() {
         list = list.child(step_line(p, &format!("step{index}"), true, &say(step)));
     }
-    let doing = if answering.searching {
+    let doing = if searching {
         tr("Searching your recordings")
-    } else if answering.draft.trim().is_empty() {
+    } else if !drafted {
         tr("Writing the answer")
     } else {
         return Some(list);
@@ -335,20 +367,54 @@ pub(super) fn folded(
     index: usize,
     turn: &Turn,
 ) -> Option<El> {
-    if turn.steps.is_empty() {
+    let open = ui.assistant.unfolded.contains(&(conversation, index));
+    steps_folded(
+        p,
+        (&turn.steps, false),
+        turn.seconds,
+        open,
+        move |ui: &mut Ui| {
+            let unfolded = &mut ui.assistant.unfolded;
+            match unfolded.iter().position(|at| *at == (conversation, index)) {
+                Some(at) => {
+                    unfolded.remove(at);
+                }
+                None => unfolded.push((conversation, index)),
+            }
+        },
+    )
+}
+
+/// `steps` folded into one line, "Read 4 meetings and 1 file in 9 s ›"
+/// ("2 other meetings" when they are `other` than the item asked about),
+/// listed under it while `open`; a press calls `toggle`.
+pub(in super::super) fn steps_folded(
+    p: Paint,
+    (steps, other): (&[Step], bool),
+    seconds: f32,
+    open: bool,
+    toggle: impl Fn(&mut Ui) + 'static,
+) -> Option<El> {
+    if steps.is_empty() {
         return None;
     }
     let c = &p.k.c;
     let mut read = Vec::new();
-    for step in &turn.steps {
+    for step in steps {
         match *step {
+            Step::Meetings { found, .. } if found > 0 && other => {
+                read.push(counted(found, "1 other meeting", "{} other meetings"));
+            }
+            Step::Files { found, .. } if found > 0 && other => {
+                read.push(counted(found, "1 other file", "{} other files"));
+            }
             Step::Meetings { found, .. } if found > 0 => read.push(meetings(found)),
             Step::Files { found, .. } if found > 0 => read.push(files(found)),
             Step::Dictations { found, .. } if found > 0 => read.push(dictations(found)),
             _ => {}
         }
     }
-    let seconds = format!("{:.0}", turn.seconds.max(1.0));
+    let seconds = format!("{:.0}", seconds.max(1.0));
     let line = match read.as_slice() {
         [] => tr_fill("Found nothing in your recordings in {} s", &seconds),
         [one] => tr_named(
@@ -369,7 +435,6 @@ pub(super) fn folded(
             ],
         ),
     };
-    let open = ui.assistant.unfolded.contains(&(conversation, index));
     let toggle = row()
         .key("folded")
         .role("button")
@@ -398,19 +463,11 @@ pub(super) fn folded(
             .key("chevron")
             .color(c.icon_muted),
         )
-        .on_press(move |ui: &mut Ui| {
-            let unfolded = &mut ui.assistant.unfolded;
-            match unfolded.iter().position(|at| *at == (conversation, index)) {
-                Some(at) => {
-                    unfolded.remove(at);
-                }
-                None => unfolded.push((conversation, index)),
-            }
-        });
+        .on_press(toggle);
     let mut shown = col().key("searched").gap(6.0).child(toggle);
     if open {
         let mut list = col().key("steps").gap(6.0).pl(2.0);
-        for (index, step) in turn.steps.iter().enumerate() {
+        for (index, step) in steps.iter().enumerate() {
             list = list.child(step_line(p, &format!("step{index}"), true, &say(step)));
         }
         shown = shown.child(list);
@@ -424,6 +481,26 @@ pub(super) fn answer(
     p: Paint,
     answer: &str,
     from: Option<(u32, usize)>,
+    muted: bool,
+    streaming: bool,
+) -> El {
+    let open = from.map(|from| -> Open {
+        Rc::new(move |ui: &mut Ui, n, mark, tx: &mut Tx| {
+            super::jump::open(ui, from, n, mark, tx);
+        })
+    });
+    answer_with(p, answer, open, muted, streaming)
+}
+
+/// Opens place `n` of one answer: the lines its `mark`-th `[n]` cites, or
+/// its first place for a chip.
+pub(in super::super) type Open = Rc<dyn Fn(&mut Ui, u32, Option<u32>, &mut Tx)>;
+
+/// An answer, its `[n]` as small numbered marks that `open` their place.
+pub(in super::super) fn answer_with(
+    p: Paint,
+    answer: &str,
+    open: Option<Open>,
     muted: bool,
     streaming: bool,
 ) -> El {
@@ -454,8 +531,8 @@ pub(super) fn answer(
             let Some((n, mark)) = url.strip_prefix(REF).and_then(|id| id.split_once('.')) else {
                 return;
             };
-            if let (Some(from), Ok(n), Ok(mark)) = (from, n.parse(), mark.parse()) {
-                super::jump::open(ui, from, n, Some(mark), tx);
+            if let (Some(open), Ok(n), Ok(mark)) = (&open, n.parse(), mark.parse()) {
+                open(ui, n, Some(mark), tx);
             }
         })
         .build(k)
@@ -517,11 +594,20 @@ const GAP: &str = "\u{202f}\u{202f}";
 const PUNCTUATION: &str = ".,;:!?…";
 
 /// "From your recordings" and the places cited, each opening its place.
-pub(super) fn chips(
+pub(super) fn chips(p: Paint, refs: &[Ref], now: u64, from: (u32, usize)) -> Option<El> {
+    let open: Open = Rc::new(move |ui: &mut Ui, n, mark, tx: &mut Tx| {
+        super::jump::open(ui, from, n, mark, tx);
+    });
+    chips_with(p, refs, now, tr("From your recordings"), open)
+}
+
+/// `label` and the places `refs` cite, each chip calling `open`.
+pub(in super::super) fn chips_with(
     p: Paint,
     refs: &[Ref],
     now: u64,
-    (conversation, index): (u32, usize),
+    label: &str,
+    open: Open,
 ) -> Option<El> {
     if refs.is_empty() {
         return None;
@@ -537,7 +623,7 @@ pub(super) fn chips(
         .center_y()
         .flex_wrap()
         .child(
-            text(tr("From your recordings"))
+            text(label.to_owned())
                 .key("label")
                 .font(small)
                 .color(p.faint()),
@@ -556,6 +642,7 @@ pub(super) fn chips(
         };
         let at = session::when(cited.at_ms, now);
         let label = format!("{} {title}, {at}", cited.n);
+        let open = open.clone();
         line = line.child(
             row()
                 .key(format!("ref{}", cited.n))
@@ -589,9 +676,7 @@ pub(super) fn chips(
                         .max_lines(1),
                 )
                 .child(text(at).key("at").font(small).color(p.faint()).max_lines(1))
-                .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| {
-                    super::jump::open(ui, (conversation, index), cited.n, None, tx);
-                }),
+                .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| open(ui, cited.n, None, tx)),
         );
     }
     Some(line)

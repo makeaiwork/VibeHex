@@ -9,13 +9,18 @@
 use rune::{El, TextEdit, col, el, icon, row, text};
 use rune_kit::{Placement, Popover};
 
+use super::super::assistant::ScrollAt;
+use super::super::assistant::jump::Origin;
 use super::super::controls::{DESCRIPTION, Paint};
 use super::super::files::composer;
+use super::super::files::linked::{self, Pending};
 use super::super::files::session::{self, Answered};
 use super::super::list_detail as ld;
 use super::super::meetings::{Meeting, Status, clock_offset, transcript_markdown};
 use super::super::{Menu, Pane, Ui};
 use super::MeetingTab;
+use crate::assistant::recordings::Kind;
+use crate::assistant::worker::Recall;
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::files::tidy;
 use crate::files::worker::{self, Config, Job, Task};
@@ -36,10 +41,17 @@ const FIELD_BOTTOM: f32 = 14.0;
 #[derive(Default)]
 pub(in super::super) struct RequestsPane {
     /// The meeting whose sessions are loaded.
-    meeting: Option<String>,
-    sessions: Vec<Session>,
+    pub(super) meeting: Option<String>,
+    pub(super) sessions: Vec<Session>,
     /// The open session; `None` while a new one is written.
-    open: Option<u32>,
+    pub(super) open: Option<u32>,
+    /// A question reaching past the meeting, waiting for leave to read the
+    /// person's other recordings.
+    pub(super) consent: Option<Pending>,
+    /// Answers whose search steps are open, by session and turn.
+    pub(super) unfolded: Vec<(u32, usize)>,
+    /// How far the session is scrolled, to come back to.
+    pub(super) scroll_y: ScrollAt,
     pub(super) ask: TextEdit,
     /// The model and reasoning a new session starts on; `None` follows
     /// Files › Settings.
@@ -50,7 +62,7 @@ pub(in super::super) struct RequestsPane {
     composer_h: f32,
     text_under: bool,
     woken: bool,
-    fixture: bool,
+    pub(super) fixture: bool,
 }
 
 /// Whether `meeting` has the tab: a finished meeting with a transcript,
@@ -322,6 +334,13 @@ pub(in super::super) fn chat(ui: &Ui, p: Paint) -> El {
         );
     }
     let Some(session) = session else {
+        if pane
+            .consent
+            .as_ref()
+            .is_some_and(|pending| pending.session.is_none())
+        {
+            return chat.children(waiting(ui, p, None));
+        }
         return chat.child(
             text(tr(
                 "Ask about decisions, tasks, or who said what. Answers come from the transcript",
@@ -333,10 +352,17 @@ pub(in super::super) fn chat(ui: &Ui, p: Paint) -> El {
         );
     };
     let id = session.id;
+    let meeting = pane.meeting.clone().unwrap_or_default();
     for (index, turn) in session.turns.iter().enumerate() {
+        let origin = Origin::Requests {
+            kind: Kind::Meeting,
+            id: meeting.clone(),
+            session: id,
+        };
+        let unfolded = pane.unfolded.contains(&(id, index));
         chat = chat
             .child(session::bubble(p, &format!("asked{index}"), &turn.question))
-            .child(session::answer(
+            .child(linked::answer(
                 p,
                 Answered {
                     key: format!("answer{index}"),
@@ -347,15 +373,49 @@ pub(in super::super) fn chat(ui: &Ui, p: Paint) -> El {
                     now_ms: crate::files::store::now_ms(),
                     stopped: turn.stopped,
                 },
+                (&turn.linked, turn.seconds),
+                ((origin, index), unfolded, move |ui: &mut Ui| {
+                    let unfolded = &mut ui.meetings.requests.unfolded;
+                    match unfolded.iter().position(|at| *at == (id, index)) {
+                        Some(at) => {
+                            unfolded.remove(at);
+                        }
+                        None => unfolded.push((id, index)),
+                    }
+                }),
                 move |ui: &mut Ui, question| {
-                    ask(ui, Some(id), question);
+                    put(ui, Some(id), question);
                 },
             ));
     }
     if let Some(task) = running(ui, id) {
-        chat = chat.children(session::answering(p, task));
+        chat =
+            chat.children(linked::coming(p, task).unwrap_or_else(|| session::answering(p, task)));
     }
-    chat
+    chat.children(waiting(ui, p, Some(id)))
+}
+
+/// The question waiting for leave to read other recordings, in `session`
+/// (none: a new one), and the card.
+fn waiting(ui: &Ui, p: Paint, session: Option<u32>) -> Vec<El> {
+    let pane = &ui.meetings.requests;
+    let Some(pending) = pane
+        .consent
+        .as_ref()
+        .filter(|pending| pending.session == session)
+    else {
+        return Vec::new();
+    };
+    let (engine, effort) = chosen(ui, session);
+    let engine =
+        Config::from_settings(&ui.settings).request_engine(engine.as_deref(), effort.as_deref());
+    vec![linked::consent(
+        p,
+        pending,
+        &engine,
+        super::linked::decide,
+        |ui| ui.meetings.requests.consent.as_mut(),
+    )]
 }
 
 /// The tab's text with the field floating over its bottom, as Files has it.
@@ -383,6 +443,7 @@ pub(in super::super) fn stage(
     let bg = p.k.c.bg_base;
     let body = body.child(el().key("field-room").h(room));
     let text = ld::card_scroll(p, "meeting-requests", body)
+        .on_scroll_offset(pane.scroll_y.follow())
         .on_at_bottom(|ui: &mut Ui, at: bool| ui.meetings.requests.text_under = !at);
     let veil = el()
         .key("field-veil")
@@ -558,14 +619,49 @@ fn send(ui: &mut Ui, session: Option<u32>) {
     if question.is_empty() || session.is_some_and(|id| running(ui, id).is_some()) {
         return;
     }
-    if ask(ui, session, question.clone()) {
+    if put(ui, session, question.clone()) {
         ui.meetings.requests.ask = TextEdit::default();
         super::chips::remember(ui, &question);
     }
 }
 
-/// Asks `question` in session `session`, or in a new session named by it.
+/// Asks a typed `question` in `session` (or a new one), reading the
+/// person's other recordings when it reaches past the meeting; while they
+/// haven't allowed that, the question waits for the card. A chip's name
+/// reads the meeting alone.
+fn put(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
+    let chip = question.trim() == tr(TIDY) || super::chips::prompt(ui, &question).is_some();
+    let meeting = ui
+        .meetings
+        .selected
+        .as_deref()
+        .and_then(|id| ui.meetings.meetings.iter().find(|meeting| meeting.id == id))
+        .cloned();
+    let (Some(meeting), false) = (meeting, chip) else {
+        return ask(ui, session, question);
+    };
+    ui.meetings.requests.consent = None;
+    let transcript = transcript(&meeting);
+    match super::linked::recall(ui, &meeting, &transcript, session, &question) {
+        Some(recall) => ask_with(ui, session, question, recall),
+        None => true,
+    }
+}
+
+/// Asks `question` in session `session`, or in a new session named by it,
+/// reading the meeting alone.
 pub(super) fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
+    ask_with(ui, session, question, Recall::Guide)
+}
+
+/// Asks `question` in `session` (or a new one), reading what `recall`
+/// allows past the meeting.
+pub(super) fn ask_with(
+    ui: &mut Ui,
+    session: Option<u32>,
+    question: String,
+    recall: Recall,
+) -> bool {
     let Some(meeting) = ui
         .meetings
         .selected
@@ -610,7 +706,7 @@ pub(super) fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
         prompt,
         transcript,
         tidy,
-        recall: crate::assistant::worker::Recall::Guide,
+        recall,
     };
     if worker::submit(
         &store::record(&id),
@@ -647,7 +743,7 @@ fn lines(meeting: &Meeting) -> Vec<tidy::Line> {
 
 /// What the model reads: the meeting's title, when it was, and its
 /// transcript with who spoke and when.
-fn transcript(meeting: &Meeting) -> String {
+pub(super) fn transcript(meeting: &Meeting) -> String {
     let status = match meeting.status {
         Status::Interrupted | Status::Failed => {
             "\n(A draft recovered from an interrupted recording.)"
