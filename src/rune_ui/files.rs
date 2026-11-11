@@ -363,6 +363,8 @@ impl FilesPane {
             draft: None,
             session: None,
             question: None,
+            steps: Vec::new(),
+            searching: false,
         };
         Self {
             records: vec![
@@ -434,6 +436,7 @@ impl FilesPane {
                 seconds: 14,
                 created_ms: FIXTURE_NOW_MS - 20 * 60_000,
                 stopped: false,
+                ..FollowUp::default()
             });
         }
         pane.tasks.insert(
@@ -456,6 +459,8 @@ impl FilesPane {
                 }),
                 session: Some(3),
                 question: Some("Which numbers did they disagree on?".into()),
+                steps: Vec::new(),
+                searching: false,
             },
         );
         pane
@@ -494,6 +499,8 @@ impl FilesPane {
                 }),
                 session: None,
                 question: None,
+                steps: Vec::new(),
+                searching: false,
             },
         );
         pane.tab = Some(Tab::Task(3));

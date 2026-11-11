@@ -18,6 +18,7 @@ use super::super::controls::Paint;
 use super::actions::{menu_open, toggle};
 use super::detail::{self, current};
 use super::{Tab, settings, submit};
+use crate::assistant::worker::Recall;
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::codex;
 use crate::files::rewrite::Engine;
@@ -572,7 +573,12 @@ fn send(ui: &mut Ui, target: Target, question: String) {
     };
     match target {
         Target::Session(session) => {
-            submit(ui, &record.id, Job::FollowUp { session, question });
+            let job = Job::FollowUp {
+                session,
+                question,
+                recall: Recall::Guide,
+            };
+            submit(ui, &record.id, job);
             ui.files.stale = true;
         }
         Target::New => {
@@ -618,6 +624,7 @@ pub(super) fn start(
         titled: typed,
         engine: ui.files.ask_engine.clone(),
         effort: ui.files.ask_effort.clone(),
+        recall: Recall::Guide,
     };
     if let Some(task) = submit(ui, &record.id, job) {
         ui.files.tab = Some(Tab::Task(task));

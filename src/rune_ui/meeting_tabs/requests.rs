@@ -610,6 +610,7 @@ pub(super) fn ask(ui: &mut Ui, session: Option<u32>, question: String) -> bool {
         prompt,
         transcript,
         tidy,
+        recall: crate::assistant::worker::Recall::Guide,
     };
     if worker::submit(
         &store::record(&id),
@@ -673,6 +674,7 @@ pub(in super::super) fn fixture(ui: &mut Ui, meeting: &str) {
         seconds: 6,
         created_ms: now.saturating_sub(ago * 60_000),
         stopped: false,
+        ..FollowUp::default()
     };
     let sessions = vec![
         Session {

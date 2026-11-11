@@ -271,7 +271,12 @@ fn ask_again(ui: &mut Ui, session: u32, question: String) {
     let Some(record) = ui.files.selected.clone() else {
         return;
     };
-    submit(ui, &record, Job::FollowUp { session, question });
+    let job = Job::FollowUp {
+        session,
+        question,
+        recall: crate::assistant::worker::Recall::Guide,
+    };
+    submit(ui, &record, job);
     ui.files.stale = true;
 }
 

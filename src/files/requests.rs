@@ -11,10 +11,12 @@ use std::time::Instant;
 
 use color_eyre::eyre::{Result, eyre};
 
+use super::linked::{self, Reading};
 use super::rewrite::{self, DraftKind, Drafts};
 use super::store::{self, FollowUp, Version, VersionKind};
 use super::tidy;
 use super::worker::{Config, Stage, Task, drafts, source, update_task};
+use crate::assistant::worker::Recall;
 
 /// What a typed request adds, so the model names it in the same reply.
 const TITLE_ASK: &str = "Begin your reply with one line: \"Title: \" and a name for this \
@@ -86,6 +88,7 @@ pub struct Asked<'a> {
 pub(super) fn request(
     task: &Task,
     asked: Asked<'_>,
+    recall: &Recall,
     config: &Config,
     cancel: &AtomicBool,
 ) -> Result<()> {
@@ -98,12 +101,9 @@ pub(super) fn request(
         task.model = Some(model.clone());
     });
     let started = Instant::now();
-    let (kept, drafts) = keeping(task.id, asked.titled);
-    let prompt = if asked.titled {
-        format!("{}\n\n{TITLE_ASK}", asked.prompt)
-    } else {
-        asked.prompt.to_owned()
-    };
+    let reading = linked::read(task.id, recall, &engine);
+    let (kept, drafts) = keeping(task.id, asked.titled, reading.cites());
+    let prompt = with_reading(asked.prompt, &reading, asked.titled);
     let made = rewrite::request(
         &engine,
         &prompt,
@@ -140,6 +140,7 @@ pub(super) fn request(
     } else {
         (None, made.text)
     };
+    let (text, linked) = reading.settle(&text);
     let effort = engine.effort().map(str::to_owned);
     store::update(&task.record, |record| {
         let name = record.unique_name(title.as_deref().unwrap_or(asked.name));
@@ -158,6 +159,7 @@ pub(super) fn request(
             stopped,
             engine: asked.engine.map(str::to_owned),
             effort: asked.effort.map(str::to_owned).or(effort),
+            linked,
             ..Version::default()
         });
     })?;
@@ -169,6 +171,7 @@ pub(super) fn follow_up(
     task: &Task,
     session: u32,
     question: &str,
+    recall: &Recall,
     config: &Config,
     cancel: &AtomicBool,
 ) -> Result<()> {
@@ -194,9 +197,14 @@ pub(super) fn follow_up(
             .iter()
             .map(|asked| (asked.question.as_str(), asked.answer.as_str())),
     );
-    let prompt = rewrite::follow_up_prompt(&earlier, question);
     let started = Instant::now();
-    let (kept, drafts) = keeping(task.id, false);
+    let reading = linked::read(task.id, recall, &engine);
+    let prompt = with_reading(
+        &rewrite::follow_up_prompt(&earlier, question),
+        &reading,
+        false,
+    );
+    let (kept, drafts) = keeping(task.id, false, reading.cites());
     let made = rewrite::request(
         &engine,
         &prompt,
@@ -219,6 +227,7 @@ pub(super) fn follow_up(
             None => return Err(error),
         },
     };
+    let (answer, linked) = reading.settle(&answer);
     store::update(&task.record, |record| {
         if let Some(version) = record.version_mut(session) {
             version.follow_ups.push(FollowUp {
@@ -228,6 +237,7 @@ pub(super) fn follow_up(
                 seconds: started.elapsed().as_secs(),
                 created_ms: store::now_ms(),
                 stopped,
+                linked,
             });
         }
     })?;
@@ -247,6 +257,7 @@ pub(super) fn meeting(
     session: u32,
     asked: (&str, Option<&str>),
     (transcript, tidy): (&str, Option<&[tidy::Line]>),
+    recall: &Recall,
     config: &Config,
     cancel: &AtomicBool,
 ) -> Result<()> {
@@ -254,7 +265,15 @@ pub(super) fn meeting(
         .ok_or_else(|| eyre!("That isn't a meeting."))?;
     let answered = match tidy {
         Some(lines) => meeting_tidy(task, id, session, asked.0, lines, config, cancel),
-        None => meeting_answer(task, id, session, asked, transcript, config, cancel),
+        None => meeting_answer(
+            task,
+            id,
+            session,
+            asked,
+            (transcript, recall),
+            config,
+            cancel,
+        ),
     };
     if answered.is_err()
         && let Err(error) = crate::meeting::requests::drop_if_empty(id, session)
@@ -271,7 +290,7 @@ fn meeting_answer(
     id: &str,
     session: u32,
     (question, chip): (&str, Option<&str>),
-    transcript: &str,
+    (transcript, recall): (&str, &Recall),
     config: &Config,
     cancel: &AtomicBool,
 ) -> Result<()> {
@@ -294,18 +313,15 @@ fn meeting_answer(
     // A new session's first question names it in the same reply.
     let titled = earlier.is_empty() && chip.is_none();
     let asks = chip.unwrap_or(question);
-    let prompt = if titled {
-        format!("{MEETING_GUIDE}\n\n{}\n\n{TITLE_ASK}", asks.trim())
-    } else if earlier.is_empty() {
-        format!("{MEETING_GUIDE}\n\n{}", asks.trim())
-    } else {
-        format!(
-            "{MEETING_GUIDE}\n\n{}",
-            rewrite::follow_up_prompt(&earlier, asks)
-        )
-    };
     let started = Instant::now();
-    let (kept, drafts) = keeping(task.id, titled);
+    let reading = linked::read(task.id, recall, &engine);
+    let asks = if earlier.is_empty() {
+        asks.trim().to_owned()
+    } else {
+        rewrite::follow_up_prompt(&earlier, asks)
+    };
+    let prompt = with_reading(&format!("{MEETING_GUIDE}\n\n{asks}"), &reading, titled);
+    let (kept, drafts) = keeping(task.id, titled, reading.cites());
     let made = rewrite::request(
         &engine,
         &prompt,
@@ -334,6 +350,7 @@ fn meeting_answer(
     } else {
         (None, answer)
     };
+    let (answer, linked) = reading.settle(&answer);
     let turn = FollowUp {
         question: question.trim().into(),
         answer,
@@ -341,6 +358,7 @@ fn meeting_answer(
         seconds: started.elapsed().as_secs(),
         created_ms: store::now_ms(),
         stopped,
+        linked,
     };
     add_turn(id, session, turn, title, engine.effort())
 }
@@ -387,6 +405,7 @@ fn meeting_tidy(
         seconds: started.elapsed().as_secs(),
         created_ms: store::now_ms(),
         stopped: made.stopped,
+        ..FollowUp::default()
     };
     add_turn(id, session, turn, None, engine.effort())
 }
@@ -414,9 +433,25 @@ fn add_turn(
     Ok(())
 }
 
+/// `prompt` with what the question read past its text, then, for a typed
+/// request, the ask for a title.
+fn with_reading(prompt: &str, reading: &Reading, titled: bool) -> String {
+    let mut prompt = prompt.trim().to_owned();
+    if !reading.prompt.is_empty() {
+        prompt.push_str("\n\n");
+        prompt.push_str(reading.prompt.trim());
+    }
+    if titled {
+        prompt.push_str("\n\n");
+        prompt.push_str(TITLE_ASK);
+    }
+    prompt
+}
+
 /// The task's drafts, also keeping the whole answer as it streams, so a
-/// stop can save what came; a titled reply's draft hides its title line.
-fn keeping(task: u64, titled: bool) -> (Arc<Mutex<String>>, Drafts) {
+/// stop can save what came; a titled reply's draft hides its title line,
+/// and one that `cites` other recordings shows its marks as `[n]`.
+fn keeping(task: u64, titled: bool, cites: bool) -> (Arc<Mutex<String>>, Drafts) {
     let kept = Arc::new(Mutex::new(String::new()));
     let shown = drafts(task);
     let keep = kept.clone();
@@ -427,8 +462,13 @@ fn keeping(task: u64, titled: bool) -> (Arc<Mutex<String>>, Drafts) {
             text.clone_into(&mut kept);
         }
         // The title line never shows, also while it comes.
-        if titled && kind == DraftKind::Result {
-            shown(kind, untitled_draft(text));
+        let text = if titled && kind == DraftKind::Result {
+            untitled_draft(text)
+        } else {
+            text
+        };
+        if cites && kind == DraftKind::Result {
+            shown(kind, &linked::draft(text));
         } else {
             shown(kind, text);
         }
