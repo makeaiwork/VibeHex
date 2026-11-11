@@ -584,6 +584,15 @@ fn rest(p: Paint, mark: &Mark) -> rune::Color {
     }
 }
 
+/// A thin soft underline in the accent under each cited phrase, stronger
+/// under the current place's: for the caller to put under its own spans
+/// (the word playing), as a line's words keep one set.
+pub(in super::super) fn underlines(p: Paint, mark: &Mark) -> Vec<rune::Span> {
+    let line = |lit: &Lit| p.k.alpha(p.accent(), if lit.now { 0.45 } else { 0.25 });
+    let at = |lit: &Lit| rune::Span::new(lit.at.start, lit.at.end).underline(line(lit));
+    mark.lit.iter().map(at).collect()
+}
+
 /// A cited phrase: full strength for the current place, the reading
 /// colour for the others, either way above the muted passage.
 fn said(p: Paint, lit: &Lit) -> rune::Color {
@@ -882,6 +891,15 @@ mod tests {
         assert_ne!(p.muted(), p.reading());
         assert_eq!(rest(p, &mark(Vec::new(), true)), p.k.c.text_base);
         assert_eq!(rest(p, &mark(Vec::new(), false)), p.reading());
+        // Each phrase underlined softly, the current place's a little firmer.
+        let both = mark(vec![words(true), words(false)], true);
+        let under: Vec<_> = underlines(p, &both)
+            .iter()
+            .map(|span| (span.start..span.end, span.underline.map(|c| c.a)))
+            .collect();
+        let alpha = |a: f32| Some(p.k.alpha(p.accent(), a).a);
+        assert_eq!(under, [(0..3, alpha(0.45)), (0..3, alpha(0.25))]);
+        assert!(underlines(p, &mark(Vec::new(), true)).is_empty());
     }
 
     #[test]

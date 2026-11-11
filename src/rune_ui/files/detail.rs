@@ -611,7 +611,8 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
                     .pt(1.0);
                 let key = format!("paragraph{index}");
                 let beside = (None, shown.then_some(clock));
-                lines = lines.child(jump::line(p, key, mark, beside, text(paragraph.text)));
+                let words = text(paragraph.text).spans(jump::underlines(p, mark));
+                lines = lines.child(jump::line(p, key, mark, beside, words));
                 continue;
             }
             let words = text(paragraph.text)

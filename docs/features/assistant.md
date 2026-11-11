@@ -65,8 +65,9 @@ Opened from an answer                            // rune_ui::assistant::jump
 ├── Bar         an item cited more than once: "From the answer: <question>",
 │               "1 of 2", up and down between places, a cross to clear
 └── Place       tinted in the accent, round corners, the answer's [n] by the
-                speaker; inside, the cited phrases at full strength and the
-                rest of the passage muted (no fill behind the words; without
+                speaker; inside, the cited phrases at full strength over a
+                thin soft accent underline and the rest of the passage muted
+                (no fill behind the words; without
                 cited phrases the passage reads whole); others cited fainter;
                 the first cited words a third of the way down the pane,
                 however deep in a long passage. A dictation: its History
