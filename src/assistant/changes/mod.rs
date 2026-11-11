@@ -82,6 +82,9 @@ pub struct Item {
     /// What it needs first that wasn't set when suggested: `(key, value)`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub requires: Vec<(String, Value)>,
+    /// Why a plan's save left this item out, when its own check failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failed: Option<String>,
 }
 
 /// What the person did with a card.
@@ -233,6 +236,7 @@ fn card(
             included: !proposal.optional,
             class,
             requires,
+            failed: None,
         }],
         ..Card::default()
     })

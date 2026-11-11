@@ -11,6 +11,7 @@ use super::changes::{self, Refused, catalog};
 use super::guide::{self, Article};
 use super::recordings::{Excerpt, Found, Kind, cite};
 use super::retrieve;
+use super::setup::{self, Stage};
 
 /// How many articles a model reads: a small local one has a short window.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -104,6 +105,53 @@ already has the value.
 Meetings).
 - Never a key that isn't listed. Never say you changed anything: the person decides on the card.";
 
+/// Guided setup, a typed request: the three questions, in the message's
+/// language, as option chips.
+fn setup_ask(os: &str) -> String {
+    format!(
+        "
+
+The person asks you to set VibeHex up for them. Don't answer from the guide yet, and \
+suggest no changes. In one or two sentences, in the language of their message, say you'll \
+ask three short questions and then offer one list of changes they decide on. Then write \
+this block, with `q`, `hint`, and every `label` in the language of their message, and every \
+`id` exactly as written:
+
+```hex-ask
+{}
+```
+
+End with `Sources: none`.",
+        setup::ask_lines(os)
+    )
+}
+
+const SETUP_PLAN: &str = "
+
+<answers> holds the person's answers to the setup questions: each question's id, then the \
+ids of the options they picked, with the words they saw. Suggest one list of setting \
+changes for how they work, from <changeable_settings>.
+
+- First one or two sentences, in the language of the setup request or, without one, of the \
+words in <answers>: what the list is for, and that they can untick what they don't need.
+- Then one block, one JSON object per line, at most 8, the most useful first:
+
+```hex-plan
+{\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"a short reason\"}
+```
+
+- Keys exactly as listed, values as the list writes them (true/false for on/off). Skip what \
+the now column already has.
+- `\"optional\":true` on a line that is only nice to have: it starts unchecked.
+- A speech model for their language is transcription.model (it downloads first): gigaam_v3 \
+for Russian, parakeet_v3 for Russian mixed with English.
+- Dictation into code in Russian: labs.russian_vibe_coding.
+- Cleanup on their ChatGPT plan: dictation_processing.server.runs_on codex, with \
+dictation_processing.default_mode.cleanup on. Only on this computer: nothing that sends text \
+out. No cleanup: leave it off.
+- `why`: one short phrase each, in that language. Name only the settings; the app turns on \
+what they need. Never say you changed anything.";
+
 /// What a question may read besides the guide.
 #[derive(Clone, Copy, Debug)]
 pub enum Reach<'a> {
@@ -137,18 +185,22 @@ cannot read: they haven't allowed it. Say so in one sentence, and that Assistant
 Your meetings, files, and dictations allows it; then answer what the guide covers, if anything.";
 
 /// The prompt for `question` after `earlier` turns, oldest first. With
-/// `changes`, the model may suggest setting changes from the catalog.
+/// `changes`, the model may suggest setting changes from the catalog; a
+/// setup `stage` asks for its questions or its plan instead.
 pub fn build(
     question: &str,
     earlier: &[Turn],
     room: Room,
     reach: Reach,
     changes: Option<&changes::Context>,
+    stage: &Stage,
 ) -> Prompt {
-    // A follow-up ("and on Windows?") is about what the last question was.
-    let query = match earlier.last() {
-        Some(last) => format!("{} {}", last.question, question),
-        None => question.to_owned(),
+    // A follow-up ("and on Windows?") is about what the last question was;
+    // setup's answers, about what they picked.
+    let query = match (stage, earlier.last()) {
+        (Stage::Plan { answers, .. }, _) => setup::query(answers),
+        (_, Some(last)) => format!("{} {}", last.question, question),
+        (_, None) => question.to_owned(),
     };
     let found = retrieve::search(&query, room.articles());
     let mut input = contents();
@@ -156,10 +208,15 @@ pub fn build(
         input.push_str(&excerpt(article));
     }
     let mut instructions = INSTRUCTIONS.to_owned();
-    if let Some(context) = changes {
-        instructions.push_str(CHANGES);
+    if *stage == Stage::Ask {
+        let os = changes.map_or(std::env::consts::OS, |context| context.state.os);
+        instructions.push_str(&setup_ask(os));
+    } else if let Some(context) = changes {
+        let plan = matches!(stage, Stage::Plan { .. });
+        instructions.push_str(if plan { SETUP_PLAN } else { CHANGES });
         let reading = catalog::Reading {
-            every: room == Room::Large,
+            // A plan reads every key, whatever the room.
+            every: plan || room == Room::Large,
             keys: found
                 .iter()
                 .flat_map(|article| article.keys.iter().map(String::as_str))
@@ -196,7 +253,12 @@ pub fn build(
             shortened(turn.answer.trim(), room.earlier_answer_chars()),
         ));
     }
-    input.push_str(&format!("\n<question>\n{}\n</question>\n", question.trim()));
+    match stage {
+        Stage::Plan { line, .. } => {
+            input.push_str(&format!("\n<answers>\n{}\n</answers>\n", line.trim()));
+        }
+        _ => input.push_str(&format!("\n<question>\n{}\n</question>\n", question.trim())),
+    }
     Prompt {
         instructions,
         input,
@@ -396,6 +458,7 @@ mod tests {
             Room::Large,
             Reach::Guide,
             None,
+            &Stage::None,
         );
         assert!(prompt.input.contains("<guide_contents>"));
         assert!(prompt.input.contains("topics/privacy: Privacy"));
@@ -428,7 +491,14 @@ mod tests {
             answer: &long,
             changes: "",
         }];
-        let prompt = build("и на Windows?", &earlier, Room::Small, Reach::Guide, None);
+        let prompt = build(
+            "и на Windows?",
+            &earlier,
+            Room::Small,
+            Reach::Guide,
+            None,
+            &Stage::None,
+        );
         assert!(prompt.articles.len() <= 3);
         assert!(prompt.input.contains(&format!("{}…", "x".repeat(600))));
         assert!(!prompt.input.contains(&"x".repeat(601)));
@@ -443,7 +513,14 @@ mod tests {
                 changes: "",
             })
             .collect();
-        let prompt = build("next", &earlier, Room::Large, Reach::Guide, None);
+        let prompt = build(
+            "next",
+            &earlier,
+            Room::Large,
+            Reach::Guide,
+            None,
+            &Stage::None,
+        );
         assert_eq!(prompt.input.matches("<earlier_question>").count(), 8);
     }
 
@@ -456,7 +533,14 @@ mod tests {
             answer: "earlier answer",
             changes: "",
         }];
-        let prompt = build("new question", &earlier, Room::Large, Reach::Guide, None);
+        let prompt = build(
+            "new question",
+            &earlier,
+            Room::Large,
+            Reach::Guide,
+            None,
+            &Stage::None,
+        );
         let mut rest = prompt.input.clone();
         let contents_end = rest.find("</guide_contents>\n").unwrap() + "</guide_contents>\n".len();
         rest.replace_range(..contents_end, "");
@@ -598,6 +682,7 @@ mod tests {
             Room::Large,
             Reach::Guide,
             Some(&context(true)),
+            &Stage::None,
         );
         assert!(large.instructions.contains("```hex-change"));
         assert!(large.input.contains("<changeable_settings>"));
@@ -612,6 +697,7 @@ mod tests {
             Room::Small,
             Reach::Guide,
             Some(&context(false)),
+            &Stage::None,
         );
         let lines = |prompt: &Prompt| {
             prompt
@@ -632,7 +718,7 @@ mod tests {
                 .input
                 .contains("don't know the person's current values")
         );
-        let none = build(question, &[], Room::Large, Reach::Guide, None);
+        let none = build(question, &[], Room::Large, Reach::Guide, None, &Stage::None);
         assert!(!none.input.contains("<changeable_settings>"));
         assert!(!none.instructions.contains("hex-change"));
     }
@@ -663,7 +749,14 @@ mod tests {
             answer: "a",
             changes: &line,
         }];
-        let prompt = build("next", &earlier, Room::Large, Reach::Guide, None);
+        let prompt = build(
+            "next",
+            &earlier,
+            Room::Large,
+            Reach::Guide,
+            None,
+            &Stage::None,
+        );
         assert!(
             prompt
                 .input
@@ -688,6 +781,45 @@ mod tests {
             "Turn on Smart spacing."
         );
         assert!(!cards_coming("Turn on Smart spacing."));
+    }
+
+    #[test]
+    fn setup_asks_its_questions_then_its_plan() {
+        let ask = build(
+            "Помоги мне настроить VibeHex под меня",
+            &[],
+            Room::Small,
+            Reach::Guide,
+            Some(&context(true)),
+            &Stage::Ask,
+        );
+        assert!(ask.instructions.contains("```hex-ask"));
+        assert!(ask.instructions.contains("\"id\":\"dictation_code\""));
+        assert!(!ask.instructions.contains("```hex-change"));
+        assert!(!ask.input.contains("<changeable_settings>"));
+        let plan = build(
+            "",
+            &[],
+            Room::Small,
+            Reach::Guide,
+            Some(&context(true)),
+            &Stage::Plan {
+                answers: vec![setup::Answer {
+                    id: "language".into(),
+                    chosen: vec!["ru".into()],
+                }],
+                line: "language: ru (Русский)".into(),
+            },
+        );
+        assert!(plan.instructions.contains("```hex-plan"));
+        assert!(
+            plan.input
+                .ends_with("<answers>\nlanguage: ru (Русский)\n</answers>\n")
+        );
+        assert!(!plan.input.contains("<question>"));
+        // Every key, though the room is small.
+        assert!(plan.input.contains("labs.spoken_formatting | on/off"));
+        assert!(plan.articles.contains(&"topics/speech-models"));
     }
 
     #[test]

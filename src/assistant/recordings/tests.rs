@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use super::*;
 use crate::assistant::intent;
 use crate::assistant::prompt::{Reach, Room, build};
+use crate::assistant::setup::Stage;
 
 /// The eval's recordings: ten meetings in October and November 2026, three
 /// Files texts, five dictations.
@@ -261,7 +262,7 @@ fn no_recording_enters_the_prompt_without_consent() {
         .collect();
     assert!(private.len() > 3);
     for reach in [Reach::Guide, Reach::Declined] {
-        let prompt = build(question, &[], Room::Large, reach, None);
+        let prompt = build(question, &[], Room::Large, reach, None, &Stage::None);
         let all = format!("{}\n{}", prompt.instructions, prompt.input);
         assert!(!all.contains("<recordings"));
         for piece in &private {
@@ -274,6 +275,7 @@ fn no_recording_enters_the_prompt_without_consent() {
         Room::Large,
         Reach::Recordings(&found, now()),
         None,
+        &Stage::None,
     );
     assert!(prompt.input.contains("<recordings"));
     assert!(private.iter().all(|piece| prompt.input.contains(piece)));

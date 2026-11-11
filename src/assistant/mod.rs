@@ -17,5 +17,6 @@ pub mod intent;
 pub mod prompt;
 pub mod recordings;
 pub mod retrieve;
+pub mod setup;
 pub mod store;
 pub mod worker;

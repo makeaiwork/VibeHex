@@ -68,6 +68,9 @@ pub enum Shown {
 
 /// What `card` shows with `live`.
 pub fn shown(card: &Card, live: &Live) -> Shown {
+    if card.kind == CardKind::Plan {
+        return plan(card, live);
+    }
     let Some(item) = card.items.first() else {
         return Shown::Declined;
     };
@@ -106,12 +109,6 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
             if let Some(blocked) = blocked(card, live.settings).filter(|_| live.here) {
                 return blocked;
             }
-            if card.kind == CardKind::Plan {
-                return Shown::Proposed {
-                    shorter: None,
-                    also: Vec::new(),
-                };
-            }
             if let Some(shown) = downloading(item.class, &item.key, to, live) {
                 return shown;
             }
@@ -138,6 +135,88 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
             }
         }
     }
+}
+
+/// A plan as a whole: its rows show the rest (`row`). A row another
+/// computer or an organization holds was left out when it was made.
+fn plan(card: &Card, live: &Live) -> Shown {
+    match &card.decision {
+        Decision::Proposed => Shown::Proposed {
+            shorter: None,
+            also: Vec::new(),
+        },
+        Decision::Declined => Shown::Declined,
+        Decision::Undone => Shown::Undone,
+        Decision::Failed { why } => Shown::Failed(why.clone()),
+        Decision::Applied { after, .. } => {
+            let moved = after
+                .iter()
+                .find_map(|(key, value)| current(live.settings, key).filter(|now| now != value));
+            match moved {
+                Some(now) => Shown::ChangedSince { now },
+                None => Shown::Applied {
+                    undo: live.undoable,
+                },
+            }
+        }
+    }
+}
+
+/// What one row of a plan shows.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Row {
+    /// Still to decide. `sign_in` while it runs on Codex, signed out;
+    /// `shorter` names what a shorter retention removes.
+    Open {
+        checked: bool,
+        sign_in: bool,
+        shorter: Option<Shorter>,
+    },
+    Applied,
+    /// Its own check failed, so the save left it out.
+    Failed(String),
+    /// Not checked, or the plan turned down or put back.
+    Left,
+    /// A speech model downloading; it switches when done.
+    Downloading {
+        done: u64,
+        total: u64,
+    },
+}
+
+/// What row `index` of the plan `card` shows with `live`.
+pub fn row(card: &Card, index: usize, live: &Live) -> Row {
+    let Some(item) = card.items.get(index) else {
+        return Row::Left;
+    };
+    match &card.decision {
+        Decision::Proposed => Row::Open {
+            checked: item.included,
+            sign_in: catalog::needs_codex(&item.key, &item.to)
+                && live.codex_signed_in == Some(false),
+            shorter: catalog::shorter(&item.key, &item.from, &item.to),
+        },
+        Decision::Declined | Decision::Undone => Row::Left,
+        _ if !item.included => Row::Left,
+        Decision::Failed { why } => Row::Failed(item.failed.clone().unwrap_or(why.clone())),
+        Decision::Applied { .. } => {
+            if let Some(why) = &item.failed {
+                return Row::Failed(why.clone());
+            }
+            match downloading(item.class, &item.key, &item.to, live) {
+                Some(Shown::Downloading { done, total }) => Row::Downloading { done, total },
+                _ => Row::Applied,
+            }
+        }
+    }
+}
+
+/// How many of a plan's checked rows its save applied, of how many.
+pub fn applied_count(card: &Card) -> (usize, usize) {
+    let checked = card.items.iter().filter(|item| item.included);
+    let total = checked.clone().count();
+    let failed = checked.filter(|item| item.failed.is_some()).count();
+    (total - failed, total)
 }
 
 fn downloading(class: Class, key: &str, to: &Value, live: &Live) -> Option<Shown> {
@@ -309,6 +388,58 @@ mod tests {
         meetings.later = true;
         assert_eq!(
             shown(&meetings, &not_allowed),
+            Shown::Applied { undo: true }
+        );
+    }
+
+    #[test]
+    fn a_plans_rows_follow_its_save() {
+        let settings = AppSettings::default();
+        let mut plan = card("labs.files", json!(false), json!(true));
+        plan.kind = CardKind::Plan;
+        plan.items.push(Item {
+            key: "dictation_processing.server.runs_on".into(),
+            from: json!("opencode"),
+            to: json!("codex"),
+            included: false,
+            ..Item::default()
+        });
+        plan.items.push(Item {
+            key: "transcription.model".into(),
+            from: json!("parakeet_v3"),
+            to: json!("gigaam_v3"),
+            included: true,
+            class: Class::Download,
+            ..Item::default()
+        });
+        let signed_out = Live {
+            codex_signed_in: Some(false),
+            ..live(&settings)
+        };
+        assert_eq!(
+            row(&plan, 1, &signed_out),
+            Row::Open {
+                checked: false,
+                sign_in: true,
+                shorter: None
+            }
+        );
+        plan.items[0].failed = Some("no".into());
+        plan.decision = applied(Vec::new(), 0);
+        let downloading = Live {
+            preparing: Some(("gigaam_v3".into(), 1, 2)),
+            ..live(&settings)
+        };
+        assert_eq!(row(&plan, 0, &downloading), Row::Failed("no".into()));
+        assert_eq!(row(&plan, 1, &downloading), Row::Left);
+        assert_eq!(
+            row(&plan, 2, &downloading),
+            Row::Downloading { done: 1, total: 2 }
+        );
+        assert_eq!(row(&plan, 2, &live(&settings)), Row::Applied);
+        assert_eq!(applied_count(&plan), (1, 2));
+        assert_eq!(
+            shown(&plan, &live(&settings)),
             Shown::Applied { undo: true }
         );
     }

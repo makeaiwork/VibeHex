@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::changes::{Card, Refused};
 use super::recordings::{Ref, Step};
+use super::setup::{Answer, Ask};
 
 /// The most conversations kept; the least recently used go first.
 const MAX_CONVERSATIONS: usize = 50;
@@ -49,6 +50,13 @@ pub struct Turn {
     /// Change lines the app refused; never offered as actions.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refused: Vec<Refused>,
+    /// Setup's questions it asks, with option chips.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub asks: Vec<Ask>,
+    /// The answers to the turn before's questions: this turn has no
+    /// question of its own, and shows no bubble.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub answers: Vec<Answer>,
 }
 
 /// One conversation.
@@ -164,6 +172,21 @@ impl Store {
             .find(|c| c.id == id)
             .and_then(|conversation| conversation.turns.get_mut(turn))
             .and_then(|turn| turn.cards.get_mut(card));
+        if let Some(slot) = slot {
+            *slot = value;
+            self.save();
+        }
+    }
+
+    /// Replaces question `ask` of turn `turn` in conversation `id`, as the
+    /// person answered it.
+    pub fn set_ask(&mut self, id: u32, turn: usize, ask: usize, value: Ask) {
+        let slot = self
+            .conversations
+            .iter_mut()
+            .find(|c| c.id == id)
+            .and_then(|conversation| conversation.turns.get_mut(turn))
+            .and_then(|turn| turn.asks.get_mut(ask));
         if let Some(slot) = slot {
             *slot = value;
             self.save();

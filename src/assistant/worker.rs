@@ -13,6 +13,7 @@ use super::changes::{self, Card, Refused, Why};
 use super::intent::Intent;
 use super::prompt::{self, Reach, Room};
 use super::recordings::{self, Allowed, Budget, Found, Sources, Step};
+use super::setup::{self, Ask, Stage};
 use super::store::Turn;
 use crate::dictation::cleanup_pieces::Streamed;
 use crate::dictation::cleanup_server::engine;
@@ -35,6 +36,8 @@ pub struct Question {
     pub recall: Recall,
     /// The settings it may suggest changes to, if it may.
     pub changes: Option<changes::Context>,
+    /// Guided setup's questions or plan, or neither.
+    pub setup: Stage,
 }
 
 /// An earlier question, its answer, and what became of its changes.
@@ -145,7 +148,11 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
     let started = Instant::now();
     held.answering = Some(Answering {
         conversation: question.conversation,
-        question: question.question.clone(),
+        // Setup's answers show as chips, never as a question.
+        question: match question.setup {
+            Stage::Plan { .. } => String::new(),
+            _ => question.question.clone(),
+        },
         draft: String::new(),
         started,
         steps: Vec::new(),
@@ -181,6 +188,7 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
                 room,
                 reach,
                 question.changes.as_ref(),
+                &question.setup,
             );
             let result = generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts()))
                 .map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
@@ -244,6 +252,8 @@ struct Settled {
     reply: String,
     cards: Vec<Card>,
     refused: Vec<Refused>,
+    /// Setup's questions, when it asked them.
+    asks: Vec<Ask>,
 }
 
 /// Reads `reply`'s change lines against the question's settings. A remote
@@ -257,14 +267,30 @@ fn settle(
     cancel: &AtomicBool,
     remote: bool,
 ) -> Settled {
-    let parsed = changes::parse::parse(&reply);
+    let mut parsed = changes::parse::parse(&reply);
+    let plan = matches!(question.setup, Stage::Plan { .. });
+    let asks = match &question.setup {
+        Stage::Ask => setup::asks(
+            &parsed.asks,
+            question
+                .changes
+                .as_ref()
+                .map_or(std::env::consts::OS, |context| context.state.os),
+        ),
+        _ => Vec::new(),
+    };
     let Some(context) = &question.changes else {
         return Settled {
             reply,
             cards: Vec::new(),
             refused: Vec::new(),
+            asks,
         };
     };
+    // Setup's answer is one list, whichever fence each line came in.
+    if plan {
+        plan_lines(&mut parsed.proposals);
+    }
     let rules = crate::rune_ui::shortcut_rules();
     let (mut cards, mut refused) = changes::resolve(&parsed.proposals, &context.settings, &rules);
     refused.extend(malformed(&parsed.malformed));
@@ -283,7 +309,10 @@ fn settle(
         }
         let again = prompt::repair(prompt, &reply, &fixable);
         if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None) {
-            let parsed = changes::parse::parse(&fixed);
+            let mut parsed = changes::parse::parse(&fixed);
+            if plan {
+                plan_lines(&mut parsed.proposals);
+            }
             let (more, _) = changes::resolve(&parsed.proposals, &context.settings, &rules);
             let more: Vec<Card> = more
                 .into_iter()
@@ -303,10 +332,37 @@ fn settle(
             }
         }
     }
+    if plan {
+        let answers = match &question.setup {
+            Stage::Plan { answers, .. } => answers.as_slice(),
+            _ => &[],
+        };
+        cards = match setup::plan(cards, &context.settings, &context.state) {
+            Some(plan) => vec![plan],
+            // Nothing usable came: the rules' plan, and no refusals beside
+            // it.
+            None => {
+                refused.clear();
+                let lines = setup::baseline(answers, &context.settings);
+                let (cards, _) = changes::resolve(&lines, &context.settings, &rules);
+                setup::plan(cards, &context.settings, &context.state)
+                    .into_iter()
+                    .collect()
+            }
+        };
+    }
     Settled {
         reply,
         cards,
         refused,
+        asks,
+    }
+}
+
+/// Every line a plan's reply holds, as a line of its one list.
+fn plan_lines(proposals: &mut [changes::parse::Proposal]) {
+    for proposal in proposals {
+        proposal.plan = true;
     }
 }
 
@@ -367,6 +423,10 @@ fn finish(
         seconds: started.elapsed().as_secs_f32(),
         created_ms: now_ms(),
         steps: found.map(|found| found.steps.clone()).unwrap_or_default(),
+        answers: match &question.setup {
+            Stage::Plan { answers, .. } => answers.clone(),
+            _ => Vec::new(),
+        },
         ..Turn::default()
     };
     match result {
@@ -375,6 +435,7 @@ fn finish(
             let (body, sources) = prompt::split_sources(&parsed.body);
             turn.cards = settled.cards;
             turn.refused = settled.refused;
+            turn.asks = settled.asks;
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
             // The lines cited are kept with the places; the answer shows
@@ -440,6 +501,7 @@ mod tests {
             }],
             recall: Recall::Guide,
             changes: None,
+            setup: Stage::None,
         }
     }
 
@@ -545,6 +607,103 @@ mod tests {
         assert_eq!(*calls.lock().unwrap(), 2, "asked once more, no further");
         assert_eq!(turn.cards.len(), 1);
         assert_eq!(turn.refused.len(), 1);
+    }
+
+    fn setup(text: &str, stage: Stage) -> Question {
+        Question {
+            setup: stage,
+            ..with_changes(text)
+        }
+    }
+
+    fn answers() -> Stage {
+        Stage::Plan {
+            answers: vec![
+                setup::Answer {
+                    id: "use".into(),
+                    chosen: vec!["dictation_code".into(), "meetings".into()],
+                },
+                setup::Answer {
+                    id: "language".into(),
+                    chosen: vec!["ru".into()],
+                },
+                setup::Answer {
+                    id: "cloud".into(),
+                    chosen: vec!["chatgpt".into()],
+                },
+            ],
+            line: "use: dictation_code, meetings; language: ru; cloud: chatgpt".into(),
+        }
+    }
+
+    /// A typed request's questions: the model's, else the app's own.
+    #[test]
+    fn a_setup_request_asks_the_models_questions_or_the_apps() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let written = "Давайте настроим.\n```hex-ask\n{\"id\":\"use\",\"q\":\"Для чего?\",\"options\":[{\"id\":\"meetings\",\"label\":\"Созвоны\"},{\"id\":\"files\",\"label\":\"Файлы\"}]}\n{\"id\":\"language\",\"q\":\"Язык?\",\"options\":[{\"id\":\"ru\",\"label\":\"Русский\"},{\"id\":\"en\",\"label\":\"English\"}]}\n{\"id\":\"cloud\",\"q\":\"В облако?\",\"options\":[{\"id\":\"chatgpt\",\"label\":\"Да\"},{\"id\":\"no_cleanup\",\"label\":\"Нет\"}]}\n```\nSources: none";
+        for (reply, own) in [(written, false), ("Давайте настроим. Sources: none", true)]
+        {
+            let reply = reply.to_owned();
+            let generate: Generate = Box::new(move |instructions, _, _, _| {
+                assert!(instructions.contains("```hex-ask"));
+                assert!(!instructions.contains("```hex-change"));
+                Ok(reply.clone())
+            });
+            let question = setup("Помоги мне настроить VibeHex под меня", Stage::Ask);
+            assert!(start(question, Room::Large, "GPT".into(), generate, false));
+            let (_, turn) = finished();
+            assert_eq!(turn.asks.len(), 3);
+            assert!(turn.asks.iter().all(|ask| ask.own == own), "{own}");
+            assert!(turn.answer.starts_with("Давайте настроим."));
+            assert!(!turn.answer.contains("hex-ask"));
+        }
+    }
+
+    /// The answers' plan: the model's lines as one list, else the rules'.
+    #[test]
+    fn the_answers_become_one_plan_the_models_or_the_rules() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let good = "Вот что я предлагаю.\n```hex-plan\n{\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"пробелы\"}\n```\n```hex-change\n{\"key\":\"labs.files\",\"value\":true}\n```\nSources: none";
+        for (reply, keys) in [
+            (good, vec!["labs.smart_spacing", "labs.files"]),
+            (
+                "Вот что я предлагаю.\n```hex-plan\n{\"key\":\"labs.teleport\",\"value\":true}\nnot json\n```",
+                vec!["transcription.model"],
+            ),
+        ] {
+            let reply = reply.to_owned();
+            let generate: Generate = Box::new(move |instructions, input, _, _| {
+                assert!(instructions.contains("```hex-plan"));
+                assert!(input.contains("<answers>\nuse: dictation_code"));
+                Ok(reply.clone())
+            });
+            assert!(start(
+                setup("", answers()),
+                Room::Small,
+                "Local".into(),
+                generate,
+                true
+            ));
+            let (_, turn) = finished();
+            assert_eq!(turn.cards.len(), 1);
+            assert_eq!(turn.cards[0].kind, changes::CardKind::Plan);
+            let got: Vec<&str> = turn.cards[0]
+                .items
+                .iter()
+                .map(|item| item.key.as_str())
+                .collect();
+            assert_eq!(&got[..keys.len()], keys.as_slice());
+            assert_eq!(turn.answers.len(), 3);
+            // The rules' plan comes with no refusals beside it.
+            if keys == ["transcription.model"] {
+                assert!(turn.refused.is_empty());
+                assert!(got.len() > 3);
+            }
+        }
     }
 
     fn finished() -> (u32, Turn) {
