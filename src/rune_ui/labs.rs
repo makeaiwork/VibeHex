@@ -322,6 +322,15 @@ struct Row {
     group: Group,
 }
 
+/// The labs this OS and build show, by id and title: what an answer's
+/// place names find.
+pub(super) fn titles(ui: &Ui) -> Vec<(&'static str, &'static str)> {
+    shown(ui)
+        .into_iter()
+        .map(|row| (row.lab.id(), row.title))
+        .collect()
+}
+
 /// The labs this OS and build show, in the store's order.
 fn shown(ui: &Ui) -> Vec<Row> {
     rows(ui)

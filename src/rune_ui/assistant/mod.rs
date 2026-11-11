@@ -22,10 +22,12 @@ pub(super) mod fixture_cards;
 pub(super) mod jump;
 pub(super) mod nav;
 mod picker;
+pub(super) mod places;
 mod plan;
 mod recall;
 mod settings;
 pub(super) mod setup_fixture;
+pub(super) mod strong;
 mod verbs;
 mod vocab;
 
@@ -274,7 +276,8 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         .as_ref()
         .filter(|_| !ui.is_fixture())
         .map(|answering| answering.started);
-    let mut changed = ui.assistant.face.poll(reading, tx) | jump::poll(ui, tx);
+    let mut changed =
+        ui.assistant.face.poll(reading, tx) | jump::poll(ui, tx) | places::poll(ui, tx);
     changes::follow_open(ui);
     if ui.is_fixture() || ui.assistant.fixture {
         return changed;

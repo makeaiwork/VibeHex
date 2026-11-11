@@ -692,6 +692,8 @@ pub(super) const SCENES: &[Scene] = &[
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
     ("assistant", assistant::fixture::conversation),
     ("assistant-answering", assistant::fixture::answering),
+    ("assistant-places", assistant::fixture::places),
+    ("assistant-place-opened", assistant::fixture::place_opened),
     ("assistant-start", assistant::fixture::start),
     ("assistant-connect", assistant::fixture::connect),
     ("assistant-settings", assistant::fixture::settings),

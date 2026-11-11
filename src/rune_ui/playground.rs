@@ -177,6 +177,8 @@ const PATHS: &[(&str, &str)] = &[
     ),
     ("assistant", "Window/Assistant/Conversation"),
     ("assistant-answering", "Window/Assistant/Answering"),
+    ("assistant-places", "Window/Assistant/Places named"),
+    ("assistant-place-opened", "Window/Assistant/Place opened"),
     ("assistant-start", "Window/Assistant/New conversation"),
     ("assistant-connect", "Window/Assistant/Connect a model"),
     ("assistant-settings", "Window/Assistant/Settings"),

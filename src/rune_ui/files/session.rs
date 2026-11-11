@@ -130,8 +130,18 @@ pub(in super::super) fn markdown(p: Paint, source: String, muted: bool, streamin
     let style = rune_kit::MarkdownStyle::from_kit(p.k)
         .body_font(p.k.ty.ui)
         .text(if muted { p.muted() } else { p.reading() });
+    // Bold words stand out at full brightness; a draft stays muted whole.
+    let bright = if muted {
+        Vec::new()
+    } else {
+        super::super::assistant::strong::bright(&source)
+    };
+    let strong = rune_kit::markdown::Highlight::new()
+        .bg(rune::Color::TRANSPARENT)
+        .fg(p.k.c.text_base);
     rune_kit::Markdown::new(source)
         .style(style)
+        .highlights(bright.into_iter().map(|at| (at, strong.clone())))
         .selectable(!streaming)
         .streaming(streaming)
         .tasks_read_only()

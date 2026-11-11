@@ -699,6 +699,7 @@ pub(crate) struct Ui {
     activity: activity::ActivityPane,
     assistant: assistant::AssistantPane,
     came_from: Option<assistant::jump::CameFrom>, // Opened from an answer: Back to Assistant.
+    place: Option<assistant::places::Lit>,        // An answer's place link lights these titles.
     hud_copied: bool, // HUD Lab's preset was copied since it last changed.
     hud_saved: bool,  // HUD Lab saved Dot scope's tuning, until the next change.
     saved: usize,     // Settings saves and Quit Hex a fixture recorded.
@@ -817,6 +818,7 @@ impl Ui {
             activity: activity::ActivityPane::default(),
             assistant: assistant::AssistantPane::default(),
             came_from: None,
+            place: None,
             hud_copied: false,
             hud_saved: false,
             saved: 0,
@@ -1136,6 +1138,7 @@ impl Ui {
         self.open = None;
         self.general_search.clear();
         self.came_from = None;
+        self.place = None;
         models::close(self);
         self.close_dialogs();
         self.output.prompt_copied = false;
@@ -1407,27 +1410,13 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
     crate::windows::rune::match_title_bar(p.k.c.bg_deep);
     // Menus and popovers mount above the page (rune-kit overlays).
     let mut layer = Vec::new();
-    let (actions, body) = match ui.pane {
-        _ if ui.labs_open => (vec![labs::tabs(ui, p)], labs::page(ui, p)),
-        Pane::General => (Vec::new(), general::pane(ui, p, &mut layer)),
-        Pane::Output => (
-            Vec::new(),
-            output::pane(ui, p, cx.is_reduced_motion(), &mut layer),
-        ),
-        Pane::Modes => modes::pane(ui, p, &mut layer),
-        Pane::History => history::pane(ui, p, &mut layer),
-        #[cfg(hex_capture)]
-        Pane::Captures => (Vec::new(), captures::pane(ui, p)),
-        Pane::Meetings => meetings::pane(ui, p, &mut layer),
-        Pane::Files => files::pane(ui, p, &mut layer),
-        #[cfg(hex_capture)]
-        Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, &mut layer)),
-        Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
-        Pane::HudLab => hud_lab::pane(ui, p),
-        Pane::Activity => activity::pane(ui, p),
-        Pane::About => (Vec::new(), about::pane(ui, p)),
-        Pane::Assistant => assistant::pane(ui, p, cx.is_reduced_motion(), &mut layer),
-    };
+    let lit = ui
+        .place
+        .as_ref()
+        .map(|lit| lit.titles.as_slice())
+        .unwrap_or_default();
+    let ((actions, body), _) =
+        assistant::places::lighting(lit, || pane_body(ui, p, cx.is_reduced_motion(), &mut layer));
     let panel = col()
         .key("panel")
         .role("main")
@@ -1482,6 +1471,28 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         layer.push(first_run);
     }
     rune_kit::root(window, layer).on_window_focus(window_focused)
+}
+
+/// The pane's actions for its title bar, and its body.
+fn pane_body(ui: &Ui, p: Paint, reduced: bool, layer: &mut Vec<El>) -> (Vec<El>, El) {
+    match ui.pane {
+        _ if ui.labs_open => (vec![labs::tabs(ui, p)], labs::page(ui, p)),
+        Pane::General => (Vec::new(), general::pane(ui, p, layer)),
+        Pane::Output => (Vec::new(), output::pane(ui, p, reduced, layer)),
+        Pane::Modes => modes::pane(ui, p, layer),
+        Pane::History => history::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Captures => (Vec::new(), captures::pane(ui, p)),
+        Pane::Meetings => meetings::pane(ui, p, layer),
+        Pane::Files => files::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, layer)),
+        Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
+        Pane::HudLab => hud_lab::pane(ui, p),
+        Pane::Activity => activity::pane(ui, p),
+        Pane::About => (Vec::new(), about::pane(ui, p)),
+        Pane::Assistant => assistant::pane(ui, p, reduced, layer),
+    }
 }
 
 fn window_focused(ui: &mut Ui, focused: bool, tx: &mut Tx) {

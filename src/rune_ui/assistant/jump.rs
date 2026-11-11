@@ -223,6 +223,17 @@ pub(super) fn open(
     }
 }
 
+/// A pane opened from a place an answer named: Back to Assistant returns to
+/// `conversation` scrolled to `scroll_y`; nothing in it is cited.
+pub(super) fn came_for_place(ui: &mut Ui, conversation: u32, scroll_y: f32) {
+    ui.came_from = Some(CameFrom {
+        conversation,
+        scroll_y,
+        cited: None,
+        land: false,
+    });
+}
+
 /// Every place `refs` cite in `target`'s item, the one its `mark`-th `[n]`
 /// names current, else its first.
 fn places(question: &str, refs: &[Ref], target: &Ref, mark: Option<u32>) -> Cited {

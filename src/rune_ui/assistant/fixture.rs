@@ -88,6 +88,32 @@ pub(in super::super) fn answering(ui: &mut Ui) {
     });
 }
 
+/// An answer naming places in the window, each a link that opens it, and
+/// other words in bold: Add and the engine's name stay text, brighter.
+pub(in super::super) fn places(ui: &mut Ui) {
+    open(ui);
+    ui.settings.meetings.enabled = true;
+    let question = "How do I teach it a word it keeps getting wrong?";
+    let id = ui.assistant.store.start(question, None, None);
+    ui.assistant.store.push(
+        id,
+        turn(
+            question,
+            "Add the word in **General › Vocabulary**: press **Add**, type it as it should be written, and how it sounds.\n\n1. To add a word from any app, turn on **Labs › Add to vocabulary from a selection**.\n2. To fix whole sentences as well, set **Output › AI cleanup** to **Codex**.\n\nMeetings read your words too, when **Meetings › Settings** asks the notes to. **Nothing leaves this Mac** unless you choose a cloud engine.",
+            &["topics/vocabulary", "labs/vocabulary-quick-add"],
+            1,
+        ),
+    );
+    ui.assistant.open = Some(id);
+}
+
+/// General opened from the answer's General › Vocabulary: the row lit,
+/// and Back to Assistant before the title.
+pub(in super::super) fn place_opened(ui: &mut Ui) {
+    places(ui);
+    super::places::scene(ui, "General › Vocabulary");
+}
+
 /// A new conversation: the greeting and the example questions.
 pub(in super::super) fn start(ui: &mut Ui) {
     open(ui);

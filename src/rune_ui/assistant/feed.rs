@@ -50,12 +50,13 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     if conversation.turns.is_empty() && pane.consent.is_none() && pane.answering.is_none() {
         return if greet { feed.child(start(p)) } else { feed };
     }
+    let known = super::places::Known::of(ui);
     for (index, turn) in conversation.turns.iter().enumerate() {
         // Setup's own questions and the answers to them have no bubble.
         if !turn.question.trim().is_empty() && turn.answers.is_empty() {
             feed = feed.child(session::bubble(p, &format!("asked{index}"), &turn.question));
         }
-        feed = feed.child(reply(ui, p, conversation.id, index, turn));
+        feed = feed.child(reply(ui, p, &known, (conversation.id, index), turn));
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
@@ -233,7 +234,13 @@ fn example(p: Paint, index: usize, question: &'static str) -> El {
 
 /// A reply beside the face: its words, then what stopped or failed it, the
 /// guide articles it names, and its row.
-fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El {
+fn reply(
+    ui: &Ui,
+    p: Paint,
+    known: &super::places::Known,
+    (conversation, index): (u32, usize),
+    turn: &Turn,
+) -> El {
     let now_ms = ui.assistant.now_ms();
     let mut words = col().key("words").grow(1.0).shrink().min_w(0.0).gap(8.0);
     words = words.children(super::recall::folded(ui, p, conversation, index, turn));
@@ -242,8 +249,8 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
             p,
             &turn.answer,
             Some((conversation, index)),
-            false,
-            false,
+            Some(known),
+            (false, false),
         ));
     }
     words = words.children(super::ask::view(ui, p, conversation, index, turn));
@@ -384,7 +391,7 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
     let words = if !answering.draft.trim().is_empty() {
         let mut draft = answering.draft.trim_end().to_owned();
         draft.push('▌');
-        Some(super::recall::answer(p, &draft, None, true, true))
+        Some(super::recall::answer(p, &draft, None, None, (true, true)))
     } else if steps.is_none() {
         Some(
             text(tr("Looking in the guide…"))

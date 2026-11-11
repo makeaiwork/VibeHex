@@ -26,7 +26,10 @@ Assistant                                        // rune_ui::assistant
 │   │           A failed answer says why and offers Try again.
 │   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
 │   │           the answer (a click lists the steps), [n] marks inline, and
-│   │           "From your recordings" chips (title, date, time)
+│   │           "From your recordings" chips (title, date, time).
+│   │           A place in the window named in bold (General › Vocabulary,
+│   │           Labs › Smart spacing, Output) reads in the link colour and
+│   │           opens it; other bold words are full-brightness text
 │   ├── Consent the first question about recordings, before anything is
 │   │           read: "Read your meetings, files, and dictations?", the model
 │   │           the passages go to, Allow or Answer without recordings
@@ -65,6 +68,12 @@ Opened from an answer                            // rune_ui::assistant::jump
                 speaker, the cited phrases lit inside; others cited fainter;
                 a third of the way down the pane. A dictation: its History
                 row tinted with the [n] before its title
+Opened from a place link                         // rune_ui::assistant::places
+├── Header      Back to Assistant (not on the Labs page)
+└── Titles      the section and row the path names, their words lit in
+                the accent; the deepest lands a third of the way down, its
+                Advanced fold opened when it is under one; a lab: Labs on
+                its group, its card's title lit. Lit until another pane
 ```
 
 ## Behaviour
@@ -87,6 +96,19 @@ Opened from an answer                            // rune_ui::assistant::jump
 - The face: pointed at, it blinks once (0.34 s); pressed, it squishes and
   springs back (0.46 s); while an answer comes its eyes read. Under Reduce
   Motion nothing moves and reading eyes rest to one side.
+
+- Places in answers (`rune_ui::assistant::strong`, `places`): a finished
+  answer's `**…**` that names a place becomes a link before it renders.
+  Names match the window's words, translated or English, ignoring case: the
+  shown panes, Labs and each lab's title, and the paths of the settings cards
+  know (`changes::names::WHERE`); a path resolves through its first part, a
+  pane's Settings view, then titles to light. A one-word name other than a
+  pane or a lab needs its path, and a name two places share stays bold.
+  Bold inside code, links, or with markup in it is left alone, and a draft
+  while it streams is not rewritten. Every other bold word, here and in
+  Files' and meetings' answers (`files::session::markdown`), is drawn in the
+  base text colour over the softer reading colour, as a highlight, so it
+  takes no hand cursor or Tab stop.
 
 ## Setting changes as cards
 
