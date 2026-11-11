@@ -5,15 +5,17 @@
 //! Assistant's own settings (its model, consent, or visibility).
 //!
 //! What the model reads of the person's settings is only their values for
-//! switches, choices, numbers, and known model ids, and only while
-//! Assistant › Settings › Your current settings is on: never a path, a
-//! key, a list, a host, or a word from their vocabulary.
+//! switches, choices, numbers, shortcuts (as the window's keycaps show
+//! them, ⌥⇧A), and known model ids, and only while Assistant › Settings ›
+//! Your current settings is on: never a path, a key, a list, a host, or a
+//! word from their vocabulary.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{names, parts};
 use crate::app_settings::AppSettings;
+use crate::app_settings::HotkeyBinding;
 use crate::control::settings;
 
 /// How a card carries a change out.
@@ -215,6 +217,10 @@ pub struct Reading<'a> {
 /// each, `key | values | where | now`.
 pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> String {
     let shown = settings::values(settings);
+    let stored = reading
+        .send
+        .then(|| serde_json::to_value(settings).ok())
+        .flatten();
     let wanted = |key: &str| {
         reading.every
             || CORE.contains(&key)
@@ -224,6 +230,10 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
                         .iter()
                         .any(|(needs, _)| *needs == key)
             })
+            // A Labs feature's shortcut comes with the feature.
+            || settings::requires(key, &Value::Bool(true))
+                .iter()
+                .any(|(needs, _)| reading.keys.contains(needs))
     };
     let mut out = String::from("<changeable_settings>\nkey | values | where in the window");
     out.push_str(if reading.send { " | now\n" } else { "\n" });
@@ -241,10 +251,14 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
             place.name
         ));
         if reading.send {
-            let now = shown
-                .iter()
-                .find(|(known, _)| *known == key)
-                .and_then(|(_, value)| sendable(key, kind, value));
+            let now = if kind == "shortcut" {
+                stored.as_ref().map(|stored| shortcut(stored, key))
+            } else {
+                shown
+                    .iter()
+                    .find(|(known, _)| *known == key)
+                    .and_then(|(_, value)| sendable(key, kind, value))
+            };
             out.push_str(&format!(" | {}", now.unwrap_or_default()));
         }
         out.push('\n');
@@ -329,8 +343,24 @@ fn values(key: &str, kind: &str, choices: &[&str]) -> String {
     }
 }
 
+/// A shortcut as the window's keycaps show it: `⌥⇧A` on macOS,
+/// `Ctrl+Alt+Space` elsewhere; `none` when it is off.
+fn shortcut(stored: &Value, key: &str) -> String {
+    let binding = stored
+        .pointer(&format!("/{}", key.replace('.', "/")))
+        .cloned()
+        .and_then(|raw| serde_json::from_value::<Option<HotkeyBinding>>(raw).ok())
+        .flatten();
+    let Some(binding) = binding else {
+        return "none".into();
+    };
+    let caps = binding.keycaps();
+    let glyphs = caps.iter().all(|cap| cap.chars().count() == 1);
+    caps.join(if glyphs { "" } else { "+" })
+}
+
 /// The value a model may read: a switch's, a choice's, a number, or a
-/// known model id. Text, paths, lists, and shortcuts never.
+/// known model id. Text, paths, and lists never; shortcuts by [`shortcut`].
 fn sendable(key: &str, kind: &str, value: &Value) -> Option<String> {
     match (kind, value) {
         ("bool", Value::Bool(on)) => Some(if *on { "on" } else { "off" }.into()),
@@ -560,6 +590,67 @@ mod tests {
         );
         assert!(off.contains("don't know the person's current values"));
         assert!(!off.contains(" | on\n") && !off.contains(" | off\n"));
+    }
+
+    /// The model can say "you have it on: press ⌥⇧A": a Labs feature's
+    /// state and its shortcut as the window's keycaps show it.
+    #[test]
+    fn the_snapshot_carries_labs_and_their_shortcuts_as_shown() {
+        let mut settings = AppSettings::default();
+        settings.labs.vocabulary_quick_add = true;
+        settings.vocabulary_add_hotkey = HotkeyBinding::vocabulary_add_default();
+        settings.paste_last_hotkey = None;
+        let line = |section: &str, key: &str| {
+            section
+                .lines()
+                .find(|line| line.starts_with(&format!("{key} |")))
+                .map(str::to_owned)
+        };
+        let every = section(
+            &settings,
+            &reading(true, Vec::new(), true),
+            &State::default(),
+        );
+        let caps = settings.dictation_hotkey.keycaps();
+        let shown = caps.join(if caps.iter().all(|cap| cap.chars().count() == 1) {
+            ""
+        } else {
+            "+"
+        });
+        let dictation = line(&every, "dictation_hotkey").unwrap();
+        assert!(dictation.ends_with(&format!(" | {shown}")), "{dictation}");
+        assert!(
+            line(&every, "paste_last_hotkey")
+                .unwrap()
+                .ends_with(" | none")
+        );
+        if settings::unavailable("vocabulary_add_hotkey").is_none() {
+            assert!(
+                line(&every, "labs.vocabulary_quick_add")
+                    .unwrap()
+                    .ends_with(" | on")
+            );
+            let add = line(&every, "vocabulary_add_hotkey").unwrap();
+            assert!(add.ends_with(" | ⌥⇧A"), "{add}");
+            // A small model reading the feature's article gets its shortcut.
+            let small = section(
+                &settings,
+                &reading(false, vec!["labs.vocabulary_quick_add"], true),
+                &State::default(),
+            );
+            assert!(line(&small, "vocabulary_add_hotkey").is_some(), "{small}");
+        }
+        // Off: no shortcut either.
+        let off = section(
+            &settings,
+            &reading(true, Vec::new(), false),
+            &State::default(),
+        );
+        assert!(
+            !line(&off, "dictation_hotkey")
+                .unwrap()
+                .contains(&format!("| {shown}"))
+        );
     }
 
     #[test]

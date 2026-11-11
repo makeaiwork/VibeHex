@@ -32,6 +32,6 @@ pub(super) const ASSISTANT_KEYS: &[Key] = &[
     key(
         "assistant.send_settings",
         Kind::Bool,
-        "Assistant: the model reads your current switches, choices, and speech models, so it knows what is already on; never API keys, folders, or lists",
+        "Assistant: the model reads your current switches, choices, shortcuts, and speech models, so it knows what is already on; never API keys, folders, or lists",
     ),
 ];

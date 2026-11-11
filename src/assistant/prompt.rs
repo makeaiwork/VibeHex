@@ -121,6 +121,15 @@ per term in one block, after your answer, before the Sources line:
 wrong, in the language they speak. At most 8 terms, only ones the question is about.
 - You never see their vocabulary: the app leaves out a term it has.";
 
+/// With the person's settings sent: answers for them, not for anyone.
+const PERSONAL: &str = "
+
+The now column of <changeable_settings> shows the person's own settings. Answer for them:
+- A feature that does what they ask and is on comes first: say they have it on and how to \
+use it, with their own value as the now column shows it (their shortcut, not the default).
+- One that would help and is off: say what it does and offer it with a card.
+- What doesn't fit their setup (another system, a model they don't use) goes last or not at all.";
+
 /// Guided setup, a typed request: the three questions, in the message's
 /// language, as option chips.
 fn setup_ask(os: &str) -> String {
@@ -238,6 +247,9 @@ pub fn build(
     } else if let Some(context) = changes {
         let plan = matches!(stage, Stage::Plan { .. });
         instructions.push_str(if plan { SETUP_PLAN } else { CHANGES });
+        if context.send && !plan {
+            instructions.push_str(PERSONAL);
+        }
         let reading = catalog::Reading {
             // A plan reads every key, whatever the room.
             every: plan || room == Room::Large,
@@ -723,6 +735,41 @@ mod tests {
             send,
             state: catalog::State::default(),
         }
+    }
+
+    /// With the person's settings sent, the model is told to answer for
+    /// them: what is on first, with their own shortcut; what is off as a
+    /// card. "Some words come out wrong" reads the quick-add article.
+    #[test]
+    fn with_settings_sent_an_answer_is_for_the_person() {
+        let question = "Some words come out wrong. How do I fix that?";
+        let sent = build(
+            question,
+            &[],
+            Room::Large,
+            Reach::Guide,
+            Some(&context(true)),
+            &Stage::None,
+        );
+        assert!(sent.instructions.contains("Answer for them"));
+        assert!(
+            sent.instructions
+                .contains("their shortcut, not the default")
+        );
+        assert!(
+            sent.articles.contains(&"labs/vocabulary-quick-add"),
+            "{:?}",
+            sent.articles
+        );
+        let unsent = build(
+            question,
+            &[],
+            Room::Large,
+            Reach::Guide,
+            Some(&context(false)),
+            &Stage::None,
+        );
+        assert!(!unsent.instructions.contains("Answer for them"));
     }
 
     /// With changes on, the model reads how to write them and the

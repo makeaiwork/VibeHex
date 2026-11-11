@@ -29,8 +29,8 @@ pub struct AssistantSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_recordings: Option<bool>,
     /// The model reads the person's current switches, choices, numbers,
-    /// and speech models with each question, so it suggests only what
-    /// isn't on yet; never a path, a key, or a list.
+    /// shortcuts, and speech models with each question, so it suggests
+    /// only what isn't on yet; never a path, a key, or a list.
     pub send_settings: bool,
 }
 

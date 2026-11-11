@@ -48,3 +48,4 @@
 {"id":"change-hotkey","q":"Как поменять сочетание клавиш для диктовки?","articles":["topics/dictation-shortcuts"],"changes":[{"key":"dictation_hotkey"}],"web":false}
 {"id":"own-gguf","q":"Можно подключить свою модель распознавания в формате GGUF?","articles":["topics/speech-models"],"changes":[],"web":false}
 {"id":"ollama-model-pick","q":"Какую модель скачать в Ollama для чистки русской диктовки?","articles":["topics/ai-cleanup"],"changes":[],"web":true,"note":"which Ollama model to pull is outside the guide"}
+{"id":"wrong-words-yours","q":"Some words come out wrong. How do I fix that?","articles":["topics/vocabulary","labs/vocabulary-quick-add"],"changes":[{"key":"labs.vocabulary_quick_add","value":true}],"web":false,"note":"with the settings sent, the answer is theirs: quick add first with their own shortcut when it is on (macOS), a card to turn it on when it is off"}

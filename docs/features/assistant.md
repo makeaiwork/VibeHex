@@ -55,7 +55,7 @@ Assistant                                        // rune_ui::assistant
     ├── Conversations   Keep on this computer; Clear conversations… then
     │                   Really clear all?
     └── What it reads   Your current settings (toggle, on: the model reads
-                        switches, choices, numbers, and speech models);
+                        switches, choices, numbers, shortcuts, and speech models);
                         Your meetings, files, and dictations (toggle)
 Opened from an answer                            // rune_ui::assistant::jump
 ├── Header      Back to Assistant (chevron, face, words) before the title
@@ -98,8 +98,13 @@ Opened from an answer                            // rune_ui::assistant::jump
   under the answer, or refuses it.
 - The prompt lists only the keys a card may change, with their values,
   where they live in the window, and, with `assistant.send_settings` on,
-  their value now (`assistant::changes::catalog`). A large model reads every
-  such key; a local one reads the keys its articles name and a core set.
+  their value now (`assistant::changes::catalog`; a shortcut as the
+  window's keycaps show it, ⌥⇧A, or none). A large model reads every
+  such key; a local one reads the keys its articles name, the shortcuts of
+  the Labs among them, and a core set. With the values sent, the prompt
+  asks for an answer for this person: a feature that does what they ask
+  and is on comes first, with their own shortcut or value; one that is off
+  is offered as a card; what doesn't fit their setup goes last or not at all.
   Never offered: the update channel, API keys, sign-ins, folders and paths,
   microphones, app and site lists, calendar ids, Assistant's own settings.
 - Pressing a card's button is the only way it changes anything. The save
@@ -288,7 +293,7 @@ Opened from an answer                            // rune_ui::assistant::jump
 | `assistant.effort` | empty (medium) | Codex reasoning: low, medium, high |
 | `assistant.keep_conversations` | `true` | Keep conversations on this computer |
 | `assistant.read_recordings` | none | May search meetings, Files texts, and dictations for questions about them; none until first asked |
-| `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, and speech models with each question; never API keys, paths, or lists |
+| `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, shortcuts, and speech models with each question; never API keys, paths, or lists |
 
 ## Privacy
 
