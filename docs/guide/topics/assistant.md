@@ -58,6 +58,13 @@ folded under **Already set**. Untick what you don't need and press **Apply 5
 changes**. A change that can't be made says why, and the rest still apply;
 **Undo** takes the whole list back.
 
+**Or set it up like Denis**, under it, or asking "set me up like Denis" («сделай
+настройки как у Дениса»), offers the settings of the person who makes VibeHex
+as one such list: his Labs features, speech model, cleanup and notes engines,
+cleanup instructions, and Vocabulary terms you don't have yet. Keeping meetings
+for a month starts unticked. Then it shows his shortcuts and asks whether they
+suit you: **Use these**, **Keep mine**, or type the key you'd like.
+
 ## Ask about your recordings
 
 The first time a question is about your recordings, before anything is read,
@@ -108,4 +115,4 @@ me"; «Может ли ассистент искать по моим встре�
 ассистенту читать мои записи?»; «Помоги мне настроить VibeHex под меня»;
 «Добавь Kubernetes в словарь».
 
-<!-- sources: docs/features/assistant.md; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup/mod.rs; src/assistant/setup/follow.rs; src/assistant/setup/plan.rs; src/assistant/changes/vocab.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->
+<!-- sources: docs/features/assistant.md; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup/mod.rs; src/assistant/setup/follow.rs; src/assistant/setup/plan.rs; src/assistant/setup/preset.rs; src/assistant/changes/vocab.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->

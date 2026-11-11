@@ -18,8 +18,9 @@ Assistant                                        // rune_ui::assistant
 ├── Chat
 │   ├── New     "Ask anything about VibeHex", "Set VibeHex up for me" (an
 │   │           accent-tinted row: a sliders tile, a line on what it does,
-│   │           a chevron), four example questions, and what the guide
-│   │           holds (Labs features and topics)
+│   │           a chevron), "Or set it up like Denis, who makes VibeHex ›"
+│   │           (quiet text under it), four example questions, and what
+│   │           the guide holds (Labs features and topics)
 │   ├── Feed    the person's bubble; the answer as Markdown beside the face,
 │   │           then "From the guide" chips naming the articles it drew on,
 │   │           then Copy, Ask again, the model, Stopped, the time.
@@ -229,6 +230,38 @@ Opened from an answer                            // rune_ui::assistant::jump
   speech model then downloads. Undo puts back the save, the model, and the
   terms added.
 
+## Set me up like Denis
+
+- "Set me up like Denis", "like the developer", «сделай настройки как у
+  Дениса», «как у DenisKey» (`assistant::intent::preset`: a "like"/«как у»
+  followed by Denis, DenisKey, the developer or the author), or the quiet
+  "Or set it up like Denis, who makes VibeHex" under the Start row, answer
+  with the owner's preset, no model asked (`setup::preset`,
+  `rune_ui::assistant::preset`).
+- `presets/deniskey.json` is written by `scripts/export-preset` from the
+  owner's settings.json and shipped with `include_str!`. It is an
+  allow-list over the `hex settings` registry: every Labs switch, the
+  speech model and language, dictation cleanup (on/off, `runs_on`, local
+  and Codex model, Codex effort), Meetings' engines, writer, efforts and
+  toggles, Files' engines, efforts and toggles, `meetings.retention`, the
+  Global prompt, Vocabulary with spellings, and the shortcuts. Never API
+  keys or other secrets, server addresses, folders, the microphone,
+  calendars, window or update state, Assistant's own settings, app lists or
+  browser hosts; `scripts/test-export-preset.py` (in `scripts/check`, exit
+  15) feeds it a file full of them.
+- Step one is one plan under setup's rules: a key this machine can't take
+  is left out and named under "Not available here"; an engine not ready
+  starts unchecked with where to finish; a value already the same folds
+  into "Already set" (Labs off on both sides are left out); the prompt is
+  a row, the terms one "Add N terms" row less those the person has. All
+  checked but `meetings.retention`, which moves older meetings to the
+  Trash.
+- Once it is applied or put off: "These are Denis's shortcuts — do they
+  suit you?" with the list, Use these (a plan of their own, with Undo),
+  Keep mine, or a key typed instead (an ordinary question; the model's
+  change card goes through `check`). Turns carry `preset` (`settings`,
+  `shortcuts`, `shortcuts-plan`, `done`).
+
 ## Questions about recordings
 
 - `assistant::intent` reads from the question's words alone, against a
@@ -324,7 +357,8 @@ each with the parse it must make); scenes `assistant`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
 `assistant-change-both`, `assistant-change-coming`, setup's
 `assistant-setup-ask`, `assistant-setup-follow`, `assistant-setup-plan`,
-`assistant-setup-kept`, `assistant-setup-result`,
+`assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
+`assistant-setup-preset-shortcuts`,
 and their goldens; `scripts/check control::settings`
 for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
