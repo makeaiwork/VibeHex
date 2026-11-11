@@ -249,7 +249,9 @@ pub(super) fn pane_header(
         .px(METRICS.gutter)
         .gap(8.0)
         .center_y()
-        .children(back.map(|back| back.mr(4.0)))
+        // Back to Assistant is a box: it hangs past the gutter as fields
+        // and cards do, so its edge lines up with theirs below it.
+        .children(back.map(|back| back.ml(-METRICS.row_px).mr(4.0)))
         .child(
             text(title)
                 .key("pane-title")
