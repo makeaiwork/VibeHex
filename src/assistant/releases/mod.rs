@@ -9,6 +9,7 @@
 //! unknown; a development build reads the latest release and Next.
 
 pub mod history;
+pub mod prompt;
 
 use std::sync::OnceLock;
 
@@ -69,13 +70,9 @@ pub fn notes() -> &'static [Note] {
     })
 }
 
-/// The newest release's notes, Next aside.
-pub fn latest() -> Option<&'static Note> {
-    notes().iter().rev().find(|note| !note.is_next())
-}
-
 /// The notes for `version`, as written or as `vibe.N` of the newest line
 /// ("vibe.5", "5").
+#[cfg(test)]
 pub fn find(version: &str) -> Option<&'static Note> {
     find_in(notes(), version)
 }

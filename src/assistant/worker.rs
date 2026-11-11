@@ -13,6 +13,7 @@ use super::changes::{self, Card, CardKind, Refused, Why};
 use super::intent::Intent;
 use super::prompt::{self, Reach, Room};
 use super::recordings::{self, Allowed, Budget, Found, Sources, Step};
+use super::releases;
 use super::setup::{self, Ask, Stage};
 use super::store::Turn;
 use crate::dictation::cleanup_pieces::Streamed;
@@ -57,6 +58,8 @@ pub enum Recall {
     Declined,
     /// About the person's recordings, which it may search.
     Search(Search),
+    /// About what changed in VibeHex: its release notes.
+    Releases(releases::Asked),
 }
 
 /// A search of the person's recordings, possible only with their leave.
@@ -177,9 +180,14 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
                 Recall::Search(search) => read(search, room),
                 _ => None,
             };
-            let reach = match (&question.recall, &found) {
-                (Recall::Declined, _) => Reach::Declined,
-                (Recall::Search(search), Some(found)) => Reach::Recordings(found, search.now_ms),
+            let notes = match &question.recall {
+                Recall::Releases(asked) => Some(releases::select(asked, releases::Running::here())),
+                _ => None,
+            };
+            let reach = match (&question.recall, &found, &notes) {
+                (Recall::Declined, ..) => Reach::Declined,
+                (Recall::Search(search), Some(found), _) => Reach::Recordings(found, search.now_ms),
+                (_, _, Some(notes)) => Reach::Releases(notes),
                 _ => Reach::Guide,
             };
             let prompt = prompt::build(

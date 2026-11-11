@@ -289,5 +289,84 @@ fn a_note_names_the_keys_of_its_labs_then_its_own() {
         keys.contains(&"labs.files") && keys.contains(&"stop_hotkey"),
         "{keys:?}"
     );
-    assert!(latest().is_some_and(|note| !note.is_next()));
+}
+
+/// A question about what's new carries the notes picked, the rule for the
+/// answer, and the keys those releases changed, so a small model can offer
+/// them on a card.
+#[test]
+fn the_prompt_carries_the_notes_picked_and_their_keys() {
+    use crate::assistant::changes::{self, catalog};
+    use crate::assistant::prompt::{Reach, Room, build};
+    use crate::assistant::setup::Stage;
+    let context = changes::Context {
+        settings: crate::app_settings::AppSettings::default(),
+        send: true,
+        state: catalog::State::default(),
+    };
+    let selection = select(
+        &Asked::default(),
+        running("3.3.0-vibe.6", Some("3.3.0-vibe.4")),
+    );
+    let prompt = build(
+        "Что нового?",
+        &[],
+        Room::Small,
+        Reach::Releases(&selection),
+        Some(&context),
+        &Stage::None,
+    );
+    assert!(prompt.instructions.contains("For you"));
+    assert!(prompt.instructions.contains("hex-change"));
+    for version in ["3.3.0-vibe.6", "3.3.0-vibe.5"] {
+        assert!(
+            prompt
+                .input
+                .contains(&format!("<release version=\"{version}\"")),
+            "{version} missing"
+        );
+    }
+    for version in ["3.3.0-vibe.4", "3.3.0-vibe.3", "Next"] {
+        assert!(
+            !prompt
+                .input
+                .contains(&format!("<release version=\"{version}")),
+            "{version} isn't since"
+        );
+    }
+    assert!(prompt.input.contains("ran 3.3.0-vibe.4 before it"));
+    assert!(prompt.input.contains("Files (macOS)"), "the bullets go in");
+    assert!(
+        !prompt.input.contains("# VibeHex 3.3.0-vibe.6"),
+        "titles stay out"
+    );
+    let catalog = &prompt.input[prompt.input.find("<changeable_settings").unwrap()..];
+    assert!(
+        catalog.contains("labs.collapsible_sidebar"),
+        "a key the release changed is offered"
+    );
+    // The guide's question stays the guide's.
+    let guide = build(
+        "Что нового?",
+        &[],
+        Room::Small,
+        Reach::Guide,
+        Some(&context),
+        &Stage::None,
+    );
+    assert!(!guide.input.contains("<releases"));
+}
+
+#[test]
+fn a_development_build_is_told_so() {
+    let dev = Running {
+        version: "3.3.0".into(),
+        dev: true,
+        previous: None,
+    };
+    let block = prompt::block(&select(&Asked::default(), dev));
+    assert!(block.contains("A development build (3.3.0)"));
+    assert!(block.contains("<release version=\"Next (not released yet)\" date=\"unreleased\">"));
+    let latest = notes().iter().rev().find(|note| !note.is_next()).unwrap();
+    assert!(block.contains(&format!("<release version=\"{}\"", latest.version)));
 }

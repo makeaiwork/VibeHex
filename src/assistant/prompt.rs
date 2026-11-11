@@ -10,6 +10,7 @@
 use super::changes::{self, Refused, catalog};
 use super::guide::{self, Article};
 use super::recordings::{Excerpt, Found, Kind, cite};
+use super::releases;
 use super::retrieve;
 use super::setup::{self, Stage};
 
@@ -176,6 +177,8 @@ pub enum Reach<'a> {
     Declined,
     /// What a search of the person's recordings found, with their `now`.
     Recordings(&'a Found, u64),
+    /// A question about what changed: the release notes it reads.
+    Releases(&'a releases::Selection),
 }
 
 const RECORDINGS: &str = "
@@ -228,12 +231,18 @@ pub fn build(
     } else if let Some(context) = changes {
         let plan = matches!(stage, Stage::Plan { .. });
         instructions.push_str(if plan { SETUP_PLAN } else { CHANGES });
+        // What the releases asked about changed may be offered too.
+        let released = match reach {
+            Reach::Releases(selection) => selection.settings_keys(),
+            _ => Vec::new(),
+        };
         let reading = catalog::Reading {
             // A plan reads every key, whatever the room.
             every: plan || room == Room::Large,
             keys: found
                 .iter()
                 .flat_map(|article| article.keys.iter().map(String::as_str))
+                .chain(released)
                 .collect(),
             send: context.send,
             instructions: found
@@ -253,6 +262,10 @@ pub fn build(
         Reach::Recordings(recordings, now_ms) => {
             instructions.push_str(RECORDINGS);
             input.push_str(&recordings_block(recordings, now_ms));
+        }
+        Reach::Releases(selection) => {
+            instructions.push_str(releases::prompt::INSTRUCTIONS);
+            input.push_str(&releases::prompt::block(selection));
         }
     }
     let kept = earlier.len().saturating_sub(room.earlier_turns());

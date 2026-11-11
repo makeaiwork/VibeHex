@@ -143,6 +143,10 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     if intent::setup(&question) {
         return ask_with(ui, id, question, Recall::Guide, Stage::Ask);
     }
+    // What changed in VibeHex: its release notes, never the recordings.
+    if let Some(asked) = intent::releases(&question) {
+        return ask_with(ui, id, question, Recall::Releases(asked), Stage::None);
+    }
     match super::recall::recall(ui, id, &question) {
         Some(recall) => ask_with(ui, id, question, recall, Stage::None),
         None => true,
