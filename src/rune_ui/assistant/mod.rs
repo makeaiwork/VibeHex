@@ -26,6 +26,7 @@ mod picker;
 mod plan;
 mod recall;
 mod settings;
+mod verbs;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
 
@@ -85,6 +86,9 @@ pub(in super::super) struct AssistantPane {
     pub(super) undo: Vec<changes::At>,
     /// The conversation `undo` belongs to.
     pub(super) undo_for: Option<u32>,
+    /// The instructions card being edited before it saves, and its text.
+    pub(super) editing: Option<changes::At>,
+    pub(super) edit: TextEdit,
     /// A scene's card states this computer can't take on: an
     /// organization's lock, Codex signed out.
     pub(super) shown_as: Vec<(changes::At, crate::assistant::changes::state::Shown)>,

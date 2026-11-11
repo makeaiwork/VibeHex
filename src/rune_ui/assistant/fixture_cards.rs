@@ -301,6 +301,27 @@ pub(in super::super) fn cards_prompt(ui: &mut Ui) {
     conversation(ui, keep, vec![first, second], &[]);
 }
 
+/// The instructions card after Edit first: its text in the card's own box,
+/// with Save instructions and Cancel edit.
+pub(in super::super) fn cards_prompt_edit(ui: &mut Ui) {
+    cards_prompt(ui);
+    let Some(conversation) = ui.assistant.open else {
+        return;
+    };
+    let at = super::changes::At {
+        conversation,
+        turn: 1,
+        card: 0,
+    };
+    super::changes::edit(ui, at);
+    let text = ui
+        .assistant
+        .edit
+        .text
+        .replace(", pull request.", ", pull request, Docker.");
+    ui.assistant.edit = rune::TextEdit::new(text);
+}
+
 /// The Main mockup: Meetings turned on, with Undo, and Zoom's Always
 /// record still to decide; then a follow-up.
 pub(in super::super) fn applied(ui: &mut Ui) {

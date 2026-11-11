@@ -2906,6 +2906,7 @@ fn goldens() {
         "assistant-cards-more",
         "assistant-cards-held",
         "assistant-cards-prompt",
+        "assistant-cards-prompt-edit",
         "assistant-applied",
         "assistant-change-both",
         "assistant-change-coming",

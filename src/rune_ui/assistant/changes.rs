@@ -300,8 +300,46 @@ fn commit(
     ))
 }
 
+/// Edit first: the instructions card's text opens in the card itself,
+/// never in Output's editor.
+pub(super) fn edit(ui: &mut Ui, at: At) {
+    let Some(text) = card(ui, at)
+        .and_then(|card| card.items.first())
+        .and_then(|item| item.to.as_str())
+        .map(str::to_owned)
+    else {
+        return;
+    };
+    ui.assistant.edit = rune::TextEdit::new(text);
+    ui.assistant.editing = Some(at);
+}
+
+/// Cancel edit: back to the lines the model wrote.
+pub(super) fn cancel_edit(ui: &mut Ui) {
+    ui.assistant.editing = None;
+}
+
+/// Saves the edited text through the same check as any card, so Undo and
+/// a later hand change behave as for the model's own text.
+pub(super) fn save_edit(ui: &mut Ui, at: At) {
+    if ui.assistant.editing != Some(at) {
+        return apply(ui, at);
+    }
+    let text = ui.assistant.edit.text.trim().to_owned();
+    set(ui, at, |card| {
+        if let Some(item) = card.items.first_mut() {
+            item.to = Value::String(text);
+        }
+    });
+    ui.assistant.editing = None;
+    apply(ui, at);
+}
+
 /// Not now: nothing changes.
 pub(super) fn decline(ui: &mut Ui, at: At) {
+    if ui.assistant.editing == Some(at) {
+        ui.assistant.editing = None;
+    }
     set(ui, at, |card| card.decision = Decision::Declined);
 }
 
@@ -606,6 +644,38 @@ mod tests {
             card(&ui, at).unwrap().decision,
             Decision::Failed { .. }
         ));
+    }
+
+    /// Edit first: the card's own text box, saved through the same check;
+    /// Cancel edit leaves the model's text, and Undo puts back the old.
+    #[test]
+    fn edited_instructions_save_and_undo_like_the_models() {
+        let key = changes::parts::PROMPT;
+        let before = ui_prompt(&with_card(key, json!(""), json!("")).0);
+        let (mut ui, at) = with_card(key, json!(before), json!("Fix punctuation."));
+        set(&mut ui, at, |card| card.kind = CardKind::Prompt);
+        edit(&mut ui, at);
+        assert_eq!(ui.assistant.editing, Some(at));
+        assert_eq!(ui.assistant.edit.text, "Fix punctuation.");
+        ui.assistant.edit = rune::TextEdit::new("Never translate code.".to_owned());
+        cancel_edit(&mut ui);
+        assert_eq!(
+            card(&ui, at).unwrap().items[0].to,
+            json!("Fix punctuation.")
+        );
+        edit(&mut ui, at);
+        ui.assistant.edit = rune::TextEdit::new("  Never translate code.\n".to_owned());
+        save_edit(&mut ui, at);
+        assert!(ui.assistant.editing.is_none());
+        assert_eq!(ui_prompt(&ui), "Never translate code.");
+        assert_eq!(shown(&ui, at), Some(Shown::Applied { undo: true }));
+        undo(&mut ui, at);
+        assert_eq!(ui_prompt(&ui), before);
+    }
+
+    fn ui_prompt(ui: &Ui) -> String {
+        let mode = &ui.settings.dictation_processing.default_mode;
+        mode.post_processing.prompt.clone()
     }
 
     #[test]

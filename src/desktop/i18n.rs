@@ -1678,6 +1678,8 @@ mod tests {
         include_str!("../rune_ui/assistant/mod.rs"),
         include_str!("../rune_ui/assistant/ask.rs"),
         include_str!("../rune_ui/assistant/card.rs"),
+        include_str!("../rune_ui/assistant/card_diff.rs"),
+        include_str!("../rune_ui/assistant/verbs.rs"),
         include_str!("../rune_ui/assistant/plan.rs"),
         include_str!("../assistant/setup.rs"),
         include_str!("../rune_ui/assistant/changes.rs"),

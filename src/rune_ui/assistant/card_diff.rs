@@ -1,11 +1,17 @@
 //! Instructions a card would save, shown line by line against the ones
 //! saved now: removed lines on a soft danger tint, added ones on a soft
-//! success tint, a few unchanged lines around them.
+//! success tint, a few unchanged lines around them. Edit first opens the
+//! text in the card itself, saved through the same check as the model's.
 
 use rune::{El, col, row, text};
+use rune_kit::TextArea;
 use rune_kit::diff::{FileDiff, LineKind};
 
+use super::super::Ui;
 use super::super::controls::Paint;
+use super::card::{Look, push};
+use super::changes::{self as act, At};
+use crate::desktop::i18n::tr;
 
 /// Unchanged lines kept around each change.
 const CONTEXT: u32 = 2;
@@ -20,8 +26,64 @@ pub(super) fn changed(old: &str, new: &str) -> usize {
     diff.additions().max(diff.deletions())
 }
 
+/// The lines changed, or the text while it is edited.
+pub(super) fn lines(ui: &Ui, p: Paint, at: At, old: &str, new: &str) -> El {
+    if ui.assistant.editing != Some(at) {
+        return view(p, old, new);
+    }
+    row().key("diff").pl(38.0).child(
+        TextArea::new(&ui.assistant.edit)
+            .label(tr("Instructions"))
+            .rows(8)
+            .width(None)
+            .on_edit(|ui: &mut Ui| &mut ui.assistant.edit)
+            .build(p.k)
+            .key("edit")
+            .grow(1.0)
+            .shrink()
+            .min_w(0.0),
+    )
+}
+
+/// Save instructions, then Edit first and Not now; while editing, Save
+/// instructions saves the edited text and Cancel edit goes back.
+pub(super) fn buttons(ui: &Ui, p: Paint, at: At, look: Look) -> Vec<El> {
+    let save = push(p, "apply", tr("Save instructions"), look, move |ui, _| {
+        act::save_edit(ui, at)
+    });
+    if ui.assistant.editing == Some(at) {
+        return vec![
+            save,
+            push(
+                p,
+                "cancel-edit",
+                tr("Cancel edit"),
+                Look::Secondary,
+                |ui, _| act::cancel_edit(ui),
+            ),
+        ];
+    }
+    vec![
+        save,
+        push(
+            p,
+            "edit",
+            tr("Edit first"),
+            Look::Secondary,
+            move |ui, _| act::edit(ui, at),
+        ),
+        push(
+            p,
+            "not-now",
+            tr("Not now"),
+            Look::Secondary,
+            move |ui, _| act::decline(ui, at),
+        ),
+    ]
+}
+
 /// The lines, in a hairline box, starting where the card's words start.
-pub(super) fn view(p: Paint, old: &str, new: &str) -> El {
+fn view(p: Paint, old: &str, new: &str) -> El {
     let c = &p.k.c;
     let font = rune::TextStyle {
         size: 11.5,

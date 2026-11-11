@@ -210,6 +210,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Cards/Instructions and a shorter retention",
     ),
     (
+        "assistant-cards-prompt-edit",
+        "Window/Assistant/Cards/Instructions, edited first",
+    ),
+    (
         "assistant-applied",
         "Window/Assistant/Cards/Applied with Undo",
     ),

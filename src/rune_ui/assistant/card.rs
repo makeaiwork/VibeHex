@@ -17,6 +17,7 @@ use super::super::icons;
 use super::super::lists::{Tone, tone_tag};
 use super::card_diff;
 use super::changes::{self as act, At};
+use super::verbs::{anyway, applied_words, show_label, verb};
 use crate::assistant::changes::catalog::{Permission, Shorter};
 use crate::assistant::changes::names::{self, Home};
 use crate::assistant::changes::parts::PROMPT;
@@ -82,7 +83,10 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
         Some(place) => (tr(place.path).to_owned(), tr(&place.name).to_owned()),
         None => (String::new(), item.key.clone()),
     };
-    let to = chosen(card).clone();
+    let to = match ui.assistant.editing == Some(at) {
+        true => Value::String(ui.assistant.edit.text.clone()),
+        false => chosen(card).clone(),
+    };
     let home = place.as_ref().map(|place| place.home);
     let key = format!("card{}-{}", at.turn, at.card);
     let mut body: Vec<El> = Vec::new();
@@ -194,7 +198,13 @@ fn state_body(
                 body.push(radios(p, at, item, options, *chosen, *suggested));
             }
             if card.kind == CardKind::Prompt {
-                body.push(card_diff::view(p, text_of(&item.from), text_of(to)));
+                body.push(card_diff::lines(
+                    ui,
+                    p,
+                    at,
+                    text_of(&item.from),
+                    text_of(to),
+                ));
             }
             body.extend(why(p, &item.why));
             for (index, (key, value)) in also.iter().enumerate() {
@@ -208,6 +218,10 @@ fn state_body(
             } else {
                 main
             };
+            if card.kind == CardKind::Prompt {
+                body.push(buttons(card_diff::buttons(ui, p, at, look)));
+                return body;
+            }
             body.push(buttons(vec![
                 push(
                     p,
@@ -740,57 +754,4 @@ fn text_of(value: &Value) -> &str {
 /// A value as the window names it, in the window's language.
 pub(super) fn label(key: &str, value: &Value) -> String {
     tr(&names::label(key, value)).to_owned()
-}
-
-/// The main button: what pressing it does.
-fn verb(card: &Card, key: &str, to: &Value, also: usize) -> String {
-    match &card.kind {
-        CardKind::Prompt => return tr("Save instructions").to_owned(),
-        CardKind::Choice { .. } => return tr_fill("Use {}", &label(key, to)),
-        _ => {}
-    }
-    match (also, to) {
-        (1, _) => tr("Change both").to_owned(),
-        (2.., _) => tr("Change all").to_owned(),
-        (_, Value::Bool(true)) => tr("Turn on").to_owned(),
-        (_, Value::Bool(false)) => tr("Turn off").to_owned(),
-        _ => tr("Change").to_owned(),
-    }
-}
-
-/// The button on a card turned down: the change after all.
-fn anyway(card: &Card, to: &Value) -> &'static str {
-    match (&card.kind, to) {
-        (CardKind::Single, Value::Bool(true)) => tr("Turn on anyway"),
-        (CardKind::Single, Value::Bool(false)) => tr("Turn off anyway"),
-        _ => tr("Change anyway"),
-    }
-}
-
-/// What a saved card says.
-fn applied_words(card: &Card, key: &str, to: &Value) -> String {
-    if card.kind == CardKind::Prompt {
-        return tr("Saved").to_owned();
-    }
-    match (key, to) {
-        ("meetings.enabled", Value::Bool(true)) => {
-            tr("Turned on, Meetings is in the sidebar").to_owned()
-        }
-        (_, Value::Bool(true)) => tr("Turned on").to_owned(),
-        (_, Value::Bool(false)) => tr("Turned off").to_owned(),
-        _ => tr_fill("Set to {}", &label(key, to)),
-    }
-}
-
-/// Show in Labs, or in the setting's pane.
-fn show_label(key: &str, ui: &Ui) -> &'static str {
-    match names::place(key, &ui.settings).map(|place| place.home) {
-        Some(Home::Labs(_)) | None => tr("Show in Labs"),
-        Some(Home::General) => tr("Show in General"),
-        Some(Home::Output) => tr("Show in Output"),
-        Some(Home::History) => tr("Show in History"),
-        Some(Home::Meetings) => tr("Show in Meetings"),
-        Some(Home::Annotate) => tr("Show in Annotate"),
-        Some(Home::Files) => tr("Show in Files"),
-    }
 }

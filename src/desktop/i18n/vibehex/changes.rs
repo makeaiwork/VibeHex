@@ -66,6 +66,8 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("current", ["obecnie", "当前", "現在", "aktuell", "actual", "зараз"]),
     ("to {}", ["na {}", "为 {}", "を {} に", "auf {}", "en {}", "на {}"]),
     ("{} lines changed", ["Zmienione wiersze: {}", "更改了 {} 行", "{} 行変更", "{} Zeilen geändert", "{} líneas cambiadas", "Змінено рядків: {}"]),
+    ("Edit first", ["Najpierw edytuj", "先编辑", "先に編集", "Erst bearbeiten", "Editar primero", "Спершу змінити"]),
+    ("Cancel edit", ["Anuluj edycję", "取消编辑", "編集をやめる", "Bearbeiten abbrechen", "Cancelar edición", "Скасувати зміни"]),
 ];
 
 /// French.
@@ -130,6 +132,8 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("current", "actuel"),
     ("to {}", "sur {}"),
     ("{} lines changed", "{} lignes modifiées"),
+    ("Edit first", "Modifier d'abord"),
+    ("Cancel edit", "Annuler la modification"),
 ];
 
 /// Brazilian Portuguese.
@@ -194,6 +198,8 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("current", "atual"),
     ("to {}", "como {}"),
     ("{} lines changed", "{} linhas alteradas"),
+    ("Edit first", "Editar antes"),
+    ("Cancel edit", "Cancelar edição"),
 ];
 
 /// Russian.
@@ -258,4 +264,6 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("current", "сейчас"),
     ("to {}", "на {}"),
     ("{} lines changed", "Изменено строк: {}"),
+    ("Edit first", "Сначала изменить"),
+    ("Cancel edit", "Отменить правку"),
 ];

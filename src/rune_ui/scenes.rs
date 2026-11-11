@@ -706,6 +706,10 @@ pub(super) const SCENES: &[Scene] = &[
         "assistant-cards-prompt",
         assistant::fixture_cards::cards_prompt,
     ),
+    (
+        "assistant-cards-prompt-edit",
+        assistant::fixture_cards::cards_prompt_edit,
+    ),
     ("assistant-applied", assistant::fixture_cards::applied),
     (
         "assistant-change-both",
