@@ -397,6 +397,7 @@ pub(in super::super) fn change_coming(ui: &mut Ui) {
         steps: Vec::new(),
         searching: false,
         cards_coming: true,
+        web: Default::default(),
     });
 }
 

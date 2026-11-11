@@ -10,6 +10,10 @@
 //! apps, shell, web search, project instructions, and `notify` command
 //! ([`ISOLATION`]), so Codex sees only the text and keeps nothing of it. Hex
 //! never sees a password or key: Codex keeps its own sign-in in `~/.codex`.
+//!
+//! One exception: Assistant's answers, while its Web is on, start their
+//! thread with live web search allowed ([`generate_searching`]); dictation
+//! cleanup, Files, and meeting notes never do.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -310,6 +314,10 @@ pub fn sign_in(cancelled: &AtomicBool) -> Result<String> {
         .ok_or_else(|| eyre!("Codex didn't offer a sign-in page"))
 }
 
+/// Hears each web search Codex makes while it answers: its `webSearch`
+/// item, and whether the search or page is done.
+pub type Searched<'a> = &'a dyn Fn(&Value, bool);
+
 /// One answer: `instructions` as the thread's base instructions, `input` as
 /// the message, on `model` (empty: Codex's default) thinking at `effort`
 /// (empty: the model's default). The answer streams to `streamed`.
@@ -322,18 +330,74 @@ pub fn generate(
     cancelled: &AtomicBool,
     streamed: Option<Streamed>,
 ) -> Result<String> {
+    answer(
+        (model, effort),
+        instructions,
+        input,
+        deadline,
+        cancelled,
+        streamed,
+        None,
+    )
+}
+
+/// [`generate`] with live web search allowed on this one thread, for
+/// Assistant's answers while its Web is on; `searched` hears each search.
+/// Everything else in [`ISOLATION`] stays.
+#[allow(clippy::too_many_arguments)]
+pub fn generate_searching(
+    model: &str,
+    effort: &str,
+    instructions: &str,
+    input: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
+    searched: Searched,
+) -> Result<String> {
+    answer(
+        (model, effort),
+        instructions,
+        input,
+        deadline,
+        cancelled,
+        streamed,
+        Some(searched),
+    )
+}
+
+/// `thread/start`'s parameters: ephemeral and read-only in `cwd`, with
+/// Hex's instructions; live web search only when `web`, overriding the
+/// process's `web_search="disabled"` for this thread alone.
+fn thread_params(model: &str, instructions: &str, cwd: &Path, web: bool) -> Value {
+    let mut params = json!({
+        "model": non_empty(model),
+        "cwd": cwd,
+        "approvalPolicy": "never",
+        "sandbox": "read-only",
+        "ephemeral": true,
+        "baseInstructions": instructions,
+    });
+    if web {
+        params["config"] = json!({ "web_search": "live" });
+    }
+    params
+}
+
+fn answer(
+    (model, effort): (&str, &str),
+    instructions: &str,
+    input: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
+    searched: Option<Searched>,
+) -> Result<String> {
     let until = Instant::now() + deadline;
     let process = running(until, cancelled)?;
     let started = process.request(
         "thread/start",
-        json!({
-            "model": non_empty(model),
-            "cwd": workspace()?,
-            "approvalPolicy": "never",
-            "sandbox": "read-only",
-            "ephemeral": true,
-            "baseInstructions": instructions,
-        }),
+        thread_params(model, instructions, &workspace()?, searched.is_some()),
         until,
         cancelled,
     )?;
@@ -379,6 +443,12 @@ pub fn generate(
                 text.push_str(&piece);
                 if let Some(streamed) = &streamed {
                     streamed(chars, &text);
+                }
+            }
+            Ok(Event::Web(item, done)) => {
+                tracing::debug!(%item, done, "Codex web search");
+                if let Some(searched) = searched {
+                    searched(&item, done);
                 }
             }
             Ok(Event::Completed(turn)) => return finished(&turn, &text),
@@ -548,6 +618,8 @@ fn read_limits(response: &Value) -> (Vec<Limit>, bool) {
 /// What the reader passes to a request waiting on a thread.
 enum Event {
     Delta(String),
+    /// A `webSearch` item started, or done.
+    Web(Value, bool),
     Completed(Value),
     Failed(String),
 }
@@ -806,30 +878,8 @@ impl Process {
     }
 
     fn notified(&self, method: &str, params: Option<&Value>) {
-        let Some(params) = params else { return };
-        let event = match method {
-            "item/agentMessage/delta" => params
-                .get("delta")
-                .and_then(Value::as_str)
-                .map(|delta| Event::Delta(delta.to_owned())),
-            "turn/completed" => params.get("turn").cloned().map(Event::Completed),
-            // An error Codex retries by itself is only a warning.
-            "error" if params.get("willRetry").and_then(Value::as_bool) != Some(true) => params
-                .get("error")
-                .map(|error| Event::Failed(error_message(error))),
-            _ => None,
-        };
-        let (Some(event), Some(thread)) = (event, params.get("threadId").and_then(Value::as_str))
-        else {
-            return;
-        };
-        if let Some(sender) = self
-            .threads
-            .lock()
-            .ok()
-            .and_then(|t| t.get(thread).cloned())
-        {
-            let _ = sender.send(event);
+        if let Some(params) = params {
+            route_to(&self.threads, method, params);
         }
     }
 
@@ -846,6 +896,34 @@ impl Process {
         if let Ok(mut threads) = self.threads.lock() {
             threads.clear();
         }
+    }
+}
+
+/// Passes one notification to the thread it is about, when a request
+/// follows that thread.
+fn route_to(threads: &Mutex<HashMap<String, mpsc::Sender<Event>>>, method: &str, params: &Value) {
+    let event = match method {
+        "item/agentMessage/delta" => params
+            .get("delta")
+            .and_then(Value::as_str)
+            .map(|delta| Event::Delta(delta.to_owned())),
+        "item/started" | "item/completed" => params
+            .get("item")
+            .filter(|item| item.get("type").and_then(Value::as_str) == Some("webSearch"))
+            .map(|item| Event::Web(item.clone(), method == "item/completed")),
+        "turn/completed" => params.get("turn").cloned().map(Event::Completed),
+        // An error Codex retries by itself is only a warning.
+        "error" if params.get("willRetry").and_then(Value::as_bool) != Some(true) => params
+            .get("error")
+            .map(|error| Event::Failed(error_message(error))),
+        _ => None,
+    };
+    let (Some(event), Some(thread)) = (event, params.get("threadId").and_then(Value::as_str))
+    else {
+        return;
+    };
+    if let Some(sender) = threads.lock().ok().and_then(|t| t.get(thread).cloned()) {
+        let _ = sender.send(event);
     }
 }
 
@@ -946,6 +1024,83 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// Only a thread asked for with web search may search; the process
+    /// itself keeps it off for every other thread.
+    #[test]
+    fn web_search_is_allowed_only_on_a_thread_that_asks() {
+        assert!(ISOLATION.contains(&"web_search=\"disabled\""));
+        let cwd = Path::new("/tmp/codex");
+        let plain = thread_params("", "x", cwd, false);
+        assert!(plain.get("config").is_none());
+        assert_eq!(plain["sandbox"], "read-only");
+        let searching = thread_params("gpt-6.1-sol", "x", cwd, true);
+        assert_eq!(searching["config"], json!({ "web_search": "live" }));
+        assert_eq!(searching["sandbox"], "read-only");
+        assert_eq!(searching["ephemeral"], true);
+    }
+
+    /// A web search's items reach the thread that follows it; other items
+    /// don't.
+    #[test]
+    fn web_search_items_reach_their_thread() {
+        let (sender, receiver) = mpsc::channel();
+        let threads = Mutex::new(HashMap::from([("t".to_owned(), sender)]));
+        let item = json!({ "type": "webSearch", "id": "ws_1", "query": "lm studio server",
+            "action": { "type": "search", "query": "lm studio server", "queries": null } });
+        for (method, item) in [
+            (
+                "item/started",
+                json!({ "type": "webSearch", "id": "ws_1", "query": "", "action": null }),
+            ),
+            ("item/completed", item.clone()),
+            (
+                "item/completed",
+                json!({ "type": "agentMessage", "id": "m", "text": "hi" }),
+            ),
+        ] {
+            route_to(
+                &threads,
+                method,
+                &json!({ "threadId": "t", "turnId": "u", "item": item }),
+            );
+        }
+        let got: Vec<(Value, bool)> = receiver
+            .try_iter()
+            .filter_map(|event| match event {
+                Event::Web(item, done) => Some((item, done)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(got.len(), 2);
+        assert!(!got[0].1 && got[1].1);
+        assert_eq!(got[1].0, item);
+    }
+
+    /// A whole answer's stream with web searches, as the reader routes it:
+    /// each search's start and end, the answer's words, the turn's end.
+    #[test]
+    fn a_web_answers_stream_routes_its_searches() {
+        let (sender, receiver) = mpsc::channel();
+        let threads = Mutex::new(HashMap::from([("t".to_owned(), sender)]));
+        let stream = include_str!("../../../tests/fixtures/assistant/codex-web-search.jsonl");
+        for line in stream.lines().filter(|line| !line.trim().is_empty()) {
+            let message: Value = serde_json::from_str(line).unwrap();
+            let method = message["method"].as_str().unwrap();
+            route_to(&threads, method, &message["params"]);
+        }
+        let (mut started, mut done, mut words, mut ended) = (0, 0, 0, 0);
+        for event in receiver.try_iter() {
+            match event {
+                Event::Web(_, false) => started += 1,
+                Event::Web(_, true) => done += 1,
+                Event::Delta(_) => words += 1,
+                Event::Completed(_) => ended += 1,
+                Event::Failed(why) => panic!("{why}"),
+            }
+        }
+        assert_eq!((started, done, words, ended), (3, 3, 1, 1));
     }
 
     #[test]

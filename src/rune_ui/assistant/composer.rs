@@ -1,7 +1,8 @@
-//! The field: the question, Files' model and reasoning pills, and Send,
-//! which turns into Stop while the open conversation's answer comes. The
-//! pills choose the engine for the open conversation (kept with it), or
-//! for the next new one; neither ever changes dictation's AI cleanup.
+//! The field: the question, Files' model and reasoning pills, the Web
+//! toggle while the engine can search, and Send, which turns into Stop
+//! while the open conversation's answer comes. The pills choose the engine
+//! for the open conversation (kept with it), or for the next new one;
+//! neither ever changes dictation's AI cleanup.
 
 use rune::{El, TextEdit, row};
 
@@ -67,6 +68,7 @@ pub(super) fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
             |ui: &mut Ui, value: String| choose(ui, None, Some(value)),
         ));
     }
+    pills = pills.children(super::web::pill(ui, p, &engine));
     let action = if pane.answering_in(pane.open).is_some() {
         files::round_button(p, "stop", tr("Stop"), &STOP_ICON, true, |_| worker::stop())
     } else {
@@ -134,9 +136,15 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     pane.consent = None;
     let id = match pane.conversation() {
         Some(conversation) => conversation.id,
-        None => pane
-            .store
-            .start(&question, pane.engine.take(), pane.effort.take()),
+        None => {
+            let id = pane
+                .store
+                .start(&question, pane.engine.take(), pane.effort.take());
+            if let Some(web) = pane.web.take() {
+                pane.store.set_web(id, Some(web));
+            }
+            id
+        }
     };
     pane.open = Some(id);
     pane.error = None;
@@ -179,6 +187,7 @@ pub(super) fn ask_with(
         conversation.engine.as_deref(),
         conversation.effort.as_deref(),
     );
+    let web = super::web::on(&ui.settings, conversation.web, &engine);
     pane.open = Some(id);
     pane.error = None;
     let changes = super::changes::context(ui);
@@ -190,6 +199,7 @@ pub(super) fn ask_with(
             recall,
             changes: Some(changes),
             setup,
+            web,
         },
         engine,
     );
@@ -206,4 +216,5 @@ pub(super) fn new_conversation(ui: &mut Ui) {
     pane.ask = TextEdit::default();
     pane.engine = None;
     pane.effort = None;
+    pane.web = None;
 }

@@ -9,7 +9,8 @@
 //! `intent` reads from a question's words alone whether it asks about the
 //! person's own recordings, and only once they have allowed it
 //! (`recordings::Allowed`) does `recordings` search them and hand the
-//! passages found to the prompt.
+//! passages found to the prompt. `web` lets Codex search the web when the
+//! guide has no answer, never with anything of the person's.
 
 pub mod changes;
 #[cfg(test)]
@@ -21,4 +22,5 @@ pub mod recordings;
 pub mod retrieve;
 pub mod setup;
 pub mod store;
+pub mod web;
 pub mod worker;

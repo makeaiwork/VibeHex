@@ -1,13 +1,15 @@
 //! Assistant's answers run on a thread of their own, never behind a Files
 //! job: one question at a time, its reply streaming into a draft the pane
 //! reads. A stop keeps what came; a failure becomes the turn's error. The
-//! pane takes finished turns into its store.
+//! pane takes finished turns into its store. With Web on, a Codex answer
+//! may search the web, each search reaching the pane as a step.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
+use serde_json::Value;
 
 use super::changes::{self, Card, CardKind, Refused, Why};
 use super::intent::Intent;
@@ -15,6 +17,7 @@ use super::prompt::{self, Reach, Room};
 use super::recordings::{self, Allowed, Budget, Found, Sources, Step};
 use super::setup::{self, Ask, Stage};
 use super::store::Turn;
+use super::web::Web;
 use crate::dictation::cleanup_pieces::Streamed;
 use crate::dictation::cleanup_server::engine;
 use crate::files::rewrite::Engine;
@@ -24,6 +27,13 @@ const DRAFT_EVERY: Duration = Duration::from_millis(80);
 
 type Generate =
     Box<dyn Fn(&str, &str, &AtomicBool, Option<Streamed>) -> Result<String> + Send + 'static>;
+/// [`Generate`] with web search allowed; the last argument hears each of
+/// Codex's `webSearch` items, and whether it is done.
+type Searching = Box<
+    dyn Fn(&str, &str, &AtomicBool, Option<Streamed>, &dyn Fn(&Value, bool)) -> Result<String>
+        + Send
+        + 'static,
+>;
 
 /// A question for a conversation, with its earlier turns.
 #[derive(Clone, Debug)]
@@ -38,6 +48,8 @@ pub struct Question {
     pub changes: Option<changes::Context>,
     /// Guided setup's questions or plan, or neither.
     pub setup: Stage,
+    /// The conversation's Web is on: a Codex answer may search the web.
+    pub web: bool,
 }
 
 /// An earlier question, its answer, and what became of its changes.
@@ -82,6 +94,8 @@ pub struct Answering {
     pub searching: bool,
     /// A change block has started: the feed shows "Preparing a change…".
     pub cards_coming: bool,
+    /// What it has searched on the web so far.
+    pub web: Web,
 }
 
 #[derive(Default)]
@@ -133,13 +147,42 @@ pub fn ask(question: Question, engine: Engine) -> bool {
         engine::CONTEXT_TOKENS
     };
     let model = engine.model_name();
+    let search: Option<Searching> = searches(&question, &engine).then(|| {
+        let engine = engine.clone();
+        Box::new(
+            move |instructions: &str,
+                  input: &str,
+                  cancel: &AtomicBool,
+                  streamed,
+                  seen: &dyn Fn(&Value, bool)| {
+                engine.generate_searching(instructions, input, cancel, streamed, seen)
+            },
+        ) as Searching
+    });
     let generate: Generate = Box::new(move |instructions, input, cancel, streamed| {
         engine.generate(context, instructions, input, cancel, streamed)
     });
-    start(question, room, model, generate, local)
+    start_with(question, room, model, (generate, search), local)
 }
 
+/// Whether `question`'s answer may search the web: its conversation's Web
+/// is on, it runs on Codex, and it isn't guided setup's.
+fn searches(question: &Question, engine: &Engine) -> bool {
+    question.web && engine.searches_web() && question.setup == Stage::None
+}
+
+#[cfg(test)]
 fn start(question: Question, room: Room, model: String, generate: Generate, local: bool) -> bool {
+    start_with(question, room, model, (generate, None), local)
+}
+
+fn start_with(
+    question: Question,
+    room: Room,
+    model: String,
+    (generate, search): (Generate, Option<Searching>),
+    local: bool,
+) -> bool {
     let mut held = state();
     if held.answering.is_some() {
         return false;
@@ -158,6 +201,7 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
         steps: Vec::new(),
         searching: matches!(question.recall, Recall::Search(_)),
         cards_coming: false,
+        web: Web::default(),
     });
     held.cancel = Some(cancel.clone());
     changed(held);
@@ -182,7 +226,7 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
                 (Recall::Search(search), Some(found)) => Reach::Recordings(found, search.now_ms),
                 _ => Reach::Guide,
             };
-            let prompt = prompt::build(
+            let mut prompt = prompt::build(
                 &question.question,
                 &earlier,
                 room,
@@ -190,9 +234,26 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
                 question.changes.as_ref(),
                 &question.setup,
             );
-            let result = generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts()))
-                .map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
-            finish(&question, &model, started, result, &cancel, found.as_ref());
+            let first = match &search {
+                Some(search) => {
+                    prompt.instructions.push_str(super::web::RULES);
+                    search(
+                        &prompt.instructions,
+                        &prompt.input,
+                        &cancel,
+                        Some(drafts()),
+                        &seen,
+                    )
+                }
+                None => generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts())),
+            };
+            let result =
+                first.map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
+            let what = Read {
+                found: found.as_ref(),
+                articles: &prompt.articles,
+            };
+            finish(&question, &model, started, result, &cancel, what);
             if local {
                 engine::narrow();
             }
@@ -245,6 +306,21 @@ fn read(search: &Search, room: Room) -> Option<Found> {
     }
     changed(state);
     (search.intent.sure || !found.excerpts.is_empty()).then_some(found)
+}
+
+/// One of Codex's web searches, as a step the pane shows.
+fn seen(item: &Value, done: bool) {
+    let mut state = state();
+    if let Some(answering) = &mut state.answering {
+        answering.web.saw(item, done);
+    }
+    changed(state);
+}
+
+/// What an answer read: the recordings search found, the guide articles.
+struct Read<'a> {
+    found: Option<&'a Found>,
+    articles: &'a [&'static str],
 }
 
 /// A reply with its change lines read and checked.
@@ -415,13 +491,14 @@ fn finish(
     started: Instant,
     result: Result<Settled>,
     cancel: &AtomicBool,
-    found: Option<&Found>,
+    read: Read,
 ) {
+    let found = read.found;
     let mut state = state();
-    let draft = state
+    let (draft, web) = state
         .answering
         .take()
-        .map(|answering| answering.draft)
+        .map(|answering| (answering.draft, answering.web))
         .unwrap_or_default();
     state.cancel = None;
     let mut turn = Turn {
@@ -461,6 +538,12 @@ fn finish(
             turn.answer = draft;
             turn.error = Some(format!("{error:#}"));
         }
+    }
+    // The guide it read first, and the pages its answer cites.
+    if !web.is_empty() {
+        turn.web = web;
+        turn.web.guide = read.articles.iter().map(|id| (*id).to_owned()).collect();
+        turn.web.cite(&turn.answer);
     }
     state.finished.push((question.conversation, turn));
     changed(state);
@@ -509,6 +592,7 @@ mod tests {
             recall: Recall::Guide,
             changes: None,
             setup: Stage::None,
+            web: false,
         }
     }
 
@@ -788,6 +872,116 @@ mod tests {
         assert_eq!(turn.sources, ["labs/meetings"]);
         assert_eq!((turn.model.as_str(), turn.stopped), ("GPT", false));
         assert!(answering().is_none());
+    }
+
+    /// Only Codex searches, only with the conversation's Web on, and never
+    /// for guided setup; every other engine asks as before.
+    #[test]
+    fn only_a_codex_answer_with_web_on_searches() {
+        let mode = crate::app_settings::DictationMode::default();
+        let server = crate::app_settings::CleanupServerSettings::default();
+        let engine = |choice: &str| Engine::resolve(Some(choice), &server, false, &mode);
+        let on = Question {
+            web: true,
+            ..question("How do I start LM Studio's server?")
+        };
+        assert!(searches(&on, &engine("codex")));
+        assert!(searches(&on, &engine("codex:gpt-6.1-sol")));
+        for other in ["local:qwen3-4b", "openrouter", "custom", "opencode"] {
+            assert!(!searches(&on, &engine(other)), "{other}");
+        }
+        let off = Question {
+            web: false,
+            ..on.clone()
+        };
+        assert!(!searches(&off, &engine("codex")));
+        let setup = Question {
+            setup: Stage::Ask,
+            ..on.clone()
+        };
+        assert!(!searches(&setup, &engine("codex")));
+    }
+
+    /// A searching answer reads the web rules; its searches land as steps
+    /// while it streams, and with the turn, which keeps the pages it cites.
+    #[test]
+    fn a_searching_answer_keeps_its_searches_and_cited_pages() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let generate: Generate = Box::new(|instructions, _, _, _| {
+            assert!(!instructions.contains(super::super::web::RULES));
+            Ok("Repaired.".into())
+        });
+        let search: Searching = Box::new(|instructions, _, _, streamed, seen| {
+            assert!(instructions.ends_with(super::super::web::RULES));
+            let item = serde_json::json!({ "id": "ws_1", "query": "LM Studio local server",
+                "action": { "type": "search", "query": "LM Studio local server" } });
+            seen(&serde_json::json!({ "id": "ws_1", "query": "" }), false);
+            assert!(answering().is_some_and(|answering| answering.web.busy()));
+            seen(&item, true);
+            assert_eq!(
+                answering().map(|answering| answering.web.searches),
+                Some(vec!["LM Studio local server".to_owned()])
+            );
+            streamed.unwrap()(5, "Open");
+            Ok("Open the Developer tab ([lmstudio.ai](https://lmstudio.ai/docs/app)).\n\nSources: topics/assistant".into())
+        });
+        assert!(start_with(
+            Question {
+                web: true,
+                ..question("How do I start LM Studio's server?")
+            },
+            Room::Large,
+            "GPT".into(),
+            (generate, Some(search)),
+            false
+        ));
+        let (_, turn) = finished();
+        assert_eq!(turn.web.searches, ["LM Studio local server"]);
+        assert_eq!(turn.web.sources, ["https://lmstudio.ai/docs/app"]);
+        assert!(!turn.web.guide.is_empty(), "the guide it read first");
+        assert!(!turn.web.busy());
+        assert_eq!(turn.sources, ["topics/assistant"]);
+    }
+
+    /// A real answer with the web on, on the Codex signed in here:
+    /// `cargo nextest run --run-ignored only searches_the_web_on_the_installed_codex --no-capture`.
+    /// Its web search items show at debug level.
+    #[test]
+    #[ignore = "needs the Codex CLI, signed in; searches the web"]
+    fn searches_the_web_on_the_installed_codex() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter("hex::dictation::cleanup_server::codex=debug")
+            .with_writer(std::io::stderr)
+            .try_init();
+        let mode = crate::app_settings::DictationMode::default();
+        let server = crate::app_settings::CleanupServerSettings::default();
+        let engine = Engine::resolve(Some("codex"), &server, false, &mode).with_effort("medium");
+        let question = Question {
+            earlier: Vec::new(),
+            web: true,
+            ..question("How do I start LM Studio's local server?")
+        };
+        assert!(ask(question, engine));
+        let started = Instant::now();
+        let mut live = (0, 0, 0);
+        let turn = loop {
+            if let Some((_, turn)) = take_finished().pop() {
+                break turn;
+            }
+            if let Some(answering) = answering() {
+                live = live.max(answering.web.progress());
+            }
+            assert!(started.elapsed() < Duration::from_secs(300), "no answer");
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        eprintln!("live web steps (searches, pages, going): {live:?}\n{turn:#?}");
+        assert!(turn.error.is_none(), "{:?}", turn.error);
+        assert!(!turn.web.is_empty(), "no web search arrived");
     }
 
     #[test]

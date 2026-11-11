@@ -28,6 +28,7 @@ mod settings;
 pub(super) mod setup_fixture;
 mod verbs;
 mod vocab;
+mod web;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
 
@@ -64,6 +65,9 @@ pub(in super::super) struct AssistantPane {
     /// follows Assistant's settings.
     pub(super) engine: Option<String>,
     pub(super) effort: Option<String>,
+    /// Whether a new conversation may search the web; `None` follows
+    /// Assistant's settings.
+    pub(super) web: Option<bool>,
     /// The answer coming, as the worker last reported it.
     pub(super) answering: Option<Answering>,
     /// Why a question couldn't be asked.
@@ -317,6 +321,8 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
                 answering.conversation,
                 answering.draft.len(),
                 answering.cards_coming,
+                answering.steps.len(),
+                answering.web.progress(),
             )
         })
     };

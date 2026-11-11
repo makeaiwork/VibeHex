@@ -286,6 +286,48 @@ impl Engine {
     }
 }
 
+impl Engine {
+    /// Whether this engine may search the web: Codex alone, on the
+    /// person's ChatGPT plan. A built-in model never goes online.
+    pub fn searches_web(&self) -> bool {
+        matches!(self, Self::Server(server) if server.provider == Provider::Codex)
+    }
+
+    /// [`Self::generate`] with Codex's live web search allowed, for
+    /// Assistant's answers only; `searched` hears each search. Another
+    /// engine answers without one.
+    pub(crate) fn generate_searching(
+        &self,
+        instructions: &str,
+        input: &str,
+        cancelled: &AtomicBool,
+        streamed: Option<Streamed>,
+        searched: cleanup_server::codex::Searched,
+    ) -> Result<String> {
+        let codex = match self {
+            Self::Server(server) if server.provider == Provider::Codex => server,
+            _ => {
+                let context = engine::CONTEXT_TOKENS;
+                return self.generate(context, instructions, input, cancelled, streamed);
+            }
+        };
+        if cancelled.load(Ordering::Acquire) {
+            return Err(eyre!("stopped"));
+        }
+        cleanup_server::codex::generate_searching(
+            &codex.model,
+            &codex.effort,
+            instructions,
+            input,
+            DEADLINE,
+            cancelled,
+            streamed,
+            searched,
+        )
+        .map(|text| text.trim().to_string())
+    }
+}
+
 /// `anthropic/claude-sonnet-4.6` → `claude-sonnet-4.6`.
 fn short_model(model: &str) -> String {
     model.rsplit('/').next().unwrap_or(model).to_string()

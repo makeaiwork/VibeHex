@@ -221,7 +221,7 @@ pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
 }
 
 /// One step: a check when done, three dots while it goes on.
-fn step_line(p: Paint, key: &str, done: bool, words: &str) -> El {
+pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str) -> El {
     let c = &p.k.c;
     let mark = if done {
         icon(&rune_theme_opencode::icons::CHECK_SMALL, 14.0)
@@ -319,7 +319,7 @@ pub(super) fn folded(
     index: usize,
     turn: &Turn,
 ) -> Option<El> {
-    if turn.steps.is_empty() {
+    if turn.steps.is_empty() && turn.web.is_empty() {
         return None;
     }
     let c = &p.k.c;
@@ -334,6 +334,8 @@ pub(super) fn folded(
     }
     let seconds = format!("{:.0}", turn.seconds.max(1.0));
     let line = match read.as_slice() {
+        // An answer from the guide and the web.
+        [] if turn.steps.is_empty() => super::web::folded(turn, &seconds),
         [] => tr_fill("Found nothing in your recordings in {} s", &seconds),
         [one] => tr_named(
             "Read {what} in {seconds} s",
@@ -397,6 +399,7 @@ pub(super) fn folded(
         for (index, step) in turn.steps.iter().enumerate() {
             list = list.child(step_line(p, &format!("step{index}"), true, &say(step)));
         }
+        list = list.children(super::web::steps(p, turn));
         shown = shown.child(list);
     }
     Some(shown)
@@ -434,6 +437,11 @@ pub(super) fn answer(
         .link_style(move |url| url.starts_with(REF).then(|| (mark.clone(), hover)))
         .link_ring(move |url| url.starts_with(REF).then_some((ring, 1.0)))
         .on_link_tx(move |ui: &mut Ui, url: &str, tx: &mut Tx| {
+            // A web page it cites opens in the browser.
+            if url.starts_with("https://") || url.starts_with("http://") {
+                let _ = tx.open_url(url);
+                return;
+            }
             // `hex-ref:2.1`: the second of the answer's [2].
             let Some((n, mark)) = url.strip_prefix(REF).and_then(|id| id.split_once('.')) else {
                 return;
