@@ -77,6 +77,7 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Previous place", ["Poprzednie miejsce", "上一处", "前の箇所", "Vorherige Stelle", "Lugar anterior", "Попереднє місце"]),
     ("Next place", ["Następne miejsce", "下一处", "次の箇所", "Nächste Stelle", "Lugar siguiente", "Наступне місце"]),
     ("Clear highlight", ["Wyczyść wyróżnienie", "清除高亮", "ハイライトを消す", "Hervorhebung entfernen", "Quitar el resaltado", "Прибрати виділення"]),
+    ("Really clear all?", ["Na pewno wyczyścić?", "确定全部清除？", "本当にすべて消去？", "Wirklich alle löschen?", "¿Borrar todo?", "Справді очистити все?"]),
 ];
 
 /// French.
@@ -153,6 +154,7 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("Previous place", "Passage précédent"),
     ("Next place", "Passage suivant"),
     ("Clear highlight", "Effacer la mise en évidence"),
+    ("Really clear all?", "Vraiment tout effacer ?"),
 ];
 
 /// Brazilian Portuguese.
@@ -229,6 +231,7 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Previous place", "Trecho anterior"),
     ("Next place", "Próximo trecho"),
     ("Clear highlight", "Limpar destaque"),
+    ("Really clear all?", "Limpar tudo mesmo?"),
 ];
 
 /// Russian.
@@ -305,4 +308,5 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("Previous place", "Предыдущее место"),
     ("Next place", "Следующее место"),
     ("Clear highlight", "Убрать выделение"),
+    ("Really clear all?", "Точно очистить всё?"),
 ];

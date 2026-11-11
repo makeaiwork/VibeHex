@@ -79,7 +79,8 @@ pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
                 .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                 .radius(7.0)
                 .fill(c.hover)
-                .group_opacity(0.0, 1.0),
+                .group_opacity(0.0, 1.0)
+                .a11y_hidden(),
         )
         .child(glyph(ui, p, on, still))
         .child(
@@ -87,11 +88,14 @@ pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
                 .key("label")
                 .font(if on { p.k.ty.ui_medium } else { p.k.ty.ui })
                 .color(if on { c.text_base } else { c.text_muted })
-                .truncate(),
+                .truncate()
+                .a11y_hidden(),
         );
     Some(
         col()
             .key(format!("{KEY}-slot"))
+            // Assistive technology sees the item alone.
+            .role("none")
             .pt(NAV_ROW_GAP / 2.0)
             .pb(NAV_ROW_GAP / 2.0)
             .hover_group()

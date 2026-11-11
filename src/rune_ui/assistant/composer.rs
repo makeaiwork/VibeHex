@@ -22,6 +22,7 @@ pub(super) fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let placeholder = tr("Ask about VibeHex or your recordings");
     let input = rune::text_input(edit, p.k.ty.ui)
         .key("input")
+        .label(placeholder)
         .w_full()
         .color(c.text_base)
         .placeholder(placeholder, p.placeholder())
