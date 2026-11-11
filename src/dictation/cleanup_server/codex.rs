@@ -11,10 +11,10 @@
 //! ([`isolation`]), so Codex sees only the text and keeps nothing of it. Hex
 //! never sees a password or key: Codex keeps its own sign-in in `~/.codex`.
 //!
-//! One exception: Assistant's answers, while its Web is on, start their
-//! thread with live web search and the code mode it searches through
-//! ([`generate_searching`]); dictation cleanup, Files, and meeting notes
-//! never do.
+//! One exception: Assistant's answers, while its Web is on, run on a second
+//! app-server of their own with live web search and the code mode it
+//! searches through ([`generate_searching`]); dictation cleanup, Files,
+//! meeting notes, and Assistant's other answers never do.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -344,22 +344,18 @@ pub fn generate_searching(
 }
 
 /// `thread/start`'s parameters: ephemeral and read-only in `cwd`, with
-/// Hex's instructions; live web search, through code mode, only when
-/// `web`, overriding the process's isolation for this thread alone
-/// ([`isolation::searching`]).
-fn thread_params(model: &str, instructions: &str, cwd: &Path, web: bool) -> Value {
-    let mut params = json!({
+/// Hex's instructions. Whether it may search is its process's
+/// ([`isolation::overrides`]): Codex runs code mode's host per process, so
+/// a thread's own `config` can't turn it on.
+fn thread_params(model: &str, instructions: &str, cwd: &Path) -> Value {
+    json!({
         "model": non_empty(model),
         "cwd": cwd,
         "approvalPolicy": "never",
         "sandbox": "read-only",
         "ephemeral": true,
         "baseInstructions": instructions,
-    });
-    if web {
-        params["config"] = isolation::searching();
-    }
-    params
+    })
 }
 
 fn answer(
@@ -372,10 +368,10 @@ fn answer(
     searched: Option<Searched>,
 ) -> Result<String> {
     let until = Instant::now() + deadline;
-    let process = running(until, cancelled)?;
+    let process = running_as(searched.is_some(), until, cancelled)?;
     let started = process.request(
         "thread/start",
-        thread_params(model, instructions, &workspace()?, searched.is_some()),
+        thread_params(model, instructions, &workspace()?),
         until,
         cancelled,
     )?;
@@ -624,10 +620,22 @@ impl Drop for Following {
 }
 
 static RUNNING: Mutex<Option<Arc<Process>>> = Mutex::new(None);
+/// The app-server Assistant's web answers run on, and nothing else.
+static SEARCHING: Mutex<Option<Arc<Process>>> = Mutex::new(None);
+
+fn slot(searching: bool) -> &'static Mutex<Option<Arc<Process>>> {
+    if searching { &SEARCHING } else { &RUNNING }
+}
 
 /// The warm app-server, started when there is none.
 fn running(until: Instant, cancelled: &AtomicBool) -> Result<Arc<Process>> {
-    let mut running = RUNNING
+    running_as(false, until, cancelled)
+}
+
+/// The warm app-server, or with `searching` the one that may search the
+/// web, started when there is none.
+fn running_as(searching: bool, until: Instant, cancelled: &AtomicBool) -> Result<Arc<Process>> {
+    let mut running = slot(searching)
         .lock()
         .map_err(|_| eyre!("Codex's connection is unavailable"))?;
     if let Some(process) = running
@@ -637,7 +645,7 @@ fn running(until: Instant, cancelled: &AtomicBool) -> Result<Arc<Process>> {
         process.touch();
         return Ok(process.clone());
     }
-    let process = Process::start(until, cancelled)?;
+    let process = Process::start(searching, until, cancelled)?;
     *running = Some(process.clone());
     Ok(process)
 }
@@ -656,17 +664,21 @@ struct Process {
     executable: PathBuf,
     /// Codex's version, from the handshake.
     version: OnceLock<String>,
+    /// Web search and code mode are on: Assistant's web answers only.
+    searching: bool,
 }
 
 impl Process {
     /// Starts an app-server none of the person's MCP servers can run in:
     /// it turns off those it knows of, asks Codex which are still on, and
-    /// starts again with those off too ([`isolation`]).
-    fn start(until: Instant, cancelled: &AtomicBool) -> Result<Arc<Self>> {
+    /// starts again with those off too ([`isolation`]). With `searching`,
+    /// web search and code mode are on as well.
+    fn start(searching: bool, until: Instant, cancelled: &AtomicBool) -> Result<Arc<Self>> {
         let mut forgot = false;
         loop {
             let known = isolation::known();
-            let process = match Self::launch(&isolation::overrides(&known), until, cancelled) {
+            let overrides = isolation::overrides(&known, searching);
+            let process = match Self::launch(&overrides, searching, until, cancelled) {
                 Ok(process) => process,
                 // A server Hex turns off may have left their config since,
                 // and Codex won't start over a server it can't find.
@@ -708,7 +720,12 @@ impl Process {
     }
 
     /// One `codex app-server` with `overrides`, past its handshake.
-    fn launch(overrides: &[String], until: Instant, cancelled: &AtomicBool) -> Result<Arc<Self>> {
+    fn launch(
+        overrides: &[String],
+        searching: bool,
+        until: Instant,
+        cancelled: &AtomicBool,
+    ) -> Result<Arc<Self>> {
         let executable = find().ok_or_else(|| eyre!(NOT_INSTALLED))?;
         let mut command = crate::desktop::background_process::command(&executable);
         command.arg("app-server");
@@ -737,6 +754,7 @@ impl Process {
             alive: AtomicBool::new(true),
             executable,
             version: OnceLock::new(),
+            searching,
         });
         spawn_reader(&process, stdout)?;
         let initialized = process
@@ -992,7 +1010,7 @@ fn spawn_idle_check(process: &Arc<Process>) {
                     .is_ok_and(|threads| !threads.is_empty());
                 if idle && !following {
                     tracing::info!("Codex app-server stopped after idling");
-                    if let Ok(mut running) = RUNNING.lock()
+                    if let Ok(mut running) = slot(process.searching).lock()
                         && running
                             .as_ref()
                             .is_some_and(|running| Arc::ptr_eq(running, &process))
@@ -1053,58 +1071,66 @@ mod tests {
 
     /// The Codex installed here, started as Hex starts it, runs none of the
     /// person's MCP servers (here Codex app's `node_repl`), even with a
-    /// thread open; no model is asked anything:
+    /// thread open, in either app-server; only the searching one has code
+    /// mode. No model is asked anything:
     /// `cargo test --bin hex -- --ignored --nocapture the_persons_mcp_servers_never_start`.
     #[test]
     #[ignore = "needs the Codex CLI; starts it, makes no model call"]
     fn the_persons_mcp_servers_never_start() {
-        let until = Instant::now() + Duration::from_secs(60);
-        let cancelled = AtomicBool::new(false);
-        let process = running(until, &cancelled).unwrap();
-        let cwd = workspace().unwrap();
-        let read = process
-            .request("config/read", json!({ "cwd": cwd }), until, &cancelled)
-            .unwrap();
-        eprintln!("servers Hex turns off: {:?}", isolation::known());
-        assert!(isolation::still_on(&read).is_empty());
-        let thread = process
-            .request(
-                "thread/start",
-                thread_params("", "Say nothing.", &cwd, false),
-                until,
-                &cancelled,
-            )
-            .unwrap();
-        assert!(thread.pointer("/thread/id").is_some(), "{thread}");
-        std::thread::sleep(Duration::from_secs(8));
-        let pid = process.child.lock().unwrap().id().to_string();
-        let children = std::process::Command::new("pgrep")
-            .args(["-fl", "-P", &pid])
-            .output()
-            .unwrap();
-        let children = String::from_utf8_lossy(&children.stdout);
-        eprintln!("app-server's children: {children:?}");
-        assert!(children.trim().is_empty(), "{children}");
-        process.stop();
+        for searching in [false, true] {
+            let until = Instant::now() + Duration::from_secs(60);
+            let cancelled = AtomicBool::new(false);
+            let process = running_as(searching, until, &cancelled).unwrap();
+            let cwd = workspace().unwrap();
+            let read = process
+                .request("config/read", json!({ "cwd": cwd }), until, &cancelled)
+                .unwrap();
+            eprintln!(
+                "searching {searching}: servers Hex turns off: {:?}",
+                isolation::known()
+            );
+            assert!(isolation::still_on(&read).is_empty());
+            let web = read.pointer("/config/web_search").cloned();
+            let code_mode = read.pointer("/config/features/code_mode_host").cloned();
+            eprintln!("searching {searching}: web_search {web:?}, code_mode_host {code_mode:?}");
+            assert_eq!(code_mode, Some(json!(searching)));
+            let thread = process
+                .request(
+                    "thread/start",
+                    thread_params("", "Say nothing.", &cwd),
+                    until,
+                    &cancelled,
+                )
+                .unwrap();
+            assert!(thread.pointer("/thread/id").is_some(), "{thread}");
+            std::thread::sleep(Duration::from_secs(8));
+            let pid = process.child.lock().unwrap().id().to_string();
+            let children = std::process::Command::new("pgrep")
+                .args(["-fl", "-P", &pid])
+                .output()
+                .unwrap();
+            let children = String::from_utf8_lossy(&children.stdout);
+            eprintln!("searching {searching}: app-server's children: {children:?}");
+            assert!(children.trim().is_empty(), "{children}");
+            process.stop();
+        }
     }
 
-    /// Only a thread asked for with web search may search; the process
-    /// itself keeps it off for every other thread.
+    /// Web search and code mode belong to a process: Assistant's web
+    /// answers run on one of their own, every other thread on the one that
+    /// keeps both off, and no thread asks for more.
     #[test]
-    fn web_search_is_allowed_only_on_a_thread_that_asks() {
-        assert!(isolation::ISOLATION.contains(&"web_search=\"disabled\""));
+    fn web_search_is_allowed_only_on_the_searching_process() {
         let cwd = Path::new("/tmp/codex");
-        let plain = thread_params("", "x", cwd, false);
-        assert!(plain.get("config").is_none());
-        assert_eq!(plain["sandbox"], "read-only");
-        assert!(isolation::ISOLATION.contains(&"features.code_mode_host=false"));
-        let searching = thread_params("gpt-6.1-sol", "x", cwd, true);
-        assert_eq!(
-            searching["config"],
-            json!({ "web_search": "live", "features.code_mode_host": true })
-        );
-        assert_eq!(searching["sandbox"], "read-only");
-        assert_eq!(searching["ephemeral"], true);
+        let params = thread_params("gpt-6.1-sol", "x", cwd);
+        assert!(params.get("config").is_none(), "no thread opens anything");
+        assert_eq!(params["sandbox"], "read-only");
+        assert_eq!(params["ephemeral"], true);
+        assert_eq!(params["approvalPolicy"], "never");
+        let plain = isolation::overrides(&[], false);
+        assert!(plain.contains(&"web_search=\"disabled\"".to_owned()));
+        assert!(plain.contains(&"features.code_mode_host=false".to_owned()));
+        assert!(!std::ptr::eq(slot(true), slot(false)));
     }
 
     /// A web search's items reach the thread that follows it; other items

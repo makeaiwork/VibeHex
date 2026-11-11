@@ -279,12 +279,15 @@ Opened from an answer                            // rune_ui::assistant::jump
 
 ```ts
 Web on (assistant.web, or the field's Web toggle for one conversation)
-├── Engine     Codex only: its own thread/start carries config
-│              {"web_search": "live", "features.code_mode_host": true}
-│              (isolation::searching; Codex 0.167 searches through code
-│              mode); every other isolation override stays. Dictation cleanup, Files, meeting notes,
-│              setup's questions and plan: never. Built in, OpenRouter,
-│              your server, OpenCode: no toggle, no search
+├── Engine     Codex only, on a second app-server of its own
+│              (codex::running_as(true)) started with web_search="live"
+│              and features.code_mode_host=true (isolation::SEARCHING;
+│              Codex 0.167 searches through code mode, whose host Codex
+│              runs per process); every other isolation override, and
+│              the person's MCP servers off, stay. Dictation cleanup,
+│              Files, meeting notes, other answers, setup's questions and
+│              plan: the first app-server, where both are off. Built in,
+│              OpenRouter, your server, OpenCode: no toggle, no search
 ├── Prompt     web::RULES after the rest: the guide first, the web only
 │              for what it doesn't cover (LM Studio, Ollama, OpenRouter),
 │              official sources, nothing of the person's in a search, no
@@ -315,15 +318,22 @@ OpenCode answers through its own tools; neither is wired.
 Code mode, checked 12 November 2026 on Codex 0.167: its `exec` tool runs
 JavaScript "in a fresh V8 isolate … no Node, no file system, no network access,
 no console" (Codex's own tool description), reaching only the thread's other
-tools. With the isolation those are `apply_patch` (refused: read-only sandbox,
-approvals never given), the MCP resource tools (no MCP server runs), and the
-clock; shell, exec, apps, plugins, browser and computer use, and image reading
-(`features.view_image=false`, added for every thread) are off. The thread's
-`config` takes dotted keys only, since an object under `features` would replace
-the process's whole `features` table. Before this, the model's `exec` failed
-with "code-mode host is disabled" and no `webSearch` item came. Live check:
-`cargo test --bin hex -- --ignored --nocapture
-searches_the_web_on_the_installed_codex` (one paid request).
+tools. With the isolation those are `web__run` (the search), `apply_patch`
+(refused: read-only sandbox, approvals never given), the MCP resource tools (no
+MCP server runs), and the clock; shell, exec, apps, plugins, browser and
+computer use, and image reading (`features.view_image=false`, added for every
+thread) are off. A thread's own `config` can't turn code mode on: with
+`"features.code_mode_host": true` there, the model's `exec` still failed with
+"code-mode host is disabled", hence the second process. Live check, 12 November
+2026: `cargo test --bin hex -- --ignored --nocapture
+searches_the_web_on_the_installed_codex` (one paid request) streamed a
+`webSearch` item (`exec-…` id, query "site.lmstudio.ai/docs start local server
+Developer Start server"), and the answer cited lmstudio.ai's server docs as a
+link. `the_persons_mcp_servers_never_start` (free) checks both processes.
+
+"From the web" takes only Markdown links and bare addresses in prose, never one
+in code, and only public sites: `http://127.0.0.1:1234/v1`, `localhost`, IP
+addresses and local names are a setting's value, not a source.
 
 ## Privacy
 

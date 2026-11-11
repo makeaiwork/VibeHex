@@ -14,7 +14,7 @@
 
 use std::sync::Mutex;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 
 /// Overrides for Hex's own app-server, besides the MCP servers. Feature
 /// flags go through `-c` because `--disable` refuses a flag a Codex
@@ -40,18 +40,16 @@ pub(super) const ISOLATION: &[&str] = &[
     "features.view_image=false",
 ];
 
-/// What an Assistant thread with Web on sets for itself, over the
-/// process's isolation: live web search, and code mode, which Codex 0.167
-/// searches through. Code mode runs JavaScript in a V8 isolate with no
-/// Node, file system, network, or console of its own; it reaches only the
-/// thread's other tools, and with [`ISOLATION`] those are no shell, exec,
-/// MCP server, app, plugin, browser, computer use, or image reading; a
-/// patch can't write in the read-only sandbox, where no approval is ever
-/// given. Dotted keys only: an object under `features` would replace the
-/// process's whole `features` table.
-pub(super) fn searching() -> Value {
-    json!({ "web_search": "live", "features.code_mode_host": true })
-}
+/// What the app-server Assistant's web answers run on changes: live web
+/// search, and code mode, which Codex 0.167 searches through. Both are
+/// the process's: code mode's host is a program Codex runs per process,
+/// so a thread's own `config` can't turn it on. Code mode runs JavaScript
+/// in a V8 isolate with no Node, file system, network, or console of its
+/// own; it reaches only the thread's other tools, and with the rest of
+/// [`ISOLATION`] those are no shell, exec, MCP server, app, plugin,
+/// browser, computer use, or image reading; a patch can't write in the
+/// read-only sandbox, where no approval is ever given.
+pub(super) const SEARCHING: &[&str] = &["web_search=\"live\"", "features.code_mode_host=true"];
 
 /// The person's MCP servers Codex has reported on, by name, so the next
 /// start turns them off from the outset.
@@ -89,11 +87,18 @@ pub(super) fn forget() {
     }
 }
 
-/// Every `-c` override of a start: [`ISOLATION`], then `servers` off.
-pub(super) fn overrides(servers: &[String]) -> Vec<String> {
+/// Every `-c` override of a start: [`ISOLATION`], with [`SEARCHING`] in
+/// place of its own values when `searching`, then `servers` off.
+pub(super) fn overrides(servers: &[String], searching: bool) -> Vec<String> {
+    let key = |setting: &str| setting.split('=').next().unwrap_or_default().to_owned();
     let mut all: Vec<String> = ISOLATION
         .iter()
-        .map(|&setting| setting.to_owned())
+        .map(|&setting| {
+            let opened = SEARCHING
+                .iter()
+                .find(|open| searching && key(open) == key(setting));
+            opened.copied().unwrap_or(setting).to_owned()
+        })
         .collect();
     all.push(servers_off(servers));
     all
@@ -169,7 +174,7 @@ mod tests {
     #[test]
     fn every_server_found_is_turned_off_by_name() {
         let on = still_on(&fixture());
-        let all = overrides(&on);
+        let all = overrides(&on, false);
         let last = all.last().unwrap();
         assert!(last.starts_with("mcp_servers={"), "{last}");
         assert!(last.contains(r#""node_repl"={enabled=false}"#), "{last}");
@@ -178,7 +183,7 @@ mod tests {
             servers_off(&["with space".into(), "q\"uote\\d".into()]),
             r#"mcp_servers={"with space"={enabled=false},"q\"uote\\d"={enabled=false}}"#
         );
-        assert_eq!(overrides(&[]).last().unwrap(), "mcp_servers={}");
+        assert_eq!(overrides(&[], false).last().unwrap(), "mcp_servers={}");
         // The rest of the isolation comes first, unchanged.
         assert_eq!(&all[..ISOLATION.len()], ISOLATION);
         assert!(
@@ -188,15 +193,32 @@ mod tests {
         );
     }
 
-    /// Only web search and code mode open up, each by its own key; the
-    /// process keeps both off, and everything else off, for every thread.
+    /// The searching process opens web search and code mode, and nothing
+    /// else; every other process keeps both off.
     #[test]
-    fn a_searching_thread_opens_web_search_and_code_mode_alone() {
-        let config = searching();
-        let keys: Vec<&String> = config.as_object().unwrap().keys().collect();
-        assert_eq!(keys, ["features.code_mode_host", "web_search"]);
-        assert!(ISOLATION.contains(&"web_search=\"disabled\""));
-        assert!(ISOLATION.contains(&"features.code_mode_host=false"));
+    fn only_the_searching_process_opens_web_search_and_code_mode() {
+        let servers = vec!["node_repl".to_owned()];
+        let plain = overrides(&servers, false);
+        let searching = overrides(&servers, true);
+        assert_eq!(plain.len(), searching.len());
+        let changed: Vec<(&String, &String)> = plain
+            .iter()
+            .zip(&searching)
+            .filter(|(plain, searching)| plain != searching)
+            .collect();
+        assert_eq!(
+            changed,
+            [
+                (
+                    &"web_search=\"disabled\"".to_owned(),
+                    &"web_search=\"live\"".to_owned()
+                ),
+                (
+                    &"features.code_mode_host=false".to_owned(),
+                    &"features.code_mode_host=true".to_owned()
+                ),
+            ]
+        );
         for off in [
             "features.shell_tool=false",
             "features.unified_exec=false",
@@ -207,8 +229,14 @@ mod tests {
             "features.computer_use=false",
             "features.view_image=false",
         ] {
-            assert!(ISOLATION.contains(&off), "{off}");
+            assert!(searching.contains(&off.to_owned()), "{off}");
         }
+        assert!(
+            searching
+                .last()
+                .unwrap()
+                .contains(r#""node_repl"={enabled=false}"#)
+        );
     }
 
     #[test]
