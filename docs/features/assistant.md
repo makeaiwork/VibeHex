@@ -32,14 +32,21 @@ Assistant                                        // rune_ui::assistant
 │   │           the passages go to, Allow or Answer without recordings
 │   ├── Steps   while it searches: one line per step, a check when done,
 │   │           three dots on the current one, the face reading
-│   ├── Setup   setup's questions one at a time beside the face: the
-│   │           question, its hint, option chips (a chosen one tinted with
-│   │           a check); Continue under one that takes several. Answered
-│   │           ones stay as small chosen chips. Then "Suggested changes,
-│   │           6 changes, 5 selected": a row per change (checkbox, name,
-│   │           where, why, from → to, what it takes), Not now, and
-│   │           "Apply 5 changes"; after, a mark per row and "4 of 5
-│   │           changes applied" with Undo
+│   ├── Setup   "Now: …" (what is set: speech model and language,
+│   │           dictation cleanup, meeting notes, Files cleanup, Labs on,
+│   │           Vocabulary terms), then round one as one form: four
+│   │           questions, captioned chips in three columns, preselected
+│   │           from the settings, one Continue. Follow-up rounds (Yes /
+│   │           No, at most four a round) with a quiet "Skip to the plan".
+│   │           Answered rounds stay as small chosen chips. Then
+│   │           "Suggested changes, 6 changes, 5 selected": rows grouped
+│   │           by area (Dictation, Code, Meetings, Files, Models), each a
+│   │           checkbox (accent fill and a check, or an empty box with a
+│   │           grey border), name, where, why, from → to, "You chose …"
+│   │           over the person's own value, a warning where setup isn't
+│   │           finished, "Then: …"; a folded "Already set: 6 things ›";
+│   │           Not now and "Apply 5 changes"; after, a mark per row and
+│   │           "4 of 5 changes applied" with Undo
 │   ├── Coming  "Looking in the guide…", then the draft as it streams;
 │   │           the face reads (eyes drift along a line) until it lands
 │   ├── Field   "Ask about VibeHex or your recordings", the model and reasoning menus (for this
@@ -159,37 +166,64 @@ Opened from an answer                            // rune_ui::assistant::jump
   should I turn on?" (`assistant::intent::setup`: a setting-up verb with
   only small words around it, or asking what to turn on) start guided
   setup; "Как настроить горячую клавишу?" stays a guide question.
-- Three questions, with fixed ids (`assistant::setup`): `use` (several:
-  `dictation_any`, `dictation_code`, `meetings`, `files`), `language`
-  (`ru`, `en`, `mixed`), and `cloud` (`chatgpt`, `this_mac` ("Only on this
-  computer" off macOS), `no_cleanup`).
-  - The Start row draws them at once, in the window's language, with no model.
-  - A typed request asks the model (`SETUP_ASK`) to write them as `hex-ask`
-    lines in the message's language. Missing, broken, or with unknown ids,
-    the app's own questions show under its words.
-- A single choice answers on a click; several wait for Continue. The
-  answers become one turn with `answers` (shown as chips, never a bubble),
-  and the model is asked (`SETUP_PLAN`) for at most 8 `hex-plan` lines.
-- Without a usable plan, the rules make one (`setup::baseline`), each
-  checked against real keys, models, and this OS:
-  - a speech model for the language when the one in use doesn't suit it
-    (GigaAM v3 for Russian, Parakeet v3 for mixed);
-  - Russian vibe coding for dictating code in Russian or mixed, with
-    ChatGPT allowed;
-  - with ChatGPT and dictation: cleanup on Codex, and Clean up with AI on;
-  - No cleanup: Clean up with AI off;
-  - Meetings on, and with ChatGPT its notes on Codex;
-  - Files;
-  - for dictation: Smart spacing, and Quick add to Vocabulary (unchecked);
-  - code in Russian or mixed without vibe coding: one unchecked Vocabulary
-    row of tech terms (GitHub, Claude Code, pull request, TypeScript,
-    Docker) less those the vocabulary has.
-  Rows already set are left out.
-- The plan is one card (`CardKind::Plan`). A row the OS or an organization
-  holds is left out; a shorter retention and a Codex row while signed out
-  start unchecked (the latter with Sign in with ChatGPT in the row).
-  Downloads show their size and the OS permission a row needs is named in
-  the footer before anything is applied.
+- It opens with "**Now:** …" (`setup::now`): the speech model and its
+  language, dictation cleanup (off, or its engine and model), the meeting
+  notes writer, the Files cleanup engine (or "as dictation"), up to four
+  Labs features that are on, and the Vocabulary count.
+- Round one, four questions with fixed ids (`assistant::setup`), every
+  chip preselected from the current settings (`setup::preselect`; a
+  question the person touched keeps their pick):
+  - `use` (several: `dictation_any`, `dictation_code` (preselected when
+    Russian vibe coding, the terminal paste shortcut, or Shift paste is
+    on), `meetings`, `files`);
+  - `language` (`ru`, `en`, `ru_tech` "Russian with English tech terms",
+    `mixed`); code and Russian preselect `ru_tech`, with the hint "for
+    code, tech terms usually stay in English";
+  - `cleanup`, "you wait for it": `local` ("On this Mac", "On this
+    computer" off macOS), `codex`, `opencode`, `openrouter`, `custom` ("My
+    own server", named LM Studio by port 1234, Ollama by 11434, or by the
+    app in /Applications: `setup::engines::own_server`), `none`, each with
+    a caption;
+  - `notes`, "may take longer", shown only when calls or files are picked:
+    `codex`, `opencode`, `openrouter`, `custom`, `local`, and on a Mac
+    `apple` (Apple Intelligence, meeting notes only).
+  - The Start row draws them at once, in the window's language, with no
+    model. A typed request asks the model (`SETUP_ASK`) to word them as
+    `hex-ask` lines in the message's language; missing, broken, or with
+    unknown ids, the app's own show.
+- Follow-up rounds (`setup::follow`). Labs articles say whom setup asks
+  (`for:` uses: `dictation`, `code`, `meetings`, `files`, `ru`,
+  `cleanup`) and how (`ask:`, a yes/no question; `then:` what follows);
+  a test keeps them sound. The app picks the candidates: fitting the
+  answers, available on this OS and build, not on already (after what
+  the plan's own lines turn on, so vibe coding's features aren't asked),
+  best first, at most 12; code in Russian without vibe coding first asks
+  to add tech terms (GitHub, Claude Code, pull request, TypeScript,
+  Docker) to Vocabulary. Rounds of four, at most three; each round has
+  "Skip to the plan", and an unanswered question changes nothing. A
+  remote model (`setup_follow`) may reword, drop, or add questions; an
+  added one names a Labs feature (the app's Yes / No) or a setting whose
+  option values a save takes, else it is dropped. A built-in model, a
+  scene, or a bad reply gets the app's own questions.
+- The plan (`setup::plan`), the app's rules first, at most 24 rows:
+  - speech model: one that already handles the language stays. Code in
+    Russian or Russian with tech terms: Orukeet or Parakeet v3, else
+    Parakeet v3, never GigaAM; plain Russian: GigaAM v3 or Orukeet stay,
+    else GigaAM v3; mixed: any multilingual model, else Parakeet v3;
+  - the engines answered: dictation's `runs_on` with Clean up with AI
+    (or it off), `meetings.notes.writer` (Apple Intelligence through
+    `meetings.summaries`), `files.cleanup_engine`, and the AI cleanup
+    server lab where an engine needs it;
+  - Russian vibe coding for Russian and code on any cleanup engine;
+    Meetings and Files for those uses; each follow-up's Yes.
+  - Rows from an answer start checked. A row over a value the person set
+    (not the default) may be offered but starts unchecked with "You
+    chose …". An engine not ready (no OpenRouter key, no server address,
+    OpenCode not running, Codex signed out) starts unchecked with where
+    to finish. What already fits folds into "Already set: N things ›".
+  - A model (`SETUP_PLAN`) may add up to 6 rows of its own; it can't
+    change a row the rules own, and its row over the person's own value
+    starts unchecked. Its refusals show beside the plan.
 - Apply checks each checked row on its own against the rows before it: a
   failing one gets why ("Not changed: …") and the rest save together; the
   speech model then downloads. Undo puts back the save, the model, and the
@@ -289,7 +323,8 @@ each with the parse it must make); scenes `assistant`,
 `assistant-cards-prompt`, `assistant-cards-prompt-edit`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
 `assistant-change-both`, `assistant-change-coming`, setup's
-`assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-result`,
+`assistant-setup-ask`, `assistant-setup-follow`, `assistant-setup-plan`,
+`assistant-setup-kept`, `assistant-setup-result`,
 and their goldens; `scripts/check control::settings`
 for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
@@ -298,8 +333,8 @@ Cmd+[, and the landing at two window heights.
 The live eval, `scripts/assistant-eval`, is opt in and never in CI: with
 `HEX_ASSISTANT_EVAL_ENGINE` set (`codex`, `codex:<model>`, `local:<id>`,
 `openrouter`, `custom`, `opencode`) it asks that engine the guide questions
-of `tests/fixtures/assistant/questions.jsonl`, then setup's questions, a
-plan for fixed answers, and a vocabulary request, through `worker::ask`
+of `tests/fixtures/assistant/questions.jsonl`, then setup's questions, its
+follow-ups and a plan for fixed answers, and a vocabulary request, through `worker::ask`
 with the repair round, and reports what each reply made: its cards, what
 was refused, and the expected changes it missed. A remote engine is paid
 per request. Not yet verified end to end by asking a real model from a

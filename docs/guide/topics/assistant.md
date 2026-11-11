@@ -39,13 +39,24 @@ sees your vocabulary. Undo takes out exactly the terms it added.
 ## Set VibeHex up for you
 
 **Set VibeHex up for me**, on the Assistant's start screen, or asking "help me
-set VibeHex up", starts three questions: what you use VibeHex for, which
-language you speak, and whether text may go to a cloud model through your
-ChatGPT. Then comes one list of changes, each with a checkbox, what it
+set VibeHex up", first says what is set now: the model that hears you and its language,
+where dictation is cleaned up, who writes meeting notes, the Labs features on,
+and how many Vocabulary terms you have. Then four questions, already answered
+from your settings: what you use VibeHex for, your language (one with
+English tech terms mixed in is its own choice), where dictation is cleaned up (this
+Mac, Codex, OpenCode, OpenRouter, your own server such as LM Studio or Ollama,
+or nowhere), and, if you record calls or files, where notes and files are
+worked on. A few yes-or-no questions about fitting Labs features follow;
+**Skip to the plan** goes straight on.
+
+Then comes one list of changes, grouped by area, each with a checkbox, what it
 changes from and to, and what it takes: a download and its size, a ChatGPT
-sign-in, or a macOS permission. Untick what you don't need and press
-**Apply 5 changes**. A change that can't be made says why, and the rest
-still apply; **Undo** takes the whole list back.
+sign-in, or a macOS permission. A setting you chose yourself is never ticked
+for you ("You chose …"), an engine not set up yet says where to finish, and a
+model that already hears your language stays. What already fits is
+folded under **Already set**. Untick what you don't need and press **Apply 5
+changes**. A change that can't be made says why, and the rest still apply;
+**Undo** takes the whole list back.
 
 ## Ask about your recordings
 
@@ -97,4 +108,4 @@ me"; «Может ли ассистент искать по моим встре�
 ассистенту читать мои записи?»; «Помоги мне настроить VibeHex под меня»;
 «Добавь Kubernetes в словарь».
 
-<!-- sources: docs/features/assistant.md; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup.rs; src/assistant/changes/vocab.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->
+<!-- sources: docs/features/assistant.md; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup/mod.rs; src/assistant/setup/follow.rs; src/assistant/setup/plan.rs; src/assistant/changes/vocab.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->
