@@ -557,7 +557,8 @@ each with the parse it must make); scenes `assistant`,
 `assistant-answering`, `assistant-start`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
 `assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
-`meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`, the cards'
+`meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`,
+`assistant-places`, `assistant-place-opened`, the cards'
 `assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,
 `assistant-cards-prompt`, `assistant-cards-prompt-edit`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
@@ -566,8 +567,8 @@ each with the parse it must make); scenes `assistant`,
 `assistant-setup-ask`, `assistant-setup-follow`, `assistant-setup-plan`,
 `assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
 `assistant-setup-preset-shortcuts`,
-and their goldens; the web's `assistant-web`, `assistant-web-off`, `assistant-web-held`,
-`assistant-web-answering`; `scripts/check control::settings`
+the web's `assistant-web`, `assistant-web-off`, `assistant-web-held`,
+`assistant-web-answering`, and their goldens; `scripts/check control::settings`
 for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
 Cmd+[, and the landing at two window heights.

@@ -2935,6 +2935,26 @@ fn goldens() {
         check_golden(scene, false, PANE_SIZE);
         check_golden(scene, true, PANE_SIZE);
     }
+    // What's new, places named in an answer, the web, and Requests that
+    // read other recordings, in both themes.
+    for scene in [
+        "assistant-whats-new",
+        "assistant-updated",
+        "assistant-places",
+        "assistant-place-opened",
+        "assistant-web",
+        "assistant-web-off",
+        "assistant-web-answering",
+        "assistant-web-held",
+        "meetings-cited-notes",
+        "meetings-cited-long",
+        "meetings-requests-linked",
+        "meetings-requests-consent",
+        "meetings-cited-requests",
+    ] {
+        check_golden(scene, false, PANE_SIZE);
+        check_golden(scene, true, PANE_SIZE);
+    }
 }
 
 mod assistant_jump;
