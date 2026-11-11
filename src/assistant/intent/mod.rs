@@ -15,8 +15,10 @@
 //! Times are read against a `now` passed in, in local time.
 
 mod day;
+mod setup;
 
 use day::{Day, span};
+pub use setup::setup;
 
 /// Which recordings a question names; none named means all.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
