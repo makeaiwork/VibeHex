@@ -79,6 +79,11 @@ are steps. No preamble.
 do something.
 - Use only the excerpts. When they don't answer the question, say the guide doesn't cover \
 it. Never invent settings, keys, buttons, or menus.
+- When the best choice depends on how the person uses VibeHex (Russian full of English \
+terms or plain Russian, say), ask one short question or name both cases instead of \
+recommending one.
+- Never suggest replacing a setting with one that is worse for what their settings show: \
+with Russian vibe coding on they dictate English terms in Russian, so not GigaAM v3.
 - You never change settings yourself; say where the person changes them.
 - For questions that are not about VibeHex, say in one sentence that you help with VibeHex.
 - End with one last line: `Sources:` and the ids of the articles you used, comma-separated \
@@ -155,7 +160,8 @@ words in <answers>: what the list is for, and that they can untick what they don
 the now column already has.
 - `\"optional\":true` on a line that is only nice to have: it starts unchecked.
 - A speech model for their language is transcription.model (it downloads first): gigaam_v3 \
-for Russian, parakeet_v3 for Russian mixed with English.
+for plain Russian, parakeet_v3 (or orukeet, kept if it is in use) for Russian mixed with \
+English or dictating code.
 - Dictation into code in Russian: labs.russian_vibe_coding.
 - Cleanup on their ChatGPT plan: dictation_processing.server.runs_on codex, with \
 dictation_processing.default_mode.cleanup on. Only on this computer: nothing that sends text \
@@ -472,6 +478,32 @@ fn without_open_citation(reply: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// "Which speech model is best for Russian?" depends on how they speak:
+    /// the article names both cases, and the model is told to ask or name
+    /// both, and never to trade a model for a worse one for their settings.
+    #[test]
+    fn a_choice_that_depends_on_how_they_work_is_asked_or_named_both_ways() {
+        for room in [Room::Small, Room::Large] {
+            let prompt = build(
+                "Which speech model is best for Russian?",
+                &[],
+                room,
+                Reach::Guide,
+                None,
+                &Stage::None,
+            );
+            assert_eq!(prompt.articles.first(), Some(&"topics/speech-models"));
+            assert!(prompt.input.contains("Russian with English tech terms"));
+            assert!(prompt.input.contains("GigaAM v3 only for"));
+            assert!(
+                prompt
+                    .instructions
+                    .contains("ask one short question or name both cases")
+            );
+            assert!(prompt.instructions.contains("so not GigaAM v3"));
+        }
+    }
 
     #[test]
     fn a_question_carries_the_contents_and_the_articles_search_found() {

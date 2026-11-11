@@ -88,7 +88,8 @@ fn cases() -> Vec<Case> {
                 answers,
             },
             keys: vec![
-                ("transcription.model".into(), Some(json!("gigaam_v3"))),
+                // Code dictated in Russian is full of English terms.
+                ("transcription.model".into(), Some(json!("parakeet_v3"))),
                 ("labs.russian_vibe_coding".into(), Some(json!(true))),
                 ("meetings.enabled".into(), Some(json!(true))),
             ],

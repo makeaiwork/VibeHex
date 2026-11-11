@@ -70,8 +70,14 @@ Parakeet Ultra, and Granite always hear the language from the audio, whatever th
 
 ## Which to pick
 
-- **Russian:** GigaAM v3, small and with punctuation, but it ignores your
-  Vocabulary. If names must come out right, use Whisper large-v3-turbo.
+- **Russian:** GigaAM v3, small and with punctuation, for plain Russian speech.
+  It speaks only Russian and ignores your Vocabulary. If names must come out
+  right, use Whisper large-v3-turbo.
+- **Russian with English tech terms (coding, vibe coding):** Orukeet or
+  Parakeet v3 (Orukeet is its fine-tune; in Russian they score about the
+  same). Both know Russian and English, hear which from the audio, and take
+  your Vocabulary with **Labs › Vocabulary biasing** on. GigaAM v3 only for
+  plain Russian speech.
 - **English:** Parakeet Unified English. Cohere Transcribe makes the fewest wrong words but is a big download.
 - **Norwegian:** NB-Whisper Medium (Recommended for Norwegian), with Whisper large-v3-turbo as the second choice.
 - **Many languages, or mixed:** Whisper large-v3-turbo or Qwen3-ASR 0.6B with Auto; both wait about 2 s
@@ -86,6 +92,6 @@ Parakeet, Qwen3-ASR, Cohere, SenseVoice, or GigaAM type; Q8_0, F16, or F32). Vib
 checks and copies it. It has no live text and shows as Imported, not benchmarked. **Labs › Use model files where they are** adds **Use model file where it is…**,
 which copies nothing. Files other apps saved are listed under **Found on this computer**.
 
-**Asked as.** "Which speech model should I use?"; "Can it work offline?"; «Какую модель выбрать для русского?»; «Как сменить модель распознавания»; «Где скачать другую модель».
+**Asked as.** "Which speech model should I use?"; "Can it work offline?"; «Какую модель выбрать для русского?»; «Какая модель лучше для русского с английскими терминами?»; «Как сменить модель распознавания»; «Где скачать другую модель».
 
-<!-- sources: src/transcription/models.rs:166-178,300-320,335-345,436-657,672-752; src/transcription/artifacts.rs:44-60,191-224; src/transcription/custom_models.rs:37-47; src/transcription/gguf_session.rs:237; src/rune_ui/picker/facts.rs:215-238,170-182; src/rune_ui/picker/compare.rs:22-50,89-150; src/rune_ui/picker/list.rs:268-280; src/rune_ui/picker.rs:540; src/rune_ui/general.rs:141-210; src/rune_ui/model_details.rs:1-6; docs/features/README.md:341-352; docs/features/own-models.md -->
+<!-- sources: src/transcription/models.rs:166-178,300-320,335-360,436-657,672-752; src/transcription/model_benchmarks.rs:183-186; src/transcription/model_details.rs:72-120; src/transcription/artifacts.rs:44-60,191-224; src/transcription/custom_models.rs:37-47; src/transcription/gguf_session.rs:237; src/rune_ui/picker/facts.rs:215-238,170-182; src/rune_ui/picker/compare.rs:22-50,89-150; src/rune_ui/picker/list.rs:268-280; src/rune_ui/picker.rs:540; src/rune_ui/general.rs:141-210; src/rune_ui/model_details.rs:1-6; docs/features/README.md:341-352; docs/features/own-models.md -->

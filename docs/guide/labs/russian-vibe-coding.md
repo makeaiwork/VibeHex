@@ -20,8 +20,11 @@ Cyrillic), with Clean up with AI switched on. It also switches on the other
 starred Labs this system has, except Stop shortcut.
 
 **It leaves to you.** Where cleanup runs (Output › AI cleanup › Runs on;
-the default, OpenCode, must be running, or text pastes without AI cleanup), keys, and
-Vocabulary biasing, which stays off. Where you already have a fix for the
+the default, OpenCode, must be running, or text pastes without AI cleanup), keys,
+the speech model, and Vocabulary biasing, which stays off. For this speech,
+Orukeet or Parakeet v3 (General › Speech model) with Labs › Vocabulary
+biasing write the terms as you speak; GigaAM v3 speaks only Russian and
+ignores them, leaving them to AI cleanup. Where you already have a fix for the
 same phrase, yours stays; your own instructions stay too, with the
 preset's added after them.
 
@@ -34,4 +37,4 @@ with AI goes off too. The Labs it switched on stay on.
 **Asked as.** "Set up for Russian programming"; «Как настроить, чтобы клод код
 писался по-английски»; «Включить словарь для вайб-кодинга».
 
-<!-- sources: src/dictation/presets.rs:1-100; src/rune_ui/labs.rs:284-288; docs/features/labs.md:1218-1240, 26-37; docs/vocabulary/*; src/app_settings/dictation_processing.rs:61-70; src/labs.rs:268-358 -->
+<!-- sources: src/dictation/presets.rs:1-100; src/transcription/models.rs:348-360; src/rune_ui/labs.rs:284-288; docs/features/labs.md:1218-1240, 26-37; docs/vocabulary/*; src/app_settings/dictation_processing.rs:61-70; src/labs.rs:268-358 -->
