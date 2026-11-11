@@ -58,6 +58,16 @@ folded under **Already set**. Untick what you don't need and press **Apply 5
 changes**. A change that can't be made says why, and the rest still apply;
 **Undo** takes the whole list back.
 
+Setting up again, after a setup or once you have used VibeHex a while (50
+dictations, or any meeting), skips the first questions: it says what came
+since your last setup, what is new in VibeHex, and, if Assistant may read
+your recordings, what your use shows (how much you dictate and where, how
+many are long, the words cleanup keeps fixing, terms Vocabulary lacks, as
+one **Add N terms** card). Your earlier answers stay folded under **Has
+anything changed in how you use VibeHex?**: **Continue** goes on to the
+plan, **Change answers** opens them. Something you declined before isn't
+offered again until that setting changes.
+
 **Or set it up like Denis**, under it, or asking "set me up like Denis" («сделай
 настройки как у Дениса»), offers the settings of the person who makes VibeHex
 as one such list: his Labs features, speech model, cleanup and notes engines,

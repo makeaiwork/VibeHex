@@ -230,6 +230,32 @@ Opened from an answer                            // rune_ui::assistant::jump
   speech model then downloads. Undo puts back the save, the model, and the
   terms added.
 
+- Each finished setup (its plan applied or put off, or nothing to plan)
+  is kept with the conversations (`setup::past`, `Store::setups`, at most
+  20, only while conversations are kept): its date, answers, the rows
+  applied, and what was declined (a row left unticked on an applied plan,
+  a follow-up's No; "Not now" declines only the Nos). A declined line
+  (key and value) isn't offered again, by the rules, a model, or a
+  follow-up, while the setting is still what it was then
+  (`catalog::State::declined`, `past::held`).
+- Returning setup (`setup::since`, `rune_ui::assistant::returning`): with
+  a setup kept, 50+ dictations in History, or any meeting, round one is
+  folded to "Has anything changed in how you use VibeHex?" with the last
+  answers preselected (else the settings'), Continue and "Change
+  answers". Above it, after "Now:", "**Since your last setup (date):**"
+  (or "What your use shows:"): releases since
+  (`since::releases_after`, a stub until the releases notes land), and,
+  only while `assistant.read_recordings` is on, the use
+  (`recordings::usage`, computed by the app: dictations kept and in 30
+  days, top apps, terminal or editor share (30%+ adds code to `use`),
+  long dictations (60+ words, 20%+ names the Codex trade-off), what
+  cleanup keeps fixing, Latin terms said in Russian or shaped like terms
+  and missing from Vocabulary (as one "Add N terms" card, each with how
+  it was heard), meetings and their language); without leave it says
+  the use could show more. The model reads the same as aggregates in
+  `<since_last_setup>` (last setup's answers, applied, declined;
+  releases; use), never a recording's text.
+
 ## Set me up like Denis
 
 - "Set me up like Denis", "like the developer", «сделай настройки как у
