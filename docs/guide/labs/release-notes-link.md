@@ -9,18 +9,18 @@ vibehex: false
 
 # Release notes link
 
-**What it does.** Adds a Release notes link under the version at the bottom of the sidebar. It opens, on GitHub, the release page of the version you are running.
+**What it does.** Adds a Release notes link at the bottom of the sidebar, under the version and the update status. It opens the GitHub release page of the version you are running, with no update needed.
 
-**Turn it on when.** You want to see what your current version brought.
+**Turn it on when.** You want to see what your current version changed.
 
-**Leave it off when.** Nothing to lose; off, the footer is as before.
+**Leave it off when.** Nothing to lose; off, the sidebar footer is as before.
 
-**Needs.** A published build. Builds made from source show no link.
+**Needs.** A published build whose version is a VibeHex release (like 3.3.0-vibe.6) or a plain 3.3.0. A build made from source or a test build shows no link, and neither does a -dev version such as 3.3.0-dev-4.
 
-**Good to know.** Stable VibeHex builds don't list this lab; only dev builds do.
+**Good to know.** Only dev builds of VibeHex list this lab. Off by default.
 
 **Where.** Labs › Release notes link (`labs.release_notes_link`).
 
-**Asked as.** "What changed in my version?"; «Что нового в этой версии».
+**Asked as.** "What changed in my version?"; "Where are the release notes?"; «Что нового в этой версии»; «Где посмотреть список изменений».
 
-<!-- sources: docs/features/labs.md:36-40, 52, 363-381; src/rune_ui/sidebar.rs:652-690, 748-756; src/updater/notes.rs:16-19, 88-113; src/labs.rs (vibehex_hides, shipped) -->
+<!-- sources: src/rune_ui/labs.rs:420-424; src/labs.rs:259-277 (vibehex_hides), 530-531; src/labs/group.rs:56; src/rune_ui/sidebar.rs:640-700, 748-756; src/updater/notes.rs:12-14, 88-113, 235-250; src/control/settings.rs:365-368 -->
