@@ -1676,6 +1676,8 @@ mod tests {
         include_str!("../rune_ui/meeting_tabs/mod.rs"),
         include_str!("../rune_ui/meeting_tabs/requests.rs"),
         include_str!("../rune_ui/assistant/mod.rs"),
+        include_str!("../rune_ui/assistant/card.rs"),
+        include_str!("../rune_ui/assistant/changes.rs"),
         include_str!("../rune_ui/assistant/composer.rs"),
         include_str!("../rune_ui/assistant/connect.rs"),
         include_str!("../rune_ui/assistant/feed.rs"),

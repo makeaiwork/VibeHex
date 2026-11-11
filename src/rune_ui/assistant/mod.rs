@@ -9,6 +9,8 @@
 //! The model is Assistant's own: choosing one here never changes what
 //! dictation's AI cleanup runs on.
 
+mod card;
+mod card_diff;
 mod changes;
 mod composer;
 mod connect;

@@ -11,6 +11,7 @@ use super::super::controls::{DESCRIPTION, Paint};
 use super::super::files::session::{self, Answered};
 use super::super::icons;
 use super::super::lists::small_button;
+use super::changes::At;
 use super::composer::ask;
 use super::face::{Mood, face};
 use crate::assistant::guide;
@@ -201,6 +202,19 @@ fn reply(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Turn) -> El 
         (conversation, index),
     ));
     words = words.children(sources(p, &turn.sources));
+    // The changes it suggested, then the lines the app refused.
+    let newest = super::changes::newest(ui, conversation);
+    for card in 0..turn.cards.len() {
+        let at = At {
+            conversation,
+            turn: index,
+            card,
+        };
+        words = words.children(super::card::view(ui, p, at, newest == Some(at)));
+    }
+    for (number, refused) in turn.refused.iter().enumerate() {
+        words = words.children(super::card::refused(ui, p, number, refused));
+    }
     if turn.error.is_none() {
         words = words.child(session::answer_row(
             p,
