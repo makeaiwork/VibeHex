@@ -95,6 +95,16 @@ pub struct Excerpt {
     pub lines: Vec<Line>,
 }
 
+impl Excerpt {
+    /// A meeting's notes, which the answer cites whole.
+    pub fn is_notes(&self) -> bool {
+        self.kind == Kind::Meeting && self.label == NOTES
+    }
+}
+
+/// The label of a meeting's notes as an excerpt.
+pub(crate) const NOTES: &str = "Notes";
+
 /// One line of a transcript excerpt: a sentence or a segment, as the
 /// transcription model gave it.
 #[derive(Clone, Debug, PartialEq)]
@@ -138,6 +148,9 @@ pub struct Ref {
     /// when they named no line it has, and then only the passage shows.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lines: Vec<Lines>,
+    /// It is a meeting's notes, not its transcript: it opens on them.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub notes: bool,
 }
 
 /// Lines `[n.first-n.last]` one of the answer's marks cites, mapped to
@@ -246,6 +259,7 @@ impl Found {
                             at_ms: excerpt.at_ms,
                             offset_ms: excerpt.offset_ms,
                             lines: Vec::new(),
+                            notes: excerpt.is_notes(),
                         });
                         refs.len() - 1
                     }

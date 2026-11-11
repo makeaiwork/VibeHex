@@ -733,6 +733,14 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::setup_fixture::setup_result,
     ),
     ("meetings-cited", assistant::fixture::meeting_cited),
+    (
+        "meetings-cited-notes",
+        assistant::fixture::meeting_notes_cited,
+    ),
+    (
+        "meetings-cited-long",
+        assistant::fixture::meeting_cited_long,
+    ),
     ("files-cited", assistant::fixture::file_cited),
     (
         "files-cited-listening",

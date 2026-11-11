@@ -12,9 +12,13 @@
 //!
 //! The cited passage is tinted in the accent, all corners round, with the
 //! answer's `[n]` beside the speaker, and the very lines the answer cited
-//! (`[2.3]`, kept with the place as their time and bytes) lit inside it,
-//! until the person leaves; a citation that named no line it has tints the
-//! passage alone. The place lands about a third of the way down the pane.
+//! (`[2.3]`, kept with the place as their time and bytes) read at full
+//! strength in it while the rest of it is muted, until the person leaves; a
+//! citation that named no line it has tints the passage alone. The first
+//! cited words land about a third of the way down the pane, however deep
+//! in a long passage they are. A citation with no place of its own (a
+//! meeting's notes, an item cited whole) opens its item at the top, notes on
+//! Summary, and makes no other number's place current.
 //! An item cited in more than one place gets a bar over its text: "From the
 //! answer: …", "1 of 2", arrows between the places, and a cross that clears
 //! the light. The other places are tinted fainter. A dictation's row in
@@ -62,8 +66,10 @@ pub(in super::super) struct Cited {
     topic: String,
     /// In the order they come in the item.
     pub(in super::super) places: Vec<Place>,
-    /// The one scrolled to.
-    pub(in super::super) current: usize,
+    /// The one scrolled to; none when the citation clicked has no place
+    /// of its own (a meeting's notes, an item cited whole), so no other
+    /// number's place stands in for it.
+    pub(in super::super) current: Option<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -105,6 +111,19 @@ impl Cited {
     /// `gap` bytes between (a meeting's turns, a file's paragraphs). Lines
     /// cited by their words light them; a place whose words aren't there,
     /// or that named none, tints the last line started by its moment.
+    /// The place `by` after the current one, round the ends; from no
+    /// current place, forward starts at the first and back at the last.
+    fn step(&mut self, by: isize) {
+        let count = self.places.len() as isize;
+        if count == 0 {
+            return;
+        }
+        let from = self
+            .current
+            .map_or(if by > 0 { -1 } else { count }, |at| at as isize);
+        self.current = Some((from + by).rem_euclid(count) as usize);
+    }
+
     pub(in super::super) fn marks(&self, lines: &[(u64, &str)], gap: usize) -> Vec<Option<Mark>> {
         let mut marks: Vec<Option<Mark>> = vec![None; lines.len()];
         let mut starts = Vec::with_capacity(lines.len());
@@ -114,7 +133,7 @@ impl Cited {
             offset += words.len() + gap;
         }
         for (index, place) in self.places.iter().enumerate() {
-            let now = index == self.current;
+            let now = Some(index) == self.current;
             let mut landed = false;
             for (line, ((_, words), start)) in lines.iter().zip(&starts).enumerate() {
                 let Some(at) = &place.at else { break };
@@ -189,12 +208,27 @@ pub(super) fn open(
     };
     let cited = places(&turn.question, &turn.refs, &target, mark);
     let scroll_y = ui.assistant.scroll_y.get();
+    // A citation with no place of its own opens its item at the top: a
+    // meeting's notes on Summary, anything else where it starts.
+    let top = cited.current.is_none().then_some(match target.kind {
+        Kind::Meeting => "meeting-transcript",
+        Kind::File => "file-text",
+        Kind::Dictation => "detail-scroll",
+    });
     match target.kind {
         Kind::Meeting => {
+            use super::super::meeting_tabs::MeetingTab;
             ui.select_pane(Pane::Meetings, tx);
             ui.meetings.view = super::super::meetings::View::Recordings;
             ui.meetings.select(target.id.clone());
-            ui.meetings.tab = Some(super::super::meeting_tabs::MeetingTab::Transcript);
+            // Only notes come with no time: answers kept from before
+            // `notes` was recorded open on them too.
+            let notes = target.notes || (target.offset_ms.is_none() && target.lines.is_empty());
+            ui.meetings.tab = Some(if notes {
+                MeetingTab::Summary
+            } else {
+                MeetingTab::Transcript
+            });
         }
         Kind::File => {
             ui.select_pane(Pane::Files, tx);
@@ -215,11 +249,13 @@ pub(super) fn open(
     ui.came_from = Some(CameFrom {
         conversation,
         scroll_y,
+        land: lands.is_some(),
         cited: lit.then_some(cited),
-        land: lit,
     });
     if let Some(key) = lands {
         tx.scroll_key_to(key, place_top(ui));
+    } else if let Some(key) = top {
+        tx.scroll_to_y(key, 0.0);
     }
 }
 
@@ -264,8 +300,7 @@ fn places(question: &str, refs: &[Ref], target: &Ref, mark: Option<u32>) -> Cite
     let current = places
         .iter()
         .position(|place| of(place) && mark.is_some() && place.mark == mark)
-        .or_else(|| places.iter().position(of))
-        .unwrap_or(0);
+        .or_else(|| places.iter().position(of));
     Cited {
         kind: target.kind,
         id: target.id.clone(),
@@ -278,7 +313,7 @@ fn places(question: &str, refs: &[Ref], target: &Ref, mark: Option<u32>) -> Cite
 /// What the scroll lands on for the current place: [`NOW_KEY`], or a
 /// dictation's row.
 fn landing(cited: &Cited) -> Option<String> {
-    cited.places.get(cited.current)?;
+    cited.places.get(cited.current?)?;
     Some(match cited.kind {
         Kind::Dictation => row_key(&cited.id),
         Kind::Meeting | Kind::File => NOW_KEY.to_owned(),
@@ -391,7 +426,7 @@ pub(super) fn scene(
                     at: at.clone(),
                 })
                 .collect(),
-            current,
+            current: Some(current),
         }),
         land: true,
     }
@@ -484,10 +519,10 @@ pub(in super::super) fn line(
     let k = p.k;
     let badge = badge(p, mark.n, mark.now);
     let text = words
-        .text_highlights(mark.lit.iter().map(|lit| highlight(p, lit)))
+        .text_highlights(mark.lit.iter().map(|lit| phrase(p, lit)))
         .key("text")
         .font(k.ty.body)
-        .color(if mark.now { k.c.text_base } else { p.reading() })
+        .color(rest(p, mark))
         .grow(1.0)
         .shrink()
         .wrap();
@@ -539,16 +574,31 @@ fn tint(p: Paint, now: bool) -> rune::Color {
     p.k.alpha(p.accent(), if p.k.dark { 0.13 } else { 0.09 } * strength)
 }
 
-/// Cited lines, lit like a search's matches; the scroll lands on the
-/// current place's first.
-fn highlight(p: Paint, lit: &Lit) -> TextHighlight {
-    let k = p.k;
-    let shown = TextHighlight::new(
-        lit.at.clone(),
-        k.alpha(p.accent(), if lit.now { 0.26 } else { 0.13 }),
-    )
-    .color(k.c.text_base)
-    .pad(2.0);
+/// The passage around its cited phrases: with them known it steps back so
+/// they read at full strength; without, it reads whole.
+fn rest(p: Paint, mark: &Mark) -> rune::Color {
+    match (mark.lit.is_empty(), mark.now) {
+        (true, true) => p.k.c.text_base,
+        (true, false) => p.reading(),
+        (false, _) => p.muted(),
+    }
+}
+
+/// A cited phrase: full strength for the current place, the reading
+/// colour for the others, either way above the muted passage.
+fn said(p: Paint, lit: &Lit) -> rune::Color {
+    if lit.now {
+        p.k.c.text_base
+    } else {
+        p.reading()
+    }
+}
+
+/// Cited phrases: their words at full strength (the reading colour on a
+/// place not shown) over the passage's muted rest, nothing behind them;
+/// the scroll lands on the current place's first.
+fn phrase(p: Paint, lit: &Lit) -> TextHighlight {
+    let shown = TextHighlight::new(lit.at.clone(), rune::Color::TRANSPARENT).color(said(p, lit));
     if lit.lands { shown.key(NOW_KEY) } else { shown }
 }
 
@@ -587,7 +637,7 @@ fn badge(p: Paint, n: u32, now: bool) -> El {
 /// answer's `[n]`.
 pub(in super::super) fn row_mark(ui: &Ui, p: Paint, id: &str) -> Option<(rune::Color, El)> {
     let cited = cited(ui, Kind::Dictation, id)?;
-    let place = cited.places.get(cited.current)?;
+    let place = cited.places.get(cited.current?)?;
     Some((tint(p, true), badge(p, place.n, true)))
 }
 
@@ -623,8 +673,7 @@ pub(in super::super) fn bar(ui: &Ui, p: Paint, kind: Kind, id: &str) -> Option<E
                         }
                     }
                     (by, Some(cited)) => {
-                        let count = cited.places.len() as isize;
-                        cited.current = (cited.current as isize + by).rem_euclid(count) as usize;
+                        cited.step(by);
                         if let Some(key) = landing(cited) {
                             tx.scroll_key_to(key, place_top(ui));
                         }
@@ -633,13 +682,16 @@ pub(in super::super) fn bar(ui: &Ui, p: Paint, kind: Kind, id: &str) -> Option<E
                 }
             })
     };
-    let count = tr_named(
-        "{current} of {count}",
-        &[
-            ("current", &(cited.current + 1).to_string()),
-            ("count", &cited.places.len().to_string()),
-        ],
-    );
+    let count = match cited.current {
+        Some(current) => tr_named(
+            "{current} of {count}",
+            &[
+                ("current", &(current + 1).to_string()),
+                ("count", &cited.places.len().to_string()),
+            ],
+        ),
+        None => cited.places.len().to_string(),
+    };
     Some(
         row()
             .key("cited-bar")
@@ -736,7 +788,7 @@ mod tests {
             .map(|place| (place.n, place.mark))
             .collect();
         assert_eq!(order, [(3, Some(0)), (1, Some(0)), (3, Some(1))]);
-        assert_eq!(first.current, 1);
+        assert_eq!(first.current, Some(1));
         let marks = first.marks(&lines, 1);
         assert_eq!(
             shown(&marks),
@@ -748,10 +800,10 @@ mod tests {
         assert!(marks[1].as_ref().unwrap().lit[0].lands);
         // The second [3] in the answer opens its own lines.
         let second = places("q", &refs, &refs[2], Some(1));
-        assert_eq!(second.places[second.current].mark, Some(1));
+        assert_eq!(second.places[second.current.unwrap()].mark, Some(1));
         // A chip opens the first.
         let chip = places("q", &refs, &refs[2], None);
-        assert_eq!(chip.current, 0);
+        assert_eq!(chip.current, Some(0));
     }
 
     /// A citation that named no line it has tints its passage with no
@@ -773,6 +825,63 @@ mod tests {
         // Notes, cited whole, have no place in the transcript.
         let notes = [cited(1, "a", None, &[])];
         assert!(places("q", &notes, &notes[0], None).places.is_empty());
+    }
+
+    /// The owner's case: [1] the meeting's notes, [2] and [3] lines in its
+    /// transcript. Clicking [1] makes neither of the others current: both
+    /// stay faintly lit, nothing lands, and the bar counts them unnumbered.
+    #[test]
+    fn a_citation_with_no_place_of_its_own_makes_no_other_current() {
+        let lines = [(0, "Ab. Cd."), (8_000, "Ef. Gh.")];
+        let refs = [
+            cited(1, "a", None, &[]),
+            cited(2, "a", Some(0), &[(0, 0, 4..7)]),
+            cited(3, "a", Some(8_000), &[(0, 8_000, 8..11)]),
+        ];
+        let notes = places("q", &refs, &refs[0], Some(0));
+        assert_eq!(notes.places.len(), 2);
+        assert_eq!(notes.current, None);
+        assert_eq!(landing(&notes), None);
+        let marks = notes.marks(&lines, 1);
+        assert_eq!(
+            shown(&marks),
+            [Some((2, false, lit(4..7))), Some((3, false, lit(0..3)))]
+        );
+        assert!(marks.iter().flatten().all(|mark| !mark.lands));
+        // The arrows step from nothing to the first, or back to the last.
+        let mut down = notes.clone();
+        down.step(1);
+        assert_eq!(down.current, Some(0));
+        let mut up = notes;
+        up.step(-1);
+        assert_eq!(up.current, Some(1));
+    }
+
+    /// Known phrases read at full strength over a muted passage; without
+    /// them the passage reads whole, as before.
+    #[test]
+    fn cited_phrases_read_brighter_than_their_passage() {
+        let p = Paint::new(false, 1.0);
+        let words = |now| Lit {
+            at: 0..3,
+            now,
+            lands: now,
+        };
+        let mark = |lit: Vec<Lit>, now| Mark {
+            n: 1,
+            now,
+            lands: now,
+            lit,
+        };
+        let current = mark(vec![words(true)], true);
+        assert_eq!(rest(p, &current), p.muted());
+        assert_eq!(said(p, &current.lit[0]), p.k.c.text_base);
+        let other = mark(vec![words(false)], false);
+        assert_eq!(rest(p, &other), p.muted());
+        assert_eq!(said(p, &other.lit[0]), p.reading());
+        assert_ne!(p.muted(), p.reading());
+        assert_eq!(rest(p, &mark(Vec::new(), true)), p.k.c.text_base);
+        assert_eq!(rest(p, &mark(Vec::new(), false)), p.reading());
     }
 
     #[test]

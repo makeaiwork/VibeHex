@@ -193,6 +193,7 @@ fn place(n: u32, kind: Kind, id: &str, title: &str, at_ms: u64, offset: Option<u
             })
             .into_iter()
             .collect(),
+        notes: false,
     }
 }
 
@@ -266,16 +267,7 @@ pub(in super::super) fn meeting_cited_on(ui: &mut Ui, current: usize) {
     ui.pane = Pane::Meetings;
     ui.meetings.select("preview-notes".into());
     ui.meetings.tab = Some(super::super::meeting_tabs::MeetingTab::Transcript);
-    let text = ui
-        .meetings
-        .meetings
-        .iter()
-        .find(|meeting| meeting.id == "preview-notes")
-        .map(|meeting| {
-            let turns = meeting.turns().iter().map(|turn| turn.text.as_str());
-            turns.collect::<Vec<_>>().join("\n")
-        })
-        .unwrap_or_default();
+    let text = turns_text(ui);
     ui.came_from = Some(super::jump::scene(
         Kind::Meeting,
         "preview-notes",
@@ -285,6 +277,125 @@ pub(in super::super) fn meeting_cited_on(ui: &mut Ui, current: usize) {
             said(3, 95_000, &text, "We need a proposal for it."),
         ],
         current,
+    ));
+}
+
+/// The fixture meeting's turns, one per line, as citations point into them.
+fn turns_text(ui: &Ui) -> String {
+    ui.meetings
+        .meetings
+        .iter()
+        .find(|meeting| meeting.id == "preview-notes")
+        .map(|meeting| {
+            let turns = meeting.turns().iter().map(|turn| turn.text.as_str());
+            turns.collect::<Vec<_>>().join("\n")
+        })
+        .unwrap_or_default()
+}
+
+/// An answer citing the meeting's notes as [1] and two places in its
+/// transcript as [2] and [3], with [1] clicked: the meeting opens on
+/// Summary at the top, and neither [2] nor [3] is current.
+pub(in super::super) fn meeting_notes_cited(ui: &mut Ui) {
+    *ui = mac_fixture();
+    let text = turns_text(ui);
+    let lines = |n: u32, start_ms: u64, words: &str| {
+        let at = text.find(words).map(|at| at..at + words.len());
+        Ref {
+            n,
+            kind: Kind::Meeting,
+            id: "preview-notes".into(),
+            title: "Arcade launch plan".into(),
+            at_ms: AT,
+            offset_ms: Some(start_ms),
+            lines: vec![Lines {
+                start_ms,
+                at: at.unwrap_or_default(),
+                ..Lines::default()
+            }],
+            notes: false,
+        }
+    };
+    let notes = Ref {
+        n: 1,
+        kind: Kind::Meeting,
+        id: "preview-notes".into(),
+        title: "Arcade launch plan".into(),
+        at_ms: AT,
+        notes: true,
+        ..Ref::default()
+    };
+    let refs = vec![
+        notes,
+        lines(2, 13_000, "we could make twenty to thirty games."),
+        lines(3, 95_000, "We need a proposal for it."),
+    ];
+    let question = "What did we decide about the build screen?";
+    let id = ui.assistant.store.start(question, None, None);
+    ui.assistant.store.push(
+        id,
+        Turn {
+            refs,
+            ..turn(
+                question,
+                "One login for every game [1], twenty to thirty games [2], and a proposal for the build screen first [3].",
+                &[],
+                1,
+            )
+        },
+    );
+    ui.assistant.open = Some(id);
+    super::jump::open(ui, (id, 0), 1, Some(0), &mut rune::Tx::default());
+}
+
+/// A minute and a half of one speaker: the passage citations land in.
+const MONOLOGUE: &str = "Okay, let me walk through the whole plan once, because I think we keep talking past each other on the order of things. \
+The first thing is the shared login, and that one is not negotiable, every game in the arcade signs in the same way or the store makes no sense. \
+Then there is the catalogue itself, which is where the numbers come from, and I went back over them twice this week. \
+We have four games that are basically done, six that are playable but rough, and a long tail of prototypes that may or may not survive. \
+If we only count what we can finish without hiring, the honest answer is that we ship twelve games by the end of the quarter. \
+That is not the twenty to thirty everybody quotes in the deck, and I would rather we stop repeating that number to partners. \
+The second thing is the build screen, which still looks like an internal tool, and people judge the whole arcade by it. \
+I spent an afternoon with it and the problems are not cosmetic, the flow is wrong, you pick a template before you know what it does. \
+So before anybody polishes buttons, we need someone to write down how a person should get from an idea to a published game. \
+The third thing is money, and here I want to be careful, because the budget we agreed in January assumed the bigger catalogue. \
+With twelve games the hosting costs drop a lot, but marketing does not, so the split between the two has to move. \
+I would move about a fifth of the hosting budget into marketing and keep the rest as a reserve until we see real traffic. \
+And finally the schedule: we said the end of the month for the public beta, and I still think that is possible for the login and the store. \
+The build screen will not be ready by then, so the beta ships with the old one and a clear note that a new one is coming. \
+So, to sum up: shared login first, an honest catalogue of twelve, a written proposal for the build screen, and the hosting money moved into marketing.";
+
+/// A meeting opened from an answer citing two places deep in one long
+/// passage: the first cited words land a third of the way down, not the
+/// passage's top.
+pub(in super::super) fn meeting_cited_long(ui: &mut Ui) {
+    *ui = mac_fixture();
+    ui.pane = Pane::Meetings;
+    ui.meetings.select("preview-notes".into());
+    ui.meetings.tab = Some(super::super::meeting_tabs::MeetingTab::Transcript);
+    if let Some(meeting) =
+        (ui.meetings.meetings.iter_mut()).find(|meeting| meeting.id == "preview-notes")
+        && let super::super::meetings::Transcript::Loaded(turns) = &mut meeting.transcript
+        && let Some(turn) = turns.get_mut(4)
+    {
+        turn.text = MONOLOGUE.into();
+        turn.words = Vec::new();
+    }
+    let text = turns_text(ui);
+    ui.came_from = Some(super::jump::scene(
+        Kind::Meeting,
+        "preview-notes",
+        "How many games, and what about the build screen",
+        &[
+            said(
+                2,
+                24_000,
+                &text,
+                "the honest answer is that we ship twelve games by the end of the quarter.",
+            ),
+            said(3, 24_000, &text, "a written proposal for the build screen"),
+        ],
+        0,
     ));
 }
 

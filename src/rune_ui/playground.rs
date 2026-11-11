@@ -251,6 +251,14 @@ const PATHS: &[(&str, &str)] = &[
         "meetings-cited",
         "Window/Assistant/Meeting opened from an answer",
     ),
+    (
+        "meetings-cited-notes",
+        "Window/Assistant/Meeting opened on its notes from an answer",
+    ),
+    (
+        "meetings-cited-long",
+        "Window/Assistant/Meeting opened from an answer, long passage",
+    ),
     ("files-cited", "Window/Assistant/File opened from an answer"),
     (
         "files-cited-listening",
