@@ -15,6 +15,7 @@
 //! Times are read against a `now` passed in, in local time.
 
 mod day;
+pub mod preset;
 mod setup;
 
 use day::{Day, span};
