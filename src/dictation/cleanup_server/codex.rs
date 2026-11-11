@@ -8,7 +8,7 @@
 //! new ephemeral, read-only thread whose base instructions are Hex's; Hex's
 //! process switches off the person's hooks, MCP servers, memories, plugins,
 //! apps, shell, web search, project instructions, and `notify` command
-//! ([`ISOLATION`]), so Codex sees only the text and keeps nothing of it. Hex
+//! ([`isolation`]), so Codex sees only the text and keeps nothing of it. Hex
 //! never sees a password or key: Codex keeps its own sign-in in `~/.codex`.
 //!
 //! One exception: Assistant's answers, while its Web is on, start their
@@ -27,6 +27,7 @@ use color_eyre::eyre::{Result, eyre};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::isolation;
 use crate::dictation::cleanup_pieces::Streamed;
 
 /// How long the app-server stays running after its last request.
@@ -44,31 +45,6 @@ pub const INSTALL_COMMAND: &str = if cfg!(target_os = "macos") {
 } else {
     "npm install -g @openai/codex"
 };
-
-/// Overrides for Hex's own app-server: nothing of the person's Codex setup
-/// that could act, remember, read a project, or make a sound. Feature flags
-/// go through `-c` because `--disable` refuses a flag a Codex version
-/// doesn't know.
-const ISOLATION: &[&str] = &[
-    "notify=[]",
-    "mcp_servers={}",
-    "project_doc_max_bytes=0",
-    "web_search=\"disabled\"",
-    "features.hooks=false",
-    "features.memories=false",
-    "features.apps=false",
-    "features.plugins=false",
-    "features.multi_agent=false",
-    "features.shell_tool=false",
-    "features.unified_exec=false",
-    "features.computer_use=false",
-    "features.browser_use=false",
-    "features.in_app_browser=false",
-    "features.image_generation=false",
-    "features.goals=false",
-    "features.code_mode_host=false",
-    "features.js_repl=false",
-];
 
 /// The signed-in account, as Codex reports it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -343,7 +319,7 @@ pub fn generate(
 
 /// [`generate`] with live web search allowed on this one thread, for
 /// Assistant's answers while its Web is on; `searched` hears each search.
-/// Everything else in [`ISOLATION`] stays.
+/// Everything else in [`isolation::ISOLATION`] stays.
 #[allow(clippy::too_many_arguments)]
 pub fn generate_searching(
     model: &str,
@@ -681,11 +657,60 @@ struct Process {
 }
 
 impl Process {
+    /// Starts an app-server none of the person's MCP servers can run in:
+    /// it turns off those it knows of, asks Codex which are still on, and
+    /// starts again with those off too ([`isolation`]).
     fn start(until: Instant, cancelled: &AtomicBool) -> Result<Arc<Self>> {
+        let mut forgot = false;
+        loop {
+            let known = isolation::known();
+            let process = match Self::launch(&isolation::overrides(&known), until, cancelled) {
+                Ok(process) => process,
+                // A server Hex turns off may have left their config since,
+                // and Codex won't start over a server it can't find.
+                Err(error) if !known.is_empty() && !forgot => {
+                    tracing::info!(%error, "Codex refused the MCP servers Hex turns off; asking again");
+                    isolation::forget();
+                    forgot = true;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let read = process.request(
+                "config/read",
+                json!({ "cwd": workspace()? }),
+                until,
+                cancelled,
+            );
+            let on = match read {
+                Ok(read) => isolation::still_on(&read),
+                Err(error) => {
+                    process.stop();
+                    return Err(eyre!("couldn't check Codex's MCP servers are off: {error}"));
+                }
+            };
+            if on.is_empty() {
+                spawn_idle_check(&process);
+                tracing::info!(executable = %process.executable.display(), "Codex app-server started");
+                return Ok(process);
+            }
+            process.stop();
+            if !isolation::learn(&on) {
+                return Err(eyre!(
+                    "Codex kept MCP servers on that Hex turns off: {}",
+                    on.join(", ")
+                ));
+            }
+            tracing::info!(servers = %on.join(", "), "turning the person's MCP servers off for Hex's Codex");
+        }
+    }
+
+    /// One `codex app-server` with `overrides`, past its handshake.
+    fn launch(overrides: &[String], until: Instant, cancelled: &AtomicBool) -> Result<Arc<Self>> {
         let executable = find().ok_or_else(|| eyre!(NOT_INSTALLED))?;
         let mut command = crate::desktop::background_process::command(&executable);
         command.arg("app-server");
-        for setting in ISOLATION {
+        for setting in overrides {
             command.arg("-c").arg(setting);
         }
         let mut child = command
@@ -745,8 +770,6 @@ impl Process {
             .map(|(_, rest)| rest.split(' ').next().unwrap_or_default().to_owned())
             .unwrap_or_default();
         let _ = process.version.set(version);
-        spawn_idle_check(&process);
-        tracing::info!(executable = %process.executable.display(), "Codex app-server started");
         Ok(process)
     }
 
@@ -1026,11 +1049,48 @@ mod tests {
         );
     }
 
+    /// The Codex installed here, started as Hex starts it, runs none of the
+    /// person's MCP servers (here Codex app's `node_repl`), even with a
+    /// thread open; no model is asked anything:
+    /// `cargo test --bin hex -- --ignored --nocapture the_persons_mcp_servers_never_start`.
+    #[test]
+    #[ignore = "needs the Codex CLI; starts it, makes no model call"]
+    fn the_persons_mcp_servers_never_start() {
+        let until = Instant::now() + Duration::from_secs(60);
+        let cancelled = AtomicBool::new(false);
+        let process = running(until, &cancelled).unwrap();
+        let cwd = workspace().unwrap();
+        let read = process
+            .request("config/read", json!({ "cwd": cwd }), until, &cancelled)
+            .unwrap();
+        eprintln!("servers Hex turns off: {:?}", isolation::known());
+        assert!(isolation::still_on(&read).is_empty());
+        let thread = process
+            .request(
+                "thread/start",
+                thread_params("", "Say nothing.", &cwd, false),
+                until,
+                &cancelled,
+            )
+            .unwrap();
+        assert!(thread.pointer("/thread/id").is_some(), "{thread}");
+        std::thread::sleep(Duration::from_secs(8));
+        let pid = process.child.lock().unwrap().id().to_string();
+        let children = std::process::Command::new("pgrep")
+            .args(["-fl", "-P", &pid])
+            .output()
+            .unwrap();
+        let children = String::from_utf8_lossy(&children.stdout);
+        eprintln!("app-server's children: {children:?}");
+        assert!(children.trim().is_empty(), "{children}");
+        process.stop();
+    }
+
     /// Only a thread asked for with web search may search; the process
     /// itself keeps it off for every other thread.
     #[test]
     fn web_search_is_allowed_only_on_a_thread_that_asks() {
-        assert!(ISOLATION.contains(&"web_search=\"disabled\""));
+        assert!(isolation::ISOLATION.contains(&"web_search=\"disabled\""));
         let cwd = Path::new("/tmp/codex");
         let plain = thread_params("", "x", cwd, false);
         assert!(plain.get("config").is_none());
