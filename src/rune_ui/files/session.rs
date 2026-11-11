@@ -91,21 +91,35 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
 /// window it still reads as the person's side of the chat.
 const BUBBLE_INDENT: f32 = 72.0;
 
-/// A question, right-aligned in a quiet bubble.
+/// The widest a question's bubble gets, its padding included.
+const BUBBLE_MAX: f32 = 460.0;
+const BUBBLE_PAD_X: f32 = 12.0;
+
+/// A question, right-aligned in a quiet bubble that hugs its longest line:
+/// wrapped text alone would keep the bubble at its widest, leaving a gap on
+/// the right of a question that breaks onto a second line.
 pub(in super::super) fn bubble(p: Paint, key: &str, question: &str) -> El {
     let c = &p.k.c;
+    let question = question.trim().to_owned();
+    let (lines_w, _) = rune::text::measure(
+        &question,
+        &[],
+        p.k.ty.ui,
+        Some(BUBBLE_MAX - 2.0 * BUBBLE_PAD_X),
+    );
+    let width = (lines_w + 2.0 * BUBBLE_PAD_X + 1.0).min(BUBBLE_MAX);
     row()
         .key(key.to_owned())
         .child(rune::el().key("push").grow(1.0).min_w(BUBBLE_INDENT))
         .child(
-            text(question.trim().to_owned())
+            text(question)
                 .key("question")
                 .font(p.k.ty.ui)
                 .color(c.text_base)
                 .wrap()
                 .shrink()
-                .max_w(460.0)
-                .px(12.0)
+                .max_w(width)
+                .px(BUBBLE_PAD_X)
                 .py(8.0)
                 .radius(12.0)
                 .fill(c.layer_02),

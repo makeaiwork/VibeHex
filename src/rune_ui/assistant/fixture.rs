@@ -79,7 +79,7 @@ pub(in super::super) fn answering(ui: &mut Ui) {
     let id = ui.assistant.open.unwrap_or_default();
     ui.assistant.answering = Some(Answering {
         conversation: id,
-        question: "Who writes the notes? Are they good in Russian?".into(),
+        question: "Who writes the meeting notes, and are they any good in Russian when half of the call is in English?".into(),
         draft: "Notes are written by the model set in **Meetings › Settings › Notes**. Apple Intelligence works offline, but".into(),
         started: Instant::now(),
         steps: Vec::new(),
