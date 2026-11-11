@@ -2,7 +2,7 @@
 feature: spoken-symbols
 key: labs.spoken_symbols
 title: Spoken symbols
-group: Text cleanup
+group: Output
 os: every OS
 vibehex: false
 ---

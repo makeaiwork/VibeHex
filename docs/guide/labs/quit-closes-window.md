@@ -9,18 +9,18 @@ vibehex: false
 
 # ⌘Q closes Settings
 
-**What it does.** Normally ⌘Q quits VibeHex, and dictation stops. With this on, ⌘Q only closes the Settings window, as ⌘W does, and your shortcut keeps working.
+**What it does.** Normally ⌘Q quits VibeHex, and dictation stops. With this on, ⌘Q from the app menu only closes the Settings window, as ⌘W does, and your dictation shortcut keeps working.
 
-**Turn it on when.** You press ⌘Q out of habit and keep finding dictation gone.
+**Turn it on when.** You press ⌘Q out of habit to put the window away, then find dictation gone.
 
 **Leave it off when.** You use ⌘Q to really quit.
 
 **Needs.** macOS. Nothing else.
 
-**Good to know.** Quit from the menu bar icon still quits, as does the Dock's Quit. Stable VibeHex builds don't list it; only dev builds do.
+**Good to know.** It applies at once. Quit from the menu bar icon still quits, and so does the Dock's Quit. Only dev builds of VibeHex list this lab.
 
 **Where.** Labs › ⌘Q closes Settings (`labs.quit_closes_window`).
 
-**Asked as.** "Cmd+Q should just close the window"; «Cmd+Q выключает диктовку».
+**Asked as.** "Cmd+Q should just close the window"; "Stop Cmd+Q from quitting VibeHex"; «Cmd+Q выключает диктовку»; «Как сделать, чтобы ⌘Q не закрывал приложение».
 
-<!-- sources: docs/features/labs.md:35-40, 111, 1317-1330; src/labs.rs:264-275, 1234-1239; src/rune_ui/labs.rs:594-600 -->
+<!-- sources: src/rune_ui/labs.rs:594-600; src/macos_rune.rs:1438-1448, 990-1000; src/macos_rune/main_menu.rs:20-40; src/labs.rs:267-276, 1237-1239; src/control/settings.rs:513-516; docs/features/labs.md:1317-1330 -->

@@ -2,7 +2,7 @@
 feature: output-fixes
 key: labs.output_fixes
 title: Fix results in Output
-group: Text cleanup
+group: Output
 os: every OS
 vibehex: false
 ---

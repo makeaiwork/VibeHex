@@ -2,7 +2,7 @@
 feature: ai-cleanup-server
 key: labs.ai_cleanup_server
 title: Clean up on your own server
-group: Text cleanup
+group: Output
 os: every OS
 vibehex: true
 ---

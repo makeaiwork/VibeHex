@@ -3,7 +3,7 @@ feature: live-chapters
 key: labs.live_chapters
 title: Live chapters
 group: Meetings
-os: macOS
+os: [macOS, Windows, Linux]
 vibehex: false
 ---
 
@@ -21,9 +21,12 @@ or copy one section.
 **Leave it off when.** Short calls, or you don't want a model reading the
 transcript during the call.
 
-**Needs.** Meetings turned on, and a model that writes meeting notes: Apple
-Intelligence, OpenCode (Summarize with OpenCode), or the writer chosen in
-Meetings › Settings. Without one, no chapters appear.
+**Needs.** Labs › Meetings (beta) on, and a model that writes meeting notes:
+Apple Intelligence (Mac), OpenCode with Meetings › Settings › After a meeting ›
+Summaries set to OpenCode, or the writer chosen in Meetings › Settings › Notes
+› Written by. Without one, no chapters appear. The row shows on Windows and
+Linux too, but there `hex labs` and `hex settings` refuse it; switch it in the
+window.
 
 **Good to know.** It is read when a recording starts, so it does not affect a
 recording already running. A chapter needs at least 90 seconds. Each chapter

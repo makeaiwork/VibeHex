@@ -2,7 +2,7 @@
 feature: unload-idle
 key: labs.unload_idle
 title: Unload model when idle
-group: Speech models
+group: Models
 os: every OS
 vibehex: false
 ---

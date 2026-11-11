@@ -2,7 +2,7 @@
 feature: parakeet-ultra
 key: labs.parakeet_ultra
 title: Parakeet Ultra
-group: Speech models
+group: Models
 os: every OS
 vibehex: false
 ---

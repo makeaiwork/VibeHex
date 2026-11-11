@@ -2,7 +2,7 @@
 feature: benchmark-details
 key: labs.benchmark_details
 title: Benchmark details
-group: Speech models
+group: Models
 os: every OS
 vibehex: false
 ---

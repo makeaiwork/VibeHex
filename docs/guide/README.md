@@ -10,7 +10,9 @@ no answer (mockups: `docs/design/assistant/`, canvas
 The Guide is built into the app, so a question never needs the network to
 find VibeHex's own answer. Large models get the whole Guide in their prompt;
 small built-in models get the articles a search picks. Both work only while
-the Guide stays small: about 25,000 tokens for everything. Keep articles short.
+the Guide stays small: under 50,000 tokens for everything, under 3,000 for the
+table of contents every prompt carries, and under 2,000 for any one article.
+Tests hold all three. Keep articles short.
 
 ## Layout
 

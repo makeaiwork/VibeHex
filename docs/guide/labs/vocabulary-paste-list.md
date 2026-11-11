@@ -2,7 +2,7 @@
 feature: vocabulary-paste-list
 key: labs.vocabulary_paste_list
 title: Vocabulary text view
-group: Vocabulary
+group: Dictation
 os: every OS
 vibehex: true
 ---

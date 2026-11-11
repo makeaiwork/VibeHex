@@ -2,7 +2,7 @@
 feature: hide-menu-bar-icon
 key: labs.hide_menu_bar_icon
 title: Hide menu bar icon
-group: Sound and interface
+group: Dictation
 os: macOS
 vibehex: false
 ---

@@ -2,7 +2,7 @@
 feature: playground
 key: labs.playground
 title: Playground
-group: Sound and interface
+group: Dictation
 os: every OS
 vibehex: false
 ---
@@ -17,7 +17,7 @@ vibehex: false
 
 **Needs.** Nothing else.
 
-**Good to know.** It applies at once. Besides the sidebar item, Shift+Command+D opens it on a Mac (View › Playground), Ctrl+Shift+D elsewhere. Off, none of these work.
+**Good to know.** Only dev builds of VibeHex list this lab. It applies at once. Besides the sidebar item, Shift+Command+D opens it on a Mac (View › Playground), Ctrl+Shift+D elsewhere. Off, none of these work.
 
 **Where.** Labs › Playground (`labs.playground`).
 

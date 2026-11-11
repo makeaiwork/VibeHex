@@ -19,8 +19,10 @@ in languages, speed, size, and accuracy, so you choose.
 3. Press **Use**, or **Download** with its size. **Delete** frees the space.
 
 The language is the **Language** row below. A model that doesn't speak it says
-that choosing it switches the language to one it does speak (English, or
-Russian for GigaAM v3).
+that choosing it switches the language to one it does speak (English, or its
+own, such as Russian for GigaAM v3 and Norwegian for NB-Whisper Medium).
+A new install starts with the model recommended for your system's language
+(Parakeet Unified English for English, GigaAM v3 for Russian).
 
 ## Models you can pick
 
@@ -30,17 +32,24 @@ Russian for GigaAM v3).
 | Parakeet v2 | English | 729 MB | no | biasing |
 | Underdog Bark 3.0 Pro, Clean | English | 739 MB | no | biasing |
 | Parakeet v3 | 25 European, incl. Russian | 739 MB | no | biasing |
+| Orukeet | the same 25 as Parakeet v3 | 739 MB | no | biasing |
 | Nemotron 3.5 ASR | 27 | 751 MB | yes | biasing |
 | Whisper large-v3-turbo | almost any, hears which | 886 MB | no | hint |
 | Qwen3-ASR 0.6B | 30 | 850 MB | no | hint |
 | Cohere Transcribe | 14 | 2.4 GB | no | no |
 | GigaAM v3 | Russian | 273 MB | no | no |
+| Granite Speech 5.0 | 7: English, French, German, Spanish, Portuguese, Italian, Japanese | 505 MB | no | no |
 | SenseVoice Small | Chinese, Cantonese, English, Japanese, Korean | 252 MB | no | no |
 | ivrit.ai Whisper large-v3-turbo | Hebrew | 886 MB | no | hint |
+| NB-Whisper Medium | Norwegian | 539 MB | no | hint |
 | QwenCleo-ASR 1.7B | Egyptian Arabic | 2.2 GB | no | hint |
 
 Parakeet Ultra (740 MB, 25 languages, biasing) appears after you turn on
 **Labs › Parakeet Ultra**. Underdog Bark Clean also drops "um" and "uh".
+Orukeet is a Parakeet v3 fine-tune, a bit more accurate in 20 of its 25 languages;
+its **Details** button shows the credit and licence (CC BY-SA 4.0).
+Granite Speech 5.0 is IBM's, with punctuation. NB-Whisper Medium is a Whisper
+tuned for Norwegian by the National Library of Norway.
 
 - **Live text** yes means it writes while you talk, so text is ready on release.
   It needs a graphics chip (Metal on Mac, Vulkan on Linux and Windows) and
@@ -48,13 +57,23 @@ Parakeet Ultra (740 MB, 25 languages, biasing) appears after you turn on
 - **Vocabulary**: "biasing" works only with **Labs › Vocabulary biasing** on;
   "hint" always works; "no" leaves it to AI cleanup, which always reads it.
   See the Vocabulary article.
-- The list is the same on every OS.
+- The list is the same on every OS; no model here is tied to one system.
+
+## Auto
+
+Set **Language** to Auto and the model detects what you speak. Only models that
+can do this list Auto: Whisper large-v3-turbo, Qwen3-ASR 0.6B, Parakeet v3,
+Orukeet, Nemotron 3.5 ASR, SenseVoice Small, Granite Speech 5.0, and Parakeet
+Ultra when its lab is on. For Auto, Compare shows Whisper large-v3-turbo
+(Recommended), Qwen3-ASR 0.6B (Fastest), and Parakeet v3. Parakeet v3, Orukeet,
+Parakeet Ultra, and Granite always hear the language from the audio, whatever the row says.
 
 ## Which to pick
 
 - **Russian:** GigaAM v3, small and with punctuation, but it ignores your
   Vocabulary. If names must come out right, use Whisper large-v3-turbo.
 - **English:** Parakeet Unified English. Cohere Transcribe makes the fewest wrong words but is a big download.
+- **Norwegian:** NB-Whisper Medium (Recommended for Norwegian), with Whisper large-v3-turbo as the second choice.
 - **Many languages, or mixed:** Whisper large-v3-turbo or Qwen3-ASR 0.6B with Auto; both wait about 2 s
   after you stop.
 - **Slow computer:** choose the model badged Fastest for your language and read "Wait when you stop" in Compare.
@@ -62,11 +81,11 @@ Parakeet Ultra (740 MB, 25 languages, biasing) appears after you turn on
 
 ## Add your own model file
 
-In the picker, press **Add model file…** and choose a GGUF file (Whisper,
+In the picker, open the full list ("N more models") and press **Add model file…**, then choose a GGUF file (Whisper,
 Parakeet, Qwen3-ASR, Cohere, SenseVoice, or GigaAM type; Q8_0, F16, or F32). VibeHex
 checks and copies it. It has no live text and shows as Imported, not benchmarked. **Labs › Use model files where they are** adds **Use model file where it is…**,
 which copies nothing. Files other apps saved are listed under **Found on this computer**.
 
 **Asked as.** "Which speech model should I use?"; "Can it work offline?"; «Какую модель выбрать для русского?»; «Как сменить модель распознавания»; «Где скачать другую модель».
 
-<!-- sources: src/transcription/models.rs:187-355,372-565,591-657; src/transcription/artifacts.rs; src/rune_ui/picker/facts.rs:231-262; src/rune_ui/general.rs:191; docs/features/README.md:275-295,344-383; docs/features/own-models.md; docs/features/dictation.md:690-694,727-743 -->
+<!-- sources: src/transcription/models.rs:166-178,300-320,335-345,436-657,672-752; src/transcription/artifacts.rs:44-60,191-224; src/transcription/custom_models.rs:37-47; src/transcription/gguf_session.rs:237; src/rune_ui/picker/facts.rs:215-238,170-182; src/rune_ui/picker/compare.rs:22-50,89-150; src/rune_ui/picker/list.rs:268-280; src/rune_ui/picker.rs:540; src/rune_ui/general.rs:141-210; src/rune_ui/model_details.rs:1-6; docs/features/README.md:341-352; docs/features/own-models.md -->

@@ -1,7 +1,7 @@
 ---
 topic: vocabulary
 title: Vocabulary
-keys: [vocabulary, vocabulary_boost, labs.vocabulary_biasing, labs.vocabulary_paste_list, labs.vocabulary_quick_add, labs.russian_vibe_coding]
+keys: [vocabulary_boost, labs.vocabulary_biasing, labs.vocabulary_paste_list, labs.vocabulary_quick_add, labs.russian_vibe_coding]
 os: every OS
 ---
 
@@ -18,20 +18,37 @@ Press **Add term**, type the term, and optionally what it sounds like when the
 model gets it wrong, separated by commas ("Kubernetes" with "кубернетис,
 cooper netties"). **×** removes a row; **Done** saves and closes.
 
+From a terminal, `hex vocabulary list`, `add` (with `--sounds-like`), and `remove`
+edit the same list through the running VibeHex, on macOS, Windows, and Linux.
+
 ## Who uses it
 
 - **AI cleanup and search** always use it, with every model.
-- **Whisper, Qwen3-ASR, and QwenCleo** read the first terms as a hint while
-  transcribing (always on). Their "sounds like" spellings are not sent.
-- **Parakeet, Underdog Bark, and Nemotron 3.5** use it only with **Labs ›
-  Vocabulary biasing** on (see that article).
-- **GigaAM, SenseVoice, Cohere** don't use it in transcription. The row says so;
-  fix words with AI cleanup or word fixes (Output article).
+- **Whisper, ivrit.ai Whisper, NB-Whisper, Qwen3-ASR, and QwenCleo** read the
+  first terms as a hint while transcribing (always on). Their "sounds like"
+  spellings are not sent.
+- **Parakeet, Orukeet, Parakeet Ultra, Underdog Bark, and Nemotron 3.5** use it
+  only with **Labs › Vocabulary biasing** on (see that article).
+- **GigaAM, Granite Speech 5.0, SenseVoice, Cohere** don't use it in
+  transcription. The row says so; fix words with AI cleanup or word fixes
+  (Output article).
+
+## What "sounds like" does
+
+For the Parakeet-based models with biasing on, a heard word that matches one of
+your "sounds like" spellings exactly is replaced by the term after
+transcription, with no guessing. Spellings under two characters are ignored. A
+spelling that is also an ordinary word is replaced every time it is heard, so
+keep spellings distinctive. AI cleanup also sees each spelling next to its term.
 
 ## Limits
 
-- Transcription takes the first 64 terms. The list holds up to 500 terms,
-  with 64 characters per term or spelling and 16 spellings per term.
+- Parakeet-based models take the first 64 terms. Whisper-based models take as
+  many terms as fit in about 500 characters, and Qwen3-ASR and QwenCleo about
+  1,000, counting from the top of the list. When the model reads fewer terms
+  than the list holds, the sheet says "This model reads the first N of M terms".
+- The list holds up to 500 terms, with 64 characters per term or spelling and
+  16 spellings per term.
 - A term with spaces ("Dax Rad") matches only when said in full. If you also
   say "Dax" alone, give it its own row.
 - Short terms, under five letters, work better with a "sounds like" spelling.
@@ -48,10 +65,12 @@ cooper netties"). **×** removes a row; **Done** saves and closes.
 
 **Labs › Russian vibe coding** adds a starter list of 80 terms (Claude Code, GitHub,
 MCP, Docker, and so on, with how Russian speech models hear them), plus Russian word fixes and
-cleanup instructions, and turns on Clean up with AI and the other VibeHex Labs
-features except Stop shortcut. Turning it off removes what it added and you
-didn't change. Terms with dots or slashes (file names) sit at the end, for AI cleanup only.
+cleanup instructions, and turns on Clean up with AI, **Labs › Vocabulary in meeting
+notes** (so meeting titles and summaries use the terms), and the other VibeHex
+Labs features except Stop shortcut. Turning it off removes what it added and you
+didn't change; the Labs it turned on stay on. Terms with dots or slashes (file
+names) sit at the end, past what Parakeet biasing takes.
 
 **Asked as.** "Why does it write the wrong spelling of my product name?"; "How do I add a word?"; «Как добавить слово в словарь»; «Почему пишет Кубер вместо Kubernetes»; «Словарь не работает».
 
-<!-- sources: docs/features/vocabulary.md:1-135; src/rune_ui/vocabulary.rs:143-160,271-505; src/dictation/vocabulary.rs:19-26; src/rune_ui/labs.rs:268-306; docs/features/labs.md:1218-1240; docs/vocabulary/vibe-coding-ru.txt -->
+<!-- sources: docs/features/vocabulary.md:65-80,84-96,177-183; src/rune_ui/vocabulary.rs:143-172,451-480; src/dictation/vocabulary.rs:19-26,230-258,263-296; src/dictation/processor.rs:984-1000; src/transcription/models.rs:348-375; src/transcription/gguf_session.rs:131-157; src/control/cli.rs:155-158,378-402; src/control/host.rs:236-247; src/control.rs:920-955; src/dictation/presets.rs:1-14,59-70; src/rune_ui/labs.rs:456-461,788-799; docs/vocabulary/vibe-coding-ru.txt -->

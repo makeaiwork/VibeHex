@@ -2,7 +2,7 @@
 feature: vocabulary-quick-add
 key: labs.vocabulary_quick_add
 title: Add to vocabulary from a selection
-group: Vocabulary
+group: Dictation
 os: macOS
 vibehex: true
 ---

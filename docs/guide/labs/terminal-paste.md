@@ -2,7 +2,7 @@
 feature: terminal-paste
 key: paste_with_shift
 title: Terminal paste
-group: Pasting
+group: Output
 os: Windows
 vibehex: false
 ---

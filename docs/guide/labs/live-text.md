@@ -2,7 +2,7 @@
 feature: live-text
 key: labs.live_text
 title: Live text
-group: History and recording
+group: Dictation
 os: every OS
 vibehex: false
 ---

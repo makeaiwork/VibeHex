@@ -2,7 +2,7 @@
 feature: picker-sort-filter
 key: labs.picker_sort_filter
 title: Sort and filter models
-group: Speech models
+group: Models
 os: every OS
 vibehex: false
 ---

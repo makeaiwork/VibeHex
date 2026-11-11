@@ -2,7 +2,7 @@
 feature: skip-pauses
 key: labs.skip_pauses
 title: Skip long pauses
-group: Text cleanup
+group: Dictation
 os: [Windows, Linux]
 vibehex: false
 ---

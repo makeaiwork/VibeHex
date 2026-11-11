@@ -2,7 +2,7 @@
 feature: history-stats
 key: labs.history_stats
 title: Dictation stats
-group: History and recording
+group: History
 os: every OS
 vibehex: false
 ---
