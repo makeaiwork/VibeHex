@@ -33,6 +33,7 @@ pub(super) mod strong;
 mod tick;
 mod verbs;
 mod vocab;
+mod whats_new;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
 
@@ -112,6 +113,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) fixture: bool,
     /// A scene's clock, so its times read the same on any day.
     pub(super) fixed_now: Option<u64>,
+    /// The version this install updated to lately, and when (`whats_new`).
+    pub(super) updated: Option<(String, u64)>,
 }
 
 /// A scroll offset the feed keeps up to date.
@@ -303,6 +306,7 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         }
         pane.store = Store::open(keep);
         pane.open = newest(&pane.store);
+        pane.updated = crate::assistant::releases::history::fresh(pane.now_ms());
         pane.kept = keep;
         pane.loaded = true;
         changed = true;

@@ -78,6 +78,9 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Next place", ["Następne miejsce", "下一处", "次の箇所", "Nächste Stelle", "Lugar siguiente", "Наступне місце"]),
     ("Clear highlight", ["Wyczyść wyróżnienie", "清除高亮", "ハイライトを消す", "Hervorhebung entfernen", "Quitar el resaltado", "Прибрати виділення"]),
     ("Really clear all?", ["Na pewno wyczyścić?", "确定全部清除？", "本当にすべて消去？", "Wirklich alle löschen?", "¿Borrar todo?", "Справді очистити все?"]),
+    ("Updated to {}", ["Zaktualizowano do {}", "已更新到 {}", "{} にアップデートしました", "Aktualisiert auf {}", "Actualizado a {}", "Оновлено до {}"]),
+    ("Ask me what's new, and what of it suits how you work", ["Zapytaj mnie, co nowego i co z tego pasuje do twojej pracy", "问我有哪些新内容，以及哪些适合你的使用方式", "新しくなった点と、そのうちあなたの使い方に合うものを聞いてください", "Frag mich, was neu ist und was davon zu deiner Arbeit passt", "Pregúntame qué hay de nuevo y qué encaja con tu forma de trabajar", "Запитайте, що нового і що з цього підійде саме вам"]),
+    ("What's new since my last version?", ["Co nowego od mojej poprzedniej wersji?", "自我上一个版本以来有哪些新内容？", "前のバージョンから何が新しくなりましたか？", "Was ist neu seit meiner letzten Version?", "¿Qué hay de nuevo desde mi versión anterior?", "Що нового з моєї попередньої версії?"]),
 ];
 
 /// French.
@@ -155,6 +158,9 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("Next place", "Passage suivant"),
     ("Clear highlight", "Effacer la mise en évidence"),
     ("Really clear all?", "Vraiment tout effacer ?"),
+    ("Updated to {}", "Mis à jour vers {}"),
+    ("Ask me what's new, and what of it suits how you work", "Demandez-moi ce qui est nouveau et ce qui convient à votre façon de travailler"),
+    ("What's new since my last version?", "Quoi de neuf depuis ma version précédente ?"),
 ];
 
 /// Brazilian Portuguese.
@@ -232,6 +238,9 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Next place", "Próximo trecho"),
     ("Clear highlight", "Limpar destaque"),
     ("Really clear all?", "Limpar tudo mesmo?"),
+    ("Updated to {}", "Atualizado para {}"),
+    ("Ask me what's new, and what of it suits how you work", "Pergunte o que há de novo e o que combina com o seu jeito de trabalhar"),
+    ("What's new since my last version?", "O que há de novo desde a minha versão anterior?"),
 ];
 
 /// Russian.
@@ -309,4 +318,7 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("Next place", "Следующее место"),
     ("Clear highlight", "Убрать выделение"),
     ("Really clear all?", "Точно очистить всё?"),
+    ("Updated to {}", "Обновлено до {}"),
+    ("Ask me what's new, and what of it suits how you work", "Спросите, что нового и что из этого подойдёт вам"),
+    ("What's new since my last version?", "Что нового с моей прошлой версии?"),
 ];

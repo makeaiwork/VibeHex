@@ -52,7 +52,8 @@ impl Reading {
 /// nothing and shows no steps.
 pub(super) fn read(task: u64, recall: &Recall, engine: &Engine) -> Reading {
     let search = match recall {
-        Recall::Guide => return Reading::default(),
+        // Requests never ask about VibeHex's releases.
+        Recall::Guide | Recall::Releases(_) => return Reading::default(),
         Recall::Declined => {
             return Reading {
                 found: None,

@@ -1590,19 +1590,27 @@ mod tests {
     use super::*;
     use crate::app_settings::ModifierSide;
 
-    /// Assistant proposes changes by the keys docs/guide names, so every
-    /// key in an article's front matter is one `hex settings` knows.
+    /// Assistant proposes changes by the keys docs/guide and VibeHex's
+    /// release notes (docs/releases) name, so every key in their front
+    /// matter is one `hex settings` knows.
     #[test]
     fn every_key_the_guide_names_is_a_setting() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/guide");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs");
         let known: Vec<&str> = keys()
             .map(|key| key.key)
             .chain(OWN_COMMAND.iter().copied())
             .collect();
         let mut unknown = Vec::new();
-        for folder in ["labs", "topics"] {
+        for folder in ["guide/labs", "guide/topics", "releases"] {
             for entry in std::fs::read_dir(root.join(folder)).unwrap() {
                 let path = entry.unwrap().path();
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("");
+                if folder == "releases" && !(name == "next.md" || name.contains("-vibe.")) {
+                    continue;
+                }
                 let text = std::fs::read_to_string(&path).unwrap();
                 let named = text
                     .lines()

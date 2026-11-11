@@ -56,6 +56,11 @@ such as "Switch to Stable" followed by the version. If unsure, stay on Stable.
 Each release's notes are on its page at github.com/makeaiwork/VibeHex/releases.
 "What's new" under Restart to update opens the page for the staged release.
 
+You can also ask Assistant "What's new?": it knows every VibeHex release,
+tells what changed since the version you had before, and offers what suits
+your settings, each as a card you decide on. For two weeks after an update,
+a new Assistant conversation starts with "Updated to <version>" to ask it.
+
 ## Version and About
 
 The sidebar's footer shows "Version" and its number. About, the last item after
@@ -69,7 +74,7 @@ a new message to the developer with the version in its subject, so your mail
 says which build you use. About also has the developer's Telegram, @DenisKey.
 
 **Asked as.** "How do I update VibeHex?"; "Which version do I have?"; «Как
-обновить приложение?»; «Куда написать разработчику?»; «Как проверить
+обновить приложение?»; «Что нового в последнем релизе?»; «Куда написать разработчику?»; «Как проверить
 обновления?».
 
-<!-- sources: src/updater.rs:1-60,62-135,240-300,640-725; src/updater/macos.rs:1-12; src/updater/windows.rs:50-92; src/updater/notes.rs:1-30,106-113; src/rune_ui/sidebar.rs:485-640; src/rune_ui/sidebar_update.rs:1-160; src/rune_ui/update_sheet.rs:1-30,120-200; src/rune_ui/general.rs:1111-1145; src/rune_ui/about.rs:40-125; docs/vibehex-releases.md:12-30 -->
+<!-- sources: src/updater.rs:1-60,62-135,240-300,640-725; src/updater/macos.rs:1-12; src/updater/windows.rs:50-92; src/updater/notes.rs:1-30,106-113; src/rune_ui/sidebar.rs:485-640; src/rune_ui/sidebar_update.rs:1-160; src/rune_ui/update_sheet.rs:1-30,120-200; src/rune_ui/general.rs:1111-1145; src/rune_ui/about.rs:40-125; docs/vibehex-releases.md:12-30; src/assistant/releases/mod.rs; src/rune_ui/assistant/whats_new.rs -->
