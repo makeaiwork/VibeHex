@@ -91,12 +91,9 @@ pub fn parse(reply: &str) -> Parsed {
 /// starts a change object.
 fn opens(line: &str, next: Option<&str>) -> Option<(&'static str, Fence)> {
     let trimmed = line.trim();
-    let (marker, info) = if let Some(info) = trimmed.strip_prefix("```") {
-        ("```", info)
-    } else if let Some(info) = trimmed.strip_prefix("~~~") {
-        ("~~~", info)
-    } else {
-        return None;
+    let (marker, info) = match trimmed.strip_prefix("```") {
+        Some(info) => ("```", info),
+        None => ("~~~", trimmed.strip_prefix("~~~")?),
     };
     let fence = match info.trim().to_ascii_lowercase().as_str() {
         "hex-change" | "hex-changes" => Fence::Change,
