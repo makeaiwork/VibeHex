@@ -14,6 +14,7 @@
 //!
 //! Times are read against a `now` passed in, in local time.
 
+pub mod beyond;
 mod day;
 mod follow;
 mod setup;

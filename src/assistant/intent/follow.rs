@@ -113,14 +113,24 @@ pub fn refers_back(question: &str) -> bool {
 /// past other follow-ups. None for a question about VibeHex, and for a
 /// follow-up to one.
 pub fn carried(question: &str, earlier: &[&str], now_ms: u64) -> Option<Intent> {
-    if let Some(intent) = read(question, now_ms) {
+    carry(question, earlier, |asked| read(asked, now_ms))
+}
+
+/// What `question` reads by `read`: its own, or, when it only refers back,
+/// the newest `earlier` question's, past other follow-ups.
+pub(super) fn carry(
+    question: &str,
+    earlier: &[&str],
+    read: impl Fn(&str) -> Option<Intent>,
+) -> Option<Intent> {
+    if let Some(intent) = read(question) {
         return Some(intent);
     }
     if !refers_back(question) {
         return None;
     }
     for asked in earlier.iter().rev() {
-        if let Some(intent) = read(asked, now_ms) {
+        if let Some(intent) = read(asked) {
             return Some(intent);
         }
         if !refers_back(asked) {
