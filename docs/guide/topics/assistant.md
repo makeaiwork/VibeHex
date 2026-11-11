@@ -1,7 +1,7 @@
 ---
 topic: assistant
 title: Assistant
-keys: [assistant.enabled, assistant.engine, assistant.read_recordings, assistant.keep_conversations, assistant.send_settings]
+keys: [assistant.enabled, assistant.engine, assistant.read_recordings, assistant.keep_conversations, assistant.send_settings, assistant.web]
 os: every OS
 ---
 
@@ -79,6 +79,11 @@ The question, the conversation so far, and guide text go to the model in
 found, a few thousand characters for a built-in model and more for larger
 ones; recordings themselves are never sent. A model on this computer keeps
 everything here; Codex sends to OpenAI, OpenRouter to its provider.
+On Codex, when the guide has no answer (setting up LM Studio, say), it may
+search the web through OpenAI, never with anything from your recordings or
+settings, and names the pages under **From the web**; **Assistant ›
+Settings › What it reads › The web**, or **Web** in the field for one
+conversation, turns that off.
 
 ## Turn it off
 
@@ -88,13 +93,13 @@ dictations** takes the permission back; the next such question asks again.
 what Assistant keeps.
 
 **Where.** Assistant › Settings (`assistant.read_recordings`,
-`assistant.engine`, `assistant.keep_conversations`); the sidebar row
-(`assistant.enabled`).
+`assistant.engine`, `assistant.keep_conversations`, `assistant.web`); the
+sidebar row (`assistant.enabled`).
 
 **Asked as.** "Can it search my meetings?"; "Does Assistant read my
 dictations?"; "Can Assistant change settings for me?"; "Set VibeHex up for
-me"; «Может ли ассистент искать по моим встречам?»; «Как запретить
+me"; "Can Assistant search the web?"; «Может ли ассистент искать по моим встречам?»; «Ассистент ходит в интернет?»; «Как запретить
 ассистенту читать мои записи?»; «Помоги мне настроить VibeHex под меня»;
 «Добавь Kubernetes в словарь».
 
-<!-- sources: docs/features/assistant.md; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup.rs; src/assistant/changes/vocab.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->
+<!-- sources: docs/features/assistant.md; src/assistant/web.rs; src/rune_ui/assistant/web.rs; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup.rs; src/assistant/changes/vocab.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->

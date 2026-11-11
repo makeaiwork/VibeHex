@@ -21,8 +21,15 @@ Assistant                                        // rune_ui::assistant
 │   │           a chevron), four example questions, and what the guide
 │   │           holds (Labs features and topics)
 │   ├── Feed    the person's bubble; the answer as Markdown beside the face,
-│   │           then "From the guide" chips naming the articles it drew on,
-│   │           then Copy, Ask again, the model, Stopped, the time.
+│   │           then "From the guide" chips naming the articles it drew on
+│   │           and "From the web" chips (one per site it cites, warm tint;
+│   │           a press opens the page), then Copy, Ask again, the model,
+│   │           Stopped, the time.
+│   │           From the web: "Read the guide and 2 web pages in 9 s ›"
+│   │           over the answer; open, the guide it read, that the guide
+│   │           didn't cover it all, "Searched the web: 2 pages read", and
+│   │           each search's words. While it searches: "Searched the web
+│   │           for “…”", "Read lmstudio.ai", "Searching the web".
 │   │           A failed answer says why and offers Try again.
 │   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
 │   │           the answer (a click lists the steps), [n] marks inline, and
@@ -266,6 +273,45 @@ Opened from an answer                            // rune_ui::assistant::jump
 | `assistant.keep_conversations` | `true` | Keep conversations on this computer |
 | `assistant.read_recordings` | none | May search meetings, Files texts, and dictations for questions about them; none until first asked |
 | `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, and speech models with each question; never API keys, paths, or lists |
+| `assistant.web` | `true` | Codex may search the web when the guide has no answer; a conversation's Web toggle overrides it |
+
+## The web
+
+```ts
+Web on (assistant.web, or the field's Web toggle for one conversation)
+├── Engine     Codex only: its own thread/start carries
+│              config {"web_search": "live"}; every other ISOLATION
+│              override stays. Dictation cleanup, Files, meeting notes,
+│              setup's questions and plan: never. Built in, OpenRouter,
+│              your server, OpenCode: no toggle, no search
+├── Prompt     web::RULES after the rest: the guide first, the web only
+│              for what it doesn't cover (LM Studio, Ollama, OpenRouter),
+│              official sources, nothing of the person's in a search, no
+│              search for questions about their recordings unless asked,
+│              each page cited as a Markdown link
+├── Steps      codex.rs passes each `webSearch` item (item/started,
+│              item/completed) to worker::seen → Answering.web → the
+│              pane's live steps; the turn keeps Web {guide, searches,
+│              pages, sources} (serde default, left out when empty)
+└── Sources    the http(s) links the answer cites, one per site, else the
+               pages it opened; only when it searched. Links in the answer
+               open in the browser too
+```
+
+Why Codex alone: OpenRouter's web plugin (`:online`) bills each search on the
+person's OpenRouter credits and streams its citations in another shape, and
+OpenCode answers through its own tools; neither is wired.
+
+Known gap, observed 11 November 2026 on Codex 0.167 (gpt-6.1-sol): the
+thread's `web_search` override reaches Codex (a thread's `config` beats the
+process's `-c`), yet the model searches through code mode (`exec`), which
+ISOLATION turns off (`features.code_mode_host=false`), so the live answer
+said it couldn't reach the web and no `webSearch` item came. Allowing code
+mode on these threads is the owner's call: the person's own MCP servers in
+`~/.codex/config.toml` (here `node_repl`) still start in Hex's threads
+despite `mcp_servers={}`, and code mode would let the model reach them.
+Live check: `cargo test --bin hex -- --ignored --nocapture
+searches_the_web_on_the_installed_codex` (one paid request).
 
 ## Privacy
 
@@ -290,7 +336,8 @@ each with the parse it must make); scenes `assistant`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
 `assistant-change-both`, `assistant-change-coming`, setup's
 `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-result`,
-and their goldens; `scripts/check control::settings`
+and their goldens; the web's `assistant-web`, `assistant-web-off`,
+`assistant-web-answering` (no goldens yet); `scripts/check control::settings`
 for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
 Cmd+[, and the landing at two window heights.
