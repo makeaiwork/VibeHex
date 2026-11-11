@@ -2897,17 +2897,23 @@ fn goldens() {
         "assistant-consent",
         "assistant-steps",
         "assistant-steps-open",
-        "files-cited",
     ] {
         check_golden(scene, true, PANE_SIZE);
     }
-    // Answers from recordings, and the place one opens, in both themes.
-    for scene in ["assistant-recordings", "meetings-cited"] {
+    // Answers from recordings, and the places one opens, in both themes.
+    for scene in [
+        "assistant-recordings",
+        "meetings-cited",
+        "files-cited",
+        "files-cited-listening",
+        "history-cited",
+    ] {
         check_golden(scene, false, PANE_SIZE);
         check_golden(scene, true, PANE_SIZE);
     }
 }
 
+mod assistant_jump;
 mod onboarding_check;
 mod panes;
 
