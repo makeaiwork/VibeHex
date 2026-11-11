@@ -715,9 +715,9 @@ mod tests {
         let _serial = SERIAL
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let good = "Вот что я предлагаю.\n```hex-plan\n{\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"пробелы\"}\n```\n```hex-change\n{\"key\":\"labs.files\",\"value\":true}\n```\nSources: none";
+        let good = "Вот что я предлагаю.\n```hex-plan\n{\"key\":\"labs.spoken_formatting\",\"value\":true,\"why\":\"пробелы\"}\n```\n```hex-change\n{\"key\":\"labs.filler_words\",\"value\":true}\n```\nSources: none";
         for (reply, keys) in [
-            (good, vec!["labs.smart_spacing", "labs.files"]),
+            (good, vec!["labs.spoken_formatting", "labs.filler_words"]),
             (
                 "Вот что я предлагаю.\n```hex-plan\n{\"key\":\"labs.teleport\",\"value\":true}\nnot json\n```",
                 vec!["transcription.model"],
@@ -749,7 +749,7 @@ mod tests {
             // The rules' plan comes with no refusals beside it.
             if keys == ["transcription.model"] {
                 assert!(turn.refused.is_empty());
-                assert!(got.len() > 3);
+                assert!(got.len() >= 3);
             }
         }
     }

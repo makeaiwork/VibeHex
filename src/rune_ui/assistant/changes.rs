@@ -619,7 +619,7 @@ mod tests {
     fn a_plan_saves_what_passes_and_names_what_failed() {
         let (mut ui, at) = with_card("labs.spoken_formatting", json!(false), json!(true));
         ui.settings.labs.spoken_formatting = false;
-        ui.settings.labs.smart_spacing = false;
+        ui.settings.labs.filler_words = false;
         set(&mut ui, at, |card| {
             card.kind = CardKind::Plan;
             card.items.push(Item {
@@ -630,31 +630,34 @@ mod tests {
                 ..Item::default()
             });
             card.items.push(Item {
-                key: "labs.smart_spacing".into(),
+                key: "labs.filler_words".into(),
                 from: json!(false),
                 to: json!(true),
                 included: true,
                 ..Item::default()
             });
             card.items.push(Item {
-                key: "labs.files".into(),
+                key: "labs.spoken_symbols".into(),
                 from: json!(false),
                 to: json!(true),
                 included: false,
                 ..Item::default()
             });
         });
-        let files = ui.settings.labs.files;
+        let files = ui.settings.labs.spoken_symbols;
         apply(&mut ui, at);
-        assert!(ui.settings.labs.spoken_formatting && ui.settings.labs.smart_spacing);
-        assert_eq!(ui.settings.labs.files, files, "an unchecked row stays");
+        assert!(ui.settings.labs.spoken_formatting && ui.settings.labs.filler_words);
+        assert_eq!(
+            ui.settings.labs.spoken_symbols, files,
+            "an unchecked row stays"
+        );
         let plan = card(&ui, at).unwrap().clone();
         assert!(matches!(plan.decision, Decision::Applied { .. }));
         assert!(plan.items[1].failed.is_some());
         assert_eq!(state::applied_count(&plan), (2, 3));
         assert_eq!(shown(&ui, at), Some(Shown::Applied { undo: true }));
         undo(&mut ui, at);
-        assert!(!ui.settings.labs.spoken_formatting && !ui.settings.labs.smart_spacing);
+        assert!(!ui.settings.labs.spoken_formatting && !ui.settings.labs.filler_words);
         // Nothing checked: nothing saved, and the plan says so.
         let (mut ui, at) = with_card("labs.spoken_formatting", json!(false), json!(true));
         set(&mut ui, at, |card| {

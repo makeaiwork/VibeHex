@@ -648,9 +648,17 @@ mod tests {
             &answers(&["dictation_code", "meetings"], "ru", "chatgpt"),
             &settings,
         );
+        // The board's list, less what this OS hasn't (Smart spacing, Quick
+        // add, and Files are Mac labs).
+        let here = |keys: &[&'static str]| -> Vec<&'static str> {
+            keys.iter()
+                .copied()
+                .filter(|key| settings::unavailable(key).is_none())
+                .collect()
+        };
         assert_eq!(
             keys(&lines),
-            [
+            here(&[
                 "transcription.model",
                 "labs.russian_vibe_coding",
                 "dictation_processing.server.runs_on",
@@ -658,13 +666,17 @@ mod tests {
                 "meetings.notes.writer",
                 "labs.smart_spacing",
                 "labs.vocabulary_quick_add",
-            ]
+            ])
         );
         assert_eq!(lines[0].value, Some(json!("gigaam_v3")));
-        assert!(lines.last().unwrap().optional);
+        assert!(
+            lines
+                .iter()
+                .all(|line| line.optional == (line.key == "labs.vocabulary_quick_add"))
+        );
         // English, offline, files only: a lab, and no model change.
         let lines = baseline(&answers(&["files"], "en", "this_mac"), &settings);
-        assert_eq!(keys(&lines), ["labs.files"]);
+        assert_eq!(keys(&lines), here(&["labs.files"]));
     }
 
     #[test]
@@ -687,14 +699,14 @@ mod tests {
             ..Proposal::default()
         };
         let mut lines = vec![
-            line("labs.files", json!(true)),
-            line("labs.files", json!(true)),
+            line("labs.filler_words", json!(true)),
+            line("labs.filler_words", json!(true)),
             line("dictation_processing.server.runs_on", json!("codex")),
             line("meetings.retention", json!("day")),
         ];
         lines.push(line(
-            "labs.smart_spacing",
-            changes::current(&settings, "labs.smart_spacing").unwrap(),
+            "labs.spoken_formatting",
+            changes::current(&settings, "labs.spoken_formatting").unwrap(),
         ));
         let (cards, _) = changes::resolve(&lines, &settings, &rules);
         let state = catalog::State {
@@ -710,7 +722,7 @@ mod tests {
         assert_eq!(
             shown,
             [
-                ("labs.files", true),
+                ("labs.filler_words", true),
                 ("dictation_processing.server.runs_on", false),
                 ("meetings.retention", false),
             ]
