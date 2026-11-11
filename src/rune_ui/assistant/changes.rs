@@ -77,8 +77,11 @@ pub(super) fn live(ui: &Ui, at: At) -> Live<'_> {
         settings: &ui.settings,
         preparing,
         codex_signed_in: super::super::output::codex_signed_in(ui),
-        system_audio: ui.platform.system_audio || !cfg!(target_os = "macos"),
+        // Only macOS asks; a scene plays a Mac.
+        system_audio: ui.platform.system_audio
+            || (!cfg!(target_os = "macos") && !ui.assistant.fixture),
         undoable: ui.assistant.undo.contains(&at) && ui.assistant.open == Some(at.conversation),
+        here: !ui.assistant.fixture,
     }
 }
 
@@ -372,15 +375,15 @@ mod tests {
 
     #[test]
     fn apply_saves_through_check_and_undo_puts_it_back() {
-        let (mut ui, at) = with_card("labs.smart_spacing", json!(false), json!(true));
-        ui.settings.labs.smart_spacing = false;
+        let (mut ui, at) = with_card("labs.spoken_formatting", json!(false), json!(true));
+        ui.settings.labs.spoken_formatting = false;
         assert_eq!(newest(&ui, at.conversation), Some(at));
         apply(&mut ui, at);
-        assert!(ui.settings.labs.smart_spacing);
+        assert!(ui.settings.labs.spoken_formatting);
         assert_eq!(shown(&ui, at), Some(Shown::Applied { undo: true }));
         assert_eq!(newest(&ui, at.conversation), None);
         undo(&mut ui, at);
-        assert!(!ui.settings.labs.smart_spacing);
+        assert!(!ui.settings.labs.spoken_formatting);
         assert_eq!(card(&ui, at).unwrap().decision, Decision::Undone);
     }
 
@@ -409,17 +412,17 @@ mod tests {
 
     #[test]
     fn undo_is_refused_after_a_hand_change_and_ends_with_the_conversation() {
-        let (mut ui, at) = with_card("labs.smart_spacing", json!(false), json!(true));
-        ui.settings.labs.smart_spacing = false;
+        let (mut ui, at) = with_card("labs.spoken_formatting", json!(false), json!(true));
+        ui.settings.labs.spoken_formatting = false;
         apply(&mut ui, at);
         // Turned off again by hand: the card says so and Undo does nothing.
-        ui.settings.labs.smart_spacing = false;
+        ui.settings.labs.spoken_formatting = false;
         undo(&mut ui, at);
         assert!(matches!(
             card(&ui, at).unwrap().decision,
             Decision::Applied { .. }
         ));
-        ui.settings.labs.smart_spacing = true;
+        ui.settings.labs.spoken_formatting = true;
         assert_eq!(shown(&ui, at), Some(Shown::Applied { undo: true }));
         // Another conversation opens: Undo is over for this one.
         ui.assistant.open = None;

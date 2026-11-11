@@ -23,6 +23,9 @@ pub struct Live<'a> {
     /// Undo is still offered for this card: this session, its
     /// conversation open since it was applied.
     pub undoable: bool,
+    /// This OS's and organization's limits apply: false in a scene, which
+    /// plays a Mac whatever it renders on.
+    pub here: bool,
 }
 
 /// What a card shows.
@@ -100,7 +103,7 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
             }
         }
         Decision::Proposed => {
-            if let Some(blocked) = blocked(card, live.settings) {
+            if let Some(blocked) = blocked(card, live.settings).filter(|_| live.here) {
                 return blocked;
             }
             if card.kind == CardKind::Plan {
@@ -194,14 +197,15 @@ mod tests {
             codex_signed_in: None,
             system_audio: true,
             undoable: true,
+            here: true,
         }
     }
 
     #[test]
     fn a_card_follows_its_decision_and_the_settings() {
         let mut settings = AppSettings::default();
-        settings.labs.smart_spacing = false;
-        let mut smart = card("labs.smart_spacing", json!(false), json!(true));
+        settings.labs.spoken_formatting = false;
+        let mut smart = card("labs.spoken_formatting", json!(false), json!(true));
         assert_eq!(
             shown(&smart, &live(&settings)),
             Shown::Proposed {
@@ -213,11 +217,11 @@ mod tests {
         assert_eq!(shown(&smart, &live(&settings)), Shown::Declined);
         // Turned on by hand meanwhile.
         smart.decision = Decision::Proposed;
-        settings.labs.smart_spacing = true;
+        settings.labs.spoken_formatting = true;
         assert_eq!(shown(&smart, &live(&settings)), Shown::Already);
         // Applied, then Undo for as long as the session holds it.
         smart.decision = applied(
-            vec![("labs.smart_spacing".into(), json!(false), json!(true))],
+            vec![("labs.spoken_formatting".into(), json!(false), json!(true))],
             0,
         );
         assert_eq!(
@@ -230,7 +234,7 @@ mod tests {
         };
         assert_eq!(shown(&smart, &later), Shown::Applied { undo: false });
         // Changed by hand after applying: no Undo.
-        settings.labs.smart_spacing = false;
+        settings.labs.spoken_formatting = false;
         assert_eq!(
             shown(&smart, &live(&settings)),
             Shown::ChangedSince { now: json!(false) }

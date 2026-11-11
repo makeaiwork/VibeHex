@@ -55,7 +55,12 @@ fn declined(mut card: Card) -> Card {
 }
 
 /// A conversation of `turns`, open, with Undo for the cards at `undo`.
+/// The editors take the scene's settings too, or their next draft save
+/// would write the fixture's back.
 fn conversation(ui: &mut Ui, name: &str, turns: Vec<Turn>, undo: &[(usize, usize)]) -> u32 {
+    let settings = ui.settings.clone();
+    ui.modes.reload(&settings);
+    ui.vocabulary.reload(&settings.vocabulary);
     let store = &mut ui.assistant.store;
     let id = store.start(name, None, None);
     store.date(id, AT);
@@ -153,7 +158,7 @@ pub(in super::super) fn cards_more(ui: &mut Ui) {
     let now = crate::assistant::changes::current(&ui.settings, writer).unwrap_or(Value::Null);
     first.cards.push(Card {
         kind: CardKind::Choice {
-            options: vec![now.clone(), json!("codex:gpt-6.1-sol"), json!("opencode")],
+            options: vec![now.clone(), json!("codex:gpt-6.1-sol"), json!("openrouter")],
             chosen: 1,
             suggested: 1,
         },
@@ -367,4 +372,31 @@ pub(in super::super) fn change_coming(ui: &mut Ui) {
         searching: false,
         cards_coming: true,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Scene = (&'static str, fn(&mut Ui));
+
+    /// A scene's settings are what its editors hold, so no draft save
+    /// changes them a moment in.
+    #[test]
+    fn every_scene_has_nothing_left_to_save() {
+        let scenes: [Scene; 7] = [
+            ("cards", cards),
+            ("cards-more", cards_more),
+            ("cards-held", cards_held),
+            ("cards-prompt", cards_prompt),
+            ("applied", applied),
+            ("change-both", change_both),
+            ("change-coming", change_coming),
+        ];
+        for (name, scene) in scenes {
+            let mut ui = super::super::super::scenes::mac_fixture();
+            scene(&mut ui);
+            assert!(ui.drafted() == ui.settings, "{name} has a draft to save");
+        }
+    }
 }

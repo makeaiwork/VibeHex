@@ -142,7 +142,7 @@ mod tests {
         let refused = check(
             &settings,
             &values(&[
-                ("labs.smart_spacing", json!(true)),
+                ("labs.spoken_formatting", json!(true)),
                 ("recording_duck_volume", json!(1.4)),
             ]),
             &rules(),
@@ -175,8 +175,8 @@ mod tests {
     #[test]
     fn one_key_as_typed_takes_the_same_path() {
         let settings = AppSettings::default();
-        let change = check_one(&settings, "labs.smart_spacing", "on", &rules()).unwrap();
-        assert!(change.settings.labs.smart_spacing);
+        let change = check_one(&settings, "labs.spoken_formatting", "on", &rules()).unwrap();
+        assert!(change.settings.labs.spoken_formatting);
         let refused = check_one(&settings, "recording_duck_volume", "1.4", &rules());
         assert_eq!(refused.unwrap_err().code, "invalid-value");
     }
@@ -185,7 +185,7 @@ mod tests {
     fn the_diff_names_what_a_rule_changed_beside_the_key() {
         let mut before = AppSettings::default();
         before.labs.russian_vibe_coding = false;
-        before.labs.smart_spacing = false;
+        before.labs.spoken_formatting = false;
         let change = check(
             &before,
             &values(&[("labs.russian_vibe_coding", json!(true))]),

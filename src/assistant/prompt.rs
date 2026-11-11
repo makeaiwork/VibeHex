@@ -597,7 +597,7 @@ mod tests {
         assert!(
             large
                 .input
-                .contains("labs.smart_spacing | on/off | Labs › Smart spacing | ")
+                .contains("labs.spoken_formatting | on/off | Labs › Spoken formatting | ")
         );
         let small = build(
             question,
@@ -619,7 +619,7 @@ mod tests {
             lines(&small),
             lines(&large)
         );
-        assert!(small.input.contains("labs.smart_spacing"));
+        assert!(small.input.contains("transcription.model | "));
         assert!(
             small
                 .input
