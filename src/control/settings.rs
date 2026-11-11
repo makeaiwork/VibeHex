@@ -10,10 +10,14 @@ use crate::app_settings::{
     AppSettings, CALENDAR_LEAD_MINUTES, HotkeyBinding, HotkeyKey, HotkeySlot,
 };
 
+mod check;
 mod hotkeys;
+mod requires;
 
+pub use check::{check, check_one, diff};
 use hotkeys::special_key_refusal;
 pub use hotkeys::{format_hotkey, parse_hotkey};
+pub use requires::{missing, requires};
 
 /// One setting as `hex settings get` reports it.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

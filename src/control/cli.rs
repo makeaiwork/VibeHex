@@ -1112,7 +1112,7 @@ fn apply_offline(values: &serde_json::Map<String, serde_json::Value>) -> Control
         })
         .and_then(|before| {
             let change =
-                super::settings::apply_all(&before, values, &crate::rune_ui::shortcut_rules())?;
+                super::settings::check(&before, values, &crate::rune_ui::shortcut_rules())?;
             if !change.changed(&before) {
                 return Ok(ControlReply::unchanged(
                     "Every setting already has its value",
