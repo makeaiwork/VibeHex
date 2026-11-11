@@ -1,9 +1,13 @@
 //! What a model reads for one question: Assistant's instructions, the
-//! guide's table of contents, the articles search found, the conversation
-//! so far, and the question. Nothing else: no transcripts, history,
-//! meetings, or keys. The model ends its reply with a `Sources:` line,
-//! which the pane turns into "From the guide" chips and never shows.
+//! guide's table of contents, the articles search found, the settings a
+//! card may change (with their values while the person lets it read them,
+//! `changes::catalog`), the conversation so far, and the question. Nothing
+//! else: no transcripts, history, meetings, or keys. The model ends its
+//! reply with a `Sources:` line, which the pane turns into "From the guide"
+//! chips and never shows, and may write `hex-change` lines before it, which
+//! the pane turns into cards.
 
+use super::changes::{self, Refused, catalog};
 use super::guide::{self, Article};
 use super::recordings::{Excerpt, Found, Kind, cite};
 use super::retrieve;
@@ -45,6 +49,8 @@ impl Room {
 pub struct Turn<'a> {
     pub question: &'a str,
     pub answer: &'a str,
+    /// What became of the changes it suggested, one line each.
+    pub changes: &'a str,
 }
 
 /// A question, ready for an engine.
@@ -72,10 +78,31 @@ are steps. No preamble.
 do something.
 - Use only the excerpts. When they don't answer the question, say the guide doesn't cover \
 it. Never invent settings, keys, buttons, or menus.
-- You cannot change settings yourself; say where the person changes them.
+- You never change settings yourself; say where the person changes them.
 - For questions that are not about VibeHex, say in one sentence that you help with VibeHex.
 - End with one last line: `Sources:` and the ids of the articles you used, comma-separated \
 (for example `Sources: labs/meetings, topics/codex`), or `Sources: none`.";
+
+const CHANGES: &str = "
+
+You may also suggest setting changes. The app turns each one into a card the person presses; \
+nothing changes until they do. When a setting in <changeable_settings> would do what the \
+person wants and isn't set that way now, add after your answer, before the Sources line:
+
+```hex-change
+{\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"a short reason\"}
+```
+
+- One JSON object per line, one card each, at most 3. Keys exactly as listed, values as the \
+list writes them (true/false for on/off).
+- `why`: one short phrase, in the language of the question.
+- To let the person pick, write `options` (2 to 4 values) and `suggest` (the one you \
+recommend) instead of `value`.
+- Only what this question is about. None when nothing should change, or when the now column \
+already has the value.
+- Name only the setting asked about: the app also turns on what it needs (a Labs feature, \
+Meetings).
+- Never a key that isn't listed. Never say you changed anything: the person decides on the card.";
 
 /// What a question may read besides the guide.
 #[derive(Clone, Copy, Debug)]
@@ -109,8 +136,15 @@ This question seems to be about the person's own meetings, files, or dictations,
 cannot read: they haven't allowed it. Say so in one sentence, and that Assistant › Settings › \
 Your meetings, files, and dictations allows it; then answer what the guide covers, if anything.";
 
-/// The prompt for `question` after `earlier` turns, oldest first.
-pub fn build(question: &str, earlier: &[Turn], room: Room, reach: Reach) -> Prompt {
+/// The prompt for `question` after `earlier` turns, oldest first. With
+/// `changes`, the model may suggest setting changes from the catalog.
+pub fn build(
+    question: &str,
+    earlier: &[Turn],
+    room: Room,
+    reach: Reach,
+    changes: Option<&changes::Context>,
+) -> Prompt {
     // A follow-up ("and on Windows?") is about what the last question was.
     let query = match earlier.last() {
         Some(last) => format!("{} {}", last.question, question),
@@ -129,6 +163,26 @@ pub fn build(question: &str, earlier: &[Turn], room: Room, reach: Reach) -> Prom
         input.push_str(&excerpt(article));
     }
     let mut instructions = INSTRUCTIONS.to_owned();
+    if let Some(context) = changes {
+        instructions.push_str(CHANGES);
+        let reading = catalog::Reading {
+            every: room == Room::Large,
+            keys: found
+                .iter()
+                .flat_map(|article| article.keys.iter().map(String::as_str))
+                .collect(),
+            send: context.send,
+            instructions: found
+                .iter()
+                .any(|article| article.id == "topics/output-and-instructions"),
+        };
+        input.push('\n');
+        input.push_str(&catalog::section(
+            &context.settings,
+            &reading,
+            &context.state,
+        ));
+    }
     match reach {
         Reach::Guide => {}
         Reach::Declined => instructions.push_str(DECLINED),
@@ -139,8 +193,12 @@ pub fn build(question: &str, earlier: &[Turn], room: Room, reach: Reach) -> Prom
     }
     let kept = earlier.len().saturating_sub(room.earlier_turns());
     for turn in &earlier[kept..] {
+        let changes = match turn.changes.trim() {
+            "" => String::new(),
+            changes => format!("\n<changes>\n{changes}\n</changes>"),
+        };
         input.push_str(&format!(
-            "\n<earlier_question>\n{}\n</earlier_question>\n<earlier_answer>\n{}\n</earlier_answer>\n",
+            "\n<earlier_question>\n{}\n</earlier_question>\n<earlier_answer>\n{}{changes}\n</earlier_answer>\n",
             turn.question.trim(),
             shortened(turn.answer.trim(), room.earlier_answer_chars()),
         ));
@@ -151,6 +209,53 @@ pub fn build(question: &str, earlier: &[Turn], room: Room, reach: Reach) -> Prom
         input,
         articles: found.iter().map(|article| article.id).collect(),
     }
+}
+
+const REPAIR: &str = "
+
+Your reply above had change lines the app refused (in <refused>, each with why). Write them \
+again, fixed: only keys from <changeable_settings>, values as it writes them. Reply with \
+only one ```hex-change block, and leave out a line you can't fix. An empty block if none fit.";
+
+/// One more ask, for a remote model whose change lines were refused: its
+/// reply, what was refused and why, and to write those lines again.
+pub fn repair(prompt: &Prompt, reply: &str, refused: &[Refused]) -> Prompt {
+    let mut input = prompt.input.clone();
+    input.push_str(&format!(
+        "\n<your_reply>\n{}\n</your_reply>\n<refused>\n",
+        reply.trim()
+    ));
+    for refused in refused {
+        input.push_str(&format!("{} : {}\n", refused.line, refused.reason()));
+    }
+    input.push_str("</refused>\n");
+    Prompt {
+        instructions: format!("{}{REPAIR}", prompt.instructions),
+        input,
+        articles: prompt.articles.clone(),
+    }
+}
+
+/// What became of an earlier turn's changes, for the next prompt: each
+/// card's key and value with what the person did, and each refusal.
+pub fn changes_line(cards: &[changes::Card], refused: &[Refused]) -> String {
+    let mut lines = Vec::new();
+    for card in cards {
+        let done = match &card.decision {
+            changes::Decision::Proposed => "not decided yet",
+            changes::Decision::Declined => "declined",
+            changes::Decision::Undone => "applied, then undone",
+            changes::Decision::Failed { .. } => "failed to apply",
+            changes::Decision::Applied { .. } => "applied",
+        };
+        for item in &card.items {
+            lines.push(format!("{} = {}: {done}", item.key, item.to));
+        }
+    }
+    for refused in refused {
+        lines.push(format!("refused: {} ({})", refused.line, refused.reason()));
+    }
+    lines.join("\n")
 }
 
 fn excerpt(article: &Article) -> String {
@@ -236,9 +341,16 @@ pub fn split_sources(reply: &str) -> (&str, Vec<&'static str>) {
 }
 
 /// While a reply streams, the part to show: never a half-written
-/// `Sources:` line or citation, and lines cited as their excerpt's `[n]`.
+/// `Sources:` line, citation, or change block, and lines cited as their
+/// excerpt's `[n]`.
 pub fn draft(reply: &str) -> String {
-    cite::plain(streamed(reply))
+    let (visible, _) = changes::parse::visible(reply);
+    cite::plain(streamed(visible))
+}
+
+/// Whether a change block has started in a streaming reply.
+pub fn cards_coming(reply: &str) -> bool {
+    changes::parse::visible(reply).1
 }
 
 fn streamed(reply: &str) -> &str {
@@ -276,6 +388,7 @@ mod tests {
             &[],
             Room::Large,
             Reach::Guide,
+            None,
         );
         assert!(prompt.input.contains("<guide_contents>"));
         assert!(prompt.input.contains("topics/privacy: Privacy"));
@@ -306,8 +419,9 @@ mod tests {
         let earlier = [Turn {
             question: "first",
             answer: &long,
+            changes: "",
         }];
-        let prompt = build("и на Windows?", &earlier, Room::Small, Reach::Guide);
+        let prompt = build("и на Windows?", &earlier, Room::Small, Reach::Guide, None);
         assert!(prompt.articles.len() <= 3);
         assert!(prompt.input.contains(&format!("{}…", "x".repeat(600))));
         assert!(!prompt.input.contains(&"x".repeat(601)));
@@ -319,9 +433,10 @@ mod tests {
             .map(|_| Turn {
                 question: "q",
                 answer: "a",
+                changes: "",
             })
             .collect();
-        let prompt = build("next", &earlier, Room::Large, Reach::Guide);
+        let prompt = build("next", &earlier, Room::Large, Reach::Guide, None);
         assert_eq!(prompt.input.matches("<earlier_question>").count(), 8);
     }
 
@@ -332,8 +447,9 @@ mod tests {
         let earlier = [Turn {
             question: "earlier question",
             answer: "earlier answer",
+            changes: "",
         }];
-        let prompt = build("new question", &earlier, Room::Large, Reach::Guide);
+        let prompt = build("new question", &earlier, Room::Large, Reach::Guide, None);
         let mut rest = prompt.input.clone();
         let contents_end = rest.find("</guide_contents>\n").unwrap() + "</guide_contents>\n".len();
         rest.replace_range(..contents_end, "");
@@ -453,6 +569,118 @@ mod tests {
         assert!(block.contains(", Notes\nApproved.\n"));
         assert!(block.contains(", Them\n[2.1] So.\n[2.2] The limit holds.\n"));
         assert!(!block.contains("So. The limit holds."));
+    }
+
+    fn context(send: bool) -> changes::Context {
+        changes::Context {
+            settings: crate::app_settings::AppSettings::default(),
+            send,
+            state: catalog::State::default(),
+        }
+    }
+
+    /// With changes on, the model reads how to write them and the
+    /// settings it may name; a small model only its articles' and the core
+    /// ones.
+    #[test]
+    fn a_prompt_with_changes_carries_the_protocol_and_the_catalog() {
+        let question = "Когда диктую после напечатанного слова, текст слипается";
+        let large = build(
+            question,
+            &[],
+            Room::Large,
+            Reach::Guide,
+            Some(&context(true)),
+        );
+        assert!(large.instructions.contains("```hex-change"));
+        assert!(large.input.contains("<changeable_settings>"));
+        assert!(
+            large
+                .input
+                .contains("labs.smart_spacing | on/off | Labs › Smart spacing | ")
+        );
+        let small = build(
+            question,
+            &[],
+            Room::Small,
+            Reach::Guide,
+            Some(&context(false)),
+        );
+        let lines = |prompt: &Prompt| {
+            prompt
+                .input
+                .lines()
+                .filter(|line| line.contains(" | "))
+                .count()
+        };
+        assert!(
+            lines(&small) < lines(&large) / 2,
+            "{} of {}",
+            lines(&small),
+            lines(&large)
+        );
+        assert!(small.input.contains("labs.smart_spacing"));
+        assert!(
+            small
+                .input
+                .contains("don't know the person's current values")
+        );
+        let none = build(question, &[], Room::Large, Reach::Guide, None);
+        assert!(!none.input.contains("<changeable_settings>"));
+        assert!(!none.instructions.contains("hex-change"));
+    }
+
+    #[test]
+    fn an_earlier_turns_changes_and_refusals_go_back_in() {
+        let card = changes::Card {
+            items: vec![changes::Item {
+                key: "labs.smart_spacing".into(),
+                to: serde_json::json!(true),
+                ..changes::Item::default()
+            }],
+            decision: changes::Decision::Declined,
+            ..changes::Card::default()
+        };
+        let refused = Refused {
+            line: "{\"key\":\"labs.teleport\"}".into(),
+            key: Some("labs.teleport".into()),
+            why: changes::Why::Unknown,
+        };
+        let line = changes_line(&[card], std::slice::from_ref(&refused));
+        assert_eq!(
+            line,
+            "labs.smart_spacing = true: declined\nrefused: {\"key\":\"labs.teleport\"} (no such setting)"
+        );
+        let earlier = [Turn {
+            question: "q",
+            answer: "a",
+            changes: &line,
+        }];
+        let prompt = build("next", &earlier, Room::Large, Reach::Guide, None);
+        assert!(
+            prompt
+                .input
+                .contains("a\n<changes>\nlabs.smart_spacing = true: declined")
+        );
+        let again = repair(&prompt, "reply", &[refused]);
+        assert!(again.instructions.contains("refused"));
+        assert!(
+            again
+                .input
+                .contains("<refused>\n{\"key\":\"labs.teleport\"} : no such setting\n</refused>")
+        );
+    }
+
+    #[test]
+    fn a_change_block_never_shows_while_it_streams() {
+        let reply = "Turn on Smart spacing.\n\n```hex-change\n{\"key\":\"labs.sm";
+        assert_eq!(draft(reply), "Turn on Smart spacing.");
+        assert!(cards_coming(reply));
+        assert_eq!(
+            draft("Turn on Smart spacing.\n``"),
+            "Turn on Smart spacing."
+        );
+        assert!(!cards_coming("Turn on Smart spacing."));
     }
 
     #[test]

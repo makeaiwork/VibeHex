@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
 
+use super::changes::{self, Card, Refused, Why};
 use super::intent::Intent;
 use super::prompt::{self, Reach, Room};
 use super::recordings::{self, Allowed, Budget, Found, Sources, Step};
@@ -28,10 +29,20 @@ type Generate =
 pub struct Question {
     pub conversation: u32,
     pub question: String,
-    /// Earlier (question, answer) pairs, oldest first.
-    pub earlier: Vec<(String, String)>,
+    /// Earlier turns, oldest first.
+    pub earlier: Vec<Earlier>,
     /// What it may read besides the guide.
     pub recall: Recall,
+    /// The settings it may suggest changes to, if it may.
+    pub changes: Option<changes::Context>,
+}
+
+/// An earlier question, its answer, and what became of its changes.
+#[derive(Clone, Debug, Default)]
+pub struct Earlier {
+    pub question: String,
+    pub answer: String,
+    pub changes: String,
 }
 
 /// What a question may read besides the guide.
@@ -66,6 +77,8 @@ pub struct Answering {
     pub steps: Vec<Step>,
     /// Still searching the recordings.
     pub searching: bool,
+    /// A change block has started: the feed shows "Preparing a change…".
+    pub cards_coming: bool,
 }
 
 #[derive(Default)]
@@ -137,6 +150,7 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
         started,
         steps: Vec::new(),
         searching: matches!(question.recall, Recall::Search(_)),
+        cards_coming: false,
     });
     held.cancel = Some(cancel.clone());
     changed(held);
@@ -146,9 +160,10 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
             let earlier: Vec<prompt::Turn> = question
                 .earlier
                 .iter()
-                .map(|(asked, answered)| prompt::Turn {
-                    question: asked,
-                    answer: answered,
+                .map(|earlier| prompt::Turn {
+                    question: &earlier.question,
+                    answer: &earlier.answer,
+                    changes: &earlier.changes,
                 })
                 .collect();
             let found = match &question.recall {
@@ -160,8 +175,15 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
                 (Recall::Search(search), Some(found)) => Reach::Recordings(found, search.now_ms),
                 _ => Reach::Guide,
             };
-            let prompt = prompt::build(&question.question, &earlier, room, reach);
-            let result = generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts()));
+            let prompt = prompt::build(
+                &question.question,
+                &earlier,
+                room,
+                reach,
+                question.changes.as_ref(),
+            );
+            let result = generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts()))
+                .map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
             finish(&question, &model, started, result, &cancel, found.as_ref());
             if local {
                 engine::narrow();
@@ -217,6 +239,92 @@ fn read(search: &Search, room: Room) -> Option<Found> {
     (search.intent.sure || !found.excerpts.is_empty()).then_some(found)
 }
 
+/// A reply with its change lines read and checked.
+struct Settled {
+    reply: String,
+    cards: Vec<Card>,
+    refused: Vec<Refused>,
+}
+
+/// Reads `reply`'s change lines against the question's settings. A remote
+/// model whose lines were refused is asked once more to fix them; a local
+/// one isn't, and its refusals stay as they are.
+fn settle(
+    question: &Question,
+    prompt: &prompt::Prompt,
+    reply: String,
+    generate: &Generate,
+    cancel: &AtomicBool,
+    remote: bool,
+) -> Settled {
+    let parsed = changes::parse::parse(&reply);
+    let Some(context) = &question.changes else {
+        return Settled {
+            reply,
+            cards: Vec::new(),
+            refused: Vec::new(),
+        };
+    };
+    let rules = crate::rune_ui::shortcut_rules();
+    let (mut cards, mut refused) = changes::resolve(&parsed.proposals, &context.settings, &rules);
+    refused.extend(malformed(&parsed.malformed));
+    let fixable: Vec<Refused> = refused
+        .iter()
+        .filter(|refused| refused.why != Why::Never)
+        .cloned()
+        .collect();
+    if remote && !fixable.is_empty() && !cancel.load(Ordering::Acquire) {
+        {
+            let mut state = state();
+            if let Some(answering) = &mut state.answering {
+                answering.cards_coming = true;
+            }
+            changed(state);
+        }
+        let again = prompt::repair(prompt, &reply, &fixable);
+        if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None) {
+            let parsed = changes::parse::parse(&fixed);
+            let (more, _) = changes::resolve(&parsed.proposals, &context.settings, &rules);
+            let more: Vec<Card> = more
+                .into_iter()
+                .filter(|card| !cards.iter().any(|known| same_keys(known, card)))
+                .collect();
+            if !more.is_empty() {
+                // A refusal its fix replaced goes; the rest stay.
+                refused.retain(|refused| {
+                    refused.why == Why::Never
+                        || refused.key.as_ref().is_some_and(|key| {
+                            !more
+                                .iter()
+                                .any(|card| card.items.iter().any(|item| item.key == *key))
+                        })
+                });
+                cards.extend(more);
+            }
+        }
+    }
+    Settled {
+        reply,
+        cards,
+        refused,
+    }
+}
+
+fn same_keys(one: &Card, other: &Card) -> bool {
+    one.items
+        .iter()
+        .map(|item| &item.key)
+        .eq(other.items.iter().map(|item| &item.key))
+}
+
+fn malformed(lines: &[String]) -> impl Iterator<Item = Refused> + '_ {
+    lines.iter().map(|line| Refused {
+        line: line.clone(),
+        key: None,
+        why: Why::Malformed,
+    })
+}
+
 /// The streamed reply into the draft, at most once each [`DRAFT_EVERY`].
 fn drafts() -> Streamed {
     let last: Mutex<Option<Instant>> = Mutex::new(None);
@@ -232,6 +340,7 @@ fn drafts() -> Streamed {
         let mut state = state();
         if let Some(answering) = &mut state.answering {
             answering.draft = prompt::draft(text).trim_end().to_owned();
+            answering.cards_coming = prompt::cards_coming(text);
         }
         changed(state);
     })
@@ -241,7 +350,7 @@ fn finish(
     question: &Question,
     model: &str,
     started: Instant,
-    result: Result<String>,
+    result: Result<Settled>,
     cancel: &AtomicBool,
     found: Option<&Found>,
 ) {
@@ -261,8 +370,11 @@ fn finish(
         ..Turn::default()
     };
     match result {
-        Ok(reply) => {
-            let (body, sources) = prompt::split_sources(&reply);
+        Ok(settled) => {
+            let parsed = changes::parse::parse(&settled.reply);
+            let (body, sources) = prompt::split_sources(&parsed.body);
+            turn.cards = settled.cards;
+            turn.refused = settled.refused;
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
             // The lines cited are kept with the places; the answer shows
@@ -321,9 +433,118 @@ mod tests {
         Question {
             conversation: 7,
             question: text.into(),
-            earlier: vec![("before".into(), "earlier answer".into())],
+            earlier: vec![Earlier {
+                question: "before".into(),
+                answer: "earlier answer".into(),
+                changes: String::new(),
+            }],
             recall: Recall::Guide,
+            changes: None,
         }
+    }
+
+    fn with_changes(text: &str) -> Question {
+        let mut settings = crate::app_settings::AppSettings::default();
+        settings.labs.smart_spacing = false;
+        Question {
+            changes: Some(changes::Context {
+                settings,
+                send: true,
+                state: changes::catalog::State::default(),
+            }),
+            ..question(text)
+        }
+    }
+
+    const REFUSED: &str = "Turn it on.\n```hex-change\n{\"key\":\"labs.smart_spacing\",\"value\":true}\n{\"key\":\"labs.teleport\",\"value\":true}\n```\nSources: labs/smart-spacing";
+
+    #[test]
+    fn a_reply_with_changes_becomes_cards_and_refusals() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let generate: Generate = Box::new(|_, _, _, _| Ok(REFUSED.into()));
+        assert!(start(
+            with_changes("q"),
+            Room::Small,
+            "Local".into(),
+            generate,
+            true
+        ));
+        let (_, turn) = finished();
+        assert_eq!(turn.answer, "Turn it on.");
+        assert_eq!(turn.sources, ["labs/smart-spacing"]);
+        assert_eq!(turn.cards.len(), 1);
+        // A built-in model isn't asked again.
+        assert_eq!(turn.refused.len(), 1);
+        assert_eq!(turn.refused[0].why, Why::Unknown);
+    }
+
+    /// A remote model gets one silent round to fix refused lines.
+    #[test]
+    fn a_remote_model_repairs_its_refused_lines_once() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let asked = Arc::new(Mutex::new(Vec::<String>::new()));
+        let seen = asked.clone();
+        let generate: Generate = Box::new(move |_, input, _, streamed| {
+            let mut asked = seen.lock().unwrap();
+            asked.push(input.to_owned());
+            assert_eq!(
+                streamed.is_some(),
+                asked.len() == 1,
+                "the repair doesn't stream"
+            );
+            Ok(if asked.len() == 1 {
+                REFUSED.into()
+            } else {
+                "```hex-change\n{\"key\":\"labs.files\",\"value\":true}\n```".into()
+            })
+        });
+        assert!(start(
+            with_changes("q"),
+            Room::Large,
+            "GPT".into(),
+            generate,
+            false
+        ));
+        let (_, turn) = finished();
+        let asked = asked.lock().unwrap();
+        assert_eq!(asked.len(), 2);
+        assert!(asked[1].contains("<refused>"));
+        let keys: Vec<&str> = turn
+            .cards
+            .iter()
+            .map(|card| card.items[0].key.as_str())
+            .collect();
+        assert_eq!(keys, ["labs.smart_spacing", "labs.files"]);
+        // Its fix named another key: the refusal stays.
+        assert_eq!(turn.refused.len(), 1);
+    }
+
+    #[test]
+    fn a_still_bad_repair_leaves_the_refusal() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let calls = Arc::new(Mutex::new(0));
+        let count = calls.clone();
+        let generate: Generate = Box::new(move |_, _, _, _| {
+            *count.lock().unwrap() += 1;
+            Ok(REFUSED.into())
+        });
+        assert!(start(
+            with_changes("q"),
+            Room::Large,
+            "GPT".into(),
+            generate,
+            false
+        ));
+        let (_, turn) = finished();
+        assert_eq!(*calls.lock().unwrap(), 2, "asked once more, no further");
+        assert_eq!(turn.cards.len(), 1);
+        assert_eq!(turn.refused.len(), 1);
     }
 
     fn finished() -> (u32, Turn) {

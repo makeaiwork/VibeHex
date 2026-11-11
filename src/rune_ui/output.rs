@@ -885,6 +885,12 @@ pub(super) fn trust_fixture(ui: &mut Ui) {
     ui.pane = super::Pane::Output;
 }
 
+/// Whether Codex is signed in, as Output › AI cleanup last read it; `None`
+/// until it did (Assistant's cards never start Codex to ask).
+pub(super) fn codex_signed_in(ui: &Ui) -> Option<bool> {
+    ui.output.cleanup.codex.signed_in()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

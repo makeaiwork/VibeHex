@@ -15,7 +15,7 @@ pub struct Live<'a> {
     pub settings: &'a AppSettings,
     /// The speech model the service is preparing: its id, bytes come, and
     /// bytes in all (0 while unknown).
-    pub preparing: Option<(&'a str, u64, u64)>,
+    pub preparing: Option<(String, u64, u64)>,
     /// Whether Codex is signed in; `None` until something asked it.
     pub codex_signed_in: Option<bool>,
     /// Screen & System Audio Recording is allowed (true off macOS).
@@ -69,7 +69,9 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
         return Shown::Declined;
     };
     let to = match &card.kind {
-        CardKind::Choice { options, chosen } => options.get(*chosen).unwrap_or(&item.to),
+        CardKind::Choice {
+            options, chosen, ..
+        } => options.get(*chosen).unwrap_or(&item.to),
         _ => &item.to,
     };
     let now = current(live.settings, &item.key).unwrap_or(Value::Null);
@@ -136,13 +138,16 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
 }
 
 fn downloading(class: Class, key: &str, to: &Value, live: &Live) -> Option<Shown> {
-    let (model, done, total) = live.preparing?;
+    let (model, done, total) = live.preparing.as_ref()?;
     let wanted = match key {
         "transcription.model" => to.as_str()?,
         "transcription.language" => live.settings.transcription.model.as_str(),
         _ => return None,
     };
-    (class == Class::Download && model == wanted).then_some(Shown::Downloading { done, total })
+    (class == Class::Download && model == wanted).then_some(Shown::Downloading {
+        done: *done,
+        total: *total,
+    })
 }
 
 /// Why `card` can't be applied here, if it can't.
@@ -272,7 +277,7 @@ mod tests {
         );
         model.items[0].class = Class::Download;
         let downloading = Live {
-            preparing: Some(("gigaam_v3", 115, 274)),
+            preparing: Some(("gigaam_v3".into(), 115, 274)),
             ..live(&settings)
         };
         assert_eq!(

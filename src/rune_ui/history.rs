@@ -305,6 +305,12 @@ fn set_retention(ui: &mut Ui, retention: HistoryRetention) {
     if !ui.update(|settings| settings.history_retention = retention) {
         return;
     }
+    adopt_retention(ui, retention);
+}
+
+/// Prunes the history to a retention already saved (`hex settings`'s
+/// effect, an Assistant card's).
+pub(super) fn adopt_retention(ui: &mut Ui, retention: HistoryRetention) {
     if let Some(store) = &ui.history.store
         && let Err(error) = store.set_retention(retention)
     {

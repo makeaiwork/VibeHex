@@ -23,6 +23,16 @@ use crate::control::settings::{self, ShortcutRules};
 use catalog::Class;
 use parse::Proposal;
 
+/// What a question's changes are offered and checked against.
+#[derive(Clone, Debug)]
+pub struct Context {
+    /// The settings when it was asked.
+    pub settings: AppSettings,
+    /// The model may read the current values (`assistant.send_settings`).
+    pub send: bool,
+    pub state: catalog::State,
+}
+
 /// One suggestion the person decides on.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
@@ -42,8 +52,13 @@ pub enum CardKind {
     #[default]
     Single,
     /// One key, a value picked from `options`; `chosen` starts at the one
-    /// suggested.
-    Choice { options: Vec<Value>, chosen: usize },
+    /// `suggested`.
+    Choice {
+        options: Vec<Value>,
+        chosen: usize,
+        #[serde(default)]
+        suggested: usize,
+    },
     /// Several keys, checked or not, applied together (setup).
     Plan,
     /// Instructions, shown line by line.
@@ -180,7 +195,14 @@ fn card(
             .and_then(|value| options.iter().position(|option| option == value))
             .unwrap_or(0);
         let to = options[chosen].clone();
-        (CardKind::Choice { options, chosen }, to)
+        (
+            CardKind::Choice {
+                options,
+                chosen,
+                suggested: chosen,
+            },
+            to,
+        )
     } else {
         let to = suggested
             .or_else(|| options.pop())
@@ -270,7 +292,9 @@ pub fn values(card: &Card, settings: &AppSettings) -> Result<Map<String, Value>,
     }
     for item in card.items.iter().filter(|item| item.included) {
         let to = match &card.kind {
-            CardKind::Choice { options, chosen } => options.get(*chosen).unwrap_or(&item.to),
+            CardKind::Choice {
+                options, chosen, ..
+            } => options.get(*chosen).unwrap_or(&item.to),
             _ => &item.to,
         };
         match parts::part(&item.key, settings) {

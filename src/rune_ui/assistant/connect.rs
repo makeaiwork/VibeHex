@@ -250,6 +250,13 @@ fn sign_in(ui: &mut Ui) {
     if !on_codex {
         ui.update(|settings| settings.assistant.engine = Some("codex".into()));
     }
+    start_sign_in(ui);
+}
+
+/// Codex signs in, when it isn't: the page opens in the browser and Codex
+/// finishes it. Hex sees no password. A card's Sign in with ChatGPT uses
+/// it as is, so Assistant's own model stays as it was.
+pub(super) fn start_sign_in(ui: &mut Ui) {
     if !ui.live() {
         return;
     }
@@ -279,7 +286,7 @@ fn sign_in(ui: &mut Ui) {
 /// Where an API key, a server, or the built-in model is set up: Output ›
 /// AI cleanup, or its Labs row while that is off. Dictation's Runs on
 /// stays as it is.
-fn open_cleanup(ui: &mut Ui, tx: &mut Tx) {
+pub(super) fn open_cleanup(ui: &mut Ui, tx: &mut Tx) {
     if ui.settings.labs.ai_cleanup_server {
         ui.select_pane(Pane::Output, tx);
     } else {

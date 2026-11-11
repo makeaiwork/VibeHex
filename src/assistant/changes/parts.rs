@@ -139,14 +139,6 @@ impl Part {
         json.map(|json| (self.parent(), json))
             .map_err(|error| error.to_string())
     }
-
-    /// The name a card shows: the app's, or none for the instructions.
-    pub fn label(&self) -> Option<&str> {
-        match self {
-            Self::Prompt => None,
-            Self::Provider { label, .. } => Some(label),
-        }
-    }
 }
 
 #[cfg(test)]

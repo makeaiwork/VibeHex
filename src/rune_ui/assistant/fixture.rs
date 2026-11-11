@@ -15,11 +15,11 @@ use crate::assistant::store::Turn;
 use crate::assistant::worker::Answering;
 
 /// 14 March 2025, 10:40 UTC.
-const AT: u64 = 1_741_948_800_000;
-const MINUTE: u64 = 60_000;
+pub(super) const AT: u64 = 1_741_948_800_000;
+pub(super) const MINUTE: u64 = 60_000;
 
 /// Assistant's pane on a Mac, answering on Codex.
-fn open(ui: &mut Ui) {
+pub(super) fn open(ui: &mut Ui) {
     *ui = mac_fixture();
     ui.pane = Pane::Assistant;
     ui.assistant.fixture = true;
@@ -28,7 +28,7 @@ fn open(ui: &mut Ui) {
     ui.files.codex_models = FilesPane::fixture_codex_models();
 }
 
-fn turn(question: &str, answer: &str, sources: &[&str], minutes: u64) -> Turn {
+pub(super) fn turn(question: &str, answer: &str, sources: &[&str], minutes: u64) -> Turn {
     Turn {
         question: question.into(),
         answer: answer.into(),
@@ -84,6 +84,7 @@ pub(in super::super) fn answering(ui: &mut Ui) {
         started: Instant::now(),
         steps: Vec::new(),
         searching: false,
+        cards_coming: false,
     });
 }
 
@@ -147,6 +148,7 @@ pub(in super::super) fn steps(ui: &mut Ui) {
             },
         ],
         searching: true,
+        cards_coming: false,
     });
 }
 

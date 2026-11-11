@@ -488,6 +488,7 @@ pub fn label(key: &str, value: &Value) -> String {
     match value {
         Value::Bool(true) => "On".into(),
         Value::Bool(false) => "Off".into(),
+        Value::Null if key == "meetings.notes.writer" => label(key, &Value::String(String::new())),
         Value::Null => "Not set".into(),
         Value::Number(number) if key == "recording_duck_volume" || key == "sound_effect_volume" => {
             format!("{:.0}%", number.as_f64().unwrap_or(0.0) * 100.0)

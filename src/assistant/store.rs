@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use color_eyre::eyre::{Result, WrapErr};
 use serde::{Deserialize, Serialize};
 
+use super::changes::{Card, Refused};
 use super::recordings::{Ref, Step};
 
 /// The most conversations kept; the least recently used go first.
@@ -42,6 +43,12 @@ pub struct Turn {
     /// The places in the recordings its `[n]` cite.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refs: Vec<Ref>,
+    /// The setting changes it suggested, and what the person did.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cards: Vec<Card>,
+    /// Change lines the app refused; never offered as actions.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refused: Vec<Refused>,
 }
 
 /// One conversation.
@@ -144,6 +151,21 @@ impl Store {
     pub fn push(&mut self, id: u32, turn: Turn) {
         if let Some(conversation) = self.conversations.iter_mut().find(|c| c.id == id) {
             conversation.turns.push(turn);
+            self.save();
+        }
+    }
+
+    /// Replaces card `card` of turn `turn` in conversation `id`, as the
+    /// person decided it.
+    pub fn set_card(&mut self, id: u32, turn: usize, card: usize, value: Card) {
+        let slot = self
+            .conversations
+            .iter_mut()
+            .find(|c| c.id == id)
+            .and_then(|conversation| conversation.turns.get_mut(turn))
+            .and_then(|turn| turn.cards.get_mut(card));
+        if let Some(slot) = slot {
+            *slot = value;
             self.save();
         }
     }
@@ -297,6 +319,30 @@ mod tests {
         kept.keep(false);
         assert!(!path.exists());
         assert_eq!(kept.conversations().len(), 1);
+    }
+
+    /// A file written before cards existed still reads, and a card's
+    /// decision is kept.
+    #[test]
+    fn old_files_load_and_a_decided_card_is_kept() {
+        let old = r#"{"conversations":[{"id":1,"name":"q","turns":[{"question":"q","answer":"a","model":"m","seconds":1.0,"created_ms":5}],"created_ms":5}]}"#;
+        let file: File = serde_json::from_str(old).unwrap();
+        assert!(file.conversations[0].turns[0].cards.is_empty());
+        let mut store = Store::default();
+        let id = store.start("q", None, None);
+        store.push(
+            id,
+            Turn {
+                cards: vec![Card::default()],
+                ..turn("q")
+            },
+        );
+        let declined = Card {
+            decision: crate::assistant::changes::Decision::Declined,
+            ..Card::default()
+        };
+        store.set_card(id, 0, 0, declined.clone());
+        assert_eq!(store.get(id).unwrap().turns[0].cards, [declined]);
     }
 
     #[test]

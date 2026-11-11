@@ -102,7 +102,8 @@ fn options_become_a_choice_starting_at_the_suggestion() {
         cards[0].kind,
         CardKind::Choice {
             options: vec![json!("opencode"), json!("codex")],
-            chosen: 1
+            chosen: 1,
+            suggested: 1
         }
     );
 }

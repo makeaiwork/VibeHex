@@ -58,6 +58,13 @@ impl Reported {
 }
 
 impl CodexCleanup {
+    /// Whether Codex is signed in, as last read; `None` until read.
+    pub(in crate::rune_ui) fn signed_in(&self) -> Option<bool> {
+        self.status
+            .status()
+            .map(|status| status.account != Account::SignedOut)
+    }
+
     pub(super) fn busy(&self) -> bool {
         matches!(self.status, Reported::Loading(..)) || self.signing_in.is_some()
     }

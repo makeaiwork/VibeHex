@@ -296,6 +296,13 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
     } else {
         None
     };
+    // A change being read and checked: never its raw lines.
+    let preparing = answering.cards_coming.then(|| {
+        text(tr("Preparing a change…"))
+            .key("preparing")
+            .font(DESCRIPTION)
+            .color(p.faint())
+    });
     vec![
         session::bubble(p, "asking", &answering.question),
         beside_face(
@@ -309,7 +316,8 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
                 .min_w(0.0)
                 .gap(10.0)
                 .children(steps)
-                .children(words),
+                .children(words)
+                .children(preparing),
         ),
     ]
 }

@@ -9,6 +9,7 @@
 //! The model is Assistant's own: choosing one here never changes what
 //! dictation's AI cleanup runs on.
 
+mod changes;
 mod composer;
 mod connect;
 pub(super) mod face;
@@ -73,6 +74,14 @@ pub(in super::super) struct AssistantPane {
     pub(super) clear_armed: bool,
     /// The face's blink, squish, and reading eyes.
     pub(super) face: face::FaceState,
+    /// Cards applied in the open conversation this session: Undo holds
+    /// for them until another conversation opens (owner decision 2).
+    pub(super) undo: Vec<changes::At>,
+    /// The conversation `undo` belongs to.
+    pub(super) undo_for: Option<u32>,
+    /// A scene's card states this computer can't take on: an
+    /// organization's lock, Codex signed out.
+    pub(super) shown_as: Vec<(changes::At, crate::assistant::changes::state::Shown)>,
     loaded: bool,
     /// Whether the store keeps conversations, as last applied.
     kept: bool,
@@ -251,6 +260,7 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         .filter(|_| !ui.is_fixture())
         .map(|answering| answering.started);
     let mut changed = ui.assistant.face.poll(reading, tx) | jump::poll(ui, tx);
+    changes::follow_open(ui);
     if ui.is_fixture() || ui.assistant.fixture {
         return changed;
     }
@@ -287,9 +297,13 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     }
     let answering = worker::answering();
     let draft = |answering: &Option<Answering>| {
-        answering
-            .as_ref()
-            .map(|answering| (answering.conversation, answering.draft.len()))
+        answering.as_ref().map(|answering| {
+            (
+                answering.conversation,
+                answering.draft.len(),
+                answering.cards_coming,
+            )
+        })
     };
     if draft(&answering) != draft(&pane.answering) {
         pane.answering = answering;

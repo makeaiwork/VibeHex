@@ -8,7 +8,8 @@ use rune::{El, TextEdit, row};
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::super::files::composer::{self as files, MAX_LINES, SEND_ICON, STOP_ICON};
-use crate::assistant::worker::{self, Question, Recall};
+use crate::assistant::prompt;
+use crate::assistant::worker::{self, Earlier, Question, Recall};
 use crate::desktop::i18n::tr;
 
 pub(super) const MODEL_MENU: &str = "assistant-model";
@@ -144,12 +145,17 @@ pub(super) fn ask_with(ui: &mut Ui, id: u32, question: String, recall: Recall) -
     let Some(conversation) = pane.store.get(id) else {
         return false;
     };
-    // Earlier turns that answered, for the model to follow the thread.
+    // Earlier turns that answered, for the model to follow the thread, and
+    // what became of the changes each suggested.
     let earlier = conversation
         .turns
         .iter()
         .filter(|turn| turn.error.is_none() && !turn.answer.trim().is_empty())
-        .map(|turn| (turn.question.clone(), turn.answer.clone()))
+        .map(|turn| Earlier {
+            question: turn.question.clone(),
+            answer: turn.answer.clone(),
+            changes: prompt::changes_line(&turn.cards, &turn.refused),
+        })
         .collect();
     let engine = super::engine(
         &ui.settings,
@@ -158,15 +164,18 @@ pub(super) fn ask_with(ui: &mut Ui, id: u32, question: String, recall: Recall) -
     );
     pane.open = Some(id);
     pane.error = None;
+    let changes = super::changes::context(ui);
     let asked = worker::ask(
         Question {
             conversation: id,
             question,
             earlier,
             recall,
+            changes: Some(changes),
         },
         engine,
     );
+    let pane = &mut ui.assistant;
     pane.answering = worker::answering();
     asked
 }

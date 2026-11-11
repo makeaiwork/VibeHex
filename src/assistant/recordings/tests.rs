@@ -261,14 +261,20 @@ fn no_recording_enters_the_prompt_without_consent() {
         .collect();
     assert!(private.len() > 3);
     for reach in [Reach::Guide, Reach::Declined] {
-        let prompt = build(question, &[], Room::Large, reach);
+        let prompt = build(question, &[], Room::Large, reach, None);
         let all = format!("{}\n{}", prompt.instructions, prompt.input);
         assert!(!all.contains("<recordings"));
         for piece in &private {
             assert!(!all.contains(piece), "{piece:?} leaked");
         }
     }
-    let prompt = build(question, &[], Room::Large, Reach::Recordings(&found, now()));
+    let prompt = build(
+        question,
+        &[],
+        Room::Large,
+        Reach::Recordings(&found, now()),
+        None,
+    );
     assert!(prompt.input.contains("<recordings"));
     assert!(private.iter().all(|piece| prompt.input.contains(piece)));
 }
