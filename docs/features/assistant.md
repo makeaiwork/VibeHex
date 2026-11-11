@@ -83,7 +83,11 @@ Opened from an answer                            // rune_ui::assistant::jump
   calls, dictations, files, in English and Russian), a time (yesterday, last
   week, in November, on the 24th, the last five meetings), and what was said
   or decided. "How do I…", "можно ли…" without a time stay with the guide, so
-  the consent card never comes up for them. A question that only may be
+  the consent card never comes up for them; so does saying how dictation
+  should work for them ("мне важно удобство диктовки", "accuracy matters",
+  "помоги настроить"), which speaks of dictating, not of what was dictated,
+  unless it also asks to find or recall it ("найди мои диктовки, где…",
+  "что я диктовал вчера"). A question that only may be
   about recordings searches them (once allowed) and goes to the guide when
   nothing matches.
 - While `assistant.read_recordings` is not `true` such a question shows the
@@ -127,10 +131,10 @@ Opened from an answer                            // rune_ui::assistant::jump
   button doesn't yet (Rune gives other buttons only to elements that also
   take primary presses).
 - Eval: `tests/fixtures/assistant/recordings` (ten meetings, three Files
-  texts, five dictations), 26 questions with expected recordings (recall
+  texts, five dictations), 28 questions with expected recordings (recall
   must stay at 90% or more, now 100%), 8 questions whose cited line must be
   offered and map to its time (now 8 of 8; word-timed, segment-only, and
-  Files transcripts), and 11 guide questions that must not route
+  Files transcripts), and 13 guide questions that must not route
   (`scripts/check assistant::recordings`).
 
 ## Settings keys

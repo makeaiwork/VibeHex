@@ -366,6 +366,11 @@ const ASKED: &[(&str, &[&str])] = &[
     ("What did we decide in my last call?", &["meeting:standup"]),
     ("Что я надиктовал Ане про OpenRouter?", &["dictation:3"]),
     (
+        "Найди мои диктовки, где я говорил про онбординг",
+        &["dictation:4"],
+    ),
+    ("Что я диктовал вчера?", &["dictation:1", "dictation:2"]),
+    (
         "Сравни встречи Планёрка и Бюджет Q1: что поменялось?",
         &["meeting:planerka", "meeting:budget-q1"],
     ),
@@ -476,6 +481,9 @@ const GUIDE: &[&str] = &[
     "Где хранятся мои записи?",
     "Can Zoom calls record by themselves, without asking?",
     "Which speech model is best for Russian?",
+    "Помоги мне настроить VibeHex под меня",
+    "macOS на русском языке, но вставлять английские символы. Мне важно удобство диктовки \
+     технических терминов, чтобы они нормально распознавались. Но точность тоже важна.",
 ];
 
 #[test]

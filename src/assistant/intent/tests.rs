@@ -102,6 +102,13 @@ fn guide_questions_stay_with_the_guide() {
         "Как надиктовать текст в Telegram?",
         "How do I transcribe a file?",
         "Why does dictation stop after a minute?",
+        // Setting VibeHex up: talk about dictating, not about dictations.
+        "Помоги мне настроить VibeHex под меня",
+        "macOS на русском языке, но вставлять английские символы. Мне важно удобство \
+         диктовки технических терминов, чтобы они нормально распознавались. Но точность \
+         тоже важна.",
+        "Dictating technical terms matters to me: I want them recognised accurately",
+        "I prefer my dictations pasted in English letters",
     ] {
         assert_eq!(read(question, now()), None, "{question}");
     }
@@ -113,4 +120,15 @@ fn a_question_that_only_may_be_about_recordings_waits_for_the_search() {
     assert!(!intent.sure);
     assert_eq!(intent.kinds, Kinds::ALL);
     assert_eq!(intent.terms, ["pricing"]);
+}
+
+#[test]
+fn asking_to_find_or_recall_dictations_still_reads_them() {
+    let intent = read("Найди мои диктовки, где я говорил о точности", now()).unwrap();
+    assert!(intent.sure && intent.kinds.dictations && !intent.kinds.meetings);
+    let intent = read("Что я диктовал вчера?", now()).unwrap();
+    assert!(intent.sure && intent.kinds.dictations);
+    assert_eq!(intent.since_ms, Some(day(2026, 11, 9)));
+    let intent = read("Find my dictation where accuracy came up", now()).unwrap();
+    assert!(intent.kinds.dictations);
 }

@@ -72,11 +72,17 @@ pub fn read(question: &str, now_ms: u64) -> Option<Intent> {
         .any(|word| SAID.iter().any(|stem| starts(word, stem)));
     let personal = words.iter().any(|word| PERSONAL.contains(&word.as_str()));
     let how = HOW.iter().any(|phrase| has_phrase(&words, phrase));
+    // Saying how dictation should work for them ("мне важно удобство
+    // диктовки", "accuracy matters") speaks of dictating, not of what was
+    // dictated, unless they also ask to find or recall it.
+    let recall = RECALL.iter().any(|phrase| has_phrase(&words, phrase));
+    let setup = !recall && SETUP.iter().any(|phrase| has_phrase(&words, phrase));
+    let guide = how || setup;
     let when = when(&words, now_ms);
     let latest = latest(&words);
     let timed = when.is_some() || latest.is_some();
-    let sure = named && (timed || said) && !(how && !timed);
-    let maybe = (named && personal && !how) || (said && personal && !how) || (timed && said);
+    let sure = named && (timed || said) && !(guide && !timed);
+    let maybe = (named && personal && !guide) || (said && personal && !guide) || (timed && said);
     if !sure && !maybe {
         return None;
     }
@@ -282,6 +288,54 @@ const HOW: &[&str] = &[
     "настройк",
     "удалить",
     "хранятся",
+];
+
+/// Asking to find or bring back what was recorded, which keeps a question
+/// with the recordings even when it also names a preference; `=` ends a word
+/// that must match whole.
+const RECALL: &[&str] = &[
+    "find",
+    "search",
+    "show",
+    "look= for=",
+    "recall",
+    "remind",
+    "list=",
+    "what= did=",
+    "when= did=",
+    "who= did=",
+    "найди",
+    "найти",
+    "поищи",
+    "покажи",
+    "вспомни",
+    "напомни",
+    "перечисли",
+    "что= я=",
+    "что= мы=",
+    "о= чем= я=",
+    "о= чем= мы=",
+    "когда= я=",
+    "когда= мы=",
+];
+
+/// Saying how they want VibeHex to work for them: a setup question the
+/// guide answers, whichever recordings it names.
+const SETUP: &[&str] = &[
+    "важн",
+    "удобств",
+    "удобн",
+    "предпочит",
+    "распозна",
+    "точност",
+    "настро",
+    "под меня",
+    "important",
+    "matters",
+    "prefer",
+    "accura",
+    "recogni",
+    "convenien",
 ];
 
 /// The time a question names, `[since, until)`.
