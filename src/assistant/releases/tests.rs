@@ -23,6 +23,145 @@ fn sample() -> &'static [Note] {
     Box::leak(notes.into_boxed_slice())
 }
 
+fn running(version: &str, previous: Option<&str>) -> Running {
+    Running {
+        version: version.into(),
+        dev: false,
+        previous: previous.map(str::to_owned),
+    }
+}
+
+fn versions(selection: &Selection) -> Vec<&str> {
+    selection
+        .notes
+        .iter()
+        .map(|note| note.version.as_str())
+        .collect()
+}
+
+#[test]
+fn versions_sort_by_their_numbers() {
+    let all = sample();
+    let names: Vec<&str> = all.iter().map(|note| note.version.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "3.3.0-vibe.1",
+            "3.3.0-vibe.2",
+            "3.3.0-vibe.3",
+            "3.3.0-vibe.10",
+            "next"
+        ]
+    );
+    assert_eq!(order("3.3.0-vibe.10"), Some([3, 3, 0, 10]));
+    for odd in [
+        "3.3.0",
+        "0.0.0-dev-local-abc",
+        "3.3.0-vibe.",
+        "3.3-vibe.1",
+        "next",
+    ] {
+        assert_eq!(order(odd), None, "{odd}");
+    }
+}
+
+#[test]
+fn an_update_reads_every_release_since_the_one_run_before() {
+    let since = select_from(
+        sample(),
+        &Asked::default(),
+        running("3.3.0-vibe.10", Some("3.3.0-vibe.1")),
+    );
+    assert_eq!(since.why, Why::Since);
+    assert_eq!(
+        versions(&since),
+        ["3.3.0-vibe.10", "3.3.0-vibe.3", "3.3.0-vibe.2"]
+    );
+    assert_eq!(since.settings_keys(), ["labs.files", "ui_language"]);
+}
+
+#[test]
+fn without_the_one_before_it_reads_the_one_running() {
+    for previous in [
+        None,
+        Some("3.3.0-vibe.10"),
+        Some("3.3.0-vibe.99"),
+        Some("garbage"),
+    ] {
+        let this = select_from(
+            sample(),
+            &Asked::default(),
+            running("3.3.0-vibe.10", previous),
+        );
+        assert_eq!(versions(&this), ["3.3.0-vibe.10"], "{previous:?}");
+        assert_eq!(this.why, Why::Running);
+    }
+    let older = select_from(sample(), &Asked::default(), running("3.3.0-vibe.2", None));
+    assert_eq!(versions(&older), ["3.3.0-vibe.2"]);
+}
+
+#[test]
+fn a_development_build_reads_next_and_the_latest_release() {
+    let dev = Running {
+        version: "3.3.0".into(),
+        dev: true,
+        previous: None,
+    };
+    let selection = select_from(sample(), &Asked::default(), dev);
+    assert_eq!(selection.why, Why::Dev);
+    assert_eq!(versions(&selection), ["next", "3.3.0-vibe.10"]);
+}
+
+#[test]
+fn a_version_without_notes_reads_the_latest() {
+    let selection = select_from(sample(), &Asked::default(), running("3.2.0", None));
+    assert_eq!(selection.why, Why::Latest);
+    assert_eq!(versions(&selection), ["3.3.0-vibe.10"]);
+}
+
+#[test]
+fn a_named_version_reads_only_it() {
+    for named in ["3.3.0-vibe.2", "v3.3.0-vibe.2", "vibe.2", "2"] {
+        let asked = Asked {
+            version: Some(named.into()),
+            history: false,
+        };
+        let selection = select_from(
+            sample(),
+            &asked,
+            running("3.3.0-vibe.10", Some("3.3.0-vibe.1")),
+        );
+        assert_eq!(versions(&selection), ["3.3.0-vibe.2"], "{named}");
+        assert_eq!(selection.why, Why::Named);
+    }
+    let asked = Asked {
+        version: Some("3.3.0-vibe.42".into()),
+        history: false,
+    };
+    let missing = select_from(sample(), &asked, running("3.3.0-vibe.10", None));
+    assert_eq!(missing.why, Why::Latest);
+    assert_eq!(missing.named.as_deref(), Some("3.3.0-vibe.42"));
+}
+
+#[test]
+fn the_history_reads_every_release_newest_first() {
+    let asked = Asked {
+        version: None,
+        history: true,
+    };
+    let selection = select_from(sample(), &asked, running("3.3.0-vibe.10", None));
+    assert_eq!(
+        versions(&selection),
+        [
+            "next",
+            "3.3.0-vibe.10",
+            "3.3.0-vibe.3",
+            "3.3.0-vibe.2",
+            "3.3.0-vibe.1"
+        ]
+    );
+}
+
 fn on_disk() -> Vec<(String, String)> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/releases");
     let mut files: Vec<(String, String)> = std::fs::read_dir(&root)

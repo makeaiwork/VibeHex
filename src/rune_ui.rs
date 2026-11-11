@@ -194,6 +194,8 @@ pub(crate) fn run_app(
 /// host through `connect`, with the playground that Labs › Playground opens.
 pub(crate) fn app(connect: host::Connect) -> rune::App<Ui> {
     onboarding_kit::set_live_window(true);
+    // Assistant's "what's new" reads the releases since the version run before.
+    crate::assistant::releases::history::record_running();
     let app = build(move || Ui::load_with(connect), PlaygroundMode::Gated);
     #[cfg(target_os = "macos")]
     let app = app.on_open_url(on_open_url);
