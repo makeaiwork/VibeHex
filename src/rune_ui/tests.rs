@@ -2900,6 +2900,19 @@ fn goldens() {
     ] {
         check_golden(scene, true, PANE_SIZE);
     }
+    // Setting-change cards: every state, in both themes.
+    for scene in [
+        "assistant-cards",
+        "assistant-cards-more",
+        "assistant-cards-held",
+        "assistant-cards-prompt",
+        "assistant-applied",
+        "assistant-change-both",
+        "assistant-change-coming",
+    ] {
+        check_golden(scene, false, PANE_SIZE);
+        check_golden(scene, true, PANE_SIZE);
+    }
     // Answers from recordings, and the places one opens, in both themes.
     for scene in [
         "assistant-recordings",

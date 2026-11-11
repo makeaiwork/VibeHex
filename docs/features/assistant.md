@@ -78,6 +78,40 @@ Opened from an answer                            // rune_ui::assistant::jump
   springs back (0.46 s); while an answer comes its eyes read. Under Reduce
   Motion nothing moves and reading eyes rest to one side.
 
+## Setting changes as cards
+
+- An answer may suggest setting changes. The model writes them after its
+  answer as fenced `hex-change` lines (key, value, why; or `options` and
+  `suggest` for a choice); the app reads them (`assistant::changes::parse`),
+  never shows them raw (the draft stops at the fence, and "Preparing a
+  change…" stands in while the rest comes), and turns each line into a card
+  under the answer, or refuses it.
+- The prompt lists only the keys a card may change, with their values,
+  where they live in the window, and, with `assistant.send_settings` on,
+  their value now (`assistant::changes::catalog`). A large model reads every
+  such key; a local one reads the keys its articles name and a core set.
+  Never offered: the update channel, API keys, sign-ins, folders and paths,
+  microphones, app and site lists, calendar ids, Assistant's own settings.
+- Pressing a card's button is the only way it changes anything. The save
+  goes through `control::settings::check`, the path `hex settings set`
+  takes, with what the key needs first (a Labs feature, Meetings) in the
+  same save ("Also turns on…", "Change both"); a speech model or language
+  goes through the service, which downloads it first and switches when
+  done. A shorter retention says what goes (older meetings to the Trash,
+  older dictations deleted) and its button is Danger.
+- Only the newest card still waiting gets the Primary button. Undo puts
+  back everything the save changed while the conversation stays open this
+  session; another conversation, a quit, or a hand change ends it, and the
+  card then says Applied with Show in Labs (or its pane).
+- What a card shows follows the settings each frame: applied, declined,
+  already set, changed by hand since, downloading, a macOS permission to
+  ask, a Codex sign-in, or held by the organization or the OS.
+- A line the app refuses (no such key, a value it doesn't take, a key
+  never changed from a card) shows as a muted row, never an action. Codex,
+  OpenCode, OpenRouter, and your own server get one silent round to fix
+  their refused lines; a built-in model doesn't. The next question tells
+  the model what became of each card.
+
 ## Questions about recordings
 
 - `assistant::intent` reads from the question's words alone, against a
@@ -160,11 +194,15 @@ by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.
 
 Checks: `scripts/check assistant` (store, worker, retrieve, prompt, intent,
-recordings and its eval, jump, settings keys); scenes `assistant`,
+recordings and its eval, jump, settings keys, changes and their cards); scenes `assistant`,
 `assistant-answering`, `assistant-start`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
 `assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
-`files-cited`, `files-cited-listening`, `history-cited` and their goldens;
+`files-cited`, `files-cited-listening`, `history-cited`, the cards'
+`assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,
+`assistant-cards-prompt`, `assistant-applied`, `assistant-change-both`,
+`assistant-change-coming`, and their goldens; `scripts/check control::settings`
+for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
 Cmd+[, and the landing at two window heights. Not yet verified
 end to end by asking a real model from a running app.

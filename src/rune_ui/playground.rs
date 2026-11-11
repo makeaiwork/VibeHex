@@ -194,6 +194,34 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Answer with its steps open",
     ),
     (
+        "assistant-cards",
+        "Window/Assistant/Cards/Suggested and decided",
+    ),
+    (
+        "assistant-cards-more",
+        "Window/Assistant/Cards/A choice and a download",
+    ),
+    (
+        "assistant-cards-held",
+        "Window/Assistant/Cards/Permission, sign-in, and held",
+    ),
+    (
+        "assistant-cards-prompt",
+        "Window/Assistant/Cards/Instructions and a shorter retention",
+    ),
+    (
+        "assistant-applied",
+        "Window/Assistant/Cards/Applied with Undo",
+    ),
+    (
+        "assistant-change-both",
+        "Window/Assistant/Cards/Change both",
+    ),
+    (
+        "assistant-change-coming",
+        "Window/Assistant/Cards/Preparing a change",
+    ),
+    (
         "meetings-cited",
         "Window/Assistant/Meeting opened from an answer",
     ),
