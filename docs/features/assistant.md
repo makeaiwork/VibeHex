@@ -907,6 +907,162 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   follow-ups that must read the earlier question's recordings again (the
   guide questions, followed up, must not; `scripts/check assistant::recordings`).
 
+## Agent mode
+
+On a remote engine (Codex, OpenRouter, your own server, OpenCode) a turn can
+read step by step instead of being handed what the router guessed the
+question needs (`assistant::agent`). A built-in model, a setup stage, the
+"like Denis" preset, and Files' and Meetings' Requests always answer in one
+request, as before; so does a remote engine agent mode is off for.
+
+```ts
+assistant.agent (text, no row; `hex settings set assistant.agent …`)
+├── ""       the engines in agent::VERIFIED: those a live run of the
+│            scenarios passed on (the table below)
+├── off      none
+├── all      every remote engine
+└── a list   of codex, openrouter, custom (your own server), opencode
+HEX_ASSISTANT_AGENT=1 | 0   overrides it for one run of the app or the eval
+```
+
+- **First request.** A guide question's: the guide's contents, the three
+  articles that match best (the app's own pre-read, the first line of the
+  trace), the catalog's core lines and `<state>`, the earlier turns, the
+  question. Nothing of the person's own is in it, whatever it asks. So a
+  question the guide answers still takes one request.
+- **What the model is told** (`agent::prompt`). The base instructions with
+  their three guide-only rules swapped (`SWAPS`: it answers from what it
+  reads too, asks to read before saying the guide doesn't cover something,
+  and what the person's recordings hold is a question about VibeHex), then
+  `RULES`: reading works only by replying with the block (the tools are
+  not functions of its own to look for), what to read for which kind of
+  question, never to say something can't be read or what it holds before a
+  result said so (`<state>` gives counts, never contents), and the tools.
+  Under the question, one line (`ASK`): answer now if what is above
+  answers it, else reply with only a block. The app's own reading of the
+  question goes along as `<hint>` lines saying what to ask for, which the
+  model may overrule: a question the router reads as about recordings
+  (sure, or maybe), about release notes, a word written as another
+  (`intent::cleanup::written`), or the cleanup instructions
+  (`intent::cleanup::instructions`). A hint reads nothing. Under the
+  results: how to read what was read, a line to cite the excerpts by
+  number once there are any, and "answer now, or ask to read more". All
+  of it came from the first live pass, where a model at low effort mostly
+  answered without asking.
+- **Asking to read** (`agent::protocol`). A reply that is one fenced
+  `hex-read` block, a JSON object a line (`{"tool":"guide_read","ids":[…]}`),
+  is a request, not an answer: the app runs each call, puts the results
+  under the question as `<read step="N">` with a `<call>` and a
+  `<result tool="…">` each, and asks again. Prose around a block is
+  dropped and the block run. A line that isn't an object naming a tool, a
+  tool nobody has, a call past the limits: each gets a result saying so,
+  and the turn goes on. A result is data: it can't close its own block
+  (a closing tag in it is taken apart). The draft shows nothing while a
+  reply may still be a block.
+- **Limits** (`agent::Limits`). 6 requests a turn, the last told to answer
+  with a block in it cut out; 4 calls a block, 12 a turn; 9,000 characters
+  a result and 60,000 a turn (16,000 on your own server, whose window may
+  be short); a recordings search within `Budget::LARGE` (`SMALL` on your
+  own server); 300 s of model time. A silent request is asked again once,
+  twice a turn at most. Stop is looked for between calls and requests, and
+  keeps the draft and the trace.
+- **The answer** goes through `settle` as any other: cards, the gate, the
+  repair round, `Sources:`, citations.
+
+The tools (`agent::table`, run by `agent::tools::Desk`); none changes
+anything, a change is still a card the person presses:
+
+| Tool | Gives | Held by |
+| --- | --- | --- |
+| `guide_search`, `guide_read` | article ids and titles; articles whole with their settings' lines | nothing |
+| `facts` | `<state>` again | `send_settings` |
+| `settings_get` | catalog lines by key or prefix | only what `catalog::sendable` allows: never a key in `catalog::NEVER`, a secret, URL, path, text or JSON value, or a setting this computer lacks; with `send_settings` off, lines without the now column and the not-sent text |
+| `cleanup_instructions` | every mode's instructions and replacements | `send_settings`; web off after |
+| `vocabulary_lookup`, `vocabulary_list` | the entries some words name; the terms | `send_settings`; web off after an entry is read |
+| `recordings_search`, `meetings_list`, `files_list` | numbered excerpts; lists with ids | consent; web off once anything is found |
+| `meeting_notes`, `meeting_transcript`, `file_read`, `dictation_read` | one recording's notes or a stretch of its text, by id or by an excerpt's number | consent; web off after |
+| `usage_insights` | counts, shares, apps: never a dictation's text | consent; web off after |
+| `release_notes` | the notes since the version run before, one version's, or all | nothing |
+
+- **Recordings** are read only in `assistant::recordings::read`, every
+  function of which takes `&Allowed`; `assistant_code_names_no_personal_data`
+  holds the rest of the code to that. Excerpts are numbered on one shelf for
+  the turn (`recordings::Shelf`), so `[2.3]` means the same line in every
+  result and in the answer.
+- **Consent mid-answer.** A question the router is sure is about recordings
+  still shows the card before the turn, as today. Otherwise a recordings
+  tool called while `assistant.read_recordings` isn't `true` parks the turn
+  (`agent::live`): the pane shows the same card under the steps so far, and
+  the wait is not counted in the answer's seconds. Allow sets the setting
+  and the turn reads on. Answer without recordings saves the no, the tool's
+  result tells the model it may not read them, and that conversation isn't
+  asked again until VibeHex quits (`agent::live::declined`); Stop asks
+  nothing and decides nothing.
+- **The web** (`agent::net`). One function decides before each request
+  whether it may search (Codex with Web on): never once the turn has read
+  anything of the person's own (an excerpt, a list that named a recording,
+  what their use shows, their cleanup instructions, a Vocabulary entry),
+  never when an earlier answer of the conversation did
+  (`Turn::read_recordings`, which reads the trace too), never after a no on
+  the card, and never, from the first request on, for a question the app
+  itself reads as about their own (`agent::own`: the router would search
+  their recordings for it, or its prompt would hold the Vocabulary entries
+  the question names). So the agent's first request may search only where
+  the router's could. A request that may not is the plain call, with the
+  web's rules in the instructions replaced by "Web search is off for this
+  answer". The turn keeps `Web {held_back}` only when the web could have
+  helped: it was on earlier in the turn and what was read since turned it
+  off, or only an earlier answer keeps it off; a question about their own
+  never had the web to lose, and nothing is said, as with the router.
+  Searches made before that stay with the turn. The eval holds every
+  scenario, router's and agent's, to it (`checks::no_web_after_personal`).
+- **The trace.** `Turn::trace` is what the turn did, in order
+  (`agent::trace::Did`): articles by id (`app` for the pre-read), a guide
+  search, settings by key, the instructions, Vocabulary entries as counts,
+  a recordings search as its steps, notes, a transcript or a file by
+  title, a dictation, usage, release notes by version, the card's answer,
+  and a call refused with why. Names and counts, never text. A build that
+  doesn't know a step reads it as `Unknown` and shows nothing for it, and
+  an older build ignores the field, so `recordings::Step` gets no new
+  variants.
+- **In the pane** (`agent::words` says it, `rune_ui::assistant::recall`
+  draws it). While it runs: each thing read with a check, then one line of
+  what goes on: "Looking in the guide" only while the pre-read is all it
+  has or a guide tool runs, "Searching your recordings", "Reading your
+  settings" and the like while a tool runs, "Thinking it over" between
+  reads. Finished: the fold counts only what tools read ("Read 3 meetings
+  and your settings in 9 s"), so a plain guide answer reads "Read the
+  guide in 5 s" with the articles laid out listed under it; a no on the
+  card and a refused call have a small cross, not a check. `What Assistant
+  knew` counts the articles and the excerpts the turn ended with.
+
+Engines a live run passed on (`scripts/assistant-eval` with
+`HEX_ASSISTANT_AGENT=1`, compared with `=0` on the same scenarios), which
+is what puts one into `agent::VERIFIED`:
+
+| Engine | Default | Live run |
+| --- | --- | --- |
+| Codex (`codex`) | agent | 13 November 2026, GPT-6-Luna at low effort, 37 scenarios: 36 pass, 333 of 334 checks, against 37 of 37 through the router the same night |
+| OpenRouter (`openrouter`) | router | not run: no key on the machine the runs were made on |
+| Your own server (`custom`) | router | not run: the models at hand were small local ones, not loaded |
+| OpenCode (`opencode`) | router | not run: what a request costs depends on the provider behind it |
+
+The one check Codex missed, `07-words-wrong` leading with the person's
+shortcut, reads nothing and is as unsteady through the router at low
+effort (asked alone three times each right after: the router missed it
+three times, the agent once). The first agent pass that night held 28 of
+37: the model answered without asking; what it is told now (above) came
+of that, and a reply that was a call with its fence written wrong, shown
+as the answer in the third pass, is read as a call since.
+
+What a step costs, same run: an answer that read (20 of 44 turns) showed
+its first step line after 9 s, its first word after 15 s, and ended after
+19 s (medians), where the router, which reads before it asks, had the
+first word after 5 s and ended after 9 s. An answer in one request had its
+first word after 8 s against 6 s. The agent's requests carried 50 k
+characters a turn against 39 k (medians). A model at higher effort asks
+more readily; run the scenarios again before naming another engine here.
+
 ## Settings keys
 
 | Key | Default | Meaning |
@@ -914,6 +1070,7 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
 | `assistant.enabled` | `true` | The sidebar row |
 | `assistant.engine` | none | Where answers run, in `files.request_engine`'s form; none follows AI cleanup |
 | `assistant.effort` | empty (medium) | Codex reasoning: low, medium, high |
+| `assistant.agent` | empty | Which remote engines read step by step (Agent mode): empty for the verified ones, `off`, `all`, or a list of `codex`, `openrouter`, `custom`, `opencode`. No row in the window |
 | `assistant.keep_conversations` | `true` | Keep conversations on this computer |
 | `assistant.read_recordings` | none | May search meetings, Files texts, and dictations for questions about them; none until first asked |
 | `assistant.send_settings` | `true` | The model reads the current switches, choices, numbers, shortcuts, and speech models with each question; never API keys, paths, or lists |
@@ -1062,7 +1219,15 @@ path, from the route to the parsed turn.
   event and in all, the prompt's size), writes a JSON report
   (`HEX_ASSISTANT_EVAL_OUT`), and exits non-zero on a failed check;
   `HEX_ASSISTANT_EVAL_DUMP` names a folder for what each step sent the
-  model, to read when one fails. A
+  model, to read when one fails (a file a request: `10.txt`, `10-2.txt`).
+  `HEX_ASSISTANT_AGENT=1` runs the remote engine as an agent and `=0`
+  through the router, whatever `assistant.agent` says; the table then
+  holds each step's requests, the time to its first step line (`read`),
+  and the tools it called, and the JSON its trace. Scenarios 21 to 31 are
+  the agent's (`eval/agent.rs`): offline they are played as an agent
+  (`the_agent_scenarios_hold_offline`), wrong replies included (a tool
+  nobody has, endless reads, prose around a block, a call before consent);
+  live they hold the trace and the answer on either path. A
   remote engine is paid per request: run it whole after a change to the
   prompt, the catalog, the facts, or a gate, and before a release; after a
   fix, only what failed (`HEX_ASSISTANT_EVAL_ONLY=08,11-returning`).

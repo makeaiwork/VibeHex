@@ -658,6 +658,20 @@ substitute for source inspection or a second roadmap.
   <X.Y.Z-vibe.N>.md`, `next.md`) and the versions this install ran, for
   "what's new"; `scripts/publish-vibehex.sh notes` turns `next.md` into a
   release's notes.
+  `assistant::agent` is agent mode, on remote engines only (Codex,
+  OpenRouter, your own server, OpenCode; `assistant.agent` and
+  `HEX_ASSISTANT_AGENT=0|1` say which): the model asks what to read in a
+  `hex-read` block (`protocol`), the app runs read-only tools (`tools`,
+  `table`) and asks again with the results, within `Limits`. `agent::net`
+  is the one place that decides, before each request, whether it may search
+  the web: never once the turn or its conversation holds anything of the
+  person's own, and never for a question the app itself reads as about
+  their own (`agent::own`). A tool reads recordings only through `recordings::read`
+  with `&Allowed`; no tool changes anything (changes stay cards). What a
+  turn read is its `Turn::trace` (`agent::trace`), worded for the pane by
+  `agent::words`. Built-in models, setup stages, the preset and Requests
+  answer in one request, as the router (`intent::route`) has it. The guide
+  tells people about it in `docs/guide/topics/assistant-steps.md`.
 - `labs`: the Labs feature registry (`labs::Feature`: name, settings key,
   description, audience, group), the runtime gates (`labs::live_text`, `live_chapters`,
   `playground`, `vocabulary_biasing`, `mouse_shortcuts`), and
@@ -1658,7 +1672,11 @@ capture), not just its UI. Never add a master switch or ship such a feature
 on by default. Remove it from Labs when it graduates or is dropped.
 Assistant (`assistant`, `rune_ui/assistant`, [docs/features/assistant.md](docs/features/assistant.md))
 is the one exception by the owner's decision: on by default, not in Labs,
-hidden only by `assistant.enabled`. Every problem reported about Assistant
+hidden only by `assistant.enabled`. Its agent mode is part of it, not a
+Labs feature: `assistant.agent` (a text key with no row) names the engines
+it is on for, and an engine joins the default list (`agent::VERIFIED`) only
+after a live run of the scenarios passes on it
+(docs/features/assistant.md › Agent mode). Every problem reported about Assistant
 becomes a scenario in `src/assistant/eval` in the change that fixes it
 (docs/features/assistant.md › Quality loop).
 

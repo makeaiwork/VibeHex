@@ -71,7 +71,11 @@ for me" asks four questions and offers one list of changes. "What's new?"
 reads VibeHex's own release notes (`docs/releases`) since the version the
 install ran before and offers what fits the person's settings. On Codex,
 with Web on (the default), it may search the web when the guide has no
-answer.
+answer. Also on Codex it answers as an agent: the model asks what to read
+(the guide, settings, cleanup instructions, Vocabulary, recordings, usage,
+release notes) a step at a time, through read-only tools, and the pane
+lists what it read; other remote engines can be switched to it with
+`assistant.agent`, and built-in models never are.
 [Annotate](capture.md) (macOS, Linux,
 and Windows) records the screen while you draw and talk and sends it to an agent.
 [Screenshots](labs.md) (Labs, macOS) takes CleanShot-style ⌘⇧4 area and
