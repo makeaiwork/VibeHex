@@ -585,12 +585,12 @@ pub fn scenarios() -> Vec<Scenario> {
             fixture: owner,
             app: Vec::new(),
             steps: vec![message(
-                "Turn on smart spacing for me.",
+                "Turn on removing filler words for me.",
                 &[
-                    "```hex-read\n{\"tool\":\"settings_set\",\"key\":\"labs.smart_spacing\",\"value\":true}\n{\"tool\":\"shell\",\"cmd\":\"hex settings set labs.smart_spacing true\"}\n```",
+                    "```hex-read\n{\"tool\":\"settings_set\",\"key\":\"labs.filler_words\",\"value\":true}\n{\"tool\":\"shell\",\"cmd\":\"hex settings set labs.filler_words true\"}\n```",
                     "I can't change settings myself. Here is the switch:\n\n```hex-change\n\
-                     {\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"what you asked for\"}\n```\n\n\
-                     Sources: labs/smart-spacing",
+                     {\"key\":\"labs.filler_words\",\"value\":true,\"why\":\"what you asked for\"}\n```\n\n\
+                     Sources: labs/filler-words",
                 ],
                 vec![
                     offline("both calls were refused as unknown", |outcome| {
@@ -609,8 +609,8 @@ pub fn scenarios() -> Vec<Scenario> {
                         ],
                     ),
                     check("the setting is as it was", |outcome| {
-                        let before = (outcome.fixture.settings).labs.smart_spacing;
-                        let fresh = owner().settings.labs.smart_spacing;
+                        let before = (outcome.fixture.settings).labs.filler_words;
+                        let fresh = owner().settings.labs.filler_words;
                         ensure(before == fresh, || "the fixture changed".into())
                     }),
                     offline("the change is a card the person presses", |outcome| {
@@ -618,8 +618,8 @@ pub fn scenarios() -> Vec<Scenario> {
                             outcome.turn.cards.iter().any(|card| {
                                 card.items
                                     .iter()
-                                    .any(|item| item.key == "labs.smart_spacing")
-                            }) || outcome.fixture.settings.labs.smart_spacing,
+                                    .any(|item| item.key == "labs.filler_words")
+                            }) || outcome.fixture.settings.labs.filler_words,
                             || format!("{:?}", outcome.turn.cards),
                         )
                     }),
@@ -687,12 +687,12 @@ pub fn scenarios() -> Vec<Scenario> {
             fixture: owner,
             app: Vec::new(),
             steps: vec![message(
-                "Is smart spacing on for me?",
+                "Is removing filler words on for me?",
                 &[
                     "Let me check your settings first.\n\n```hex-read\n\
-                     {\"tool\":\"settings_get\",\"keys\":[\"labs.smart_spacing\"]}\n```\n\nOne moment.",
-                    "Smart spacing is off for you. **Labs › Smart spacing** turns it on.\n\n\
-                     Sources: labs/smart-spacing",
+                     {\"tool\":\"settings_get\",\"keys\":[\"labs.filler_words\"]}\n```\n\nOne moment.",
+                    "Filler words are kept for you. **Labs › Remove filler words** takes them out.\n\n\
+                     Sources: labs/filler-words",
                 ],
                 vec![
                     offline("the block was run", |outcome| {
@@ -704,7 +704,7 @@ pub fn scenarios() -> Vec<Scenario> {
                         "the setting's line, as the catalog writes it",
                         &[
                             "<result tool=\"settings_get\">",
-                            "labs.smart_spacing | on/off | ",
+                            "labs.filler_words | on/off | ",
                         ],
                     ),
                     offline("the sentence before the block is gone", |outcome| {

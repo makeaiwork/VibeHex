@@ -280,7 +280,7 @@ fn with_the_settings_not_sent_no_value_instruction_or_term_is_read() {
     let mut desk = desk(&context, Access::Closed);
     let person = Person::default();
     let settings = desk.run(
-        &call(r#"{"tool":"settings_get","keys":["labs.smart_spacing","sound_effects"]}"#),
+        &call(r#"{"tool":"settings_get","keys":["labs.filler_words","sound_effects"]}"#),
         &person,
     );
     assert!(
@@ -350,20 +350,17 @@ fn instructions_and_named_terms_are_read_when_sent_and_are_personal() {
 
 #[test]
 fn the_guide_is_searched_and_read_with_its_settings_lines() {
+    // A feature every OS has: its setting has a line everywhere.
     let context = context(true);
     let person = Person::default();
     let mut desk = desk(&context, Access::Closed);
     desk.laid_out(&["topics/meetings"]);
 
     let found = desk.run(
-        &call(r#"{"tool":"guide_search","query":"smart spacing","limit":50}"#),
+        &call(r#"{"tool":"guide_search","query":"filler words","limit":50}"#),
         &person,
     );
-    assert!(
-        found.text.contains("labs/smart-spacing: "),
-        "{}",
-        found.text
-    );
+    assert!(found.text.contains("labs/filler-words: "), "{}", found.text);
     assert!(found.text.lines().count() <= 6);
     assert!(matches!(
         found.did[..],
@@ -371,30 +368,30 @@ fn the_guide_is_searched_and_read_with_its_settings_lines() {
     ));
 
     let read = desk.run(
-        &call(r#"{"tool":"guide_read","ids":["labs/smart-spacing","topics/meetings","no/such"]}"#),
+        &call(r#"{"tool":"guide_read","ids":["labs/filler-words","topics/meetings","no/such"]}"#),
         &person,
     );
     assert!(
         read.text
-            .contains("<guide_article id=\"labs/smart-spacing\">"),
+            .contains("<guide_article id=\"labs/filler-words\">"),
         "{}",
         read.text
     );
     assert!(read.text.contains("topics/meetings: already above."));
     assert!(read.text.contains("\"no/such\": no article has this id"));
     assert!(
-        read.text.contains("labs.smart_spacing | on/off | "),
+        read.text.contains("labs.filler_words | on/off | "),
         "its settings' lines come with it: {}",
         read.text
     );
     assert_eq!(
         read.did,
         [Did::Articles {
-            ids: vec!["labs/smart-spacing".into()],
+            ids: vec!["labs/filler-words".into()],
             app: false
         }]
     );
-    assert_eq!(desk.articles(), ["topics/meetings", "labs/smart-spacing"]);
+    assert_eq!(desk.articles(), ["topics/meetings", "labs/filler-words"]);
     assert!(!desk.personal());
 
     let nothing = desk.run(&call(r#"{"tool":"guide_read","ids":["no/such"]}"#), &person);
