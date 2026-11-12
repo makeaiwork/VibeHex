@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use color_eyre::eyre::Result;
 use serde_json::Value;
 
+use super::agent::{self, access::Access, trace::Did, trace::Doing};
 use super::changes;
 use super::intent::Intent;
 use super::prompt::{self, Reach, Room};
@@ -61,6 +62,13 @@ pub struct Question {
     pub setup: Stage,
     /// The conversation's Web is on: a Codex answer may search the web.
     pub web: bool,
+    /// What an agent turn may read of the person's recordings when its
+    /// model asks to (`agent::tools`); the router's own search carries its
+    /// leave in `recall`.
+    pub access: Access,
+    /// When it was asked, for the times an agent turn's tools read
+    /// (`yesterday`, `7d`).
+    pub now_ms: u64,
 }
 
 /// An earlier question, its answer, and what became of its changes.
@@ -118,6 +126,13 @@ pub struct Answering {
     pub web: Web,
     /// The model stayed silent past [`FIRST_EVENT`] and is asked again.
     pub retrying: bool,
+    /// What an agent turn has read so far, in order (`agent::trace`).
+    pub trace: Vec<Did>,
+    /// What an agent turn is doing now.
+    pub doing: Option<Doing>,
+    /// An agent turn waits for the person to say whether their recordings
+    /// may be read: the consent card shows under its steps.
+    pub asking: bool,
 }
 
 #[derive(Default)]
@@ -185,10 +200,25 @@ pub fn ask(question: Question, engine: Engine) -> bool {
     // (which answers whole) and the person's own server (reading a long
     // prompt on their hardware) may be silent a long while.
     let silence = engine.streams_from_the_cloud().then_some(FIRST_EVENT);
+    let engine_kind = engine.clone();
     let generate: Generate = Box::new(move |instructions, input, cancel, streamed| {
         engine.generate(context, instructions, input, cancel, streamed)
     });
-    start_with(question, room, model, (generate, search), (local, silence))
+    let agent = agent::limits(
+        &engine_kind,
+        question
+            .changes
+            .as_ref()
+            .map(|context| &context.settings.assistant),
+    );
+    start_with(
+        question,
+        room,
+        model,
+        (generate, search),
+        (local, silence),
+        agent,
+    )
 }
 
 /// Whether `question`'s answer may search the web: its conversation's Web
@@ -225,7 +255,7 @@ fn offline(question: &Question, found: Option<&Found>, vocabulary: bool) -> Opti
 
 #[cfg(test)]
 fn start(question: Question, room: Room, model: String, generate: Generate, local: bool) -> bool {
-    start_with(question, room, model, (generate, None), (local, None))
+    start_with(question, room, model, (generate, None), (local, None), None)
 }
 
 pub(super) fn start_with(
@@ -234,6 +264,7 @@ pub(super) fn start_with(
     model: String,
     (generate, search): (Generate, Option<Searching>),
     (local, silence): (bool, Option<Duration>),
+    agent: Option<agent::Limits>,
 ) -> bool {
     let mut held = state();
     if held.answering.is_some() {
@@ -259,6 +290,9 @@ pub(super) fn start_with(
         cards_coming: false,
         web: Web::default(),
         retrying: false,
+        trace: Vec::new(),
+        doing: None,
+        asking: false,
     });
     held.cancel = Some(cancel.clone());
     changed(held);
@@ -272,14 +306,21 @@ pub(super) fn start_with(
                 .as_ref()
                 .map(|context| context.settings.clone());
             super::language::within_maybe(settings.as_ref(), || {
+                // Setup's stages are one request each, whatever the engine.
+                let agent = agent.filter(|_| question.setup == Stage::None);
                 let asker = Asker {
                     generate: &generate,
                     search: search.as_ref(),
                     cancel: &cancel,
                     silence,
-                    retries: Cell::new(1),
+                    // One more for a turn of several requests.
+                    retries: Cell::new(if agent.is_some() { 2 } else { 1 }),
+                    reads: agent.is_some(),
                 };
-                let answered = one_shot(&question, room, &asker, local);
+                let answered = match agent {
+                    Some(limits) => agent::run(&question, &asker, limits),
+                    None => one_shot(&question, room, &asker, local),
+                };
                 finish(&question, &model, started, answered, &cancel);
                 if local {
                     engine::narrow();
@@ -313,6 +354,9 @@ pub(super) struct Asker<'a> {
     pub silence: Option<Duration>,
     /// How many silent requests may still be asked again.
     pub retries: Cell<u32>,
+    /// A reply may be a request to read (`agent::protocol`), which never
+    /// shows as a draft.
+    pub reads: bool,
 }
 
 impl Asker<'_> {
@@ -323,7 +367,7 @@ impl Asker<'_> {
         let search = self.search.filter(|_| web);
         let ask = |stop: &AtomicBool, heard: &Arc<AtomicBool>| {
             let streamed: Streamed = {
-                let (heard, drafts) = (heard.clone(), drafts());
+                let (heard, drafts) = (heard.clone(), drafts(self.reads));
                 Arc::new(move |chars, text| {
                     heard.store(true, Ordering::Release);
                     drafts(chars, text);
@@ -374,6 +418,8 @@ pub(super) struct Answered {
     pub articles: Vec<&'static str>,
     /// What the model was told of this install (`facts::text::knew`).
     pub knew: String,
+    /// What an agent turn read, in order; empty for the router's.
+    pub trace: Vec<Did>,
 }
 
 /// One request, with what the router chose for it to read: what a search
@@ -443,6 +489,7 @@ fn one_shot(question: &Question, room: Room, asker: &Asker, local: bool) -> Answ
         found,
         articles: prompt.articles,
         knew: prompt.knew,
+        trace: Vec::new(),
     }
 }
 
@@ -544,8 +591,18 @@ fn seen(item: &Value, done: bool) {
     changed(state);
 }
 
+/// Changes the answering state, if a question is being answered, and
+/// wakes the window.
+pub(super) fn update(change: impl FnOnce(&mut Answering)) {
+    let mut state = state();
+    if let Some(answering) = &mut state.answering {
+        change(answering);
+    }
+    changed(state);
+}
+
 /// Shows "Preparing a change" while a remote model is asked once more.
-fn asking_again() {
+pub(super) fn asking_again() {
     let mut state = state();
     if let Some(answering) = &mut state.answering {
         answering.cards_coming = true;
@@ -554,9 +611,14 @@ fn asking_again() {
 }
 
 /// The streamed reply into the draft, at most once each [`DRAFT_EVERY`].
-fn drafts() -> Streamed {
+fn drafts(reads: bool) -> Streamed {
     let last: Mutex<Option<Instant>> = Mutex::new(None);
     Arc::new(move |_, text| {
+        // A reply that asks to read shows nothing, however it is fenced.
+        let text = match reads && agent::protocol::reads(text).is_some() {
+            true => "",
+            false => text,
+        };
         let now = Instant::now();
         {
             let mut last = last.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -586,14 +648,16 @@ fn finish(
         found,
         articles,
         knew,
+        trace,
     } = answered;
     let found = found.as_ref();
     let mut state = state();
-    let (draft, web) = state
+    // The clock leaves out the time an agent turn waited on the person.
+    let (draft, web, started) = state
         .answering
         .take()
-        .map(|answering| (answering.draft, answering.web))
-        .unwrap_or_default();
+        .map(|answering| (answering.draft, answering.web, answering.started))
+        .unwrap_or_else(|| (String::new(), Web::default(), started));
     state.cancel = None;
     let mut turn = Turn {
         question: question.question.clone(),
@@ -601,6 +665,7 @@ fn finish(
         seconds: started.elapsed().as_secs_f32(),
         created_ms: now_ms(),
         steps: found.map(|found| found.steps.clone()).unwrap_or_default(),
+        trace,
         knew: knew.clone(),
         ..Turn::default()
     };
@@ -720,6 +785,8 @@ mod tests {
             changes: None,
             setup: Stage::None,
             web: false,
+            access: Access::Closed,
+            now_ms: 0,
         }
     }
 
@@ -1213,7 +1280,8 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, None),
-            (false, Some(Duration::from_millis(100)))
+            (false, Some(Duration::from_millis(100))),
+            None
         ));
         let (_, turn) = finished();
         assert_eq!(turn.answer, "Hello");
@@ -1244,7 +1312,8 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, None),
-            (false, Some(Duration::from_millis(100)))
+            (false, Some(Duration::from_millis(100))),
+            None
         ));
         let (_, turn) = finished();
         assert_eq!(turn.answer, "Slow but here");
@@ -1270,7 +1339,8 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, None),
-            (false, Some(Duration::from_millis(100)))
+            (false, Some(Duration::from_millis(100))),
+            None
         ));
         let (_, turn) = finished();
         assert_eq!(*asked.lock().unwrap(), 2, "asked again once, not more");
@@ -1358,7 +1428,8 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, Some(search)),
-            (false, None)
+            (false, None),
+            None
         ));
         let (_, turn) = finished();
         (searched.load(Ordering::SeqCst), turn)
@@ -1498,7 +1569,8 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, Some(search)),
-            (false, None)
+            (false, None),
+            None
         ));
         let (_, turn) = finished();
         assert_eq!(turn.web.searches, ["LM Studio local server"]);

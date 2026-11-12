@@ -170,6 +170,8 @@ fn ask(case: &Case, engine: &Engine) -> Option<(Turn, f32)> {
         changes: Some(context),
         setup: case.setup.clone(),
         web: false,
+        access: crate::assistant::agent::access::Access::Closed,
+        now_ms: 0,
     };
     let started = Instant::now();
     if !worker::ask(question, engine.clone()) {

@@ -13,12 +13,14 @@ use std::time::{Duration, Instant};
 use color_eyre::eyre::Result;
 use serde_json::Value;
 
-use crate::app_settings::AppSettings;
+use crate::app_settings::{AppSettings, AssistantSettings};
+use crate::assistant::agent::access::Access;
+use crate::assistant::agent::{self, Limits};
 use crate::assistant::changes::Context;
 use crate::assistant::facts::State;
 use crate::assistant::intent::{self, Reads, Route};
 use crate::assistant::prompt::{self, Prompt, Room};
-use crate::assistant::recordings::Sources;
+use crate::assistant::recordings::{Allowed, Sources};
 use crate::assistant::setup::Stage;
 use crate::assistant::setup::past::Setup;
 use crate::assistant::store::Turn;
@@ -64,6 +66,24 @@ impl Sent {
 }
 
 impl Outcome<'_> {
+    /// The turn went through the agent's loop: its trace opens with the
+    /// app's own pre-read.
+    pub fn agent(&self) -> bool {
+        !self.turn.trace.is_empty()
+    }
+
+    /// The steps of every search of the recordings the turn made: the
+    /// router's one, or each an agent turn's model asked for.
+    pub fn searched(&self) -> Vec<crate::assistant::recordings::Step> {
+        let mut steps = self.turn.steps.clone();
+        for did in &self.turn.trace {
+            if let crate::assistant::agent::trace::Did::Recordings { steps: more } = did {
+                steps.extend(more.iter().cloned());
+            }
+        }
+        steps
+    }
+
     /// Everything the model read over the turn's requests.
     pub fn read(&self) -> String {
         let all: Vec<String> = self.sent.iter().map(Sent::all).collect();
@@ -88,6 +108,25 @@ pub fn sent(prompt: &Prompt, web: bool) {
             input: prompt.input.clone(),
             web,
         });
+}
+
+/// The tools an agent turn's model called, as it named them, in order.
+static CALLED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// The agent loop's word of each call it was asked to run.
+pub fn called(tool: &str) {
+    CALLED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(tool.to_owned());
+}
+
+fn take_called() -> Vec<String> {
+    std::mem::take(
+        &mut *CALLED
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
+    )
 }
 
 fn take_sent() -> Vec<Sent> {
@@ -129,6 +168,9 @@ pub struct Step {
     /// The replies a model is played as writing offline: the first, then
     /// the repair or rewrite rounds'; the last repeats.
     pub canned: Vec<&'static str>,
+    /// What the person says when an agent turn asks, mid-answer, whether
+    /// their recordings may be read: yes, or not now.
+    pub allows: bool,
     pub checks: Vec<Check>,
 }
 
@@ -152,8 +194,14 @@ pub struct Outcome<'a> {
     pub fixture: &'a Fixture,
     /// A typed message's route.
     pub route: Option<Route>,
-    /// It waits for the consent card: nothing was asked.
+    /// The consent card came up: before anything was asked, or under an
+    /// agent turn's steps when its model called for the recordings.
     pub consent: bool,
+    /// The tools an agent turn's model called, as it named them.
+    pub called: Vec<String>,
+    /// An earlier turn of the conversation held something of the
+    /// person's own (`checks::holds`).
+    pub held_before: bool,
     /// What the model read, a request each, in order; none when no model
     /// was asked.
     pub sent: Vec<Sent>,
@@ -162,17 +210,30 @@ pub struct Outcome<'a> {
 
 /// How a scenario's replies come.
 pub enum Mode {
+    /// Played replies, one request a turn, read for by the router.
     Canned,
+    /// Played replies through the agent's loop (`assistant::agent`).
+    Agent,
     Live(Box<Engine>),
 }
 
 impl Mode {
     fn layer(&self) -> Layer {
         match self {
-            Self::Canned => Layer::Offline,
+            Self::Canned | Self::Agent => Layer::Offline,
             Self::Live(_) => Layer::Live,
         }
     }
+}
+
+/// Which of a step's checks a run holds it to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Held {
+    /// Its own, and the ones every step is held to.
+    All,
+    /// Only the ones every step is held to (`checks::always`): for a
+    /// scenario written for the router, played through the agent's loop.
+    Always,
 }
 
 /// One step's results.
@@ -183,8 +244,18 @@ pub struct StepRan {
     pub turn: Turn,
     pub asked: bool,
     pub first_event: Option<f32>,
+    /// When the first thing the model asked to read showed as a step.
+    pub first_read: Option<f32>,
+    /// When the answer's first words showed.
+    pub first_word: Option<f32>,
     pub seconds: f32,
     pub prompt_chars: usize,
+    /// How many requests the turn made (its repair round aside).
+    pub requests: usize,
+    /// The tools its model called.
+    pub called: Vec<String>,
+    /// What it sent held something of the person's own.
+    pub held: bool,
 }
 
 pub struct Ran {
@@ -255,6 +326,11 @@ fn asks(fixture: &Fixture, turns: &[Turn], step: &Step) -> Asks {
             changes: Some(fixture.context()),
             setup,
             web: step.web,
+            access: Access::of(
+                &fixture.settings,
+                fixture.recordings.as_deref().map(Sources::at),
+            ),
+            now_ms: fixture.now_ms,
         })
     };
     match &step.said {
@@ -288,7 +364,7 @@ fn asks(fixture: &Fixture, turns: &[Turn], step: &Step) -> Asks {
 fn start(question: Question, step: &Step, mode: &Mode) -> bool {
     match mode {
         Mode::Live(engine) => worker::ask(question, (**engine).clone()),
-        Mode::Canned => {
+        Mode::Canned | Mode::Agent => {
             let replies: VecDeque<String> = step.canned.iter().map(|&reply| reply.into()).collect();
             let replies = Arc::new(Mutex::new(replies));
             let next = move || {
@@ -328,29 +404,70 @@ fn start(question: Question, step: &Step, mode: &Mode) -> bool {
                 "played".into(),
                 (generate, search),
                 (false, None),
+                matches!(mode, Mode::Agent).then_some(Limits::REMOTE),
             )
         }
     }
 }
 
-/// Waits for the worker's turn, timing the first thing the pane would
-/// show (a search step, a web search, the first words).
-fn wait(patience: Duration) -> Option<(Turn, Option<f32>, f32)> {
+/// What came of waiting for the worker's turn.
+struct Waited {
+    turn: Turn,
+    /// When the first thing the pane would show came (a step, a web
+    /// search, the first words).
+    first_event: Option<f32>,
+    first_read: Option<f32>,
+    first_word: Option<f32>,
+    seconds: f32,
+    /// The consent card came up mid-answer.
+    consent: bool,
+}
+
+/// Waits for the worker's turn, timing what the pane would show, and
+/// answering an agent turn's consent card as the step's person does.
+fn wait(patience: Duration, allows: bool) -> Option<Waited> {
     let started = Instant::now();
-    let mut first = None;
+    let (mut first_event, mut first_read, mut first_word) = (None, None, None);
+    let mut consent = false;
     while started.elapsed() < patience {
-        if first.is_none()
-            && worker::answering().is_some_and(|answering| {
-                !answering.draft.is_empty()
-                    || !answering.steps.is_empty()
+        let now = started.elapsed().as_secs_f32();
+        if let Some(answering) = worker::answering() {
+            // The app's own pre-read is the first line of every agent
+            // turn; what the model asked for comes after it.
+            let read = !answering.steps.is_empty() || answering.trace.len() > 1;
+            if first_event.is_none()
+                && (!answering.draft.is_empty()
+                    || read
                     || !answering.web.is_empty()
-                    || answering.cards_coming
-            })
-        {
-            first = Some(started.elapsed().as_secs_f32());
+                    || answering.cards_coming)
+            {
+                first_event = Some(now);
+            }
+            if first_read.is_none() && read {
+                first_read = Some(now);
+            }
+            if first_word.is_none() && !answering.draft.is_empty() {
+                first_word = Some(now);
+            }
+            if answering.asking {
+                consent = true;
+                // As the pane does: the setting first, then the leave.
+                let yes = AssistantSettings {
+                    read_recordings: Some(true),
+                    ..AssistantSettings::default()
+                };
+                agent::live::decide(allows.then(|| Allowed::from_settings(&yes)).flatten());
+            }
         }
         if let Some((_, turn)) = worker::take_finished().pop() {
-            return Some((turn, first, started.elapsed().as_secs_f32()));
+            return Some(Waited {
+                turn,
+                first_event,
+                first_read,
+                first_word,
+                seconds: started.elapsed().as_secs_f32(),
+                consent,
+            });
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -384,7 +501,12 @@ fn dump(said: &str, sent: &[Sent]) {
     }
 }
 
-fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> StepRan {
+fn run_step(
+    fixture: &Fixture,
+    turns: &[Turn],
+    step: &Step,
+    (mode, held, held_before): (&Mode, Held, bool),
+) -> StepRan {
     let said = match &step.said {
         Said::Message(text) => (*text).to_owned(),
         Said::Stage(build) => build(fixture).0,
@@ -396,13 +518,20 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
         turn: Turn::default(),
         asked: false,
         first_event: None,
+        first_read: None,
+        first_word: None,
         seconds: 0.0,
         prompt_chars: 0,
+        requests: 0,
+        called: Vec::new(),
+        held: false,
     };
     let mut outcome = Outcome {
         fixture,
         route: None,
         consent: false,
+        called: Vec::new(),
+        held_before,
         sent: Vec::new(),
         turn: Turn::default(),
     };
@@ -415,8 +544,9 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
         Asks::Question(question, route) => {
             outcome.route = route;
             take_sent();
+            take_called();
             let patience = match mode {
-                Mode::Canned => PLAYED,
+                Mode::Canned | Mode::Agent => PLAYED,
                 Mode::Live(_) => LIVE,
             };
             let asked_at = Instant::now();
@@ -427,15 +557,19 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
                 started = start((*question).clone(), step, mode);
             }
             ran.asked = started;
-            match started.then(|| wait(patience)).flatten() {
-                Some((turn, first, seconds)) => {
-                    outcome.turn = turn;
-                    ran.first_event = first;
-                    ran.seconds = seconds;
+            match started.then(|| wait(patience, step.allows)).flatten() {
+                Some(waited) => {
+                    outcome.turn = waited.turn;
+                    outcome.consent = waited.consent;
+                    ran.first_event = waited.first_event;
+                    ran.first_read = waited.first_read;
+                    ran.first_word = waited.first_word;
+                    ran.seconds = waited.seconds;
                 }
                 None => outcome.turn.error = Some("no answer in time".into()),
             }
             outcome.sent = take_sent();
+            outcome.called = take_called();
             dump(&ran.said, &outcome.sent);
         }
     }
@@ -449,10 +583,20 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
         None => "setup step".into(),
     };
     ran.prompt_chars = outcome.sent.iter().map(|sent| sent.all().len()).sum();
+    ran.requests = outcome.sent.len();
+    ran.called = outcome.called.clone();
+    ran.held = outcome
+        .sent
+        .iter()
+        .any(|sent| !super::checks::holds(&sent.input, outcome.agent()).is_empty());
     let layer = mode.layer();
+    let own: &[Check] = match held {
+        Held::All => &step.checks,
+        Held::Always => &[],
+    };
     for check in super::checks::always()
         .iter()
-        .chain(&step.checks)
+        .chain(own)
         .filter(|check| check.layer == Layer::Both || check.layer == layer)
     {
         ran.checks
@@ -465,9 +609,16 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
 /// Runs `scenario` in `mode`: its app checks, then its steps as one
 /// conversation.
 pub fn run(scenario: &Scenario, mode: &Mode) -> Ran {
+    run_held(scenario, mode, Held::All)
+}
+
+/// [`run`], holding each step to `held`.
+pub fn run_held(scenario: &Scenario, mode: &Mode, held: Held) -> Ran {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // Each scenario is a fresh run of the app: nobody has said no yet.
+    agent::live::forget();
     let fixture = (scenario.fixture)();
     // The app's own words (setup's questions, a plan's reasons) in
     // Assistant's language for this install, as the pane makes them.
@@ -480,11 +631,13 @@ pub fn run(scenario: &Scenario, mode: &Mode) -> Ran {
     });
     let mut turns: Vec<Turn> = Vec::new();
     let mut steps = Vec::new();
+    let mut held_before = false;
     for step in &scenario.steps {
-        let ran = run_step(&fixture, &turns, step, mode);
+        let ran = run_step(&fixture, &turns, step, (mode, held, held_before));
         if ran.asked {
             turns.push(ran.turn.clone());
         }
+        held_before |= ran.held;
         steps.push(ran);
     }
     Ran {

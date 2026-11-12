@@ -73,7 +73,8 @@ pub struct Prompt {
     pub knew: String,
 }
 
-const INSTRUCTIONS: &str = "You are Assistant, the help built into VibeHex, a dictation app \
+pub(super) const INSTRUCTIONS: &str =
+    "You are Assistant, the help built into VibeHex, a dictation app \
 for macOS, Windows, and Linux. Answer the person's question about VibeHex from the guide \
 excerpts you are given.
 
@@ -102,13 +103,13 @@ with Russian vibe coding on they dictate English terms in Russian, so not GigaAM
 /// The last line a question's prompt ends on: a model that has just read
 /// pages in English and earlier turns in another language still answers
 /// in the question's own.
-const LATEST: &str = "Reply in the language the question above is written in; if it is too \
+pub(super) const LATEST: &str = "Reply in the language the question above is written in; if it is too \
 short to tell (a word or two, a name), in the conversation's.";
 
 /// The language Assistant writes in when the person's own words don't say
 /// (`assistant::language`): their speech recognition language, else the
 /// window's.
-fn default_language(settings: Option<&crate::app_settings::AppSettings>) -> String {
+pub(super) fn default_language(settings: Option<&crate::app_settings::AppSettings>) -> String {
     let name = super::language::name(settings);
     format!(
         "\n\nTheir default language is {name}: the language they dictate in (or, when that \
@@ -120,7 +121,7 @@ fn default_language(settings: Option<&crate::app_settings::AppSettings>) -> Stri
     )
 }
 
-const CHANGES: &str = "
+pub(super) const CHANGES: &str = "
 
 You may also suggest setting changes. The app turns each one into a card the person presses; \
 nothing changes until they do. When a setting in <changeable_settings> would do what the \
@@ -164,7 +165,7 @@ Only entries listed there; the card shows each before and after.";
 
 /// A question about what cleanup or recognition did to their words, with
 /// their instructions and Vocabulary entries to go by.
-const DIAGNOSE: &str = "
+pub(super) const DIAGNOSE: &str = "
 
 The question is about what dictation did to their words. <cleanup_instructions> holds their \
 cleanup instructions and replacements when the catalog carries it, and <vocabulary> the \
@@ -174,11 +175,11 @@ AI cleanup whenever they say AI), a replacement, a line of the instructions, or 
 speech model. Name it and how to fix it; when it is the instructions, offer the fix as a card \
 for the instructions key; when it is a Vocabulary entry, as a line changing that entry.";
 
-const HEARD_WROTE: &str = "
+pub(super) const HEARD_WROTE: &str = "
 - A dictation that cleanup changed shows two lines: Heard, what the speech model wrote down (after Vocabulary's own corrections), and Wrote, what was typed into the app. When the question asks why a word came out as it did, compare them, quoting both: a word already wrong in Heard is the speech model hearing it so, or a Vocabulary entry whose sounds-like spellings catch it; one right in Heard and changed in Wrote was changed after transcription: a replacement, a line of their instructions, a Vocabulary entry whose exact sounds-like spelling was heard (the app writes its term in code before cleanup, with any model), or a Vocabulary term the cleanup model wrote because what was heard sounds like it (a term nothing heard sounds like is undone in code, in dictations made since that check exists). Name the cause. When it is a setting you can see, offer the fix as a card; for a Vocabulary entry, a line changing that entry.";
 
 /// With the person's settings sent: answers for them, not for anyone.
-const PERSONAL: &str = "
+pub(super) const PERSONAL: &str = "
 
 The now column of <changeable_settings> shows the person's own settings. Answer for them, in \
 this order:
@@ -335,7 +336,7 @@ While this block is here you can read their recordings; if an earlier answer sai
 couldn't, it was wrong.
 - Times are the person's local time; the block says when now is.";
 
-const DECLINED: &str = "
+pub(super) const DECLINED: &str = "
 
 This question seems to be about the person's own meetings, files, or dictations, which you \
 cannot read: they haven't allowed it. Say so in one sentence, and that Assistant › Settings › \
@@ -510,18 +511,7 @@ pub fn build(
             input.push_str(&releases::prompt::block(selection));
         }
     }
-    let kept = earlier.len().saturating_sub(room.earlier_turns());
-    for turn in &earlier[kept..] {
-        let changes = match turn.changes.trim() {
-            "" => String::new(),
-            changes => format!("\n<changes>\n{changes}\n</changes>"),
-        };
-        input.push_str(&format!(
-            "\n<earlier_question>\n{}\n</earlier_question>\n<earlier_answer>\n{}{changes}\n</earlier_answer>\n",
-            turn.question.trim(),
-            shortened(turn.answer.trim(), room.earlier_answer_chars()),
-        ));
-    }
+    input.push_str(&earlier_turns(earlier, room));
     match stage {
         Stage::Plan { line, since, .. } | Stage::Follow { line, since, .. } => {
             if !since.trim().is_empty() {
@@ -549,6 +539,26 @@ pub fn build(
         vocabulary,
         knew,
     }
+}
+
+/// The newest of `earlier`, oldest first, as a prompt carries them: each
+/// question, its answer shortened to the room, and what became of its
+/// changes.
+pub(super) fn earlier_turns(earlier: &[Turn], room: Room) -> String {
+    let kept = earlier.len().saturating_sub(room.earlier_turns());
+    let mut block = String::new();
+    for turn in &earlier[kept..] {
+        let changes = match turn.changes.trim() {
+            "" => String::new(),
+            changes => format!("\n<changes>\n{changes}\n</changes>"),
+        };
+        block.push_str(&format!(
+            "\n<earlier_question>\n{}\n</earlier_question>\n<earlier_answer>\n{}{changes}\n</earlier_answer>\n",
+            turn.question.trim(),
+            shortened(turn.answer.trim(), room.earlier_answer_chars()),
+        ));
+    }
+    block
 }
 
 const REPAIR: &str = "
@@ -713,7 +723,7 @@ fn stamp(ms: u64) -> String {
     iso.get(..16).unwrap_or(&iso).replace('T', " ")
 }
 
-fn shortened(text: &str, chars: usize) -> String {
+pub(super) fn shortened(text: &str, chars: usize) -> String {
     match text.char_indices().nth(chars) {
         Some((cut, _)) => format!("{}…", &text[..cut]),
         None => text.to_owned(),

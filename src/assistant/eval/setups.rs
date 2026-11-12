@@ -38,6 +38,7 @@ fn stage(
         said: Said::Stage(build),
         web: false,
         canned: canned.to_vec(),
+        allows: false,
         checks,
     }
 }

@@ -9,6 +9,7 @@ use rune::{El, TextEdit, row};
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::super::files::composer::{self as files, MAX_LINES, SEND_ICON, STOP_ICON};
+use crate::assistant::agent::access::Access;
 use crate::assistant::intent::{self, Route};
 use crate::assistant::prompt;
 use crate::assistant::setup::Stage;
@@ -238,6 +239,10 @@ pub(super) fn ask_with(
     pane.open = Some(id);
     pane.error = None;
     let changes = super::changes::context(ui);
+    // What the model may read of the recordings if it asks to itself
+    // (`assistant::agent`).
+    let access = Access::of(&ui.settings, crate::assistant::recordings::Sources::here());
+    let now_ms = ui.assistant.now_ms();
     let asked = worker::ask(
         Question {
             conversation: id,
@@ -247,6 +252,8 @@ pub(super) fn ask_with(
             changes: Some(changes),
             setup,
             web,
+            access,
+            now_ms,
         },
         engine,
     );

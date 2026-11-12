@@ -400,6 +400,9 @@ pub(in super::super) fn change_coming(ui: &mut Ui) {
         cards_coming: true,
         web: Default::default(),
         retrying: false,
+        trace: Vec::new(),
+        doing: None,
+        asking: false,
     });
 }
 

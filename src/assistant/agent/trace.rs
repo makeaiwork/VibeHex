@@ -94,6 +94,15 @@ pub enum Did {
     Unknown,
 }
 
+/// What an agent turn is doing now, for the line under its steps.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Doing {
+    /// The model has the question and what was read so far.
+    Thinking,
+    /// The app is running this tool.
+    Reading(&'static str),
+}
+
 /// Why a call read nothing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Why {
@@ -131,6 +140,7 @@ impl Did {
     }
 
     /// The tool it names when it was refused for `why`.
+    #[cfg(test)]
     pub fn refused_for(&self, why: Why) -> Option<&str> {
         match self {
             Self::Refused { tool, why: known } if known == why.name() => Some(tool),
@@ -147,7 +157,11 @@ impl Did {
                 | Step::Files { found, .. }
                 | Step::Dictations { found, .. } => *found > 0,
                 Step::Read { notes, passages } => notes + passages > 0,
-                Step::Looked { .. } | Step::Guide { .. } => false,
+                Step::Looked {
+                    dictations,
+                    meetings,
+                } => dictations + meetings > 0,
+                Step::Guide { .. } => false,
             }),
             Self::Notes { .. } | Self::Transcript { .. } | Self::File { .. } | Self::Dictation => {
                 true

@@ -88,6 +88,9 @@ pub(in super::super) fn answering(ui: &mut Ui) {
         cards_coming: false,
         web: Default::default(),
         retrying: false,
+        trace: Vec::new(),
+        doing: None,
+        asking: false,
     });
 }
 
@@ -183,6 +186,9 @@ pub(in super::super) fn web_answering(ui: &mut Ui) {
             ..Web::default()
         },
         retrying: false,
+        trace: Vec::new(),
+        doing: None,
+        asking: false,
     });
 }
 
@@ -283,6 +289,9 @@ pub(in super::super) fn steps(ui: &mut Ui) {
         cards_coming: false,
         web: Default::default(),
         retrying: false,
+        trace: Vec::new(),
+        doing: None,
+        asking: false,
     });
 }
 

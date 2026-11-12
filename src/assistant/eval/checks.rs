@@ -99,7 +99,129 @@ pub fn always() -> Vec<Check> {
             );
             ensure(offered.is_empty(), || format!("offered: {offered:?}"))
         }),
+        no_web_after_personal(),
     ]
+}
+
+/// What of the person's own a request's `input` holds, by name: excerpts
+/// of their recordings, a list of them, what their use shows, Vocabulary
+/// entries; and, on an agent turn, their cleanup instructions (the router
+/// sends those with the web on, as it always has). Read off the text the
+/// model was sent, not off what the app says it sent.
+pub fn holds(input: &str, agent: bool) -> Vec<&'static str> {
+    let mut holds = Vec::new();
+    let excerpt = |line: &str| {
+        line.starts_with('[')
+            && ["] Meeting \"", "] File \"", "] Dictation"]
+                .iter()
+                .any(|kind| line.contains(kind))
+    };
+    if input.lines().any(excerpt) {
+        holds.push("recordings");
+    }
+    if input.contains("\nid | title | start | length | notes\n")
+        || input.contains("\nid | name | added | length\n")
+    {
+        holds.push("a list of recordings");
+    }
+    if input.contains("<usage>\n") {
+        holds.push("usage");
+    }
+    let entries = input.split("<vocabulary total=").skip(1).any(|block| {
+        let block = block.split("</vocabulary>").next().unwrap_or_default();
+        !block.contains("None of the entries is named.")
+    });
+    let terms = input
+        .split("<vocabulary_terms total=\"")
+        .skip(1)
+        .any(|block| !block.starts_with("0\""));
+    if entries || terms {
+        holds.push("vocabulary");
+    }
+    if agent && input.contains("<cleanup_instructions>\nGlobal mode") {
+        holds.push("cleanup instructions");
+    }
+    holds
+}
+
+/// The privacy rule every step of every scenario is held to: a request
+/// that holds anything of the person's own may not search the web, nor
+/// may any request after it in the turn, nor any in a later turn of the
+/// conversation, which then never goes online at all.
+fn no_web_after_personal() -> Check {
+    check("no web once the prompt holds what is theirs", |outcome| {
+        if outcome.held_before {
+            let web = &outcome.turn.web;
+            ensure(!web.went_online() && web.sources.is_empty(), || {
+                format!("an earlier turn held what is theirs, and this one went online: {web:?}")
+            })?;
+        }
+        let mut held: Vec<&str> = Vec::new();
+        for (index, sent) in outcome.sent.iter().enumerate() {
+            if held.is_empty() {
+                held = holds(&sent.input, outcome.agent());
+            }
+            ensure(
+                !sent.web || (held.is_empty() && !outcome.held_before),
+                || {
+                    format!(
+                        "request {} may search the web and holds {held:?} (earlier turn: {})",
+                        index + 1,
+                        outcome.held_before
+                    )
+                },
+            )?;
+        }
+        Ok(())
+    })
+}
+
+/// The model called `tool`, on an agent turn (a turn the router read for
+/// has no calls to hold).
+pub fn called(tool: &'static str) -> Check {
+    check(format!("it called {tool}"), move |outcome| {
+        ensure(
+            !outcome.agent() || outcome.called.iter().any(|called| called == tool),
+            || format!("called: {:?}", outcome.called),
+        )
+    })
+}
+
+/// The model called none of `tools`.
+pub fn never_called(tools: &'static [&'static str]) -> Check {
+    check(
+        format!("it never called {}", tools.join(", ")),
+        move |outcome| {
+            let called: Vec<&String> = outcome
+                .called
+                .iter()
+                .filter(|called| tools.contains(&called.as_str()))
+                .collect();
+            ensure(called.is_empty(), || format!("called: {called:?}"))
+        },
+    )
+}
+
+/// The turn took at most `most` requests.
+pub fn steps_at_most(most: usize) -> Check {
+    check(format!("at most {most} requests"), move |outcome| {
+        ensure(outcome.sent.len() <= most, || {
+            format!("{} requests", outcome.sent.len())
+        })
+    })
+}
+
+/// The turn's trace, as an agent turn keeps it, holds what `want` looks
+/// for; a router's turn has none and passes.
+pub fn traced(
+    name: &'static str,
+    want: impl Fn(&[crate::assistant::agent::trace::Did]) -> bool + 'static,
+) -> Check {
+    check(name, move |outcome| {
+        ensure(!outcome.agent() || want(&outcome.turn.trace), || {
+            format!("trace: {:?}", outcome.turn.trace)
+        })
+    })
 }
 
 pub fn routed(want: fn(&Route) -> bool, name: &'static str) -> Check {

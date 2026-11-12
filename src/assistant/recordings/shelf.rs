@@ -6,7 +6,7 @@
 //! same place, the same text) keeps the number it had. What the turn keeps
 //! is the one [`Found`] the answer's citations are read against.
 
-use super::{Excerpt, Found, Step};
+use super::{Excerpt, Found};
 
 /// The excerpts a turn has read so far, in the order read.
 #[derive(Debug, Default)]
@@ -46,11 +46,6 @@ impl Shelf {
                 Placed { n, new: true }
             })
             .collect()
-    }
-
-    /// Keeps a search's steps with the turn.
-    pub fn stepped(&mut self, steps: impl IntoIterator<Item = Step>) {
-        self.found.steps.extend(steps);
     }
 
     /// Everything read so far, as the answer's citations resolve it.

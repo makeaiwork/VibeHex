@@ -117,6 +117,7 @@ impl<'a> Desk<'a> {
         self.read
     }
 
+    #[cfg(test)]
     pub fn calls(&self) -> usize {
         self.calls
     }
@@ -625,11 +626,11 @@ impl<'a> Desk<'a> {
             &mut |step| live.step(step),
         )
         .map_err(failed)?;
-        let steps = found.steps.clone();
-        self.shelf.stepped(found.steps);
+        // Its steps are the trace's; the shelf keeps only what an answer
+        // cites.
         Ok((
             self.shelved(found.excerpts, None),
-            Did::Recordings { steps },
+            Did::Recordings { steps: found.steps },
         ))
     }
 
