@@ -445,8 +445,9 @@ const KEYS: &[Key] = &[
     key(
         "labs.opencode_in_wsl",
         Kind::Bool,
-        "Labs: use an OpenCode service running in the default WSL distribution for Modes \
-         rewriting and the Modes model picker; looking for it can start WSL (Windows)",
+        "Labs: use an OpenCode service running in the default WSL distribution for AI cleanup, \
+         meeting summaries and their model list, and Annotate's Send to; looking for it can \
+         start WSL (Windows)",
     ),
     key(
         "labs.smart_spacing",

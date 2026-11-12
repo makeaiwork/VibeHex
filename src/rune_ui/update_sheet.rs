@@ -135,7 +135,7 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
     }
     let notes = staged(ui)?;
     let c = &p.k.c;
-    let title = tr_named("Hex {version} is ready", &[("version", &notes.version)]);
+    let title = tr_named("VibeHex {version} is ready", &[("version", &notes.version)]);
     let heading = col()
         .key("heading")
         .gap(4.0)
@@ -147,7 +147,7 @@ pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
         )
         .child(
             text(tr_named(
-                "You have {running}. Restart Hex to install it now, or it installs when you quit",
+                "You have {running}. Restart VibeHex to install it now, or it installs when you quit",
                 &[("running", crate::VERSION)],
             ))
             .key("description")

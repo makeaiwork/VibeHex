@@ -215,12 +215,9 @@ pub(super) fn section(ui: &Ui, p: super::controls::Paint) -> Option<rune::El> {
             .pt(4.0),
     );
     for (index, model) in found {
-        let detail = format!(
-            "{} · {} · {}",
-            model.compression,
-            model.source(),
-            crate::desktop::i18n::tr_fill("{} languages", &model.languages.len().to_string())
-        );
+        let languages =
+            crate::desktop::i18n::tr_fill("{} languages", &model.languages.len().to_string());
+        let detail = super::lists::apart(&[model.compression, &model.source(), languages.as_str()]);
         let use_button = super::controls::button(
             p,
             "use-found",
@@ -263,7 +260,7 @@ pub(super) fn section(ui: &Ui, p: super::controls::Paint) -> Option<rune::El> {
                                     .color(p.text()),
                             )
                             .child(
-                                Badge::new(crate::desktop::i18n::tr("Not tested by Hex"))
+                                Badge::new(crate::desktop::i18n::tr("Not tested by VibeHex"))
                                     .build(p.k),
                             ),
                     )

@@ -118,13 +118,13 @@ fn entries(settings: &AppSettings) -> Vec<Entry> {
     };
     add(
         "hex-dictation",
-        "Hex: dictation",
+        "VibeHex: dictation",
         "dictation toggle",
         Some(&settings.dictation_hotkey),
     );
     add(
         "hex-paste-last",
-        "Hex: paste last dictation",
+        "VibeHex: paste last dictation",
         "paste-last",
         settings.paste_last_hotkey.as_ref(),
     );
@@ -132,7 +132,7 @@ fn entries(settings: &AppSettings) -> Vec<Entry> {
     if settings.labs.typed_text {
         add(
             "hex-typed-text",
-            "Hex: transform typed text",
+            "VibeHex: transform typed text",
             "typed-text",
             settings.active_typed_text_hotkey(),
         );
@@ -141,7 +141,7 @@ fn entries(settings: &AppSettings) -> Vec<Entry> {
     if settings.capture.enabled {
         add(
             "hex-annotate",
-            "Hex: annotate",
+            "VibeHex: annotate",
             "annotate toggle",
             Some(&settings.capture.hotkey),
         );

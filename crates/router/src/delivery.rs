@@ -51,7 +51,7 @@ impl Delivery {
     pub fn status(&self, saved: &str) -> String {
         match self {
             Self::Sent { title } => format!("Sent to {title}"),
-            Self::Queued { title, .. } => format!("{saved} · will retry sending to {title}"),
+            Self::Queued { title, .. } => format!("{saved}, will retry sending to {title}"),
             Self::Saved => saved.to_owned(),
         }
     }

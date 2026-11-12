@@ -610,7 +610,7 @@ fn prompt_row(ui: &Ui, p: Paint) -> El {
         buttons = buttons.child(button(
             p,
             "files-prompt-reset",
-            tr("Use Hex's prompt"),
+            tr("Use the VibeHex prompt"),
             ButtonKind::Secondary,
             |ui: &mut Ui, _| {
                 ui.files.prompt = None;

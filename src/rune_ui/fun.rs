@@ -484,7 +484,7 @@ fn uninstall_row(ui: &Ui, p: Paint) -> El {
         "hex-mic-driver",
         tr("Virtual microphone driver"),
         Some(tr(
-            "Voice Filter isn't in this version of Hex. Uninstall its driver to remove Hex Microphone from your inputs.",
+            "Voice Filter isn't in this version of VibeHex. Uninstall its driver to remove Hex Microphone from your inputs.",
         )),
         row().key("controls").gap(8.0).center_y().child(control),
     )

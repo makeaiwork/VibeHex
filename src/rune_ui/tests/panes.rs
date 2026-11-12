@@ -597,7 +597,7 @@ fn the_meeting_summary_model_is_picked_from_opencode_s_models() {
     assert!(
         texts(&rt)
             .iter()
-            .any(|text| text == "Hex picks a fast model")
+            .any(|text| text == "VibeHex picks a fast model")
     );
 
     let rt = runtime("meetings-summary-model-not-running", true, size);
@@ -989,7 +989,7 @@ fn the_practice_game_follows_hex_s_own_dictation_on_every_os() {
 /// is getting ready instead of inviting a hold that does nothing.
 #[test]
 fn the_practice_page_waits_for_the_listener() {
-    let warming = "Getting Hex ready to listen…";
+    let warming = "Getting VibeHex ready to listen…";
     let warming_state = |rt: &mut Runtime<Ui>, warming: bool| {
         if let Some(view) = &mut rt.state.view {
             view.listener.warming = warming;
@@ -1430,7 +1430,7 @@ fn a_connected_calendar_saves_reminders_and_lists_meetings() {
     let shown = texts(&rt);
     for text in [
         "Design sync",
-        "Today · 2:30 PM",
+        "Today, 2:30 PM",
         "Google Meet",
         "2 of 3 calendars",
     ] {
@@ -1748,7 +1748,7 @@ fn a_refused_microphone_points_to_system_settings() {
     assert!(
         shown
             .iter()
-            .any(|text| text == "Switch on Hex in System Settings")
+            .any(|text| text == "Switch on VibeHex in System Settings")
     );
     tap(&mut rt, "mic-pill-allow");
     assert_eq!(
@@ -1764,7 +1764,7 @@ fn windows_onboarding_asks_only_for_the_microphone_switch() {
     let mut rt = runtime("windows-onboarding-microphone", true, PANE_SIZE);
     let shown = texts(&rt);
     assert!(
-        shown.iter().any(|text| text == "Let Hex hear you"),
+        shown.iter().any(|text| text == "Let VibeHex hear you"),
         "{shown:?}"
     );
     assert!(rt.find("ax-row").is_none(), "no Accessibility on Windows");
@@ -1793,7 +1793,7 @@ fn stale_permissions_offer_fix_it_and_reset_entries_across_panes() {
     assert!(
         shown
             .iter()
-            .any(|text| text == "An older Hex entry can keep this off")
+            .any(|text| text == "An older VibeHex entry can keep this off")
     );
     tap(&mut rt, "ax-pill-allow");
     assert_eq!(
@@ -1811,7 +1811,7 @@ fn stale_permissions_offer_fix_it_and_reset_entries_across_panes() {
     assert!(
         shown
             .iter()
-            .any(|text| text == "An older Hex entry can keep this off")
+            .any(|text| text == "An older VibeHex entry can keep this off")
     );
     tap(&mut rt, "permission-accessibility-allow");
     assert_eq!(
@@ -1832,7 +1832,7 @@ fn stale_permissions_offer_fix_it_and_reset_entries_across_panes() {
     assert!(
         shown
             .iter()
-            .any(|text| text == "An older Hex entry can keep this off")
+            .any(|text| text == "An older VibeHex entry can keep this off")
     );
     tap(&mut rt, "meeting-system-audio-allow");
     assert_eq!(

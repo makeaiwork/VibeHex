@@ -139,7 +139,7 @@ fn onboarding_continue_without_model() {
         "Add model file…"
     );
     assert!(
-        texts(&rt).contains(&"Hex can't dictate until a speech model is installed".to_owned()),
+        texts(&rt).contains(&"VibeHex can't dictate until a speech model is installed".to_owned()),
         "the status says so too"
     );
 
@@ -289,7 +289,10 @@ fn onboarding_walkthrough() {
     let mut rt = runtime_for(ui, true, PANE_SIZE);
     let step = |rt: &Runtime<Ui>| rt.state.tour.as_ref().map(|tour| tour.flow.step());
     let shown = texts(&rt);
-    assert!(shown.contains(&"Setting up Hex".to_owned()), "{shown:?}");
+    assert!(
+        shown.contains(&"Setting up VibeHex".to_owned()),
+        "{shown:?}"
+    );
     assert!(
         !shown.contains(&"Choose a speech model".to_owned()),
         "nothing found, so no model step"
@@ -335,7 +338,7 @@ fn onboarding_walkthrough() {
     assert!(texts(&rt).contains(&"Clear your messages".to_owned()));
     assert!(rt.find("skip").is_some(), "Skip shows on the practice too");
     tap(&mut rt, "done");
-    assert!(texts(&rt).contains(&"Hex is ready".to_owned()));
+    assert!(texts(&rt).contains(&"VibeHex is ready".to_owned()));
     tap(&mut rt, "start-using-hex");
     assert!(rt.state.tour.is_none(), "Start using Hex closes onboarding");
     assert!(rt.state.first_run.is_none());

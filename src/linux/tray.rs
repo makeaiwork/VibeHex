@@ -38,7 +38,7 @@ pub(crate) fn start(
         tray_icon::SIZE,
         tray_icon::pixels(desktop_prefers_light()),
     );
-    let spec = rune::TraySpec::new("hex", "Hex", icon)
+    let spec = rune::TraySpec::new("hex", crate::app_paths::PRODUCT_NAME, icon)
         .tooltip(view.tooltip())
         .menu(view.menu());
     let show = move |token| {

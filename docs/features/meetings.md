@@ -46,7 +46,7 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   │       └── OpenCode -> "Sends the transcript to your OpenCode model";
 │   │           Model nests under it: a searchable picker of the running
 │   │           OpenCode's models (refreshed each time it opens; no Refresh),
-│   │           "Hex picks a fast model" first (clears meetings.opencode_model
+│   │           "VibeHex picks a fast model" first (clears meetings.opencode_model
 │   │           -> the ranked fast models); a pick is used alone, no fallback.
 │   │           OpenCode missing or failing -> a notice with Check again /
 │   │           Retry, the saved model kept and shown by its ID (#1107, #1301)
@@ -566,18 +566,18 @@ Meetings > Settings > Calendar                       // meetings.calendar (macOS
     ├── Remind me before meetings -> on by default
     ├── Remind me -> At start / 1 / 2 / 5 min
     ├── Calendars -> All calendars, or "2 of 3 calendars"; each switched in the menu
-    └── Next 3 meetings: title, "Today · 2:30 PM", provider icon when it has a call link
+    └── Next 3 meetings: title, "Today, 2:30 PM", provider icon when it has a call link
 
 Meeting = not all-day, declined, free, or cancelled, AND has other attendees or a
           Zoom / Google Meet / Teams / Slack huddle / Webex link (URL, location, notes)
 
 Lead time reached (or Mac wakes within 5 min of the start)   // meetings.reminder
   -> Reminder capsule, offer-capsule placement, focus-free
-     ├── "Design sync" · "Starts in 1 min · Zoom"
+     ├── "Design sync" · "Starts in 1 min   Zoom"
      │   ├── Not now -> close; this call is not offered when detected
      │   ├── Join & record (only with a link) -> open the link, then record
      │   └── Record -> recording titled "Design sync" with its attendees
-     └── Service set to Always record: "Starts in 1 min · Hex records automatically"
+     └── Service set to Always record: "Starts in 1 min   VibeHex records automatically"
          ├── Don't record -> close; the detected call neither offers nor auto-records
          └── Join (only with a link) -> open the link; Always record starts on detection
   -> Closes 60 s after the start (at least 30 s after showing); withdrawn if the
@@ -675,7 +675,7 @@ Record (offer, menu bar "Record Meeting", Meetings pane, or voice command)
   -> system.wav + microphone.wav, owner-only, Application Support/meetings/<id>
   -> No idle sleep; no dictation mute or media pause // meetings.record
   -> Menu bar: record symbol + elapsed time
-     ├── "Recording · <title> · 12:34" -> Meetings pane
+     ├── "Recording: <title> (12:34)" -> Meetings pane
      │   └── title follows the provisional title (see Titles And Summary)
      └── Stop & Transcribe
      (Idle menu bar: "Record Meeting"; "Copy Last Meeting Transcript" sits
@@ -819,7 +819,7 @@ Capture sources (meeting/capture.rs)                // meetings.capture
 │       -> Reopened like a failed source, at most twice in one recording,
 │          the budget shared by every reopened stream
 │       ├── Still silent -> keep recording; the capsule says
-│       │   "Microphone is silent · 12:34" and the menu bar "Microphone is
+│       │   "Microphone is silent" beside 12:34 and the menu bar "Microphone is
 │       │   silent"; manifest.microphone.warning is written as soon as it is
 │       │   raised, so a crash keeps it
 │       ├── Nonzero audio returns -> the live warning clears, including in a
@@ -1231,7 +1231,7 @@ Header: Start recording (the pane's one Primary button) / red dot, elapsed
 List (on the title's edge, no divider; grouped Today / Yesterday / date)
 ├── Search meetings (title, app, notes, final transcript) above the rows
 └── Row: title (generated when present), time on the right; meta line
-    "Recording · Zoom" / "Failed · 2 min" / "Zoom · 38 min" (red while
+    "Recording   Zoom" / "Failed   2 min" / "Zoom   38 min" (red while
     recording or failed); no hover fill; a completed row shows a Copy
     icon in the time's place on hover (pointer only; "Copied" as a check)
 Detail (a raised card beside the list)
@@ -1560,7 +1560,7 @@ While recording, setting on, model available           // meetings.title.provisi
      -> waits (≤30 s) while dictation is busy
      -> ONE title-only call over the transcript so far (≤5,000 chars, 30 s timeout)
   -> Recorder stores provisional_title in the manifest
-     -> menu bar "Recording · <title>", Meetings pane list and detail
+     -> menu bar "Recording: <title>", Meetings pane list and detail
   -> Refreshed once when speech reaches 10 minutes; a failure retries a minute
      later; at most 3 calls per meeting; Stop discards a call in flight
   -> The exported Markdown file name and heading use it when it arrived first;
@@ -1608,7 +1608,7 @@ Unavailable (not eligible / Apple Intelligence off / model not ready / macOS < 2
   -> Settings row says why; nothing runs
 Meetings pane -> title in list and detail; Summary paragraph above the transcript;
   "Summarize" / "Regenerate summary" / "Summarizing…" in the overflow menu
-Transcript ready capsule -> "Ready · <title>" once a provisional or final title
+Transcript ready capsule -> "Ready: <title>" once a provisional or final title
   exists; subtitle "Summarizing with Apple Intelligence…", then the summary
 ```
 

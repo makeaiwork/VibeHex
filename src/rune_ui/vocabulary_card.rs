@@ -88,7 +88,7 @@ pub(crate) fn save_word(term: &str, heard: &str, reload: impl Fn()) -> Result<()
 /// Adds the card to the app, hidden; `save` writes Vocabulary.
 pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, save: Save) {
     let spec = OverlaySpec {
-        name: "Hex add to vocabulary",
+        name: "VibeHex add to vocabulary",
         size: SIZE,
         edge: ScreenEdge::Top,
         margin: MARGIN,

@@ -182,11 +182,11 @@ impl CalendarView {
             upcoming: vec![
                 meeting(
                     "Design sync",
-                    "Today · 2:30 PM",
+                    "Today, 2:30 PM",
                     Some(CallProvider::GoogleMeet),
                 ),
-                meeting("Rune review", "Today · 4:00 PM", Some(CallProvider::Zoom)),
-                meeting("1:1 with Dax", "Tomorrow · 10:00 AM", None),
+                meeting("Rune review", "Today, 4:00 PM", Some(CallProvider::Zoom)),
+                meeting("1:1 with Dax", "Tomorrow, 10:00 AM", None),
             ],
             connecting: false,
             error: None,
@@ -198,7 +198,7 @@ impl CalendarView {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct UpcomingMeeting {
     pub(super) title: String,
-    /// "Today · 2:30 PM", already localized.
+    /// "Today, 2:30 PM", already localized.
     pub(super) when: String,
     pub(super) provider: Option<CallProvider>,
 }

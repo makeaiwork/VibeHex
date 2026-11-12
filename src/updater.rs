@@ -682,7 +682,7 @@ fn check(
         } => Ok(match command {
             Some(command) => State::Command { command },
             None => State::Download {
-                url: notes_url.unwrap_or_else(|| "https://anoma.ly/hex".into()),
+                url: notes_url.unwrap_or_else(notes::download_page),
             },
         }),
         Decision::Install {
@@ -710,7 +710,7 @@ fn check(
                             .and_then(|target| protocol::resolve_url(&manifest_url, &target.url))
                             .or(manifest.release.notes_url)
                     })
-                    .unwrap_or_else(|| "https://anoma.ly/hex".into());
+                    .unwrap_or_else(notes::download_page);
                 return Ok(State::Download { url });
             }
             let url = protocol::resolve_url(&manifest_url, &target.url)
@@ -729,7 +729,7 @@ fn check(
                 .and_then(|console| platform::stage(&file, console.as_deref(), &version));
             #[cfg(not(target_os = "windows"))]
             let staged = platform::stage(&file, &version);
-            let staged = staged.wrap_err_with(|| format!("could not stage Hex {version}"))?;
+            let staged = staged.wrap_err_with(|| format!("could not stage VibeHex {version}"))?;
             *lock(&shared.staged) = Some(StagedUpdate {
                 staged,
                 sha256: target.sha256,

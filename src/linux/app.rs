@@ -562,7 +562,7 @@ fn panic_reason(panic: &(dyn std::any::Any + Send)) -> String {
 fn window_failure_message(reason: &str) -> String {
     let reason = reason.lines().next().unwrap_or(reason);
     format!(
-        "The Hex window and recording HUD stopped ({reason}). Dictation still works; restart Hex to try again."
+        "The VibeHex window and recording HUD stopped ({reason}). Dictation still works; restart VibeHex to try again."
     )
 }
 
@@ -857,7 +857,7 @@ impl LinuxDesktopHost {
         // Restart to update asks systemd to restart Hex after the updater's
         // final check; only a failure needs showing.
         if let Some(Err(error)) = self.updater.take_restart() {
-            self.error = Some(format!("Could not restart Hex: {error:#}"));
+            self.error = Some(format!("Could not restart VibeHex: {error:#}"));
         }
         // Settings may set up the transformations workspace at any time.
         if self.personal_commands_checked_at.elapsed() >= Duration::from_secs(2) {
@@ -1438,7 +1438,7 @@ impl LinuxDesktopHost {
                     let _ = std::fs::write(marker, b"");
                 }
                 if let Err(error) = self.updater.act(&action) {
-                    self.error = Some(format!("Could not restart Hex: {error:#}"));
+                    self.error = Some(format!("Could not restart VibeHex: {error:#}"));
                     return Err(error);
                 }
             }
@@ -1614,7 +1614,7 @@ mod tests {
             crate::app_settings::LaunchLoad {
                 settings: host_for_edit(false).settings.clone(),
                 note: Some(crate::app_settings::LaunchNote::Unparseable(
-                    "Hex couldn't read settings.json and started with defaults.".into(),
+                    "VibeHex couldn't read settings.json and started with defaults.".into(),
                 )),
             },
         );

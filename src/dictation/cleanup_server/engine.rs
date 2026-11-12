@@ -343,10 +343,10 @@ fn binary() -> Result<PathBuf> {
     let executable = std::env::current_exe()?.canonicalize()?;
     let path = executable
         .parent()
-        .ok_or_else(|| eyre!("Hex's executable has no folder"))?
+        .ok_or_else(|| eyre!("the VibeHex executable has no folder"))?
         .join("llama-server");
     if !path.is_file() {
-        bail!("this build of Hex has no built-in engine (llama-server)");
+        bail!("this build of VibeHex has no built-in engine (llama-server)");
     }
     Ok(path)
 }

@@ -139,13 +139,13 @@ fn reopen(p: Paint, s: &Onboard) -> Option<El> {
             .center()
             .transition(arrives())
             .child(
-                text(tr("Hex's shortcut didn't start."))
+                text(tr("The VibeHex shortcut didn't start."))
                     .key("why")
                     .font(LEAD)
                     .color(p.muted()),
             )
             .child(
-                Button::new(tr("Reopen Hex"))
+                Button::new(tr("Reopen VibeHex"))
                     .variant(ButtonVariant::Neutral)
                     .on_press(live::reopen)
                     .build_push(p.k)
@@ -202,7 +202,10 @@ fn models_page(p: Paint, s: &Onboard, live: &Live) -> El {
             s,
             "models-head",
             tr("Choose a speech model"),
-            lead(p, tr("Hex found speech models already on this computer.")),
+            lead(
+                p,
+                tr("VibeHex found speech models already on this computer."),
+            ),
         ))
         .child(s.motion.staggered(list, 1.0, 8.0))
         .child(action(continue_model_button(p)))
@@ -293,7 +296,7 @@ fn ready_page(p: Paint, s: &Onboard) -> El {
                             .key("try-again"),
                     )
                     .child(
-                        Button::new(tr("Start using Hex"))
+                        Button::new(tr("Start using VibeHex"))
                             .variant(ButtonVariant::Contrast)
                             .on_press(live::finish)
                             .build_push(p.k)
@@ -383,7 +386,7 @@ fn download_page(p: Paint, s: &Onboard, waiting: bool) -> El {
             s,
             "waiting-head",
             tr("Almost ready"),
-            lead(p, tr("Finishing the speech model so Hex can hear you.")),
+            lead(p, tr("Finishing the speech model so VibeHex can hear you.")),
         )
     } else {
         let subtitle = row()
@@ -410,7 +413,7 @@ fn download_page(p: Paint, s: &Onboard, waiting: bool) -> El {
                     .font(LEAD)
                     .color(p.muted()),
             );
-        heading(p, s, "download-head", tr("Setting up Hex"), subtitle)
+        heading(p, s, "download-head", tr("Setting up VibeHex"), subtitle)
     };
 
     let pct = (d.fraction() * 100.0).round() as u32;
@@ -615,7 +618,7 @@ fn try_page(p: Paint, s: &Onboard) -> El {
             p,
             s,
             "try-heard",
-            tr("That's Hex"),
+            tr("That's VibeHex"),
             lead(p, tr("It types wherever your cursor is, in any app.")),
         ),
         _ if warming => heading(p, s, "try", tr("Your turn"), lead(p, live::warming_copy())),

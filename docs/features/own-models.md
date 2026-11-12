@@ -102,7 +102,7 @@ Picker opens, or onboarding starts -> one scan (found_models::scan)   // setup.f
 │   -> that catalog model counts as downloaded; its card says "Found on this
 │   computer" and offers Use, never Download
 ├── Other compatible files -> "Found on this computer" at the top of the picker:
-│   name · Not tested by Hex · Q8_0/F16/F32 · owner/name@revision · languages,
+│   name · Not tested by VibeHex · Q8_0/F16/F32 · owner/name@revision · languages,
 │   "It may be too big for this computer's GPU memory." when the tensor data
 │   plus a quarter exceeds the largest GPU transcribe.cpp reports, and
 │   "Compatible doesn't mean accurate: …"
@@ -128,15 +128,15 @@ API's `/models` and the SDK's `ModelInfo.source` carry the same field.
 
 ```ts
 Onboarding opens -> scan; its own download waits until it answers  // setup.found-choice
-├── Nothing compatible found -> Setting up Hex, unchanged: the recommended
+├── Nothing compatible found -> Setting up VibeHex, unchanged: the recommended
 │   model downloads by itself, and the model step never shows
-└── Something found -> the first run's model step in place of Setting up Hex:
+└── Something found -> the first run's model step in place of Setting up VibeHex:
     "Choose a speech model", one card of radio rows, no buttons inside
     ├── Hex's recommended model first, selected, [Recommended] -> "731 MB
     │   download", or "On this computer" when its exact file (same SHA-256) is
     │   in the cache (one row, never two)
     ├── Then each found file -> its name, "On this computer" (a catalog model)
-    │   or "On this computer · not tested by Hex"; no hashes, repositories,
+    │   or "On this computer, not tested by VibeHex"; no hashes, repositories,
     │   revisions, or compression
     ├── Picking a row starts it: ours downloads ("Downloading… 42%" on the row)
     │   or, already here, is checked in place; a found file is used where it

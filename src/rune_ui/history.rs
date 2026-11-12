@@ -511,8 +511,7 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
                 let id = entry.id;
                 let mut meta = tr(entry.kind.label()).to_string();
                 if let Some(application) = &entry.application {
-                    meta.push_str(" · ");
-                    meta.push_str(application);
+                    meta = super::lists::apart(&[meta.as_str(), application]);
                 }
                 list = list.child(
                     ld::item(
@@ -568,24 +567,27 @@ fn stats_lines(p: Paint, stats: &HistoryStats) -> Vec<El> {
         .words_per_minute
         .map_or_else(|| "–".to_owned(), |wpm| wpm.to_string());
     let mut lines = vec![
-        tr_named(
-            "Dictations: {count} · Words: {words} · Words per minute: {wpm}",
-            &[
-                ("count", &stats.dictations.to_string()),
-                ("words", &stats.words.to_string()),
-                ("wpm", &wpm),
-            ],
-        ),
-        tr_named(
-            "Changed by Output: {percent}% · Daily streak: {days}",
-            &[
-                (
+        super::lists::apart(&[
+            tr_named(
+                "Dictations: {count}",
+                &[("count", &stats.dictations.to_string())],
+            ),
+            tr_named("Words: {words}", &[("words", &stats.words.to_string())]),
+            tr_named("Words per minute: {wpm}", &[("wpm", &wpm)]),
+        ]),
+        super::lists::apart(&[
+            tr_named(
+                "Changed by Output: {percent}%",
+                &[(
                     "percent",
                     &stats.changed_percent().unwrap_or_default().to_string(),
-                ),
-                ("days", &stats.streak_days.to_string()),
-            ],
-        ),
+                )],
+            ),
+            tr_named(
+                "Daily streak: {days}",
+                &[("days", &stats.streak_days.to_string())],
+            ),
+        ]),
     ];
     if !stats.top_apps.is_empty() {
         let apps = stats
@@ -874,29 +876,33 @@ fn detail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         });
     };
     let id = entry.id;
-    let mut latency = tr_named(
-        "{audio} ms audio · {inference} ms inference",
-        &[
-            ("audio", &entry.audio_ms.to_string()),
-            ("inference", &entry.inference_ms.to_string()),
-        ],
-    );
+    let mut latency = vec![
+        tr_named(
+            "{audio} ms audio",
+            &[("audio", &entry.audio_ms.to_string())],
+        ),
+        tr_named(
+            "{inference} ms inference",
+            &[("inference", &entry.inference_ms.to_string())],
+        ),
+    ];
     if entry.total_ms > 0 {
-        latency.push_str(&format!(
-            " · {}",
-            tr_fill("{} ms total", &entry.total_ms.to_string())
-        ));
+        latency.push(tr_fill("{} ms total", &entry.total_ms.to_string()));
     }
+    let latency = super::lists::apart(&latency);
     let mut facts = Vec::new();
     if let Some(application) = &entry.application {
         facts.push((tr("Application"), application.clone()));
     }
     if let Some(processing) = &entry.processing {
-        let mut summary = format!("{} · {} ms", processing.profile, processing.latency_ms);
+        let mut summary = vec![
+            processing.profile.to_string(),
+            format!("{} ms", processing.latency_ms),
+        ];
         if let Some(fallback) = &processing.fallback {
-            summary.push_str(&format!(" · {}", tr_fill("fell back: {}", fallback)));
+            summary.push(tr_fill("fell back: {}", fallback));
         }
-        facts.push((tr("Processing"), summary));
+        facts.push((tr("Processing"), super::lists::apart(&summary)));
     }
     if let Some(model) = model_label(entry.model.as_deref(), entry.language.as_deref()) {
         facts.push((tr("Speech model"), model));
@@ -1069,13 +1075,13 @@ fn language_row(ui: &Ui, p: Paint, pending: &Pending, layer: &mut Vec<El>) -> El
     use crate::transcription::models::language_name;
     let choices = language_choices(pending.model).unwrap_or_default();
     let labels: Vec<&str> = choices.iter().map(|code| language_name(code)).collect();
-    let current = tr_named(
-        "{model} · Language: {language}",
-        &[
-            ("model", pending.name),
-            ("language", language_name(&pending.language)),
-        ],
-    );
+    let current = super::lists::apart(&[
+        pending.name,
+        &tr_named(
+            "Language: {language}",
+            &[("language", language_name(&pending.language))],
+        ),
+    ]);
     let languages = Select::new("again-language", &labels)
         .appearance(SelectAppearance::Inline)
         .current(Some(&current))
@@ -1117,10 +1123,9 @@ fn language_row(ui: &Ui, p: Paint, pending: &Pending, layer: &mut Vec<El>) -> El
 fn model_label(model: Option<&str>, language: Option<&str>) -> Option<String> {
     let model = model?;
     Some(match language {
-        Some(language) => format!(
-            "{model} · {}",
-            crate::transcription::models::language_name(language)
-        ),
+        Some(language) => {
+            super::lists::apart(&[model, crate::transcription::models::language_name(language)])
+        }
         None => model.to_owned(),
     })
 }
@@ -1135,10 +1140,9 @@ fn versions_section(ui: &Ui, p: Paint, entry: &HistoryEntry) -> El {
             .gap(12.0)
             .child(section_label(p, "label", tr("Earlier versions")));
     for (index, version) in entry.versions.iter().enumerate() {
-        let mut meta = model_label(version.model.as_deref(), version.language.as_deref())
+        let model = model_label(version.model.as_deref(), version.language.as_deref())
             .unwrap_or_else(|| tr("Unknown model").to_owned());
-        meta.push_str(" · ");
-        meta.push_str(&event_age(version.timestamp_ms));
+        let meta = super::lists::apart(&[model, event_age(version.timestamp_ms)]);
         let copied = ui.history.version_copied == Some((id, index));
         section = section.child(
             col()

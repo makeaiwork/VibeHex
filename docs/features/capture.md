@@ -244,7 +244,7 @@ Settings › Annotate                      // capture.pane
 │   probe once that says granted
 │   ├── granted -> Allowed, no button
 │   ├── granted in System Settings but unusable until Hex relaunches ->
-│   │   "Turns on when Hex restarts" and Restart Hex, never Allow over a switch
+│   │   "Turns on when VibeHex restarts" and Restart VibeHex, never Allow over a switch
 │   │   already on
 │   ├── Returned from System Settings still untrusted -> "Still grey? Fix it"
 │   │   (`ScreenCapture` reset on running bundle + retired IDs, re-prompt + guide)
@@ -369,7 +369,7 @@ The capsule                              // capture.capsule (rune_ui/capture_cap
 │   ├── Allow -> macOS's microphone prompt, else System Settings with the
 │   │   floating guide beside it (permission_guide), never at launch
 │   ├── Followed once a second (feed::watch_grant, screen_access_watched) ->
-│   │   "… is on · Restart Hex" when macOS needs one, then "… is on ·
+│   │   "… is on · Restart VibeHex" when macOS needs one, then "… is on ·
 │   │   Capture ⌥⇧S"; Capture or the shortcut records the pointer's display
 │   ├── ✕ closes it; unanswered it folds after 2 min; the shortcut brings it
 │   │   back as it stood

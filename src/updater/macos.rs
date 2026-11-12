@@ -206,7 +206,7 @@ fn swap(staged: &Staged) -> Result<()> {
     // Both paths are NUL-terminated and outlive the call.
     if unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_SWAP) } != 0 {
         return Err(std::io::Error::last_os_error())
-            .wrap_err("could not swap in the updated Hex.app");
+            .wrap_err("could not swap in the updated VibeHex.app");
     }
     Ok(())
 }
@@ -225,7 +225,7 @@ pub fn restart_into(staged: &Staged) -> Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .wrap_err("could not schedule the updated Hex")?;
+        .wrap_err("could not schedule the updated VibeHex")?;
     Ok(())
 }
 

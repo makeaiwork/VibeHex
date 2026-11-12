@@ -1208,7 +1208,7 @@ mod tests {
     /// so it suggests only its own session, and the recent ones leave it
     /// out.
     fn rule() -> Route {
-        let to = Dest::new("SEER", "sent · rule");
+        let to = Dest::new("SEER", "rule");
         Route::Rule {
             to: to.clone(),
             suggested: vec![to],
@@ -2653,7 +2653,7 @@ mod tests {
             search(route(), "hex"),
             [
                 ("Hex release notes".into(), "1 h ago".into()),
-                ("Fix the capture tap".into(), "hex · 1 h ago".into()),
+                ("Fix the capture tap".into(), "hex   1 h ago".into()),
             ],
             "titles first, and a folder match names its folder"
         );
@@ -2677,7 +2677,7 @@ mod tests {
         flow.input(Input::Routed(route), 0.0);
         let (_, list) = done(&flow, 0.0).open.unwrap();
         let notes: Vec<_> = list.rows().map(|dest| dest.why.as_str()).collect();
-        assert_eq!(notes, ["home · 1 h ago", "1 h ago", "dotfiles · 1 h ago"]);
+        assert_eq!(notes, ["home   1 h ago", "1 h ago", "dotfiles   1 h ago"]);
     }
 
     #[test]
@@ -3208,7 +3208,7 @@ mod tests {
         flow.input(Input::NeedsPermission(screen), 1.0);
         let shown = done(&flow, 1.0);
         assert_eq!(shown.lead, Lead::Warning);
-        assert_eq!(shown.text, "Hex needs Screen Recording");
+        assert_eq!(shown.text, "VibeHex needs Screen Recording");
         assert_eq!(shown.why.as_deref(), Some("to see your screen"));
         assert_eq!(shown.ask.as_deref(), Some("Allow"));
         assert_eq!(flow.keys(), None);
@@ -3221,7 +3221,7 @@ mod tests {
         let waiting = done(&flow, 4.0);
         assert_eq!(
             waiting.why.as_deref(),
-            Some("turn Hex on in System Settings")
+            Some("turn VibeHex on in System Settings")
         );
         // It waits a good while, and never folds under the pointer.
         flow.tick(60.0);
@@ -3230,7 +3230,7 @@ mod tests {
         flow.input(Input::Permission(screen, Grant::Restart), 61.0);
         let restart = done(&flow, 61.0);
         assert_eq!(restart.text, "Screen Recording is on");
-        assert_eq!(restart.ask.as_deref(), Some("Restart Hex"));
+        assert_eq!(restart.ask.as_deref(), Some("Restart VibeHex"));
         assert_eq!(flow.click(Id::Ask, 62.0), vec![Action::Restart]);
 
         flow.input(Input::Permission(screen, Grant::Ready), 63.0);
@@ -3245,7 +3245,7 @@ mod tests {
 
         // Unanswered, it folds; ✕ closes it at once.
         flow.input(Input::NeedsPermission(CaptureNeed::Microphone), 70.0);
-        assert_eq!(done(&flow, 70.0).text, "Hex needs Microphone");
+        assert_eq!(done(&flow, 70.0).text, "VibeHex needs Microphone");
         assert!(flow.tick(70.0 + PERMISSION_HOLD_S));
         assert_eq!(flow.pres(70.0 + PERMISSION_HOLD_S), Pres::Hidden);
         flow.input(Input::NeedsPermission(screen), 300.0);
