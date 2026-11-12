@@ -281,6 +281,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/Returning",
     ),
     (
+        "assistant-setup-returning-plan",
+        "Window/Assistant/Setup/Returning, its terms in the plan",
+    ),
+    (
         "assistant-setup-plan",
         "Window/Assistant/Setup/Suggested changes",
     ),

@@ -414,6 +414,37 @@ pub(in super::super) fn setup_preset_shortcuts(ui: &mut Ui) {
 /// to one line, the model's suggestions, and round one folded with his
 /// answers. The terms Vocabulary lacks wait for the plan.
 pub(in super::super) fn setup_returning(ui: &mut Ui) {
+    let (turns, _) = returning(ui);
+    conversation(ui, "Set up for me", turns, &[]);
+}
+
+/// The returning setup's plan: no setting left to change, its terms a row
+/// each under why they're offered (the sure ones checked), the last one
+/// being edited, and "Already set" folded.
+pub(in super::super) fn setup_returning_plan(ui: &mut Ui) {
+    let (mut turns, state) = returning(ui);
+    // Round one answered as preselected.
+    if let Some(look) = turns.last_mut() {
+        look.asks.iter_mut().for_each(|ask| ask.done = true);
+    }
+    let look = turns.last().cloned().unwrap_or_default();
+    let answered = setup::answers(&look.asks);
+    let plan = setup::plan::with_terms(Vec::new(), &answered, &look.terms, &ui.settings, &state)
+        .unwrap_or_default();
+    let edited = plan.items.len().saturating_sub(1);
+    turns.push(answers(&look.asks, plan));
+    let id = conversation(ui, "Set up for me", turns, &[]);
+    let at = At {
+        conversation: id,
+        turn: 2,
+        card: 0,
+    };
+    super::vocab::edit(ui, at, edited);
+    ui.assistant.vocab_sounds = rune::TextEdit::new("супабейс, супабэйз".to_owned());
+}
+
+/// The returning setup's opening and look, and the state it plays.
+fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
     open(ui);
     let state = sample(ui);
     // The pane reads the settings as drafted: its Vocabulary too.
@@ -527,7 +558,7 @@ pub(in super::super) fn setup_returning(ui: &mut Ui) {
             ..Turn::default()
         },
     ];
-    conversation(ui, "Set up for me", turns, &[]);
+    (turns, state)
 }
 
 /// What a model suggests from the returning scene's use.
@@ -549,7 +580,7 @@ mod tests {
 
     #[test]
     fn every_setup_scene_has_nothing_left_to_save() {
-        let scenes: [Scene; 8] = [
+        let scenes: [Scene; 9] = [
             ("setup-ask", setup_ask),
             ("setup-preset", setup_preset),
             ("setup-preset-shortcuts", setup_preset_shortcuts),
@@ -558,6 +589,7 @@ mod tests {
             ("setup-kept", setup_kept),
             ("setup-result", setup_result),
             ("setup-returning", setup_returning),
+            ("setup-returning-plan", setup_returning_plan),
         ];
         for (name, scene) in scenes {
             let mut ui = super::super::super::scenes::mac_fixture();

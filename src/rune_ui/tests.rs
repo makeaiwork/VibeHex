@@ -2920,6 +2920,7 @@ fn goldens() {
         "assistant-setup-preset",
         "assistant-setup-preset-shortcuts",
         "assistant-setup-returning",
+        "assistant-setup-returning-plan",
     ] {
         check_golden(scene, false, PANE_SIZE);
         check_golden(scene, true, PANE_SIZE);

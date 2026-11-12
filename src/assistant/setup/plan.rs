@@ -25,7 +25,8 @@ use crate::app_settings::AppSettings;
 use crate::assistant::changes::catalog::{self, State};
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::vocab;
-use crate::assistant::changes::{self, Card, CardKind, Item, parts};
+use crate::assistant::changes::{self, Card, CardKind, Item, names, parts};
+use crate::assistant::recordings::terms;
 use crate::control::settings;
 use crate::desktop::i18n::tr;
 use crate::transcription::models::{self, TranscriptionModelId};
@@ -291,6 +292,7 @@ fn speech_model(language: &str, code: bool, settings: &AppSettings) -> Model {
 pub enum Area {
     Dictation,
     Code,
+    Vocabulary,
     Meetings,
     Files,
     Models,
@@ -302,6 +304,7 @@ impl Area {
         match self {
             Self::Dictation => "Dictation",
             Self::Code => "Code",
+            Self::Vocabulary => "Vocabulary",
             Self::Meetings => "Meetings",
             Self::Files => "Files",
             Self::Models => "Models",
@@ -315,7 +318,10 @@ pub fn area(key: &str) -> Area {
     if key.starts_with("transcription.") {
         return Area::Models;
     }
-    if key == vocab::KEY || key == "labs.russian_vibe_coding" {
+    if key == vocab::KEY {
+        return Area::Vocabulary;
+    }
+    if key == "labs.russian_vibe_coding" {
         return Area::Code;
     }
     if key.starts_with("meetings.") {
@@ -356,11 +362,12 @@ pub fn plan(
 
 /// One checklist from the rules and a model's plan cards (none for the
 /// app's own): every item once, none held here, at most [`PLAN_LINES`],
-/// grouped by area, with "Already set". The terms a returning setup's use
-/// shows (`candidates`) come as rows of their own: the sure ones checked,
-/// the rest unchecked, none Vocabulary has, a row lists already, or the
-/// person declined in an earlier setup. `None` when nothing is left to
-/// show.
+/// grouped by area, with "Already set". Vocabulary has an area of its
+/// own, a row per term. The terms a returning setup's use shows
+/// (`candidates`) join it: the sure ones checked, the rest unchecked, none
+/// Vocabulary has, a row lists already, or the person declined in an
+/// earlier setup; a near miss of a name VibeHex knows comes as that name.
+/// `None` when nothing is left to show.
 pub fn with_terms(
     cards: Vec<Card>,
     answers: &[Answer],
@@ -428,12 +435,11 @@ pub fn with_terms(
     items.retain(|item| !past::held(&state.declined, &item.key, &item.to, settings));
     items.sort_by_key(|item| area(&item.key));
     items.truncate(PLAN_LINES);
-    // Every term asked for in one row, checked when a follow-up asked for
-    // them; then the use's, sure ones checked.
-    let mut rows: Vec<Item> = Vec::new();
-    if let Some(mut row) = vocab::row(terms) {
+    // Every term on a row of its own: the ones a follow-up asked for
+    // checked, and a model's with them; then the use's, sure ones checked.
+    let mut rows: Vec<Item> = vocab::split(terms);
+    for row in &mut rows {
         row.included = answered_terms;
-        rows.push(row);
     }
     let listed: Vec<String> = rows
         .iter()
@@ -442,14 +448,14 @@ pub fn with_terms(
         .collect();
     let (sure, maybe) = candidate_items(candidates, &listed, settings, state);
     for (group, checked) in [(sure, true), (maybe, false)] {
-        if let Some(mut row) = vocab::row(group) {
+        for mut row in vocab::split(group) {
             row.included = checked;
             rows.push(row);
         }
     }
     let at = items
         .iter()
-        .position(|item| area(&item.key) > Area::Code)
+        .position(|item| area(&item.key) > Area::Vocabulary)
         .unwrap_or(items.len());
     items.splice(at..at, rows);
     let mut kept: Vec<Item> = Vec::new();
@@ -483,6 +489,9 @@ const MAYBE_TERMS: &str = "You say these, and Vocabulary doesn't have them";
 /// The candidates as Vocabulary items, sure and the rest: each checked as
 /// `hex vocabulary add` checks it, leaving out what Vocabulary has, what
 /// `listed` has, and what an earlier setup offered and the person declined.
+/// A near miss of a Vocabulary term is left out too, and one of a name
+/// VibeHex knows (`Outkit`, heard "ауткит", for Orukeet) comes as that
+/// name, with how it was heard.
 fn candidate_items(
     candidates: &[Candidate],
     listed: &[String],
@@ -496,12 +505,29 @@ fn candidate_items(
         .flat_map(|line| vocab::terms(&line.to))
         .map(|term| term.term.to_lowercase())
         .collect();
+    let names = app_names();
+    let vocabulary: Vec<String> = settings
+        .vocabulary
+        .iter()
+        .map(|entry| entry.term.clone())
+        .collect();
+    let mut seen: Vec<String> = listed.iter().map(|known| known.to_lowercase()).collect();
     let (mut sure, mut maybe) = (Vec::new(), Vec::new());
     for candidate in candidates {
-        let lower = candidate.term.to_lowercase();
-        if declined.contains(&lower) || listed.iter().any(|known| known.to_lowercase() == lower) {
+        // A near miss of a Vocabulary term is that term misheard: nothing
+        // to add (`hex vocabulary add` can't give it another spelling).
+        if terms::named(&candidate.term, &vocabulary).is_some() {
             continue;
         }
+        let mut candidate = candidate.clone();
+        if let Some(name) = terms::named(&candidate.term, &names) {
+            candidate.term = name.to_owned();
+        }
+        let lower = candidate.term.to_lowercase();
+        if declined.contains(&lower) || seen.contains(&lower) {
+            continue;
+        }
+        seen.push(lower);
         let proposal = Proposal {
             key: vocab::KEY.into(),
             value: Some(
@@ -534,6 +560,48 @@ fn candidate_items(
     (sure, maybe)
 }
 
+/// The names VibeHex itself knows, the likeliest to be said first: its
+/// speech models, the engines it runs with, its guide's articles (Labs
+/// features among them), its panes and settings.
+pub fn app_names() -> Vec<String> {
+    let mut names: Vec<String> = models::MODELS
+        .iter()
+        .map(|model| model.name.to_owned())
+        .collect();
+    names.extend(
+        [
+            "VibeHex",
+            "Hex",
+            "Codex",
+            "ChatGPT",
+            "OpenCode",
+            "OpenRouter",
+            "LM Studio",
+            "Ollama",
+            "Apple Intelligence",
+            "Scrawl",
+            "Annotate",
+        ]
+        .map(str::to_owned),
+    );
+    names.extend(
+        crate::assistant::guide::articles()
+            .iter()
+            .map(|article| article.title.clone()),
+    );
+    for (_, path, name, _) in names::WHERE {
+        names.extend(path.split(" › ").map(str::to_owned));
+        names.push((*name).to_owned());
+    }
+    let mut kept: Vec<String> = Vec::new();
+    for name in names {
+        if !kept.contains(&name) {
+            kept.push(name);
+        }
+    }
+    kept
+}
+
 /// Every English reason the rules give, for the translation tables' test.
 #[cfg(test)]
 pub fn words() -> Vec<&'static str> {
@@ -550,6 +618,7 @@ pub fn words() -> Vec<&'static str> {
         "Hears many languages",
         "Dictation",
         "Code",
+        "Vocabulary",
         "Meetings",
         "Files",
         "Models",

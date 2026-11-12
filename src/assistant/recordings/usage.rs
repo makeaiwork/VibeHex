@@ -619,5 +619,20 @@ mod tests {
         for line in lines(&usage) {
             println!("{line}");
         }
+        let path = std::env::var("HEX_USAGE_SETTINGS").unwrap();
+        let (settings, _) =
+            crate::app_settings::AppSettings::read_from(std::path::Path::new(&path)).unwrap();
+        let candidates = crate::assistant::setup::since::candidates(&usage);
+        let state = crate::assistant::changes::catalog::State::default();
+        let plan = crate::assistant::setup::plan::with_terms(
+            Vec::new(),
+            &[],
+            &candidates,
+            &settings,
+            &state,
+        );
+        for item in plan.iter().flat_map(|card| &card.items) {
+            println!("plan: {} {}", item.included, item.to);
+        }
     }
 }

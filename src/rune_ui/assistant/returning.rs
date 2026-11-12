@@ -300,7 +300,7 @@ mod tests {
             .collect();
         assert_eq!(
             rows,
-            [("Granola".to_owned(), true), ("Outkit".to_owned(), false)]
+            [("Granola".to_owned(), true), ("Orukeet".to_owned(), false)]
         );
     }
 

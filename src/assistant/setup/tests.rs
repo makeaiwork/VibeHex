@@ -609,7 +609,7 @@ fn a_declined_line_is_not_offered_again() {
     assert!(card.items.iter().any(|item| item.key == row.key));
 }
 
-/// A returning setup's terms join the plan as rows of their own: the
+/// A returning setup's terms join the plan as a row each: the
 /// sure ones (cleanup fixed one heard word into them three times or more)
 /// checked, the rest unchecked; none Vocabulary has, and none the person
 /// declined in an earlier setup. Applied with the second left unticked,
@@ -645,14 +645,45 @@ fn the_uses_terms_join_the_plan_sure_ones_checked() {
             })
             .collect()
     };
-    // `Term7` is in the owner's Vocabulary already.
+    // `Term7` is in the owner's Vocabulary already, and `Outkit` is a
+    // near miss of the speech model Orukeet: offered as Orukeet, heard
+    // as "ауткит". Each term is a row of its own.
     assert_eq!(
         rows(&mac()),
         [
             (vec!["Granola".to_owned()], true),
-            (vec!["Outkit".to_owned(), "Whisper".to_owned()], false),
+            (vec!["Orukeet".to_owned()], false),
+            (vec!["Whisper".to_owned()], false),
         ]
     );
+    let card = plan::with_terms(
+        Vec::new(),
+        &owners_answers(),
+        &candidates,
+        &settings,
+        &mac(),
+    )
+    .unwrap();
+    let orukeet = card
+        .items
+        .iter()
+        .flat_map(|item| vocab::terms(&item.to))
+        .find(|term| term.term == "Orukeet")
+        .unwrap();
+    assert_eq!(orukeet.sounds_like, ["ауткит"]);
+    // A near miss of a Vocabulary term is that term misheard: left out.
+    let near = [
+        candidate("Grafana", "графана", true),
+        candidate("Tirm7", "тирм", true),
+    ];
+    let left = plan::with_terms(Vec::new(), &owners_answers(), &near, &settings, &mac())
+        .unwrap()
+        .items
+        .iter()
+        .flat_map(|item| vocab::terms(&item.to))
+        .map(|term| term.term)
+        .collect::<Vec<_>>();
+    assert_eq!(left, ["Grafana"]);
     let card = plan::with_terms(
         Vec::new(),
         &owners_answers(),

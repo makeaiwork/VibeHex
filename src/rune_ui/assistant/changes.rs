@@ -155,6 +155,8 @@ fn is_download(item: &changes::Item) -> bool {
 /// Saves the card's change: what it needs first and the change itself, in
 /// one save, or nothing.
 pub(super) fn apply(ui: &mut Ui, at: At) {
+    // A term still being edited is kept first.
+    super::vocab::done(ui);
     let Some(card) = card(ui, at).cloned() else {
         return;
     };
@@ -162,8 +164,6 @@ pub(super) fn apply(ui: &mut Ui, at: At) {
         return apply_plan(ui, at, card);
     }
     if card.kind == CardKind::Vocabulary {
-        super::vocab::done(ui);
-        let card = self::card(ui, at).cloned().unwrap_or(card);
         return super::vocab::apply(ui, at, card);
     }
     let decision = match card.items.first() {

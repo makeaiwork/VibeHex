@@ -1,7 +1,9 @@
 //! Setup's one list of changes (the Setup board): "Suggested changes,
 //! 6 changes, 5 selected", a row per setting with its checkbox, where it
 //! lives, why, and its value now and after, then Not now and the screen's
-//! Primary, "Apply 5 changes".
+//! Primary, "Apply 5 changes". Vocabulary's terms are a row each, as the
+//! Vocabulary card has them (checkbox, term, how it sounds, Edit), under
+//! why they're offered; each counts as a change.
 //!
 //! Before anything is applied the list says what else it takes: a speech
 //! model's download and its size, the OS permission a row needs, a ChatGPT
@@ -103,6 +105,7 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
         .map(|item| item.key.as_str())
         .collect();
     let mut area = None;
+    let mut why: Option<&str> = None;
     for (index, item) in card.items.iter().enumerate() {
         let shown = state::row(card, index, &live);
         let here = setup::plan::area(&item.key);
@@ -111,7 +114,22 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
             area = Some(here);
             list = list.child(heading(p, here));
         }
-        list = list.child(line(ui, p, at, index, item, &shown, &included));
+        if item.key != vocab::KEY {
+            list = list.child(line(ui, p, at, index, item, &shown, &included));
+            continue;
+        }
+        // A term as the Vocabulary card has it, under why it's offered.
+        let reason = item.why.trim();
+        if why != Some(reason) && !reason.is_empty() {
+            list = list.child(caption(p, index, reason));
+        }
+        why = Some(reason);
+        list = list.child(
+            row()
+                .key(format!("row{index}"))
+                .px(4.0)
+                .child(super::vocab::line(ui, p, at, index, item, &shown).grow(1.0)),
+        );
     }
     if !card.kept.is_empty() {
         list = list
@@ -127,8 +145,8 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
     )
 }
 
-/// An area's heading over its rows: Dictation, Code, Meetings, Files,
-/// Models.
+/// An area's heading over its rows: Dictation, Code, Vocabulary,
+/// Meetings, Files, Models.
 fn heading(p: Paint, area: setup::plan::Area) -> El {
     row()
         .key(format!("area-{}", area.name().to_lowercase()))
@@ -143,6 +161,17 @@ fn heading(p: Paint, area: setup::plan::Area) -> El {
                 })
                 .color(p.faint()),
         )
+}
+
+/// Why the terms under it are offered.
+fn caption(p: Paint, index: usize, why: &str) -> El {
+    row().key(format!("caption{index}")).px(14.0).pt(7.0).child(
+        text(why.to_owned())
+            .key("why")
+            .font(p.k.ty.small)
+            .color(p.muted())
+            .wrap(),
+    )
 }
 
 /// "Already set: 3 things ›", and what they are once unfolded.
@@ -318,12 +347,7 @@ fn line(
             row()
                 .key("change")
                 .pt(1.0)
-                .child(if item.key == vocab::KEY {
-                    // Terms come new: no value before them.
-                    card::value_chip(p, "to", &card::label(&item.key, &item.to), !off, off)
-                } else {
-                    card::change_chips(p, &item.key, &item.from, &item.to, off)
-                }),
+                .child(card::change_chips(p, &item.key, &item.from, &item.to, off)),
         )
 }
 

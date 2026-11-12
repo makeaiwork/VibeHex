@@ -772,6 +772,10 @@ pub(super) const SCENES: &[Scene] = &[
         "assistant-setup-returning",
         assistant::setup_fixture::setup_returning,
     ),
+    (
+        "assistant-setup-returning-plan",
+        assistant::setup_fixture::setup_returning_plan,
+    ),
     ("meetings-cited", assistant::fixture::meeting_cited),
     // Opened from a meeting's Requests: Back to Requests.
     ("meetings-cited-requests", |ui| {

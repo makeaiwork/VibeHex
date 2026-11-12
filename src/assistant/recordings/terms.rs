@@ -258,6 +258,74 @@ fn phrases(fixes: &[Fix]) -> Vec<(String, (String, usize))> {
     phrases
 }
 
+/// The name in `names` that `word` is a near miss of: not the same, but
+/// with the same first and last letters and a consonant skeleton (the
+/// first letter, then the rest without vowels or repeats) one letter apart
+/// at most, or the same for a short one. `Outkit` is a near miss of
+/// `Orukeet`; `Granola` of no `Granite`. A name is checked whole, without
+/// spaces, and by each of its words; one that is ordinary English
+/// (`Output`) is heard right and never checked. The nearest wins, and the
+/// first of `names` among equals.
+pub fn named<'a>(word: &str, names: &'a [String]) -> Option<&'a str> {
+    let mut best: Option<(usize, &str)> = None;
+    for name in names {
+        let parts = name.split_whitespace();
+        let whole = std::iter::once(name.as_str()).filter(|_| name.contains(' '));
+        for candidate in whole.chain(parts).filter(|part| !common(part)) {
+            if let Some(apart) = near(word, candidate)
+                && best.is_none_or(|(known, _)| apart < known)
+            {
+                best = Some((apart, candidate));
+            }
+        }
+    }
+    best.map(|(_, name)| name)
+}
+
+/// How far apart `word` and `name` are when one is a near miss of the
+/// other.
+fn near(word: &str, name: &str) -> Option<usize> {
+    let flat = |text: &str| -> Vec<char> {
+        text.chars()
+            .filter(|letter| letter.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect()
+    };
+    let (one, other) = (flat(word), flat(name));
+    if one == other || one.first() != other.first() || one.last() != other.last() {
+        return None;
+    }
+    let (one, other) = (skeleton(&one), skeleton(&other));
+    let allowed = usize::from(one.len().min(other.len()) >= 4);
+    let apart = distance(&one, &other);
+    (apart <= allowed).then_some(apart)
+}
+
+/// The first letter, then the rest without vowels, repeats collapsed.
+fn skeleton(letters: &[char]) -> Vec<char> {
+    let mut kept: Vec<char> = letters.first().copied().into_iter().collect();
+    for &letter in letters.iter().skip(1) {
+        if !"aeiouy".contains(letter) && kept.last() != Some(&letter) {
+            kept.push(letter);
+        }
+    }
+    kept
+}
+
+/// Levenshtein distance.
+fn distance(one: &[char], other: &[char]) -> usize {
+    let mut before: Vec<usize> = (0..=other.len()).collect();
+    for (row, a) in one.iter().enumerate() {
+        let mut now = vec![row + 1];
+        for (column, b) in other.iter().enumerate() {
+            let swap = before[column] + usize::from(a != b);
+            now.push(swap.min(before[column + 1] + 1).min(now[column] + 1));
+        }
+        before = now;
+    }
+    before[other.len()]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,5 +354,23 @@ mod tests {
         for word in ["OK", "Code", "Structure", "codex"] {
             assert!(!brand(word), "{word}");
         }
+    }
+
+    #[test]
+    fn a_near_miss_of_a_known_name_is_that_name() {
+        let names: Vec<String> = [
+            "Orukeet",
+            "Granite Speech 5.0",
+            "Whisper large-v3-turbo",
+            "Codex",
+        ]
+        .map(str::to_owned)
+        .to_vec();
+        assert_eq!(named("Outkit", &names), Some("Orukeet"));
+        assert_eq!(named("Codecs", &names), None);
+        for word in ["Granola", "Monkey", "Whisper", "Codex", "MacBook", "Web"] {
+            assert_eq!(named(word, &names), None, "{word}");
+        }
+        assert_eq!(named("Wisper", &names), Some("Whisper"));
     }
 }

@@ -116,13 +116,11 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
         }
     }
     items.sort_by_key(|item| (area(&item.key), item.key == RETENTION));
-    if let Some(row) = vocab::row(terms) {
-        let at = items
-            .iter()
-            .position(|item| area(&item.key) > super::plan::Area::Code)
-            .unwrap_or(items.len());
-        items.insert(at, row);
-    }
+    let at = items
+        .iter()
+        .position(|item| area(&item.key) > super::plan::Area::Vocabulary)
+        .unwrap_or(items.len());
+    items.splice(at..at, vocab::split(terms));
     kept.sort_by_key(|item| area(&item.key));
     planned.missing.dedup();
     planned.card = (!items.is_empty() || !kept.is_empty()).then(|| Card {
@@ -326,12 +324,15 @@ mod tests {
         if settings::unavailable(RETENTION).is_none() {
             assert!(keys.contains(&RETENTION));
         }
-        let terms = card
+        // A row per term.
+        let terms: Vec<_> = card
             .items
             .iter()
-            .find(|item| item.key == vocab::KEY)
-            .unwrap();
-        assert_eq!(vocab::terms(&terms.to).len(), denis().vocabulary.len());
+            .filter(|item| item.key == vocab::KEY)
+            .map(|item| vocab::terms(&item.to))
+            .collect();
+        assert!(terms.iter().all(|terms| terms.len() == 1));
+        assert_eq!(terms.len(), denis().vocabulary.len());
     }
 
     /// What is the same is "Already set"; terms the person has are left

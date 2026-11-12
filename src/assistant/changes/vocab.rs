@@ -159,22 +159,24 @@ pub fn merge(into: &mut Card, card: Card) {
     }
 }
 
-/// One plan row for every term a plan holds, checked if any was.
-pub fn row(items: Vec<Item>) -> Option<Item> {
-    let first = items.first()?.clone();
-    let mut all: Vec<Term> = Vec::new();
-    for item in &items {
+/// A plan's rows for `items`' terms: one per term, each checked or not
+/// on its own, a term listed twice once.
+pub fn split(items: Vec<Item>) -> Vec<Item> {
+    let mut rows: Vec<Item> = Vec::new();
+    for item in items {
         for term in terms(&item.to) {
-            if !all.iter().any(|kept| same(&kept.term, &term.term)) {
-                all.push(term);
+            let listed = rows
+                .iter()
+                .any(|row| terms(&row.to).iter().any(|one| same(&one.term, &term.term)));
+            if !listed {
+                rows.push(Item {
+                    to: term.value(),
+                    ..item.clone()
+                });
             }
         }
     }
-    Some(Item {
-        to: Value::Array(all.iter().map(Term::value).collect()),
-        included: items.iter().any(|item| item.included),
-        ..first
-    })
+    rows
 }
 
 /// The terms as a row names them: `Kubernetes, kubectl, +2`.
@@ -260,23 +262,36 @@ mod tests {
     }
 
     #[test]
-    fn a_plan_holds_its_terms_in_one_row() {
-        let item = |term: &str, included| Item {
+    fn a_plan_holds_each_term_on_its_own_row() {
+        let item = |value: Value, included| Item {
             key: KEY.into(),
-            to: json!({"term": term, "sounds_like": []}),
+            to: value,
             included,
             ..Item::default()
         };
-        let row = row(vec![
-            item("GitHub", false),
-            item("Docker", false),
-            item("github", false),
-            item("TypeScript", false),
-            item("Claude Code", false),
-        ])
-        .unwrap();
-        assert!(!row.included);
-        assert_eq!(terms(&row.to).len(), 4);
-        assert_eq!(label(&row.to), "GitHub, Docker, TypeScript, +1");
+        let rows = split(vec![
+            item(json!({"term": "GitHub", "sounds_like": ["гитхаб"]}), true),
+            item(
+                json!([{"term": "Docker"}, {"term": "github"}, {"term": "TypeScript"}]),
+                false,
+            ),
+        ]);
+        let shown: Vec<(String, bool)> = rows
+            .iter()
+            .map(|row| (label(&row.to), row.included))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                ("GitHub".to_owned(), true),
+                ("Docker".to_owned(), false),
+                ("TypeScript".to_owned(), false),
+            ]
+        );
+        assert_eq!(terms(&rows[0].to)[0].sounds_like, ["гитхаб"]);
+        assert_eq!(
+            label(&json!([{"term": "a"}, {"term": "b"}, {"term": "c"}, {"term": "d"}])),
+            "a, b, c, +1"
+        );
     }
 }

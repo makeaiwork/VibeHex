@@ -94,7 +94,7 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
 
 /// One term: its checkbox (or how it went), the term, what it sounds like,
 /// and Edit; while edited, the two fields and Done.
-fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
+pub(super) fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
     let term = vocab::terms(&item.to)
         .into_iter()
         .next()
@@ -529,5 +529,34 @@ mod tests {
             act::card(&ui, at).unwrap().decision,
             Decision::Failed { .. }
         ));
+    }
+
+    /// In a setup plan each term is a row: unticking one leaves it out,
+    /// an edited one goes in as edited, and both count as changes.
+    #[test]
+    fn a_plans_terms_go_in_one_by_one_as_edited() {
+        let (mut ui, at) = with_terms(vec![
+            term("Granola", &["гранола"]),
+            term("Outkit", &["ауткит"]),
+            term("Whisper", &["виспер"]),
+        ]);
+        act::set(&mut ui, at, |card| card.kind = CardKind::Plan);
+        act::toggle(&mut ui, at, 2);
+        edit(&mut ui, at, 1);
+        ui.assistant.vocab_term = rune::TextEdit::new("Orukeet".to_owned());
+        ui.assistant.vocab_sounds = rune::TextEdit::new("ауткит, оракит".to_owned());
+        let card = act::card(&ui, at).unwrap();
+        let selected = card.items.iter().filter(|item| item.included).count();
+        assert_eq!((card.items.len(), selected), (3, 2));
+        // Apply keeps the edit still open first.
+        act::apply(&mut ui, at);
+        assert!(ui.assistant.vocab_edit.is_none());
+        assert_eq!(terms(&ui), ["Docker", "Granola", "Orukeet"]);
+        let orukeet = ui.settings.vocabulary.last().unwrap();
+        assert_eq!(orukeet.sounds_like, ["ауткит", "оракит"]);
+        let card = act::card(&ui, at).unwrap().clone();
+        assert_eq!(state::applied_count(&card), (2, 2));
+        act::undo(&mut ui, at);
+        assert_eq!(terms(&ui), ["Docker"]);
     }
 }

@@ -109,7 +109,7 @@ slider icon label badge layout panel sidebar header footer theme hover
 notification video photo transcribe transcript transcription dictate
 dictation recording benefit session sync backup account profile login
 password upload download install feedback mobile desktop laptop online
-offline beta demo pro bot mail inbox calendar assistant built
+offline beta demo pro bot mail inbox calendar assistant built input output
 # Plurals and forms the endings don't reach.
 children men women people feet teeth mice did done went gone made said
 saw seen took taken came given gave got known knew thought told found
