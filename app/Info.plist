@@ -38,17 +38,17 @@
   <key>LSUIElement</key>
   <true/>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Hex uses automation to identify the foreground app and browser and pause supported media while you dictate.</string>
+  <string>VibeHex uses automation to identify the foreground app and browser and pause supported media while you dictate.</string>
   <key>NSAccessibilityUsageDescription</key>
-  <string>Hex uses Accessibility to paste dictation and read selected text for Voice Action.</string>
+  <string>VibeHex uses Accessibility to paste dictation and read selected text for Voice Action.</string>
   <key>NSAudioCaptureUsageDescription</key>
-  <string>Hex records the other participants' audio only while you record a meeting, and keeps it on this Mac.</string>
+  <string>VibeHex records the other participants' audio only while you record a meeting, and keeps it on this Mac.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
-  <string>Hex reads your calendar on this Mac to remind you before meetings and title their recordings. Nothing leaves your Mac.</string>
+  <string>VibeHex reads your calendar on this Mac to remind you before meetings and title their recordings. Nothing leaves your Mac.</string>
   <key>NSCalendarsUsageDescription</key>
-  <string>Hex reads your calendar on this Mac to remind you before meetings and title their recordings. Nothing leaves your Mac.</string>
+  <string>VibeHex reads your calendar on this Mac to remind you before meetings and title their recordings. Nothing leaves your Mac.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Hex uses your microphone for private local dictation and does not store the captured audio.</string>
+  <string>VibeHex uses your microphone for private local dictation and does not store the captured audio.</string>
   <key>SUPublicEDKey</key>
   <string>mIek27lttJe8cIBqVZFhh6reRKjpTx1h9ZY9OKWPtuM=</string>
 </dict>

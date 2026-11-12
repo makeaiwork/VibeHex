@@ -1441,7 +1441,12 @@ fn certificate(p: Paint, targeted: bool, signed: bool) -> El {
                 .key("copy")
                 .absolute(CERT_PAD, CERT_PAD - 2.0)
                 .gap(2.0)
-                .child(text("Hex").key("app").font(k.ty.small).color(p.muted()))
+                .child(
+                    text(crate::app_paths::PRODUCT_NAME)
+                        .key("app")
+                        .font(k.ty.small)
+                        .color(p.muted()),
+                )
                 .child(
                     text(tr("Certificate of completion"))
                         .key("title")
@@ -1449,7 +1454,7 @@ fn certificate(p: Paint, targeted: bool, signed: bool) -> El {
                         .color(p.text()),
                 )
                 .child(
-                    text(tr("I hereby have completed Hex onboarding."))
+                    text(tr("I hereby have completed VibeHex onboarding."))
                         .key("body")
                         .font(k.ty.ui)
                         .color(p.text()),
@@ -2012,7 +2017,7 @@ fn share<S: 'static>(
                 .h(SHARE_ROWS[0])
                 .center_y()
                 .child(
-                    text("Hex")
+                    text(crate::app_paths::PRODUCT_NAME)
                         .key("brand")
                         .font(k.ty.ui_medium)
                         .color(p.text()),

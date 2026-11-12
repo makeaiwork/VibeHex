@@ -384,7 +384,7 @@ pub(crate) fn restart(ui: &mut Ui, tx: &mut Tx) -> Result<(), String> {
     open(ui);
     tx.settle();
     if ui.first_run.is_none() {
-        return Err("Hex could not open onboarding".into());
+        return Err("VibeHex could not open onboarding".into());
     }
     Ok(())
 }
@@ -567,7 +567,7 @@ pub(in crate::rune_ui) fn overlay(ui: &Ui, p: Paint, reduced: bool) -> Option<El
         super::flows::view(p, s)
             .key("first-run")
             .role("dialog")
-            .label(tr("Setting up Hex"))
+            .label(tr("Setting up VibeHex"))
             .absolute(0.0, 0.0)
             .on_press(|_: &mut Ui| {}),
     )
@@ -757,14 +757,14 @@ pub(super) fn practice_changed(ui: &mut Ui, tx: &mut Tx) {
 /// What the practice says in place of the shortcut invitation while the
 /// listener loads its model, microphone, and shortcuts.
 pub(super) fn warming_copy() -> &'static str {
-    tr("Getting Hex ready to listen…")
+    tr("Getting VibeHex ready to listen…")
 }
 
 /// What the practice dictation's last try needs said.
 pub(super) fn hint_copy(live: &Live) -> Option<&'static str> {
     Some(match live.practice {
         Practice::TooShort => tr("Hold the shortcut a little longer while you speak."),
-        Practice::NothingHeard => tr("Hex didn't hear any words. Try again a little louder."),
+        Practice::NothingHeard => tr("VibeHex didn't hear any words. Try again a little louder."),
         Practice::Failed => tr("That didn't work. Try again."),
         Practice::Transcribing => tr("Typing what you said…"),
         _ => return None,

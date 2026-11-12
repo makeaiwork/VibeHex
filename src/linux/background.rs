@@ -42,7 +42,7 @@ pub(crate) fn request(autostart: bool, launcher: &Path) -> Result<Option<bool>> 
                     (
                         "reason",
                         Variant::from(
-                            "Hex keeps listening for your dictation shortcut when its window is closed",
+                            "VibeHex keeps listening for your dictation shortcut when its window is closed",
                         ),
                     ),
                     ("autostart", Variant::from(autostart)),

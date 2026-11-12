@@ -804,7 +804,7 @@ fn states(p: Paint) -> El {
                     ]
                 }))
                 .child(state_button(p, "No permission", || vec![needs_screen()]))
-                .child(state_button(p, "Restart Hex", || {
+                .child(state_button(p, "Restart VibeHex", || {
                     vec![
                         needs_screen(),
                         Step::Input(Input::Permission(

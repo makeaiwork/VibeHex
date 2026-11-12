@@ -20,7 +20,7 @@ vibehex: false
 
 **Needs.** Windows or Linux. On Linux, X11 or a desktop with the shortcuts portal; where neither exists the key stays unregistered.
 
-**Good to know.** The shortcut is unbound until you record a key, and it dictates like the main shortcut (same mode, History entry, Hold or Tap). It is refused if another Hex shortcut uses the same key. Paste last dictation still follows the Terminal paste setting. Off by default.
+**Good to know.** The shortcut is unbound until you record a key, and it dictates like the main shortcut (same mode, History entry, Hold or Tap). It is refused if another VibeHex shortcut uses the same key. Paste last dictation still follows the Terminal paste setting. Off by default.
 
 **Where.** Labs › Terminal paste shortcut (`labs.terminal_paste_shortcut`); then the Terminal paste shortcut row in General (`terminal_paste_hotkey`).
 

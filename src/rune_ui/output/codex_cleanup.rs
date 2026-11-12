@@ -109,7 +109,7 @@ fn status_row(ui: &Ui, p: Paint) -> El {
         }
         Reported::Failed(why) if why == codex::NOT_INSTALLED => (
             tr_fill(
-                "Not found. Hex uses the Codex CLI on this computer: install it with {}, then sign in once",
+                "Not found. VibeHex uses the Codex CLI on this computer: install it with {}, then sign in once",
                 codex::INSTALL_COMMAND,
             ),
             p.warning(),
@@ -135,7 +135,7 @@ fn status_row(ui: &Ui, p: Paint) -> El {
                 Some(check_again(p)),
             ),
             Account::SignedOut => (
-                tr("Not signed in. Signing in opens your browser; Hex never sees your password")
+                tr("Not signed in. Signing in opens your browser; VibeHex never sees your password")
                     .into(),
                 p.warning(),
                 Some(button(

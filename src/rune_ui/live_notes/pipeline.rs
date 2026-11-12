@@ -205,8 +205,8 @@ impl Pipeline {
 fn notes_suffix(found: usize) -> String {
     match found {
         0 => String::new(),
-        1 => " · 1 note".into(),
-        n => format!(" · {n} notes"),
+        1 => ", 1 note".into(),
+        n => format!(", {n} notes"),
     }
 }
 

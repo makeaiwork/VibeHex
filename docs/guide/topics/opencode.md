@@ -28,7 +28,7 @@ VibeHex found no running OpenCode. To fix it:
 
 ## Choose its model
 
-The regular window has no OpenCode model picker now. If you set no model, VibeHex picks a fast one your OpenCode has connected. To choose one, use **Output › Edit with agent**, which copies a prompt for an AI agent to edit your settings, or set `model` in the rewrite part of `dictation_processing.default_mode` (a provider/model name, such as `openai/gpt-5.4-mini`) with the `hex settings` command. For meeting notes, set Summaries to OpenCode and choose under it in **Model** (`meetings.opencode_model`), a list of the running OpenCode's models; "Hex picks a fast model" is the automatic choice.
+The regular window has no OpenCode model picker now. If you set no model, VibeHex picks a fast one your OpenCode has connected. To choose one, use **Output › Edit with agent**, which copies a prompt for an AI agent to edit your settings, or set `model` in the rewrite part of `dictation_processing.default_mode` (a provider/model name, such as `openai/gpt-5.4-mini`) with the `hex settings` command. For meeting notes, set Summaries to OpenCode and choose under it in **Model** (`meetings.opencode_model`), a list of the running OpenCode's models; "VibeHex picks a fast model" is the automatic choice.
 
 ## Good to know
 

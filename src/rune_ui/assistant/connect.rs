@@ -128,7 +128,7 @@ pub(super) fn panel(ui: &Ui, p: Paint) -> El {
             Some(tone_tag(p, "tag", tr("Recommended"), Tone::Accent)),
             Some(
                 tr_fill(
-                    "Not found. Hex uses the Codex CLI on this computer: install it with {}, then sign in once",
+                    "Not found. VibeHex uses the Codex CLI on this computer: install it with {}, then sign in once",
                     codex::INSTALL_COMMAND,
                 )
                 .as_str(),

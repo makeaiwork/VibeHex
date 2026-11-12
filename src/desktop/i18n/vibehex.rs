@@ -9,12 +9,18 @@ pub(super) mod codex;
 pub(super) mod files;
 pub(super) mod follow;
 pub(super) mod linked;
+mod naming;
 pub(super) mod russian;
 pub(super) mod setup;
+mod undotted;
 pub(super) mod web;
 
-/// VibeHex's rows for the six-column table: its own, then Files', Codex's,
-/// and Assistant's.
+/// One language's strings by their English source.
+type Pairs = &'static [(&'static str, &'static str)];
+
+/// VibeHex's rows for the six-column table: its own, Files', Codex's and
+/// Assistant's, then Hex's strings said with VibeHex's name and without a
+/// middle dot.
 pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
     TRANSLATIONS
         .iter()
@@ -26,12 +32,14 @@ pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static s
         .chain(follow::TRANSLATIONS)
         .chain(linked::TRANSLATIONS)
         .chain(web::TRANSLATIONS)
+        .chain(naming::TRANSLATIONS)
+        .chain(undotted::TRANSLATIONS)
 }
 
-/// VibeHex's French rows: its own, then Assistant's.
+/// VibeHex's French strings: its own, Assistant's, then Hex's renamed.
 pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    FRENCH
-        .iter()
+    pairs(FRENCH, naming::FRENCH)
+        .chain(undotted::FRENCH)
         .chain(assistant::FRENCH)
         .chain(changes::FRENCH)
         .chain(setup::FRENCH)
@@ -40,10 +48,10 @@ pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static 
         .chain(web::FRENCH)
 }
 
-/// VibeHex's Brazilian Portuguese rows: its own, then Assistant's.
+/// VibeHex's Brazilian Portuguese strings, in the same order.
 pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    PORTUGUESE
-        .iter()
+    pairs(PORTUGUESE, naming::PORTUGUESE)
+        .chain(undotted::PORTUGUESE)
         .chain(assistant::PORTUGUESE)
         .chain(changes::PORTUGUESE)
         .chain(setup::PORTUGUESE)
@@ -52,16 +60,20 @@ pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'sta
         .chain(web::PORTUGUESE)
 }
 
-/// VibeHex's Russian rows: its own, then Assistant's.
+/// VibeHex's Russian strings, in the same order.
 pub(super) fn russian() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    russian::TRANSLATIONS
-        .iter()
+    pairs(russian::TRANSLATIONS, naming::RUSSIAN)
+        .chain(undotted::RUSSIAN)
         .chain(assistant::RUSSIAN)
         .chain(changes::RUSSIAN)
         .chain(setup::RUSSIAN)
         .chain(follow::RUSSIAN)
         .chain(linked::RUSSIAN)
         .chain(web::RUSSIAN)
+}
+
+fn pairs(own: Pairs, named: Pairs) -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    own.iter().chain(named)
 }
 
 /// The interface's language code (`en`, `pl`, `zh-Hant`…).
@@ -93,7 +105,7 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Hundreds of models with one API key", ["Setki modeli z jednym kluczem API", "一个 API 密钥即可使用数百个模型", "1 つの API キーで数百のモデル", "Hunderte Modelle mit einem API-Schlüssel", "Cientos de modelos con una clave de API", "Сотні моделей з одним ключем API"]),
     ("Ollama, LM Studio, or any OpenAI-compatible URL", ["Ollama, LM Studio lub dowolny adres zgodny z OpenAI", "Ollama、LM Studio 或任何兼容 OpenAI 的 URL", "Ollama、LM Studio、または OpenAI 互換の任意の URL", "Ollama, LM Studio oder jede OpenAI-kompatible URL", "Ollama, LM Studio o cualquier URL compatible con OpenAI", "Ollama, LM Studio або будь-яка URL-адреса, сумісна з OpenAI"]),
     ("Testing…", ["Testowanie…", "正在测试…", "テスト中…", "Wird getestet…", "Probando…", "Перевірка…"]),
-    ("Connected · {} s", ["Połączono · {} s", "已连接 · {} 秒", "接続済み · {} 秒", "Verbunden · {} s", "Conectado · {} s", "Підключено · {} с"]),
+    ("Connected ({} s)", ["Połączono ({} s)", "已连接（{} 秒）", "接続済み（{} 秒）", "Verbunden ({} s)", "Conectado ({} s)", "Підключено ({} с)"]),
     ("Not tested", ["Nie przetestowano", "未测试", "未テスト", "Nicht getestet", "Sin probar", "Не перевірено"]),
     ("Fill in", ["Wstaw", "填入", "入力", "Einsetzen", "Rellenar", "Підставити"]),
     ("API key", ["Klucz API", "API 密钥", "API キー", "API-Schlüssel", "Clave de API", "Ключ API"]),
@@ -174,10 +186,18 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Search Labs", ["Szukaj w Labs", "搜索 Labs", "Labs を検索", "Labs durchsuchen", "Buscar en Labs", "Пошук у Labs"]),
     ("No Labs features match.", ["Brak pasujących funkcji Labs.", "没有匹配的 Labs 功能。", "一致する Labs 機能はありません。", "Keine passenden Labs-Funktionen.", "No hay funciones de Labs que coincidan.", "Відповідних функцій Labs немає."]),
     ("Writing notes…", ["Tworzenie notatek…", "正在撰写笔记…", "ノートを作成中…", "Notizen werden geschrieben…", "Escribiendo notas…", "Створення нотаток…"]),
+    ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", ["Używaj usługi OpenCode działającej w domyślnej dystrybucji WSL do porządkowania przez AI, podsumowań spotkań i ich listy modeli oraz funkcji „Wyślij do” w Adnotacjach. Szukanie jej może uruchomić WSL.", "使用运行在默认 WSL 发行版中的 OpenCode 服务，用于 AI 整理、会议摘要及其模型列表，以及 Annotate 的“发送到”。查找它可能会启动 WSL。", "既定の WSL ディストリビューションで動作している OpenCode サービスを、AI による整え、会議の要約とそのモデル一覧、Annotate の「送信先」に使います。検索すると WSL が起動することがあります。", "Verwendet einen OpenCode-Dienst in deiner Standard-WSL-Distribution für KI-Bereinigung, Besprechungszusammenfassungen und deren Modellliste sowie „Senden an“ in Annotate. Die Suche danach kann WSL starten.", "Usa un servicio de OpenCode que se ejecuta en tu distribución WSL predeterminada para la limpieza con IA, los resúmenes de reuniones y su lista de modelos, y «Enviar a» de Annotate. Buscarlo puede iniciar WSL.", "Використовує службу OpenCode, що працює в типовому дистрибутиві WSL, для упорядкування ШІ, підсумків зустрічей і їхнього списку моделей, а також «Надіслати до» в Annotate. Її пошук може запустити WSL."]),
+    ("Show VibeHex", ["Pokaż VibeHex", "显示 VibeHex", "VibeHex を表示", "VibeHex anzeigen", "Mostrar VibeHex", "Показати VibeHex"]),
+    ("Enable / Disable VibeHex", ["Włącz / wyłącz VibeHex", "启用 / 停用 VibeHex", "VibeHex を有効 / 無効にする", "VibeHex aktivieren / deaktivieren", "Activar / desactivar VibeHex", "Увімкнути / вимкнути VibeHex"]),
+    ("Quit VibeHex", ["Zakończ VibeHex", "退出 VibeHex", "VibeHex を終了", "VibeHex beenden", "Salir de VibeHex", "Вийти з VibeHex"]),
+    ("VibeHex Dictation", ["Dyktowanie VibeHex", "VibeHex 听写", "VibeHex 音声入力", "VibeHex-Diktat", "Dictado de VibeHex", "Диктування VibeHex"]),
+    ("VibeHex Dictation: recording", ["Dyktowanie VibeHex: nagrywanie", "VibeHex 听写：录音中", "VibeHex 音声入力: 録音中", "VibeHex-Diktat: Aufnahme", "Dictado de VibeHex: grabando", "Диктування VibeHex: запис"]),
+    ("VibeHex Dictation: transcribing", ["Dyktowanie VibeHex: transkrypcja", "VibeHex 听写：转写中", "VibeHex 音声入力: 文字起こし中", "VibeHex-Diktat: transkribiert", "Dictado de VibeHex: transcribiendo", "Диктування VibeHex: розпізнавання"]),
+    ("VibeHex Dictation: update available", ["Dyktowanie VibeHex: dostępna aktualizacja", "VibeHex 听写：有可用更新", "VibeHex 音声入力: アップデートがあります", "VibeHex-Diktat: Update verfügbar", "Dictado de VibeHex: actualización disponible", "Диктування VibeHex: доступне оновлення"]),
 ];
 
 #[rustfmt::skip]
-pub(super) const FRENCH: &[(&str, &str)] = &[
+const FRENCH: &[(&str, &str)] = &[
     ("Clean up on your own server", "Nettoyer sur votre propre serveur"),
     ("Rewrite dictations with OpenRouter or a local server such as LM Studio or Ollama, set up in Output", "Réécrit les dictées avec OpenRouter ou un serveur local comme LM Studio ou Ollama ; à configurer dans Sortie"),
     ("AI cleanup", "Nettoyage par IA"),
@@ -189,7 +209,7 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("Hundreds of models with one API key", "Des centaines de modèles avec une seule clé d'API"),
     ("Ollama, LM Studio, or any OpenAI-compatible URL", "Ollama, LM Studio ou toute URL compatible OpenAI"),
     ("Testing…", "Test en cours…"),
-    ("Connected · {} s", "Connecté · {} s"),
+    ("Connected ({} s)", "Connecté ({} s)"),
     ("Not tested", "Non testé"),
     ("A model Hex downloads and runs itself, offline", "Un modèle que Hex télécharge et exécute lui-même, hors ligne"),
     ("Download a model below", "Téléchargez un modèle ci-dessous"),
@@ -466,10 +486,18 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("Clean up transcript", "Nettoyer la transcription"),
     ("How long a dictation waits for Codex before it pastes as heard", "Combien de temps une dictée attend Codex avant d’être collée telle qu’entendue"),
     ("Writing notes…", "Rédaction des notes…"),
+    ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Utilise un service OpenCode exécuté dans votre distribution WSL par défaut pour le nettoyage par IA, les résumés de réunions et leur liste de modèles, et « Envoyer à » d’Annotate. Sa recherche peut démarrer WSL."),
+    ("Show VibeHex", "Afficher VibeHex"),
+    ("Enable / Disable VibeHex", "Activer / désactiver VibeHex"),
+    ("Quit VibeHex", "Quitter VibeHex"),
+    ("VibeHex Dictation", "Dictée VibeHex"),
+    ("VibeHex Dictation: recording", "Dictée VibeHex : enregistrement"),
+    ("VibeHex Dictation: transcribing", "Dictée VibeHex : transcription"),
+    ("VibeHex Dictation: update available", "Dictée VibeHex : mise à jour disponible"),
 ];
 
 #[rustfmt::skip]
-pub(super) const PORTUGUESE: &[(&str, &str)] = &[
+const PORTUGUESE: &[(&str, &str)] = &[
     ("Clean up on your own server", "Limpar no seu próprio servidor"),
     ("Rewrite dictations with OpenRouter or a local server such as LM Studio or Ollama, set up in Output", "Reescreve os ditados com o OpenRouter ou um servidor local como LM Studio ou Ollama; configure em Saída"),
     ("AI cleanup", "Limpeza com IA"),
@@ -481,7 +509,7 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Hundreds of models with one API key", "Centenas de modelos com uma chave de API"),
     ("Ollama, LM Studio, or any OpenAI-compatible URL", "Ollama, LM Studio ou qualquer URL compatível com a OpenAI"),
     ("Testing…", "Testando…"),
-    ("Connected · {} s", "Conectado · {} s"),
+    ("Connected ({} s)", "Conectado ({} s)"),
     ("Not tested", "Não testado"),
     ("A model Hex downloads and runs itself, offline", "Um modelo que o Hex baixa e executa sozinho, offline"),
     ("Download a model below", "Baixe um modelo abaixo"),
@@ -758,4 +786,12 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Clean up transcript", "Limpar transcrição"),
     ("How long a dictation waits for Codex before it pastes as heard", "Quanto tempo um ditado espera o Codex antes de ser colado como foi ouvido"),
     ("Writing notes…", "Escrevendo notas…"),
+    ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Usa um serviço do OpenCode rodando na sua distribuição WSL padrão para a limpeza com IA, os resumos de reuniões e a lista de modelos deles, e o “Enviar para” do Annotate. Procurá-lo pode iniciar o WSL."),
+    ("Show VibeHex", "Mostrar o VibeHex"),
+    ("Enable / Disable VibeHex", "Ativar / desativar o VibeHex"),
+    ("Quit VibeHex", "Sair do VibeHex"),
+    ("VibeHex Dictation", "Ditado do VibeHex"),
+    ("VibeHex Dictation: recording", "Ditado do VibeHex: gravando"),
+    ("VibeHex Dictation: transcribing", "Ditado do VibeHex: transcrevendo"),
+    ("VibeHex Dictation: update available", "Ditado do VibeHex: atualização disponível"),
 ];

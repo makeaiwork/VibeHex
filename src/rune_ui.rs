@@ -551,7 +551,7 @@ pub(crate) fn fixed_window() -> rune::WindowOptions {
 
 fn spec() -> AppSpec<Ui> {
     AppSpec {
-        title: "Hex",
+        title: brand::NAME,
         size: WINDOW_SIZE,
         min_size: Some(MIN_WINDOW_SIZE),
         init: Ui::fixture_base,

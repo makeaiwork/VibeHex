@@ -145,7 +145,7 @@ impl AppInstance {
         let event = unsafe { CreateEventW(std::ptr::null(), 0, 0, name.as_ptr()) };
         if event.is_null() {
             return Err(eyre!(
-                "could not create the Hex instance event: {}",
+                "could not create the VibeHex instance event: {}",
                 std::io::Error::last_os_error()
             ));
         }
@@ -315,7 +315,10 @@ impl WindowsDesktopHost {
             | DesktopAction::ConfirmUpdateSwitch
             | DesktopAction::WindowFocused => {
                 if let Err(error) = self.updater.act(&action) {
-                    self.error = Some(tr_fill("Could not restart Hex: {}", &format!("{error:#}")));
+                    self.error = Some(tr_fill(
+                        "Could not restart VibeHex: {}",
+                        &format!("{error:#}"),
+                    ));
                 }
             }
             // Windows saves shortcuts from the window.
@@ -594,7 +597,10 @@ impl WindowsDesktopHost {
                 true
             }
             Some(Err(error)) => {
-                self.error = Some(tr_fill("Could not restart Hex: {}", &format!("{error:#}")));
+                self.error = Some(tr_fill(
+                    "Could not restart VibeHex: {}",
+                    &format!("{error:#}"),
+                ));
                 false
             }
             None => false,

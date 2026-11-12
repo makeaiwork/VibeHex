@@ -193,7 +193,10 @@ pub(crate) fn hex_meter_glowing(p: Paint, key: &str, size: f32, now: f64, reduce
         )
         .stroke_with(ring, true, w, LineCap::Round, p.text());
 
-    canvas(shape).key(key).size(total, total).label("Hex")
+    canvas(shape)
+        .key(key)
+        .size(total, total)
+        .label(crate::app_paths::PRODUCT_NAME)
 }
 
 fn meter_shape(p: Paint, size: f32, progress: f32, closed: f32) -> Shape {

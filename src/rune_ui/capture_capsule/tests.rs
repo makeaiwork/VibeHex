@@ -32,7 +32,7 @@ fn guess() -> Route {
 /// Shaped like the router's answer: a saved rule names no runner-up, so
 /// its own session is all it suggests, and the recent ones leave it out.
 fn rule() -> Route {
-    let to = Dest::new("SEER", "sent · rule");
+    let to = Dest::new("SEER", "rule");
     Route::Rule {
         to: to.clone(),
         suggested: vec![to],

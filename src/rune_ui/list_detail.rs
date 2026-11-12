@@ -147,7 +147,7 @@ pub(super) fn item_with_icon(
         .into_iter()
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
-        .join(" · ");
+        .join(", ");
     let time = text(item.time)
         .key("time")
         .font(p.k.ty.small)

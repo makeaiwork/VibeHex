@@ -11,7 +11,7 @@ Try the causes in order, then open the article named. A Mac's missing permission
 
 ## Nothing is pasted
 1. The recording was under a third of a second or nearly silent; VibeHex drops it quietly.
-2. Mac: Accessibility ("Device Control and Data Access" on macOS 27) is off. Press **Allow** in General › Permissions needed; if grey, **Still grey? Fix it**; if it says "Turns on when Hex restarts", **Restart Hex**.
+2. Mac: Accessibility ("Device Control and Data Access" on macOS 27) is off. Press **Allow** in General › Permissions needed; if grey, **Still grey? Fix it**; if it says "Turns on when VibeHex restarts", **Restart VibeHex**.
 3. Linux Wayland: press **Allow** on Permissions needed › Paste into apps. If refused, it only copies; press Ctrl+V.
 4. A terminal ignores Ctrl+V: turn on **Terminal paste** (General › Advanced › Output on Linux; Labs on Windows).
 5. Mac or Windows: **Labs › Copy dictation only** is on, so text is only copied.

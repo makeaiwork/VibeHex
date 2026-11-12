@@ -5,7 +5,8 @@
 //! Another speed plays at the voice's own pitch (`stretch`).
 //!
 //! A file plays its source, decoded again through AVFoundation; a meeting
-//! plays both its tracks mixed, each placed where it started.
+//! plays both its tracks mixed, each placed where it started, the
+//! microphone with the speakers' echo taken out (`speaker_echo`).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicUsize, Ordering};
@@ -364,6 +365,27 @@ struct ManifestTrack {
 /// Both tracks at 16 kHz, each from where it started on the meeting's
 /// timeline (the transcript's times count from the earlier one), mixed.
 fn decode_meeting(directory: &Path) -> Result<Vec<i16>> {
+    let (system, microphone) = meeting_tracks(directory)?;
+    let mut mixed: Vec<f32> = Vec::new();
+    for (samples, at) in system.iter().chain(&microphone) {
+        mix_into(&mut mixed, samples, *at);
+    }
+    Ok(to_pcm(&mixed))
+}
+
+/// Cleans a finished meeting's microphone of the speakers' echo ahead of
+/// its first Play, which then only reads the saved copy.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn prepare_meeting(directory: &Path) -> Result<()> {
+    meeting_tracks(directory).map(drop)
+}
+
+/// A track's samples and where on the meeting's timeline they start.
+type Placed = Option<(Vec<f32>, usize)>;
+
+/// The system track and the microphone, the microphone with the speakers'
+/// echo taken out.
+fn meeting_tracks(directory: &Path) -> Result<(Placed, Placed)> {
     let manifest: Manifest = serde_json::from_slice(
         &std::fs::read(directory.join("manifest.json"))
             .wrap_err("the meeting's manifest couldn't be read")?,
@@ -377,26 +399,34 @@ fn decode_meeting(directory: &Path) -> Result<Vec<i16>> {
     .flatten()
     .min()
     .unwrap_or_default();
-    let mut mixed: Vec<f32> = Vec::new();
-    let mut found = 0;
-    for track in [&manifest.system, &manifest.microphone] {
+    let place = |track: &ManifestTrack| {
+        ms_samples(
+            track
+                .first_arrival_us
+                .unwrap_or(origin)
+                .saturating_sub(origin)
+                / 1_000,
+        )
+    };
+    let read = |track: &ManifestTrack| {
         let path = directory.join(&track.file);
-        if !path.is_file() {
-            continue;
-        }
-        let samples = read_track(&path)?;
-        let offset_ms = track
-            .first_arrival_us
-            .unwrap_or(origin)
-            .saturating_sub(origin)
-            / 1_000;
-        mix_into(&mut mixed, &samples, ms_samples(offset_ms));
-        found += 1;
+        path.is_file()
+            .then(|| read_track(&path).map(|samples| (samples, place(track))))
+            .transpose()
+    };
+    let system = read(&manifest.system)?;
+    let mut microphone = read(&manifest.microphone)?;
+    // On speakers the microphone hears the call too; without the system
+    // track there is nothing to take out.
+    if let (Some((system, system_at)), Some((samples, microphone_at))) = (&system, &mut microphone)
+    {
+        *samples =
+            super::speaker_echo::cleaned(directory, samples, *microphone_at, system, *system_at);
     }
-    if found == 0 {
+    if system.is_none() && microphone.is_none() {
         return Err(eyre!("This meeting kept no audio."));
     }
-    Ok(to_pcm(&mixed))
+    Ok((system, microphone))
 }
 
 /// Adds `samples` to `mixed` from `offset`, growing it as needed.
@@ -468,5 +498,25 @@ mod tests {
         assert_eq!(mixed, vec![0.5, 0.75, 0.25]);
         assert_eq!(to_pcm(&[2.0, -2.0]), vec![i16::MAX, -i16::MAX]);
         assert_eq!(samples_ms(ms_samples(12_340)), 12_340);
+    }
+
+    /// Opt-in: decodes a recorded meeting as Play does, timing it, and
+    /// leaves the cleaned microphone in the folder. Point it at a copy:
+    /// `HEX_MEETING_DIR=<copy> cargo test --release --bin hex
+    /// a_recorded_meeting_plays_with_the_echo_taken_out -- --ignored --nocapture`
+    #[test]
+    #[ignore = "requires HEX_MEETING_DIR, a copy of a recorded meeting's folder"]
+    fn a_recorded_meeting_plays_with_the_echo_taken_out() {
+        let directory = PathBuf::from(std::env::var("HEX_MEETING_DIR").unwrap());
+        for pass in ["first play", "second play"] {
+            let started = std::time::Instant::now();
+            let samples = decode_meeting(&directory).unwrap();
+            println!(
+                "{pass}: {} s of audio in {} ms",
+                samples.len() / RATE as usize,
+                started.elapsed().as_millis()
+            );
+        }
+        assert!(directory.join(super::super::speaker_echo::FILE).is_file());
     }
 }

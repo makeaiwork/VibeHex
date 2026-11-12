@@ -28,7 +28,10 @@ a file must still be at its original location.
 speed from 0.75x to 2x at the voice's natural pitch. Space plays or pauses,
 the arrow keys skip 5 seconds. Exact word highlighting needs a speech model
 that times words (Parakeet or GigaAM); with others the word is estimated
-within its line. Unreadable audio shows "Couldn't play it".
+within its line. A meeting's microphone plays with the speakers' echo taken
+out, so on speakers the other side isn't heard twice; it is cleaned right
+after the meeting is transcribed, and an older meeting on its first Play,
+which waits for it. Unreadable audio shows "Couldn't play it".
 
 **Where.** Labs › Listen to the recording (`labs.playback`).
 

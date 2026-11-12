@@ -1284,7 +1284,7 @@ impl Backend {
             }
             Err(error) => {
                 return Err(error.wrap_err(
-                    "the desktop did not approve Hex's shortcuts; choose Enable to ask again",
+                    "the desktop did not approve the VibeHex shortcuts; choose Enable to ask again",
                 ));
             }
         };
@@ -1361,7 +1361,9 @@ impl Backend {
                         dispatcher.keys.released_all();
                         dispatcher.input(Input::Lost);
                         let _ = dispatcher.flush();
-                        return Err(eyre!("the desktop closed Hex's shortcuts portal session"));
+                        return Err(eyre!(
+                            "the desktop closed the VibeHex shortcuts portal session"
+                        ));
                     }
                 };
                 dispatcher.input(input);

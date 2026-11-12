@@ -192,7 +192,7 @@ fn history_lists_its_entries_with_their_place() {
     assert!(
         first["description"]
             .as_str()
-            .is_some_and(|description| description.starts_with("Dictation · WezTerm")),
+            .is_some_and(|description| description.starts_with("Dictation   WezTerm")),
         "{first}"
     );
     assert!(states(&node(&rt, "history-entry2")).contains(&"selected"));

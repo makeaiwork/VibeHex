@@ -1120,7 +1120,7 @@ const FILES_UNSEEN: &str = "OpenCode can't see files";
 /// OpenCode answered but refused Hex's credentials (HTTP 401 or 403): the
 /// password in its registration was missing or didn't match, as when the
 /// service runs in WSL and writes its registration inside WSL's home.
-const AUTH_REFUSED: &str = "OpenCode needs a password Hex doesn't have";
+const AUTH_REFUSED: &str = "OpenCode needs a password VibeHex doesn't have";
 
 /// What process.log says beside [`AUTH_REFUSED`]; it never names the
 /// password itself.

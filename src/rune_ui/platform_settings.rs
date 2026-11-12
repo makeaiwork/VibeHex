@@ -35,12 +35,12 @@ fn permission_copy(
         PermissionKind::Microphone => (
             "permission-microphone",
             tr("Microphone"),
-            tr("Hex cannot record dictation until microphone access is restored."),
+            tr("VibeHex cannot record dictation until microphone access is restored."),
         ),
         PermissionKind::Accessibility => (
             "permission-accessibility",
             accessibility_name(accessibility_renamed),
-            tr("Hex cannot recognize the dictation shortcut or paste into other apps."),
+            tr("VibeHex cannot recognize the dictation shortcut or paste into other apps."),
         ),
         PermissionKind::SystemAudio => (
             "permission-system-audio",
@@ -94,11 +94,11 @@ pub(super) fn permissions_section(ui: &Ui, p: Paint) -> Option<El> {
                     p,
                     key,
                     name,
-                    Some(tr("Turns on when Hex restarts")),
+                    Some(tr("Turns on when VibeHex restarts")),
                     button(
                         p,
                         &format!("{key}-restart"),
-                        tr("Restart Hex"),
+                        tr("Restart VibeHex"),
                         ButtonKind::Secondary,
                         |ui: &mut Ui, _| {
                             ui.ask(PlatformRequest::Permission(PermissionAction::Restart))
@@ -109,7 +109,7 @@ pub(super) fn permissions_section(ui: &Ui, p: Paint) -> Option<El> {
             let stale =
                 warning.kind == PermissionKind::Accessibility && ui.platform.stale(warning.kind);
             let description = if stale {
-                tr("An older Hex entry can keep this off")
+                tr("An older VibeHex entry can keep this off")
             } else {
                 description
             };
@@ -139,9 +139,9 @@ fn paste_permission(ui: &Ui, p: Paint) -> Option<El> {
         .paste
         .filter(|paste| *paste != PasteAccess::Allowed)?;
     let description = if paste == PasteAccess::Declined {
-        tr("Without it, Hex copies your words and you press Ctrl+V.")
+        tr("Without it, VibeHex copies your words and you press Ctrl+V.")
     } else {
-        tr("Hex only sends the paste keystroke. It never sees your screen.")
+        tr("VibeHex only sends the paste keystroke. It never sees your screen.")
     };
     let control = permission_control(
         p,
@@ -468,7 +468,7 @@ pub(super) fn meetings_settings(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<E
             Some(if permitted {
                 tr("Captures the other participants' audio")
             } else if stale {
-                tr("An older Hex entry can keep this off")
+                tr("An older VibeHex entry can keep this off")
             } else {
                 tr("Required to hear the other participants.")
             }),
@@ -599,11 +599,11 @@ fn retention_row(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         tr("Keep meetings"),
         match chosen {
             None => Some(tr(
-                "Audio, transcripts, notes, and Hex's Markdown copy move to the Trash. Meetings from before this setting stay until you choose",
+                "Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash. Meetings from before this setting stay until you choose",
             )),
             Some(MeetingRetention::Forever) => None,
             Some(_) => Some(tr(
-                "Audio, transcripts, notes, and Hex's Markdown copy move to the Trash",
+                "Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash",
             )),
         },
         control,
@@ -680,7 +680,7 @@ pub(super) fn summary_model_shown(ui: &Ui) -> bool {
 /// use, such as one typed with `hex settings`; `None` when it can.
 pub(super) fn summary_model_problem(saved: &str) -> Option<&'static str> {
     (!saved.trim().is_empty() && crate::meeting::generator::parse_model(saved).is_none()).then(|| {
-        tr("Write it as provider/model, such as openai/gpt-5.4-mini. Until then, Hex tries its list of fast models")
+        tr("Write it as provider/model, such as openai/gpt-5.4-mini. Until then, VibeHex tries its list of fast models")
     })
 }
 
@@ -738,7 +738,7 @@ fn calendar_section(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
             &icons::CALENDAR,
             tr("Calendar access is off"),
             Some(tr(
-                "Allow Hex under Privacy & Security › Calendars to get meeting reminders",
+                "Allow VibeHex under Privacy & Security › Calendars to get meeting reminders",
             )),
             button(
                 p,
@@ -885,7 +885,7 @@ fn calendars_row(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
                 label: if info.source.is_empty() {
                     info.title.clone()
                 } else {
-                    format!("{} · {}", info.title, info.source)
+                    format!("{} ({})", info.title, info.source)
                 },
                 detail: None,
                 selected: calendar.includes(&info.id),

@@ -113,13 +113,13 @@ pub(crate) fn failure_explanation(message: &str) -> String {
 /// One line describing `event` for the Activity pane.
 pub(crate) fn event_summary(event: &VoiceEvent) -> String {
     match event {
-        VoiceEvent::SessionStarted { .. } => "Hex session started".into(),
+        VoiceEvent::SessionStarted { .. } => "VibeHex session started".into(),
         VoiceEvent::State { state, device, .. } => match state {
             VoiceState::Sleeping => "Voice commands went to sleep".into(),
             VoiceState::Listening => format!("Voice commands resumed on {device}"),
             VoiceState::Dictating => format!("Dictation started on {device}"),
             VoiceState::Transcribing => "Dictation is being transcribed".into(),
-            VoiceState::Stopping => "Hex is stopping".into(),
+            VoiceState::Stopping => "VibeHex is stopping".into(),
         },
         VoiceEvent::Transcript {
             phase,
@@ -145,7 +145,7 @@ pub(crate) fn event_summary(event: &VoiceEvent) -> String {
             let heard = if heard.is_empty() { "speech" } else { heard };
             match outcome {
                 CommandOutcome::Ignored => format!("Ignored \"{heard}\""),
-                CommandOutcome::Woke => format!("\"{heard}\" woke Hex"),
+                CommandOutcome::Woke => format!("\"{heard}\" woke VibeHex"),
                 CommandOutcome::Slept => format!("\"{heard}\" put voice commands to sleep"),
                 CommandOutcome::Submitted => format!("Sent {command} for \"{heard}\""),
                 CommandOutcome::Executed => format!("Ran {command} for \"{heard}\""),
@@ -178,13 +178,13 @@ pub(crate) fn event_summary(event: &VoiceEvent) -> String {
                     processing.fallback.as_ref().map_or_else(
                         || {
                             format!(
-                                "{description} · {} profile · {} ms",
+                                "{description}, {} profile, {} ms",
                                 processing.profile, processing.latency_ms
                             )
                         },
                         |error| {
                             format!(
-                                "{description} · {} profile fell back to raw after {} ms: {}",
+                                "{description}, {} profile fell back to raw after {} ms: {}",
                                 processing.profile, processing.latency_ms, error
                             )
                         },

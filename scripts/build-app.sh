@@ -129,7 +129,7 @@ url_scheme=hex
 /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLName $bundle_id" "$bundle/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $url_scheme" "$bundle/Contents/Info.plist"
 # The helper mirrors a cabled iPhone as a camera; macOS asks on Hex's behalf.
-plutil -replace NSCameraUsageDescription -string "Hex mirrors and records a cabled iPhone's screen for a capture." "$bundle/Contents/Info.plist"
+plutil -replace NSCameraUsageDescription -string "VibeHex mirrors and records a cabled iPhone's screen for a capture." "$bundle/Contents/Info.plist"
 rm -rf "$icon_output"
 mkdir -p "$icon_output"
 xcrun actool "$root/app/AppIcon.icon" \
