@@ -5,6 +5,7 @@ use super::*;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::{self, Card, current, parts};
 use crate::assistant::facts::{Fact, State};
+use crate::assistant::offer::{Gate, Origin};
 use crate::control::settings;
 
 fn answer(id: &str, chosen: &[&str]) -> Answer {
@@ -256,7 +257,6 @@ fn an_engine_not_ready_starts_unchecked() {
 fn a_models_lines_join_under_the_rules() {
     let mut settings = owners();
     settings.shortcut_mode = crate::dictation::ShortcutMode::Toggle;
-    let shortcuts = crate::rune_ui::shortcut_rules();
     let line = |key: &str, value: Value, why: &str| Proposal {
         key: key.into(),
         value: Some(value),
@@ -279,7 +279,7 @@ fn a_models_lines_join_under_the_rules() {
         ),
         line("labs.filler_words", json!(true), "без эээ"),
     ];
-    let (cards, _) = changes::resolve(&written, &settings, &shortcuts);
+    let cards = changes::resolve(&written, &Gate::new(&settings, &mac()), Origin::Plan).cards;
     let card = plan::plan(cards, &owners_answers(), &settings, &mac()).unwrap();
     let keys: Vec<&str> = card.items.iter().map(|item| item.key.as_str()).collect();
     assert!(!keys.contains(&"transcription.model"), "{keys:?}");
@@ -443,7 +443,8 @@ fn a_models_follow_ups_are_checked() {
     .iter()
     .map(|line| serde_json::from_str(line).unwrap())
     .collect();
-    let asks = follow::follow_ups(&written, &candidates, &settings, &[], &Default::default());
+    let fresh = State::default();
+    let (asks, dropped) = follow::follow_ups(&written, &candidates, &Gate::new(&settings, &fresh));
     let ids: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
     assert_eq!(ids, ["labs.filler_words", "history_retention"]);
     assert_eq!(asks[0].q, "Убирать «эээ»?");
@@ -457,22 +458,35 @@ fn a_models_follow_ups_are_checked() {
         asks[1].options[0].changes,
         [("history_retention".to_owned(), json!("forever"))]
     );
+    // Each one left out is in the record with its reason.
+    let record = crate::assistant::offer::record(&dropped);
+    for line in [
+        "ask labs.teleport: no such setting",
+        "ask recording_duck_volume: no option that changes it",
+        "ask assistant.engine: never changed from a card",
+    ] {
+        assert!(record.contains(line), "{record}");
+    }
     assert_eq!(
-        follow::follow_ups(&[], &candidates, &settings, &[], &Default::default()),
+        follow::follow_ups(&[], &candidates, &Gate::new(&settings, &fresh)).0,
         candidates
     );
     // A setting answered or declined before is never asked again, unless
     // the app picked it itself.
-    let settled = [
-        "history_retention".to_owned(),
-        "labs.filler_words".to_owned(),
-    ];
-    let asks = follow::follow_ups(
-        &written,
-        &candidates,
-        &settings,
-        &settled,
-        &Default::default(),
+    let settled = State {
+        answered: ["history_retention", "labs.filler_words"]
+            .map(|id| Ask {
+                id: id.into(),
+                ..Ask::default()
+            })
+            .into(),
+        ..State::default()
+    };
+    let (asks, dropped) =
+        follow::follow_ups(&written, &candidates, &Gate::new(&settings, &settled));
+    assert!(
+        crate::assistant::offer::record(&dropped)
+            .contains("ask history_retention: answered in an earlier setup")
     );
     let ids: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
     assert_eq!(ids, ["labs.filler_words"]);
@@ -496,7 +510,7 @@ fn a_follow_up_answered_before_is_not_a_candidate() {
     };
     let again = follow::candidates(&answers, &settings, &state);
     assert!(again.iter().all(|ask| ask.id != first.id));
-    let before = follow::before(&answers, &state);
+    let before = follow::before(&answers, &settings, &state);
     assert_eq!(before.len(), 1);
     assert_eq!(before[0].chosen, ["no"]);
     let (_, others, answered) = follow::prompt_lines(&again, &settings, &state);
@@ -531,7 +545,6 @@ fn a_models_questions_keep_known_ids_or_fall_back() {
 /// Every line the rules make, on every answer, is a change a save takes.
 #[test]
 fn every_rule_resolves_to_a_valid_change() {
-    let shortcuts = crate::rune_ui::shortcut_rules();
     for settings in [AppSettings::default(), owners()] {
         for language in ["ru", "en", "ru_tech", "mixed"] {
             for cleanup in ["local", "codex", "opencode", "openrouter", "custom", "none"] {
@@ -551,7 +564,10 @@ fn every_rule_resolves_to_a_valid_change() {
                     ];
                     let rules = plan::rules(&answers, &settings, &mac());
                     let lines = plan::proposals(&rules);
-                    let (cards, refused) = changes::resolve(&lines, &settings, &shortcuts);
+                    let read =
+                        changes::resolve(&lines, &Gate::new(&settings, &mac()), Origin::Plan);
+                    let (cards, refused) = (read.cards, read.refused);
+                    assert!(read.dropped.is_empty(), "{:?}", read.dropped);
                     assert!(
                         refused.is_empty(),
                         "{language} {cleanup} {notes}: {refused:?}"
@@ -807,7 +823,7 @@ fn a_feature_this_mac_cant_use_is_left_out_and_unknown_hardware_asks_if() {
         if !here(key) {
             continue;
         }
-        let relevant = |state: &State| follow::relevant(&answers, &state.hardware);
+        let relevant = |state: &State| follow::relevant(&answers, &Gate::new(&settings, state));
         assert!(!relevant(&mini).contains(&key.to_owned()), "{key}");
         assert!(relevant(&notched).contains(&key.to_owned()), "{key}");
         assert!(relevant(&unknown).contains(&key.to_owned()), "{key}");
@@ -816,7 +832,8 @@ fn a_feature_this_mac_cant_use_is_left_out_and_unknown_hardware_asks_if() {
         // A model asking about it anyway: dropped where it can't be used.
         let written = [json!({"id": key})];
         let asked = |state: &State| {
-            follow::follow_ups(&written, &[], &settings, &[], &state.hardware)
+            follow::follow_ups(&written, &[], &Gate::new(&settings, state))
+                .0
                 .into_iter()
                 .find(|ask| ask.id == key)
                 .map(|ask| ask.q)

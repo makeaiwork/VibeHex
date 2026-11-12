@@ -4,7 +4,7 @@
 use serde_json::json;
 
 use super::checks::{
-    answer_in_russian, answer_names, card_for, check, ensure, live, marks, names_before,
+    answer_in_russian, answer_names, card_for, check, dropped, ensure, live, marks, names_before,
     no_card_for, no_cards, no_labs_card, offline, routed, sent_has, sent_lacks, web_off,
 };
 use super::fixtures::{
@@ -192,6 +192,7 @@ pub fn scenarios() -> Vec<Scenario> {
                         &["Meeting notes: written by Codex", "is not used now."],
                     ),
                     no_card_for("meetings.notes.writer"),
+                    dropped("meetings.notes.writer", "already set"),
                     no_card_for("meetings.summaries"),
                     answer_names(&["Codex"]),
                     // Apple Intelligence may be named as the fallback, never first.
@@ -223,6 +224,10 @@ pub fn scenarios() -> Vec<Scenario> {
                     no_card_for("labs.files"),
                     no_card_for("files.cleanup_engine"),
                     no_card_for("transcription.model"),
+                    // Files isn't in every OS's VibeHex: on, or not here.
+                    dropped("labs.files = true", ""),
+                    dropped("files.cleanup_engine", "already set"),
+                    dropped("transcription.model", "already set"),
                     answer_in_russian(),
                 ],
             )],
@@ -236,8 +241,11 @@ pub fn scenarios() -> Vec<Scenario> {
             steps: vec![message(
                 "Which speech models do I have?",
                 &[
+                    // The card a model wrote as a way to look: the gate's.
                     "You have **Orukeet** (in use) and **Parakeet v3** downloaded. The full list is in \
-                   **General › Speech model**.\n\nSources: topics/speech-models",
+                   **General › Speech model**.\n\n```hex-change\n\
+                   {\"key\":\"labs.picker_downloaded\",\"value\":true,\"why\":\"shows only what is downloaded\"}\n\
+                   ```\n\nSources: topics/speech-models",
                 ],
                 vec![
                     guide(),
@@ -252,6 +260,7 @@ pub fn scenarios() -> Vec<Scenario> {
                     answer_names(&["Orukeet", "Parakeet v3"]),
                     no_labs_card(),
                     no_cards(),
+                    dropped("labs.picker_downloaded = true", "only a way to look"),
                     super::checks::answer_in_english(),
                 ],
             )],
@@ -426,7 +435,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 &[
                     "В этой версии появились Assistant и Files.\n\n```hex-change\n\
                      {\"key\":\"labs.files\",\"value\":true,\"why\":\"Files\"}\n\
-                     {\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"пробел после слова\"}\n\
+                     {\"key\":\"labs.spoken_formatting\",\"value\":true,\"why\":\"абзацы голосом\"}\n\
                      ```\n\nSources: none",
                 ],
                 vec![
@@ -439,7 +448,7 @@ pub fn scenarios() -> Vec<Scenario> {
                     // itself" holds it too).
                     no_card_for("labs.files"),
                     offline("what is off and fits comes as a card", |outcome| {
-                        (card_for("labs.smart_spacing", Some(json!(true))).test)(outcome)
+                        (card_for("labs.spoken_formatting", Some(json!(true))).test)(outcome)
                     }),
                     live(
                         "what it suggests for the person comes as cards",

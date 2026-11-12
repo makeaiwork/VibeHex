@@ -62,6 +62,7 @@ fn step(step: &StepRan) -> Value {
         "checks": verdicts(&step.checks),
         "cards": cards(&step.turn.cards),
         "asks": step.turn.asks.iter().map(|ask| ask.id.clone()).collect::<Vec<_>>(),
+        "dropped": crate::assistant::offer::recorded(&step.turn.knew),
         "refused": step.turn.refused.iter().map(|refused| format!("{} ({})", refused.line, refused.reason())).collect::<Vec<_>>(),
         "steps": step.turn.steps.len(),
         "sources": step.turn.sources,
@@ -152,6 +153,14 @@ pub fn table(runs: &[Ran]) -> String {
                     false => cards.join("; "),
                 },
             ));
+        }
+    }
+    // What the gate dropped, a line a proposal.
+    for ran in runs {
+        for (index, step) in ran.steps.iter().enumerate() {
+            for line in crate::assistant::offer::recorded(&step.turn.knew) {
+                out.push_str(&format!("dropped {} step {}: {line}\n", ran.id, index + 1));
+            }
         }
     }
     let failures: Vec<String> = runs.iter().flat_map(Ran::failures).collect();

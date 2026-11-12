@@ -13,7 +13,7 @@
 use std::path::PathBuf;
 
 use super::harness::{Mode, Ran, Scenario, run};
-use super::{answers, report, setups};
+use super::{answers, gate, report, setups};
 use crate::app_settings::AppSettings;
 use crate::files::rewrite::Engine;
 
@@ -26,6 +26,7 @@ const MAC_ONLY: &[&str] = &["07-words-wrong"];
 pub fn all() -> Vec<Scenario> {
     let mut all = answers::scenarios();
     all.extend(setups::scenarios());
+    all.extend(gate::scenarios());
     all.retain(|scenario| cfg!(target_os = "macos") || !MAC_ONLY.contains(&scenario.id));
     all.sort_by_key(|scenario| scenario.id);
     all
@@ -94,7 +95,7 @@ fn every_scenario_checks_something() {
         );
         assert!(!scenario.about.is_empty(), "{}", scenario.id);
     }
-    assert!(all.len() >= 17, "{} scenarios", all.len());
+    assert!(all.len() >= 19, "{} scenarios", all.len());
 }
 
 #[test]

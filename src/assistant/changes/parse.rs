@@ -50,6 +50,29 @@ pub struct Proposal {
     pub plan: bool,
     /// The line as written, shortened, for a refusal.
     pub line: String,
+    /// The person's own answer in setup (an engine picked, a follow-up's
+    /// Yes), which the gate never holds as "You chose".
+    pub own: bool,
+    /// Where to finish first, when setup's rules know it isn't ready.
+    pub note: Option<&'static str>,
+}
+
+impl Proposal {
+    /// The line as the turn's record names it: `key = value`, a term.
+    pub fn what(&self) -> String {
+        let value = self.value.as_ref().or(self.suggest.as_ref());
+        if self.key == super::vocab::KEY || self.key == super::vocab_edit::KEY {
+            let term = value
+                .and_then(|value| value.get("term").or(Some(value)))
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            return format!("term {term}");
+        }
+        match value {
+            Some(value) => format!("{} = {value}", self.key.trim()),
+            None => self.key.trim().to_owned(),
+        }
+    }
 }
 
 /// A reply without its change blocks, and what they held.
@@ -184,6 +207,7 @@ fn proposal(object: &Map<String, Value>, fence: Fence, line: &str) -> Option<Pro
         optional: object.get("optional").and_then(Value::as_bool) == Some(true),
         plan: fence == Fence::Plan,
         line: line.to_owned(),
+        ..Proposal::default()
     })
 }
 

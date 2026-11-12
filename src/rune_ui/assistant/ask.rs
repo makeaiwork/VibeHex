@@ -707,7 +707,7 @@ fn next(ui: &mut Ui, at: At) {
     // What was answered in an earlier setup isn't asked again: it joins
     // the round folded, as answered then, or, with nothing new to ask,
     // round one's answers.
-    let before = follow::before(&answers, &context.state);
+    let before = follow::before(&answers, &context.settings, &context.state);
     if candidates.is_empty() {
         let done = before
             .into_iter()
@@ -884,7 +884,7 @@ pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
         let context = super::changes::context(ui);
         Stage::Follow {
             candidates: follow::candidates(&turn.answers, &context.settings, &context.state),
-            before: follow::before(&turn.answers, &context.state),
+            before: follow::before(&turn.answers, &context.settings, &context.state),
             answers: turn.answers.clone(),
             line: turn.question.clone(),
             since: super::returning::facts(ui, conversation),

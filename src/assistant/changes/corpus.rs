@@ -9,6 +9,7 @@ use serde_json::Value;
 use super::parse::parse;
 use super::{Why, resolve, vocab};
 use crate::app_settings::AppSettings;
+use crate::assistant::offer::{Gate, Origin};
 use crate::assistant::setup;
 
 fn corpus() -> Vec<(String, String)> {
@@ -60,7 +61,7 @@ fn why(why: &Why) -> &'static str {
 fn every_reply_in_the_corpus_parses_as_its_header_says() {
     let files = corpus();
     assert!(files.len() >= 15, "only {} replies", files.len());
-    let rules = crate::rune_ui::shortcut_rules();
+    let state = crate::assistant::facts::State::default();
     let settings = AppSettings::default();
     for (name, text) in files {
         let (fields, reply) = split(&text);
@@ -75,7 +76,20 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
             .proposals
             .iter()
             .partition(|proposal| proposal.key != vocab::KEY);
-        let (cards, mut refused) = resolve(&parsed.proposals, &settings, &rules);
+        let read = resolve(
+            &parsed.proposals,
+            &Gate::new(&settings, &state),
+            Origin::Answer,
+        );
+        // The corpus holds the parse, whatever the OS: a reply with a line
+        // for a Labs feature this one lacks holds its cards where that
+        // feature is. Every feature it names is in VibeHex on a Mac.
+        let elsewhere = read
+            .dropped
+            .iter()
+            .filter(|dropped| matches!(dropped.why, crate::assistant::offer::Why::Elsewhere(_)))
+            .count();
+        let (cards, mut refused) = (read.cards, read.refused);
         refused.extend(parsed.malformed.iter().map(|line| super::Refused {
             line: line.clone(),
             key: None,
@@ -138,13 +152,8 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
                     assert_eq!(asks[0].own.to_string(), want, "{name}: own_asks");
                 }
                 "follow_ups" => {
-                    let asks = setup::follow::follow_ups(
-                        &parsed.asks,
-                        &[],
-                        &AppSettings::default(),
-                        &[],
-                        &Default::default(),
-                    );
+                    let (asks, _) =
+                        setup::follow::follow_ups(&parsed.asks, &[], &Gate::new(&settings, &state));
                     let got: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
                     assert_eq!(got, list(&want, ','), "{name}: follow_ups");
                 }
@@ -153,6 +162,9 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
                     want.parse::<usize>().unwrap(),
                     "{name}: malformed"
                 ),
+                "cards" if elsewhere > 0 => {
+                    assert!(!cfg!(target_os = "macos"), "{name}: not on a Mac")
+                }
                 "cards" => assert_eq!(cards.len(), want.parse::<usize>().unwrap(), "{name}: cards"),
                 "refused" => {
                     let got: Vec<String> = refused

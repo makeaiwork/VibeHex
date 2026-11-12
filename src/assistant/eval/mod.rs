@@ -18,6 +18,7 @@
 mod answers;
 mod checks;
 mod fixtures;
+mod gate;
 mod harness;
 mod questions;
 mod replay;

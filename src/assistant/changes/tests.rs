@@ -2,12 +2,13 @@ use serde_json::json;
 
 use super::parse::{Proposal, parse};
 use super::*;
+use crate::assistant::facts::State;
 
-fn rules() -> ShortcutRules {
-    ShortcutRules {
-        key_named: |name| Ok(crate::app_settings::HotkeyKey::named(name)),
-        rule: |_, _| Ok(()),
-    }
+/// `proposals` through the gate, as an answer's.
+fn read(proposals: &[Proposal], settings: &AppSettings) -> (Vec<Card>, Vec<Refused>) {
+    let state = State::default();
+    let read = resolve(proposals, &Gate::new(settings, &state), Origin::Answer);
+    (read.cards, read.refused)
 }
 
 fn proposal(key: &str, value: Value) -> Proposal {
@@ -22,7 +23,7 @@ fn proposal(key: &str, value: Value) -> Proposal {
 
 fn settings() -> AppSettings {
     let mut settings = AppSettings::default();
-    settings.labs.smart_spacing = false;
+    settings.labs.filler_words = false;
     settings.labs.ai_cleanup_server = false;
     settings.meetings.enabled = false;
     settings
@@ -30,11 +31,7 @@ fn settings() -> AppSettings {
 
 #[test]
 fn a_good_line_is_a_card_with_its_current_value() {
-    let (cards, refused) = resolve(
-        &[proposal("labs.smart_spacing", json!("on"))],
-        &settings(),
-        &rules(),
-    );
+    let (cards, refused) = read(&[proposal("labs.filler_words", json!("on"))], &settings());
     assert!(refused.is_empty());
     let item = &cards[0].items[0];
     assert_eq!((&item.from, &item.to), (&json!(false), &json!(true)));
@@ -46,9 +43,9 @@ fn a_good_line_is_a_card_with_its_current_value() {
 
 #[test]
 fn every_bad_line_is_refused_for_its_own_reason() {
-    let (cards, refused) = resolve(
+    let (cards, refused) = read(
         &[
-            proposal("labs.smart_spacing", json!(true)),
+            proposal("labs.filler_words", json!(true)),
             proposal("labs.teleport", json!(true)),
             proposal("recording_duck_volume", json!(1.4)),
             proposal("updates.channel", json!("dev")),
@@ -56,7 +53,6 @@ fn every_bad_line_is_refused_for_its_own_reason() {
             proposal("meetings.output_folder", json!("/tmp")),
         ],
         &settings(),
-        &rules(),
     );
     assert_eq!(cards.len(), 1);
     let why: Vec<&Why> = refused.iter().map(|refused| &refused.why).collect();
@@ -68,13 +64,12 @@ fn every_bad_line_is_refused_for_its_own_reason() {
 
 #[test]
 fn a_change_names_what_it_needs_first() {
-    let (cards, _) = resolve(
+    let (cards, _) = read(
         &[proposal(
             "dictation_processing.server.url",
             json!("http://localhost:1234/v1"),
         )],
         &settings(),
-        &rules(),
     );
     assert_eq!(
         cards[0].items[0].requires,
@@ -87,7 +82,7 @@ fn a_change_names_what_it_needs_first() {
         keys,
         ["dictation_processing.server.url", "labs.ai_cleanup_server"]
     );
-    let change = settings::check(&settings(), &values, &rules()).unwrap();
+    let change = settings::check(&settings(), &values, &crate::rune_ui::shortcut_rules()).unwrap();
     assert!(change.settings.labs.ai_cleanup_server);
 }
 
@@ -97,7 +92,7 @@ fn options_become_a_choice_starting_at_the_suggestion() {
     options.value = None;
     options.options = vec![json!("OpenCode"), json!("codex"), json!("teleport")];
     options.suggest = Some(json!("Codex"));
-    let (cards, _) = resolve(&[options], &settings(), &rules());
+    let (cards, _) = read(&[options], &settings());
     assert_eq!(
         cards[0].kind,
         CardKind::Choice {
@@ -110,13 +105,12 @@ fn options_become_a_choice_starting_at_the_suggestion() {
 
 #[test]
 fn a_part_and_the_instructions_make_cards() {
-    let (cards, refused) = resolve(
+    let (cards, refused) = read(
         &[
             proposal("meetings.providers.zoom.policy", json!("Always record")),
             proposal(parts::PROMPT, json!("Fix punctuation.")),
         ],
         &settings(),
-        &rules(),
     );
     assert!(refused.is_empty(), "{refused:?}");
     let zoom = &cards[0].items[0];
@@ -136,9 +130,9 @@ fn a_part_and_the_instructions_make_cards() {
 #[test]
 fn a_whole_reply_becomes_its_body_cards_and_refusals() {
     let parsed = parse(
-        "Turn on Smart spacing.\n```hex-change\n{\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"spaces\"}\n{\"key\":\"labs.nope\",\"value\":true}\nnonsense\n```\nSources: labs/smart-spacing",
+        "Turn on Remove filler words.\n```hex-change\n{\"key\":\"labs.filler_words\",\"value\":true,\"why\":\"spaces\"}\n{\"key\":\"labs.nope\",\"value\":true}\nnonsense\n```\nSources: labs/filler-words",
     );
-    let (cards, refused) = resolve(&parsed.proposals, &settings(), &rules());
+    let (cards, refused) = read(&parsed.proposals, &settings());
     assert_eq!(cards.len(), 1);
     assert_eq!(refused.len(), 1);
     assert_eq!(parsed.malformed, ["nonsense"]);
@@ -147,17 +141,16 @@ fn a_whole_reply_becomes_its_body_cards_and_refusals() {
 /// Old conversation files, without cards, still read; new ones keep them.
 #[test]
 fn cards_round_trip_and_old_turns_still_load() {
-    let (cards, refused) = resolve(
+    let (cards, refused) = read(
         &[
-            proposal("labs.smart_spacing", json!(true)),
+            proposal("labs.filler_words", json!(true)),
             proposal("labs.nope", json!(true)),
         ],
         &settings(),
-        &rules(),
     );
     let mut card = cards[0].clone();
     card.decision = applied(
-        vec![("labs.smart_spacing".into(), json!(false), json!(true))],
+        vec![("labs.filler_words".into(), json!(false), json!(true))],
         5,
     );
     let json = serde_json::to_string(&(vec![card.clone()], refused.clone())).unwrap();
@@ -176,7 +169,7 @@ fn vocabulary_terms_make_one_card() {
     assert_eq!(parsed.proposals.len(), 4);
     assert!(parsed.malformed.is_empty());
     let settings = AppSettings::default();
-    let (cards, refused) = resolve(&parsed.proposals, &settings, &rules());
+    let (cards, refused) = read(&parsed.proposals, &settings);
     assert!(refused.is_empty());
     assert_eq!(cards.len(), 1);
     assert_eq!(cards[0].kind, CardKind::Vocabulary);
@@ -203,20 +196,23 @@ fn a_value_already_set_makes_no_card() {
     let lines = [
         proposal("meetings.notes.writer", json!("codex")),
         proposal("meetings.notes.writer", json!("codex:gpt-6.1-terra")),
-        proposal("labs.smart_spacing", json!("off")),
-        proposal("files.cleanup_engine", json!("opencode")),
+        proposal("labs.filler_words", json!("off")),
+        proposal("labs.spoken_formatting", json!(true)),
         proposal("meetings.notes.writer", json!("opencode")),
     ];
-    let (mut cards, refused) = resolve(&lines, &settings, &rules());
-    assert!(refused.is_empty(), "{refused:?}");
-    let already = already_set(&mut cards, &settings);
+    let state = State::default();
+    let read = resolve(&lines, &Gate::new(&settings, &state), Origin::Answer);
+    assert!(read.refused.is_empty(), "{:?}", read.refused);
+    let already = read.already(&settings);
     assert_eq!(already.len(), 3, "{already:?}");
     assert!(already[0].starts_with("meetings.notes.writer = \"codex\" : already set to"));
+    assert!(read.not_here(&settings).is_empty());
+    let cards = read.cards;
     let keys: Vec<&str> = cards
         .iter()
         .map(|card| card.items[0].key.as_str())
         .collect();
-    assert_eq!(keys, ["files.cleanup_engine", "meetings.notes.writer"]);
+    assert_eq!(keys, ["labs.spoken_formatting", "meetings.notes.writer"]);
     let writer = &cards[1].items[0];
     assert_eq!(writer.from, json!("codex:gpt-6.1-terra"));
     assert!(
@@ -232,7 +228,7 @@ fn a_value_already_set_makes_no_card() {
     ));
     assert!(!names::same(
         &settings,
-        "labs.smart_spacing",
+        "labs.filler_words",
         &json!(true),
         &json!(false)
     ));
@@ -253,7 +249,7 @@ fn a_vocabulary_edit_line_makes_an_edit_card_or_is_refused() {
         }],
         ..AppSettings::default()
     };
-    let (cards, refused) = resolve(&parsed.proposals, &settings, &rules());
+    let (cards, refused) = read(&parsed.proposals, &settings);
     let kinds: Vec<&CardKind> = cards.iter().map(|card| &card.kind).collect();
     assert_eq!(kinds, [&CardKind::VocabularyEdit, &CardKind::Vocabulary]);
     assert_eq!(

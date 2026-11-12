@@ -12,23 +12,24 @@
 //! - A line the rules infer over a value the person chose themselves
 //!   (anything but the default) starts unchecked, with "You chose".
 //!
-//! A remote model's plan lines (`plan`) then join under the same rules: a
-//! key the rules decide stays theirs (only a reason in the person's
-//! language is taken), and a shorter retention or a Codex line signed out
-//! starts unchecked. The list is grouped by area.
+//! A remote model's plan lines (`plan`) then join: a key the rules decide
+//! stays theirs (only a reason in the person's language is taken). What
+//! may be offered at all, and what starts unchecked ("You chose", a
+//! shorter retention, a Codex line signed out, an engine not ready), is
+//! the gate's (`assistant::offer`), for the rules' lines and a model's
+//! alike. The list is grouped by area.
 
 use serde_json::Value;
 
 use super::since::Candidate;
-use super::{Answer, engines, follow, past, picked};
+use super::{Answer, engines, follow, picked};
 use crate::app_settings::AppSettings;
-use crate::assistant::changes::catalog;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::vocab;
 use crate::assistant::changes::{self, Card, CardKind, Item, names, parts};
 use crate::assistant::facts::State;
+use crate::assistant::offer::{Dropped, Gate, Origin};
 use crate::assistant::recordings::terms;
-use crate::control::settings;
 use crate::desktop::i18n::tr;
 use crate::transcription::models::{self, TranscriptionModelId};
 
@@ -187,29 +188,21 @@ pub fn rules(answers: &[Answer], settings: &AppSettings, state: &State) -> Rules
         }
     }
     // The Labs features that fit and are on already.
-    for key in follow::relevant(answers, &state.hardware) {
+    let gate = Gate::new(settings, state);
+    for key in follow::relevant(answers, &gate) {
         if changes::current(settings, &key) == Some(Value::Bool(true)) && !rules.kept.contains(&key)
         {
             rules.kept.push(key);
         }
     }
-    // Nor a feature this computer can't use (a notch, a mouse's buttons).
-    rules.lines.retain(|line| {
-        settings::unavailable(&line_key(&line.key, settings)).is_none()
-            && !follow::unfit(&line.key, &state.hardware)
-    });
+    // Nor a feature this VibeHex doesn't have here, or this computer
+    // can't use (a notch, a mouse's buttons): the gate's rule.
     rules
-        .kept
-        .retain(|key| settings::unavailable(&line_key(key, settings)).is_none());
+        .lines
+        .retain(|line| gate.reachable(&line.key, &line.value).is_ok());
+    rules.kept.retain(|key| gate.here(key).is_ok());
     rules.kept.dedup();
     rules
-}
-
-pub(super) fn line_key(key: &str, settings: &AppSettings) -> String {
-    match parts::part(key, settings) {
-        Some(part) => part.parent().to_owned(),
-        None => key.to_owned(),
-    }
 }
 
 /// The rules' lines as proposals, each why in the window's language.
@@ -223,6 +216,8 @@ pub fn proposals(rules: &Rules) -> Vec<Proposal> {
             why: tr(line.why).to_owned(),
             plan: true,
             line: line.key.clone(),
+            own: line.answer,
+            note: line.note,
             ..Proposal::default()
         })
         .collect()
@@ -345,13 +340,6 @@ pub fn area(key: &str) -> Area {
     }
 }
 
-/// Whether `key` is set to something but its default: the person chose
-/// it.
-fn yours(key: &str, settings: &AppSettings) -> bool {
-    let default = AppSettings::default();
-    changes::current(settings, key) != changes::current(&default, key)
-}
-
 /// [`with_terms`] with no terms of the use's.
 #[cfg(test)]
 pub fn plan(
@@ -364,13 +352,13 @@ pub fn plan(
 }
 
 /// One checklist from the rules and a model's plan cards (none for the
-/// app's own): every item once, none held here, at most [`PLAN_LINES`],
-/// grouped by area, with "Already set". Vocabulary has an area of its
-/// own, a row per term. The terms a returning setup's use shows
-/// (`candidates`) join it: the sure ones checked, the rest unchecked, none
-/// Vocabulary has, a row lists already, or the person declined in an
-/// earlier setup; a near miss of a name VibeHex knows comes as that name.
-/// `None` when nothing is left to show.
+/// app's own): every item once, at most [`PLAN_LINES`], grouped by area,
+/// with "Already set". Every line has passed the gate (`offer::Gate`, as
+/// a plan's): the rules' own here, a model's where its reply was read.
+/// Vocabulary has an area of its own, a row per term. The terms a
+/// returning setup's use shows (`candidates`) join it: the sure ones
+/// checked, the rest unchecked; a near miss of a name VibeHex knows comes
+/// as that name. `None` when nothing is left to show.
 pub fn with_terms(
     cards: Vec<Card>,
     answers: &[Answer],
@@ -378,23 +366,27 @@ pub fn with_terms(
     settings: &AppSettings,
     state: &State,
 ) -> Option<Card> {
+    planned(cards, answers, candidates, settings, state).0
+}
+
+/// [`with_terms`], and what the gate dropped on the way, for the record.
+pub fn planned(
+    cards: Vec<Card>,
+    answers: &[Answer],
+    candidates: &[Candidate],
+    settings: &AppSettings,
+    state: &State,
+) -> (Option<Card>, Vec<Dropped>) {
     let rules = rules(answers, settings, state);
-    let shortcuts = crate::rune_ui::shortcut_rules();
-    let (own, _) = changes::resolve(&proposals(&rules), settings, &shortcuts);
+    let gate = Gate::new(settings, state);
+    let own = changes::resolve(&proposals(&rules), &gate, Origin::Plan);
+    let mut dropped = own.dropped;
     let mut items: Vec<Item> = Vec::new();
     let mut terms = Vec::new();
-    for mut item in own.into_iter().flat_map(|card| card.items) {
+    for item in own.cards.into_iter().flat_map(|card| card.items) {
         if item.key == vocab::KEY {
             terms.push(item);
-            continue;
-        }
-        let Some(line) = rules.lines.iter().find(|line| line.key == item.key) else {
-            continue;
-        };
-        item.yours = !line.answer && yours(&item.key, settings);
-        item.note = line.note.unwrap_or_default().to_owned();
-        item.included = !item.yours && line.note.is_none();
-        if !items.iter().any(|known| known.key == item.key) {
+        } else if !items.iter().any(|known| known.key == item.key) {
             items.push(item);
         }
     }
@@ -415,28 +407,10 @@ pub fn with_terms(
             }
             continue;
         }
-        let held = settings::unavailable(&line_key(&item.key, settings)).is_some()
-            || follow::unfit(&item.key, &state.hardware);
-        let known = items.iter().any(|known| known.key == item.key);
-        if held || known || item.from == item.to {
-            continue;
-        }
-        let mut item = item;
-        item.yours = yours(&item.key, settings);
-        item.included &= !item.yours;
-        items.push(item);
-    }
-    for item in &mut items {
-        let shorter = catalog::shorter(&item.key, &item.from, &item.to);
-        let signed_out =
-            catalog::needs_codex(&item.key, &item.to) && state.codex_signed_in.is(&false);
-        if shorter.is_some() || signed_out {
-            item.included = false;
+        if !items.iter().any(|known| known.key == item.key) {
+            items.push(item);
         }
     }
-    // What an earlier setup offered and the person declined, while the
-    // setting is still as it was then.
-    items.retain(|item| !past::held(&state.declined, &item.key, &item.to, settings));
     items.sort_by_key(|item| area(&item.key));
     items.truncate(PLAN_LINES);
     // Every term on a row of its own: the ones a follow-up asked for
@@ -457,7 +431,7 @@ pub fn with_terms(
         .flat_map(|row| vocab::terms(&row.to))
         .map(|term| term.term)
         .collect();
-    let (sure, maybe) = candidate_items(candidates, &listed, settings, state);
+    let (sure, maybe) = candidate_items(candidates, &listed, &gate, &mut dropped);
     for (group, checked) in [(sure, true), (maybe, false)] {
         for mut row in vocab::split(group) {
             row.included = checked;
@@ -485,39 +459,34 @@ pub fn with_terms(
         });
     }
     kept.sort_by_key(|item| area(&item.key));
-    (!items.is_empty() || !kept.is_empty()).then(|| Card {
+    let card = (!items.is_empty() || !kept.is_empty()).then(|| Card {
         kind: CardKind::Plan,
         items,
         kept,
         ..Card::default()
-    })
+    });
+    (card, dropped)
 }
 
 /// Why the use's sure terms are offered, and why the rest are.
 const SURE_TERMS: &str = "Cleanup keeps fixing how these are heard";
 const MAYBE_TERMS: &str = "You say these, and Vocabulary doesn't have them";
 
-/// The candidates as Vocabulary items, sure and the rest: each checked as
-/// `hex vocabulary add` checks it, leaving out what Vocabulary has, what
-/// `listed` has, and what an earlier setup offered and the person declined.
-/// A near miss of a Vocabulary term is left out too, and one of a name
-/// VibeHex knows (`Outkit`, heard "ауткит", for Orukeet) comes as that
-/// name, with how it was heard.
+/// The candidates as Vocabulary items, sure and the rest: each through
+/// the gate (a term `hex vocabulary add` takes, that Vocabulary lacks,
+/// not declined in an earlier setup, not an ordinary word heard right),
+/// leaving out what `listed` has. A near miss of a Vocabulary term is
+/// left out too, and one of a name VibeHex knows (`Outkit`, heard
+/// "ауткит", for Orukeet) comes as that name, with how it was heard.
 fn candidate_items(
     candidates: &[Candidate],
     listed: &[String],
-    settings: &AppSettings,
-    state: &State,
+    gate: &Gate,
+    dropped: &mut Vec<Dropped>,
 ) -> (Vec<Item>, Vec<Item>) {
-    let declined: Vec<String> = state
-        .declined
-        .iter()
-        .filter(|line| line.key == vocab::KEY)
-        .flat_map(|line| vocab::terms(&line.to))
-        .map(|term| term.term.to_lowercase())
-        .collect();
     let names = app_names();
-    let vocabulary: Vec<String> = settings
+    let vocabulary: Vec<String> = gate
+        .settings
         .vocabulary
         .iter()
         .map(|entry| entry.term.clone())
@@ -535,7 +504,7 @@ fn candidate_items(
             candidate.term = name.to_owned();
         }
         let lower = candidate.term.to_lowercase();
-        if declined.contains(&lower) || seen.contains(&lower) {
+        if seen.contains(&lower) {
             continue;
         }
         seen.push(lower);
@@ -558,15 +527,16 @@ fn candidate_items(
             line: vocab::KEY.into(),
             ..Proposal::default()
         };
-        let Ok(Some(card)) = vocab::card(&proposal, settings) else {
-            continue;
-        };
-        let into = if candidate.sure {
-            &mut sure
-        } else {
-            &mut maybe
-        };
-        into.extend(card.items);
+        match vocab::card(&proposal, gate, Origin::Plan) {
+            Ok(card) => match candidate.sure {
+                true => sure.extend(card.items),
+                false => maybe.extend(card.items),
+            },
+            Err(why) => dropped.push(Dropped {
+                what: proposal.what(),
+                why,
+            }),
+        }
     }
     (sure, maybe)
 }

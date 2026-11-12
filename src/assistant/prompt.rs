@@ -578,22 +578,33 @@ pub fn repair(prompt: &Prompt, reply: &str, refused: &[Refused]) -> Prompt {
 
 const REWRITE: &str = "
 
-Your reply above suggested changes that change nothing: each setting in <already_set> has \
-that value now, so the app shows no card for it. Write your whole reply again, the same \
-answer in the same language, except: where it says that setting is set otherwise or offers \
-to change it, say in a few words that they already have it, and write no change line for it. \
+Your reply above suggested changes the app shows no card for: each setting in <already_set> \
+has that value now, and each in <not_here> can't be used on this computer. Write your whole \
+reply again, the same answer in the same language, except: where it says such a setting is \
+set otherwise or offers to change it, say in a few words that they already have it, or that \
+it isn't available on this computer, and write no change line for it. \
 Keep the other change lines (fixed, if <refused> names them) and end with the Sources line.";
 
-/// One more ask, for a remote model that suggested a value already set:
-/// its reply, which settings have that value now, and to write the whole
-/// reply again so its words claim no difference.
-pub fn rewrite(prompt: &Prompt, reply: &str, already: &[String], refused: &[Refused]) -> Prompt {
+/// One more ask, for a remote model that suggested a value already set or
+/// a setting this computer can't have: its reply, which settings those
+/// are, and to write the whole reply again so its words claim no card.
+pub fn rewrite(
+    prompt: &Prompt,
+    reply: &str,
+    already: &[String],
+    not_here: &[String],
+    refused: &[Refused],
+) -> Prompt {
     let mut input = prompt.input.clone();
     input.push_str(&format!(
-        "\n<your_reply>\n{}\n</your_reply>\n<already_set>\n{}\n</already_set>\n",
-        reply.trim(),
-        already.join("\n")
+        "\n<your_reply>\n{}\n</your_reply>\n",
+        reply.trim()
     ));
+    for (tag, lines) in [("already_set", already), ("not_here", not_here)] {
+        if !lines.is_empty() {
+            input.push_str(&format!("<{tag}>\n{}\n</{tag}>\n", lines.join("\n")));
+        }
+    }
     if !refused.is_empty() {
         input.push_str("<refused>\n");
         for refused in refused {

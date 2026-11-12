@@ -220,11 +220,15 @@ Opened from a place link                         // rune_ui::assistant::places
   ask, a Codex sign-in, or held by the organization or the OS.
 - A change to the value the setting has now is never a card, compared as
   the engine it runs (`names::same`: `codex` equals `codex:<AI cleanup's
-  model>`, empty equals none; `changes::already_set`). A remote model gets
-  one silent round (`prompt::rewrite`) to write its whole reply again, told
-  in `<already_set>` that the value is set, so its words claim no
-  difference; a built-in model's card just goes. A card's from side names
-  the engine with its model (Codex (GPT-6.1 Terra)).
+  model>`, empty equals none), and neither is a setting this computer
+  can't have (another OS's Labs feature, one an organization holds, one
+  that needs a notch this screen lacks): the gate drops both (below). A
+  remote model gets one silent round (`prompt::rewrite`) to write its whole
+  reply again, told in `<already_set>` that the value is set and in
+  `<not_here>` that the setting isn't available, so its words claim no
+  difference and offer no card there isn't; a built-in model's card just
+  goes. A card's from side names the engine with its model (Codex
+  (GPT-6.1 Terra)).
 - What the model is told of this install is one typed value,
   `assistant::facts::Facts`, made in one place (`Facts::of`) from the
   settings and what `facts::gather` read off the computer when the
@@ -310,6 +314,59 @@ Opened from a place link                         // rune_ui::assistant::places
   `dictation_processing.default_mode.cleanup` (Clean up with AI), each read
   from and written back into the mode (`changes::parts`).
 
+## The gate: what is offered
+
+Everything Assistant proposes passes one gate before the pane sees it
+(`assistant::offer`): a setting card from an answer, every row of a plan
+(the app's rules', a follow-up's Yes, a model's lines, the preset's), a
+follow-up question, a term to add, the instructions card.
+`control::settings::check` is the one way a change is applied; the gate is
+the one way one is offered. `changes::resolve`, `setup::plan`,
+`setup::follow`, and `setup::preset` hold no rules of their own: each asks
+the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
+
+- One verdict a proposal (`Verdict`): show it, show it unchecked
+  (`Held`: you chose the value there is, it shortens a retention, Codex is
+  signed out, its engine isn't ready), or drop it with why (`Why`).
+- A setting (`Gate::setting`), in order: the key exists and no card ever
+  changes it; the preset asked for where it isn't offered makes no card;
+  this VibeHex has the setting on this OS and no organization holds it;
+  this computer can use it (a notch, a mouse's extra buttons); the value is
+  one a save takes (the same `check`); it differs from the value now; in a
+  plan, it wasn't declined in an earlier setup while the setting is as it
+  was then; in an answer, it isn't a switch that only changes what a list
+  shows (Labs › Downloaded models, the picker's sort and filter, Settings
+  search, History stats, Benchmark details) for a question with no word
+  that asks for a change (`offer::lookup`); in a plan or the preset it
+  comes unchecked for the reasons above. A choice card's options pass the
+  same rules, each on its own.
+- A typed question is the person's own ask: a card it leads to is offered
+  though a setup once declined it, and has no checkbox to leave unchecked
+  (a shorter retention is its card's own warning and Danger button). The
+  preset is asked for by name, so "You chose" doesn't hold its rows.
+- A term (`Gate::term`): one `hex vocabulary add` takes, that Vocabulary
+  lacks, that a setup didn't decline (a plan only), and that passes the
+  term rule below unless it is the person's own (a follow-up's Yes, the
+  preset, a term the question itself names).
+- A follow-up question (`Gate::ask`): about a setting there is and a card
+  may change, here, on this computer, not on once round one is saved, not
+  answered or declined before unless the app picked it itself.
+- Three reasons are a model's mistake and show as a refused row it is told
+  (no such key, a value a save doesn't take, a key never changed from a
+  card); every other drop is silent. All of them are kept with the turn,
+  as the last lines of "What Assistant knew": `Proposed and not offered:`,
+  then a line each, `labs.picker_downloaded = true: only a way to look
+  something up`, `term Web: an ordinary word heard right, not a term`,
+  `ask labs.notch_indicator: this computer can't use it`. The debug log
+  gets the same lines without the terms, which may be words the person
+  said.
+- What a card shows once it is there (a value changed by hand since, an
+  organization's lock set later) is not the gate's: that is the card's live
+  state (`changes::state`).
+- `offer::tests` holds each rule as a row of a table, by who proposes; the
+  scenarios run through the worker, so through the same gate, and their
+  report lists what it dropped (`dropped <scenario> step N: …`).
+
 ## Vocabulary terms as a card
 
 - To add names a transcript gets wrong, the model writes a `hex-vocab`
@@ -319,7 +376,11 @@ Opened from a place link                         // rune_ui::assistant::places
   checked as `hex vocabulary add` checks it (`changes::vocab`); an empty or
   too long one is refused like any line.
 - A term the vocabulary has, in any case, is dropped by the app and never
-  named back to the model.
+  named back to the model. So is an ordinary English word, or a Title Case
+  phrase of ordinary words, offered on its capital alone (Web, New
+  Session): it needs a spelling that shows it is misheard, the rule the
+  use's terms pass (`recordings::terms::passes`). A term the question
+  itself names is the person's ask and is offered.
 
 ## Why a word came out wrong
 

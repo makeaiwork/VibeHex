@@ -57,7 +57,7 @@ pub fn follow_stage(fixture: &Fixture) -> (String, Stage) {
     let line = fixtures::answers_line(&answers, fixture.state.os);
     let stage = Stage::Follow {
         candidates: follow::candidates(&answers, &fixture.settings, &fixture.state),
-        before: follow::before(&answers, &fixture.state),
+        before: follow::before(&answers, &fixture.settings, &fixture.state),
         since: String::new(),
         line: line.clone(),
         answers,
@@ -133,6 +133,7 @@ pub const PLAN_TERMS: &str = "Вот что стоит поменять.\n\n```h
 {\"key\":\"labs.filler_words\",\"value\":true,\"why\":\"без «эээ»\"}\n\
 {\"term\":\"Codex\",\"sounds_like\":[\"кодекс\"]}\n\
 {\"term\":\"GitHub\",\"sounds_like\":[\"гитхаб\"],\"optional\":true}\n\
+{\"term\":\"Web\",\"sounds_like\":[\"веб\"]}\n\
 ```\n\nSources: none";
 
 pub const LOOK: &str = "- В **General › Vocabulary** стоит добавить Codex: очистка четыре раза исправляла «кодекс».\n\

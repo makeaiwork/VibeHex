@@ -16,16 +16,16 @@
 //! never to ask it, drops it if a model asks it anyway, and shows it
 //! folded under "Answered before" with its answer (`before`).
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use super::plan::{self, tech};
 use super::{Answer, Ask, Choice, past, picked};
 use crate::app_settings::AppSettings;
-use crate::assistant::changes::catalog::{self, Class};
 use crate::assistant::changes::vocab::{self, Term};
-use crate::assistant::changes::{self, parse::Proposal};
+use crate::assistant::changes::{self, names, parse::Proposal};
 use crate::assistant::facts::State;
 use crate::assistant::guide::{self, Article};
+use crate::assistant::offer::{Dropped, Gate, Offer, Origin, Verdict, Why};
 use crate::control::settings;
 use crate::desktop::hardware::Hardware;
 use crate::desktop::i18n::{tr, tr_window};
@@ -110,16 +110,16 @@ fn fits(article: &Article, answers: &[Answer]) -> Option<usize> {
 }
 
 /// The Labs articles setup may ask about here: they say whom they are for
-/// and ask a question, this OS and build have their switch, and this
-/// computer may have what they need (a notch, a mouse's extra buttons).
-fn askable(hardware: &Hardware) -> impl Iterator<Item = (&'static Article, &'static str)> {
+/// and ask a question, and the gate has their switch here (this OS and
+/// build have it, and this computer may have what it needs: a notch, a
+/// mouse's extra buttons).
+fn askable<'a>(gate: &'a Gate) -> impl Iterator<Item = (&'static Article, &'static str)> + 'a {
     guide::articles().iter().filter_map(move |article| {
         let key = article.keys.first()?.as_str();
         (article.is_lab()
             && !article.uses.is_empty()
             && !article.ask.is_empty()
-            && article.fits(hardware)
-            && settings::unavailable(key).is_none())
+            && gate.here(key).is_ok())
         .then_some((article, key))
     })
 }
@@ -132,8 +132,8 @@ pub fn unfit(key: &str, hardware: &Hardware) -> bool {
 }
 
 /// The switches of the Labs features that fit `answers`, best first.
-pub fn relevant(answers: &[Answer], hardware: &Hardware) -> Vec<String> {
-    let mut found: Vec<(usize, &str)> = askable(hardware)
+pub fn relevant(answers: &[Answer], gate: &Gate) -> Vec<String> {
+    let mut found: Vec<(usize, &str)> = askable(gate)
         .filter_map(|(article, key)| Some((fits(article, answers)?, key)))
         .collect();
     found.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
@@ -195,7 +195,8 @@ fn after(answers: &[Answer], settings: &AppSettings, state: &State) -> AppSettin
         .into_iter()
         .filter(|line| line.key != vocab::KEY)
         .collect();
-    let (cards, _) = changes::resolve(&lines, settings, &shortcuts);
+    let gate = Gate::new(settings, state);
+    let cards = changes::resolve(&lines, &gate, Origin::Plan).cards;
     let mut now = settings.clone();
     for card in cards {
         let Ok(values) = changes::values(&card, &now) else {
@@ -209,33 +210,28 @@ fn after(answers: &[Answer], settings: &AppSettings, state: &State) -> AppSettin
 }
 
 /// The follow-up questions for round one's `answers`, best first: the
-/// Labs features that fit and aren't on, counting what round one turns
-/// on, and the tech terms for Russian code without vibe coding.
+/// Labs features that fit and the gate lets through (not on once round
+/// one's lines are saved, not answered or declined before), and the tech
+/// terms for Russian code without vibe coding.
 pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> Vec<Ask> {
     let after = after(answers, settings, state);
+    let gate = Gate::new(settings, state);
     let asked: Vec<&str> = answers.iter().map(|answer| answer.id.as_str()).collect();
     let mut asks = Vec::new();
     let code = picked(answers, "use").any(|id| id == "dictation_code");
-    let declined = |key: &str| state.declined.iter().any(|line| line.key == key);
     if code
         && tech(answers)
         && !after.labs.russian_vibe_coding
         && !asked.contains(&OWN[0].id)
-        && !declined(vocab::KEY)
-        && !answered(state, OWN[0].id)
+        && gate.ask(OWN[0].id, &after, false) == Verdict::Show
     {
         asks.push(terms_ask());
     }
-    for key in relevant(answers, &state.hardware) {
-        // Declined before, while it is still as it was then.
-        if asked.contains(&key.as_str())
-            || changes::current(&after, &key) == Some(Value::Bool(true))
-            || past::held(&state.declined, &key, &Value::Bool(true), settings)
-            || answered(state, &key)
-        {
+    for key in relevant(answers, &gate) {
+        if asked.contains(&key.as_str()) || gate.ask(&key, &after, false) != Verdict::Show {
             continue;
         }
-        let Some((article, _)) = askable(&state.hardware).find(|(_, known)| *known == key) else {
+        let Some((article, _)) = askable(&gate).find(|(_, known)| *known == key) else {
             continue;
         };
         asks.push(yes_no(
@@ -248,16 +244,10 @@ pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> 
     asks
 }
 
-/// Whether the follow-up `id` was answered in an earlier setup and isn't
-/// asked again.
-fn answered(state: &State, id: &str) -> bool {
-    state.answered.iter().any(|ask| ask.id == id)
-}
-
 /// The follow-ups answered before that these `answers` would ask about,
 /// as answered then, to show folded beside the round.
-pub fn before(answers: &[Answer], state: &State) -> Vec<Ask> {
-    let relevant = relevant(answers, &state.hardware);
+pub fn before(answers: &[Answer], settings: &AppSettings, state: &State) -> Vec<Ask> {
+    let relevant = relevant(answers, &Gate::new(settings, state));
     let code = picked(answers, "use").any(|id| id == "dictation_code");
     state
         .answered
@@ -289,16 +279,16 @@ pub fn prompt_lines(
 ) -> (String, String, String) {
     let settled = settled(settings, state);
     let hardware = &state.hardware;
+    let gate = Gate::new(settings, state);
     let asks = candidates
         .iter()
         .map(super::ask_line)
         .collect::<Vec<_>>()
         .join("\n");
-    let others = askable(hardware)
+    let others = askable(&gate)
         .filter(|(_, key)| {
             !candidates.iter().any(|ask| ask.id == *key)
-                && changes::current(settings, key) != Some(Value::Bool(true))
-                && !settled.iter().any(|known| known == key)
+                && gate.ask(key, settings, false) == Verdict::Show
         })
         .map(|(article, key)| format!("{key} | {} | {}", article.title, article.question(hardware)))
         .collect::<Vec<_>>()
@@ -306,7 +296,7 @@ pub fn prompt_lines(
     let before = settled
         .iter()
         .map(|key| {
-            let title = askable(hardware)
+            let title = askable(&gate)
                 .find(|(_, known)| known == key)
                 .map(|(article, _)| article.title.as_str())
                 .unwrap_or_default();
@@ -317,58 +307,57 @@ pub fn prompt_lines(
     (asks, others, before)
 }
 
-/// The follow-up questions a model wrote, checked: a candidate keeps its
-/// options' changes with the model's words; a Labs switch from the
-/// catalog gets the app's Yes and No; any other key needs each option's
-/// `value` to be one a save takes, and never a key no card changes. At
-/// most [`ROUND`] × [`ROUNDS`]; none usable, the candidates as they are.
-/// A key in `settled` (answered or declined before) is never asked unless
-/// the app picked it, nor a Labs feature this computer can't use.
-pub fn follow_ups(
-    written: &[Value],
-    candidates: &[Ask],
-    settings: &AppSettings,
-    settled: &[String],
-    hardware: &Hardware,
-) -> Vec<Ask> {
-    let shortcuts = crate::rune_ui::shortcut_rules();
+/// The follow-up questions a model wrote, each through the gate
+/// (`Gate::ask`): a candidate keeps its options' changes with the model's
+/// words; a Labs switch from the catalog gets the app's Yes and No; any
+/// other key needs each option's `value` to pass as a plan's line would.
+/// At most [`ROUND`] × [`ROUNDS`]; none usable, the candidates as they
+/// are. What was dropped and why comes back beside them.
+pub fn follow_ups(written: &[Value], candidates: &[Ask], gate: &Gate) -> (Vec<Ask>, Vec<Dropped>) {
     let mut asks: Vec<Ask> = Vec::new();
+    let mut dropped = Vec::new();
     for line in written {
         let Some(id) = line.get("id").and_then(Value::as_str).map(str::trim) else {
             continue;
         };
-        // Answered before, or declined while it holds: never again; nor
-        // a feature this computer can't use.
-        let candidate = candidates.iter().any(|ask| ask.id == id);
-        if asks.iter().any(|known| known.id == id)
-            || (!candidate && settled.iter().any(|known| known == id))
-            || unfit(id, hardware)
-        {
+        if asks.iter().any(|known| known.id == id) {
             continue;
         }
-        let found = candidates
-            .iter()
-            .find(|ask| ask.id == id)
-            .cloned()
-            .or_else(|| {
-                askable(hardware)
-                    .find(|(_, key)| *key == id)
-                    .filter(|(_, key)| changes::current(settings, key) != Some(Value::Bool(true)))
-                    .map(|(article, key)| yes_no(key, article.question(hardware), &article.title))
+        let candidate = candidates.iter().find(|ask| ask.id == id);
+        if let Verdict::Drop(why) = gate.ask(id, gate.settings, candidate.is_some()) {
+            dropped.push(Dropped {
+                what: format!("ask {id}"),
+                why,
             });
+            continue;
+        }
+        let found = candidate.cloned().or_else(|| {
+            askable(gate)
+                .find(|(_, key)| *key == id)
+                .map(|(article, key)| {
+                    let hardware = &gate.state.hardware;
+                    yes_no(key, article.question(hardware), &article.title)
+                })
+        });
         let ask = match found {
             Some(ask) => reworded(ask, line),
-            None => setting(id, line, settings, &shortcuts),
+            None => setting(id, line, gate),
         };
+        if ask.is_none() {
+            dropped.push(Dropped {
+                what: format!("ask {id}"),
+                why: Why::Invalid("no option that changes it".into()),
+            });
+        }
         asks.extend(ask);
         if asks.len() == ROUND * ROUNDS {
             break;
         }
     }
     if asks.is_empty() {
-        candidates.to_vec()
+        (candidates.to_vec(), dropped)
     } else {
-        asks
+        (asks, dropped)
     }
 }
 
@@ -401,17 +390,11 @@ fn reworded(mut ask: Ask, line: &Value) -> Option<Ask> {
 }
 
 /// A question about any other setting a model added: each option's
-/// `value` checked as a save would, an option without one changing
-/// nothing.
-fn setting(
-    key: &str,
-    line: &Value,
-    settings: &AppSettings,
-    shortcuts: &settings::ShortcutRules,
-) -> Option<Ask> {
+/// `value` through the gate as a plan's line, an option without one
+/// changing nothing.
+fn setting(key: &str, line: &Value, gate: &Gate) -> Option<Ask> {
     let q = line.get("q").and_then(Value::as_str)?.trim();
-    let now = changes::current(settings, key)?;
-    if q.is_empty() || settings::unavailable(key).is_some() {
+    if q.is_empty() {
         return None;
     }
     let mut options = Vec::new();
@@ -421,12 +404,8 @@ fn setting(
         let changes = match option.get("value") {
             None | Some(Value::Null) => Vec::new(),
             Some(raw) => {
-                let value = crate::assistant::changes::names::normalize(settings, key, raw);
-                let values = Map::from_iter([(key.to_owned(), value.clone())]);
-                let fits = catalog::class(key, &value) != Class::Never
-                    && value != now
-                    && settings::check(settings, &values, shortcuts).is_ok();
-                if !fits {
+                let value = names::normalize(gate.settings, key, raw);
+                if let Verdict::Drop(_) = gate.setting(Origin::Plan, Offer::of(key, &value)) {
                     return None;
                 }
                 vec![(key.to_owned(), value)]

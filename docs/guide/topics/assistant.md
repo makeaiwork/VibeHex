@@ -10,8 +10,7 @@ os: every OS
 Assistant, at the bottom of the sidebar, answers questions about VibeHex from
 this guide, and, once you allow it, questions about your own meetings, Files
 texts, and dictations: "What did we decide about the budget in November?",
-"Summarize my calls with Anna last week", "What did I dictate about the
-release yesterday?".
+"What did I dictate about the release yesterday?".
 
 ## Its language
 
@@ -32,6 +31,10 @@ same save ("Also turns on…"), and a shorter retention says what it removes
 before you press it. A new speech model downloads first and switches when
 it is ready.
 
+No card comes for a value you already have, a feature this computer lacks,
+or an ordinary word as a term: **What Assistant knew** lists what was left
+out.
+
 **Undo** puts back everything a card changed, while the conversation stays
 open; after that the card offers **Show in…** instead. A card follows your
 settings: changed by hand since, it says so.
@@ -42,8 +45,7 @@ For the AI cleanup instructions, the card shows the lines that change.
 
 Names your dictation gets wrong come as one **Add 3 terms** card: each term
 with what it sounds like, a checkbox, and **Edit** to fix the spelling or the
-spellings. Terms already in your Vocabulary are left out. Undo takes out
-exactly the terms it added.
+spellings. Terms already in your Vocabulary are left out.
 
 Ask why dictation wrote one word as another ("it writes AI cleanup when I
 say AI") and, with Your current settings on, Assistant reads your cleanup
@@ -116,7 +118,7 @@ Each numbered mark in the answer, and each chip under **From your
 recordings**, opens its place: a meeting on Transcript with the passage
 tinted and the phrases it cited lit, a Files text on its Original the same
 way (also while you listen to it), or the dictation in History, its row
-marked with the number. The place lands a third of the way down the window. **Back to Assistant**, at the top of that pane, returns
+marked with the number. **Back to Assistant**, at the top of that pane, returns
 to the same spot in the conversation; Cmd-[ on a Mac and Ctrl+[ elsewhere do
 the same.
 

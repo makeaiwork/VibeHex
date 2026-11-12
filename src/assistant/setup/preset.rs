@@ -3,38 +3,29 @@
 //! devices, calendars, or window state) and shipped in the binary. Its
 //! settings become one plan, its shortcuts a second step after it.
 //!
-//! The setup rules hold: a line this machine can't take is left out and
-//! named under "Not available here"; an engine not ready starts unchecked
-//! with where to finish; a value already the same folds into "Already
-//! set". Everything else starts checked, but a shorter keep-meetings time,
-//! which moves recordings to the Trash.
+//! Every line passes the gate (`assistant::offer`) as the preset's: a line
+//! this machine can't take is left out and named under "Not available
+//! here"; an engine not ready starts unchecked with where to finish; a
+//! value already the same folds into "Already set". Everything else
+//! starts checked, but a shorter keep-meetings time, which moves
+//! recordings to the Trash.
 
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
-use super::engines;
-use super::plan::{area, line_key};
+use super::plan::area;
 use crate::app_settings::{AppSettings, HotkeyBinding};
-use crate::assistant::changes::catalog;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::{self, Card, CardKind, Item, names, parts, vocab};
 use crate::assistant::facts::State;
+use crate::assistant::offer::{Gate, Origin, Why};
 use crate::control::settings;
 
 /// The owner's preset, as `scripts/export-preset` wrote it.
 const DENIS: &str = include_str!("../../../presets/deniskey.json");
 
-/// Keys whose value names an engine, maybe with its model (`codex:gpt-…`).
-const ENGINES: [&str; 5] = [
-    "dictation_processing.server.runs_on",
-    "meetings.notes.writer",
-    "meetings.questions.engine",
-    "files.cleanup_engine",
-    "files.request_engine",
-];
-
-/// Kept for last and never checked for the person: it moves meetings
-/// older than a month to the Trash.
+/// Kept for last: shortening it moves meetings older than a month to the
+/// Trash, so the gate starts it unchecked.
 const RETENTION: &str = "meetings.retention";
 
 /// A preset: `hex settings` keys with the values settings.json holds, the
@@ -72,7 +63,12 @@ pub struct Planned {
     pub missing: Vec<String>,
 }
 
-/// The preset's settings, prompt, and terms as one plan.
+/// The preset's settings, prompt, and terms as one plan, each line
+/// through the gate as the preset's: what this machine can't take is
+/// named in `missing`, what is the same already folds into "Already set"
+/// (a Labs feature off on both sides says nothing), and an engine not
+/// ready, a Codex row while signed out, and a shorter keep-meetings time
+/// start unchecked.
 pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
     let mut lines: Vec<Proposal> = preset
         .settings
@@ -88,42 +84,39 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
             .iter()
             .map(|term| line(vocab::KEY, term.clone())),
     );
+    let gate = Gate::new(settings, state);
     let mut planned = Planned::default();
     let mut items = Vec::new();
     let mut terms = Vec::new();
     let mut kept = Vec::new();
     for proposal in lines {
         let key = proposal.key.clone();
-        if settings::unavailable(&line_key(&key, settings)).is_some() {
-            planned.missing.push(name(&key, settings));
-            continue;
-        }
-        let wanted = proposal.value.clone().unwrap_or(Value::Null);
-        if key != vocab::KEY && changes::current(settings, &key) == Some(wanted.clone()) {
-            // A Labs feature off in both says nothing worth folding.
-            if wanted != Value::Bool(false) {
-                kept.push(Item {
-                    key,
-                    from: wanted.clone(),
-                    to: wanted,
-                    ..Item::default()
-                });
+        let resolved = changes::resolve(std::slice::from_ref(&proposal), &gate, Origin::Preset);
+        for dropped in &resolved.dropped {
+            match &dropped.why {
+                // The same already: kept, unless it is a feature left off.
+                Why::Same => {
+                    let wanted = proposal.value.clone().unwrap_or(Value::Null);
+                    if wanted != Value::Bool(false) {
+                        kept.push(Item {
+                            key: key.clone(),
+                            from: wanted.clone(),
+                            to: wanted,
+                            ..Item::default()
+                        });
+                    }
+                }
+                Why::Has => {}
+                _ => planned.missing.push(name(&key, settings)),
             }
-            continue;
         }
-        let shortcuts = crate::rune_ui::shortcut_rules();
-        let (cards, refused) = changes::resolve(&[proposal], settings, &shortcuts);
-        if !refused.is_empty() && key != vocab::KEY {
+        if !resolved.refused.is_empty() && key != vocab::KEY {
             planned.missing.push(name(&key, settings));
         }
-        for item in cards.into_iter().flat_map(|card| card.items) {
-            if key == vocab::KEY {
-                terms.push(item);
-            } else if unsupported(&item, settings) {
-                // It needs a Labs feature this OS doesn't have.
-                planned.missing.push(name(&key, settings));
-            } else {
-                items.push(ready(item, settings, state));
+        for item in resolved.cards.into_iter().flat_map(|card| card.items) {
+            match key == vocab::KEY {
+                true => terms.push(item),
+                false => items.push(item),
             }
         }
     }
@@ -144,35 +137,19 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
     planned
 }
 
-/// Whether saving `item` alone fails because this OS doesn't have what
-/// it needs (a key whose Labs feature is another OS's).
-fn unsupported(item: &Item, settings: &AppSettings) -> bool {
-    let one = Card {
-        items: vec![item.clone()],
-        ..Card::default()
-    };
-    let Ok(values) = changes::values(&one, settings) else {
-        return false;
-    };
-    let shortcuts = crate::rune_ui::shortcut_rules();
-    settings::check(settings, &values, &shortcuts).is_err_and(|error| error.code == "unsupported")
-}
-
 /// The preset's shortcuts as a plan, each as `hex settings set` takes it;
 /// those already the same, or that this machine can't take, left out.
 pub fn shortcuts(preset: &Preset, settings: &AppSettings) -> Option<Card> {
-    let rules = crate::rune_ui::shortcut_rules();
+    let state = State::default();
+    let gate = Gate::new(settings, &state);
     let mut items = Vec::new();
     for (key, raw) in &preset.shortcuts {
         let Some(value) = shortcut(raw) else {
             continue;
         };
-        if settings::unavailable(key).is_some()
-            || changes::current(settings, key) == Some(value.clone())
-        {
-            continue;
-        }
-        let (cards, _) = changes::resolve(&[line(key, value)], settings, &rules);
+        // Those this machine can't take, or the same already, the gate
+        // drops.
+        let cards = changes::resolve(&[line(key, value)], &gate, Origin::Preset).cards;
         items.extend(cards.into_iter().flat_map(|card| card.items));
     }
     (!items.is_empty()).then(|| Card {
@@ -230,24 +207,6 @@ fn line(key: &str, value: Value) -> Proposal {
         line: key.to_owned(),
         ..Proposal::default()
     }
-}
-
-/// An item as the setup rules start it: an engine not ready, a Codex row
-/// while signed out, and a shorter keep-meetings time, unchecked.
-fn ready(mut item: Item, settings: &AppSettings, state: &State) -> Item {
-    if ENGINES.contains(&item.key.as_str()) {
-        let id = item.to.as_str().unwrap_or_default();
-        let id = id.split(':').next().unwrap_or_default();
-        if let Some(note) = engines::not_ready(id, settings, state) {
-            item.included = false;
-            item.note = note.to_owned();
-        }
-    }
-    let signed_out = catalog::needs_codex(&item.key, &item.to) && state.codex_signed_in.is(&false);
-    if item.key == RETENTION || signed_out {
-        item.included = false;
-    }
-    item
 }
 
 /// A key's name as the window shows it.
@@ -343,7 +302,7 @@ mod tests {
         for item in &card.items {
             assert!(!item.key.ends_with("hotkey"), "{}", item.key);
             assert_ne!(item.key, "shortcut_mode");
-            let unavailable = settings::unavailable(&line_key(&item.key, &settings)).is_some();
+            let unavailable = Gate::new(&settings, &mac()).here(&item.key).is_err();
             assert!(!unavailable, "{}", item.key);
             if item.key == RETENTION {
                 assert!(!item.included);

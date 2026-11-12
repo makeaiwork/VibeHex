@@ -9,8 +9,8 @@ use serde_json::Value;
 
 use super::answers::message;
 use super::checks::{
-    answer_in_english, answer_in_russian, app, asks_in_russian, check, ensure, live, offline,
-    routed, russian, sent_has,
+    answer_in_english, answer_in_russian, app, asks_in_russian, check, dropped, ensure, live,
+    offline, routed, russian, sent_has,
 };
 use super::fixtures::{self, newcomer};
 use super::harness::{Check, Fixture, Said, Scenario, Step};
@@ -177,6 +177,8 @@ pub fn scenarios() -> Vec<Scenario> {
                         check("follow-ups were asked", |outcome| {
                             ensure(!outcome.turn.asks.is_empty(), || "none".into())
                         }),
+                        dropped("ask labs.notch_indicator", ""),
+                        dropped("ask labs.mouse_shortcuts", ""),
                     ],
                 ),
                 stage(
@@ -196,6 +198,8 @@ pub fn scenarios() -> Vec<Scenario> {
                                 || format!("{:?}", outcome.turn.cards),
                             )
                         }),
+                        dropped("labs.notch_indicator = true", ""),
+                        dropped("labs.mouse_shortcuts = true", ""),
                     ],
                 ),
             ],
@@ -276,7 +280,7 @@ pub fn scenarios() -> Vec<Scenario> {
                         .filter(|id| answered.contains(id))
                         .collect();
                     ensure(again.is_empty(), || format!("asked again: {again:?}"))?;
-                    let before = follow::before(&answers, &fixture.state);
+                    let before = follow::before(&answers, &fixture.settings, &fixture.state);
                     ensure(
                         before.len() == 2 && before.iter().all(|ask| ask.before),
                         || format!("folded: {}", before.len()),
@@ -494,6 +498,7 @@ pub fn scenarios() -> Vec<Scenario> {
                                 ensure(ordinary.is_empty(), || format!("{ordinary:?}"))
                             },
                         ),
+                        dropped("term Web", "an ordinary word heard right"),
                         offline("the use's terms are in the plan", |outcome| {
                             let items = plan_items(&outcome.turn.cards);
                             let rows = items.iter().filter(|item| item.key == vocab::KEY).count();
@@ -755,83 +760,18 @@ pub fn scenarios() -> Vec<Scenario> {
                 ],
             )],
         },
-        not_offered(
+        super::gate::not_offered(
             "14b-like-denis-english",
             "With English recognition the preset, made for Russian dictation, was offered all \
              the same.",
             || fixtures::newcomer_speaking("en"),
             "Set me up like Denis",
         ),
-        not_offered(
+        super::gate::not_offered(
             "14c-like-denis-auto",
             "With recognition on Auto the preset was offered all the same.",
             || fixtures::newcomer_speaking("auto"),
             "Настрой как у Дениса",
         ),
     ]
-}
-
-/// The preset asked for where it isn't offered: no plan, no card, an
-/// ordinary question the guide answers honestly.
-fn not_offered(
-    id: &'static str,
-    about: &'static str,
-    fixture: fn() -> Fixture,
-    asked: &'static str,
-) -> Scenario {
-    Scenario {
-        id,
-        about,
-        fixture,
-        app: vec![
-            app("the preset isn't offered", |fixture| {
-                ensure(!preset::offered(&fixture.settings), || "offered".into())
-            }),
-            app(
-                "every way of asking for it is an ordinary question",
-                |fixture| {
-                    for question in [
-                        "Set me up like Denis",
-                        "set me up like the developer",
-                        "Настрой как у Дениса",
-                        "сделай настройки как у DenisKey",
-                    ] {
-                        let route = crate::assistant::intent::route(
-                            question,
-                            &[],
-                            &fixture.settings,
-                            fixture.now_ms,
-                        );
-                        ensure(route == Route::Guide, || format!("{question}: {route:?}"))?;
-                    }
-                    Ok(())
-                },
-            ),
-        ],
-        steps: vec![message(
-            asked,
-            &[
-                "That preset is made for dictating in Russian, so it is offered only when \
-                 **General › Language** is Russian. **Set VibeHex up for me** asks a few \
-                 questions and fits the setup to how you work.\n\n\
-                 ```hex-plan\n\
-                 {\"key\":\"labs.russian_vibe_coding\",\"value\":true,\"why\":\"as Denis has it\"}\n\
-                 ```\n\nSources: topics/assistant",
-            ],
-            vec![
-                routed(|route| *route == Route::Guide, "the guide"),
-                sent_has(
-                    "the guide saying whom the preset is for",
-                    &["offered only when speech recognition is set to Russian"],
-                ),
-                // A plan block a model writes here makes nothing.
-                check("no preset plan and no card", |outcome| {
-                    ensure(
-                        outcome.turn.cards.is_empty() && outcome.turn.asks.is_empty(),
-                        || format!("{:?} {:?}", outcome.turn.cards, outcome.turn.asks),
-                    )
-                }),
-            ],
-        )],
-    }
 }

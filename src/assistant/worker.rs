@@ -11,12 +11,13 @@ use std::time::{Duration, Instant};
 use color_eyre::eyre::Result;
 use serde_json::Value;
 
-use super::changes::{self, Card, CardKind, Refused, Why};
+use super::changes;
 use super::intent::Intent;
 use super::prompt::{self, Reach, Room};
 use super::recordings::{self, Allowed, Budget, Found, Sources, Step};
 use super::releases;
-use super::setup::{self, Ask, Stage};
+use super::settle::{Settled, settle};
+use super::setup::{self, Stage};
 use super::store::Turn;
 use super::web::Web;
 use crate::dictation::cleanup_pieces::Streamed;
@@ -365,8 +366,10 @@ pub(super) fn start_with(
                     },
                     None => ask(&cancel, &Arc::new(AtomicBool::new(false))),
                 };
-                let result = first
-                    .map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
+                let result = first.map(|reply| {
+                    let again = (!local).then_some(asking_again as fn());
+                    settle(&question, &prompt, reply, &generate, &cancel, again)
+                });
                 let what = Read {
                     found: found.as_ref(),
                     articles: &prompt.articles,
@@ -492,188 +495,13 @@ struct Read<'a> {
     knew: &'a str,
 }
 
-/// A reply with its change lines read and checked.
-struct Settled {
-    reply: String,
-    cards: Vec<Card>,
-    refused: Vec<Refused>,
-    /// Setup's questions, when it asked them.
-    asks: Vec<Ask>,
-}
-
-/// Reads `reply`'s change lines against the question's settings. A remote
-/// model whose lines were refused is asked once more to fix them; a local
-/// one isn't, and its refusals stay as they are.
-fn settle(
-    question: &Question,
-    prompt: &prompt::Prompt,
-    reply: String,
-    generate: &Generate,
-    cancel: &AtomicBool,
-    remote: bool,
-) -> Settled {
-    let mut parsed = changes::parse::parse(&reply);
-    let plan = matches!(question.setup, Stage::Plan { .. });
-    let os = question
-        .changes
-        .as_ref()
-        .map_or(std::env::consts::OS, |context| context.state.os);
-    let asks = match (&question.setup, &question.changes) {
-        (Stage::Ask, context) => {
-            let mut asks = setup::asks(&parsed.asks, os);
-            if let Some(context) = context {
-                setup::preselect(&mut asks, &context.settings, &context.state);
-            }
-            asks
-        }
-        // Follow-up questions only: any change lines are dropped.
-        (Stage::Follow { candidates, .. }, Some(context)) => {
-            let settled = setup::follow::settled(&context.settings, &context.state);
-            let asks = setup::follow::follow_ups(
-                &parsed.asks,
-                candidates,
-                &context.settings,
-                &settled,
-                &context.state.hardware,
-            );
-            return Settled {
-                reply,
-                cards: Vec::new(),
-                refused: Vec::new(),
-                asks,
-            };
-        }
-        (Stage::Follow { candidates, .. }, None) => candidates.clone(),
-        // Suggestions only: round one comes after them, as it was.
-        (Stage::Look { asks, .. }, _) => {
-            return Settled {
-                reply,
-                cards: Vec::new(),
-                refused: Vec::new(),
-                asks: asks.clone(),
-            };
-        }
-        _ => Vec::new(),
-    };
-    let Some(context) = &question.changes else {
-        return Settled {
-            reply,
-            cards: Vec::new(),
-            refused: Vec::new(),
-            asks,
-        };
-    };
-    // The preset asked for where it isn't offered is answered in words.
-    if super::intent::preset_not_offered(&question.question, &context.settings) {
-        parsed.proposals.clear();
+/// Shows "Preparing a change" while a remote model is asked once more.
+fn asking_again() {
+    let mut state = state();
+    if let Some(answering) = &mut state.answering {
+        answering.cards_coming = true;
     }
-    // Setup's answer is one list, whichever fence each line came in.
-    if plan {
-        changes::parse::as_plan(&mut parsed.proposals);
-    }
-    let rules = crate::rune_ui::shortcut_rules();
-    let (mut cards, mut refused) = changes::resolve(&parsed.proposals, &context.settings, &rules);
-    refused.extend(Refused::malformed(&parsed.malformed));
-    // A change to the value there is now never becomes a card; a plan's
-    // rules fold such lines into "Already set" themselves.
-    let already = if plan {
-        Vec::new()
-    } else {
-        changes::already_set(&mut cards, &context.settings)
-    };
-    let mut reply = reply;
-    let fixable: Vec<Refused> = refused
-        .iter()
-        .filter(|refused| refused.why != Why::Never)
-        .cloned()
-        .collect();
-    let asking_again = !fixable.is_empty() || !already.is_empty();
-    if remote && asking_again && !cancel.load(Ordering::Acquire) {
-        {
-            let mut state = state();
-            if let Some(answering) = &mut state.answering {
-                answering.cards_coming = true;
-            }
-            changed(state);
-        }
-    }
-    if remote && !already.is_empty() && !cancel.load(Ordering::Acquire) {
-        // Its words may claim a difference there isn't: the whole reply
-        // again, told what is set already; its own refusals fixed with it.
-        let again = prompt::rewrite(prompt, &reply, &already, &fixable);
-        if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None)
-            && !changes::parse::parse(&fixed).body.trim().is_empty()
-        {
-            let parsed = changes::parse::parse(&fixed);
-            let (mut more, mut more_refused) =
-                changes::resolve(&parsed.proposals, &context.settings, &rules);
-            more_refused.extend(Refused::malformed(&parsed.malformed));
-            changes::already_set(&mut more, &context.settings);
-            cards = more;
-            refused = more_refused;
-            reply = fixed;
-        }
-    } else if remote && !fixable.is_empty() && !cancel.load(Ordering::Acquire) {
-        let again = prompt::repair(prompt, &reply, &fixable);
-        if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None) {
-            let mut parsed = changes::parse::parse(&fixed);
-            if plan {
-                changes::parse::as_plan(&mut parsed.proposals);
-            }
-            let (more, _) = changes::resolve(&parsed.proposals, &context.settings, &rules);
-            let fixed: Vec<String> = more
-                .iter()
-                .flat_map(|card| card.items.iter().map(|item| item.key.clone()))
-                .collect();
-            for card in more {
-                // Fixed terms join the terms card there is.
-                if card.kind == CardKind::Vocabulary
-                    && let Some(terms) = cards
-                        .iter_mut()
-                        .find(|known| known.kind == CardKind::Vocabulary)
-                {
-                    changes::vocab::merge(terms, card);
-                } else if card.kind == CardKind::VocabularyEdit
-                    && let Some(edits) = cards
-                        .iter_mut()
-                        .find(|known| known.kind == CardKind::VocabularyEdit)
-                {
-                    changes::vocab_edit::merge(edits, card);
-                } else if !cards.iter().any(|known| known.same_keys(&card)) {
-                    cards.push(card);
-                }
-            }
-            // A refusal its fix replaced goes; the rest stay.
-            if !fixed.is_empty() {
-                refused.retain(|refused| {
-                    refused.why == Why::Never
-                        || refused.key.as_ref().is_some_and(|key| !fixed.contains(key))
-                });
-            }
-        }
-    }
-    if plan {
-        // The app's rules decide; the model's lines join them.
-        let terms = match &question.setup {
-            Stage::Plan { terms, .. } => terms.as_slice(),
-            _ => &[],
-        };
-        cards = setup::plan::with_terms(
-            cards,
-            question.setup.answers(),
-            terms,
-            &context.settings,
-            &context.state,
-        )
-        .into_iter()
-        .collect();
-    }
-    Settled {
-        reply,
-        cards,
-        refused,
-        asks,
-    }
+    changed(state);
 }
 
 /// The streamed reply into the draft, at most once each [`DRAFT_EVERY`].
@@ -724,7 +552,20 @@ fn finish(
         knew: read.knew.to_owned(),
         ..Turn::default()
     };
-    super::facts::text::log(question.conversation, read.knew);
+    // What the gate dropped is part of what the turn keeps; the log gets
+    // it without the terms, which may be the person's own words.
+    let mut logged = read.knew.to_owned();
+    if let Ok(settled) = &result {
+        turn.knew.push_str(&super::offer::record(&settled.dropped));
+        let settings: Vec<_> = settled
+            .dropped
+            .iter()
+            .filter(|dropped| !dropped.term())
+            .cloned()
+            .collect();
+        logged.push_str(&super::offer::record(&settings));
+    }
+    super::facts::text::log(question.conversation, &logged);
     match result {
         Ok(settled) => {
             let parsed = changes::parse::parse(&settled.reply);
@@ -855,7 +696,8 @@ mod tests {
 
     fn with_changes(text: &str) -> Question {
         let mut settings = crate::app_settings::AppSettings::default();
-        settings.labs.smart_spacing = false;
+        settings.labs.filler_words = false;
+        settings.labs.spoken_formatting = false;
         Question {
             changes: Some(changes::Context {
                 settings,
@@ -865,7 +707,7 @@ mod tests {
         }
     }
 
-    const REFUSED: &str = "Turn it on.\n```hex-change\n{\"key\":\"labs.smart_spacing\",\"value\":true}\n{\"key\":\"labs.teleport\",\"value\":true}\n```\nSources: labs/smart-spacing";
+    const REFUSED: &str = "Turn it on.\n```hex-change\n{\"key\":\"labs.filler_words\",\"value\":true}\n{\"key\":\"labs.teleport\",\"value\":true}\n```\nSources: labs/filler-words";
 
     #[test]
     fn a_reply_with_changes_becomes_cards_and_refusals() {
@@ -882,11 +724,11 @@ mod tests {
         ));
         let (_, turn) = finished();
         assert_eq!(turn.answer, "Turn it on.");
-        assert_eq!(turn.sources, ["labs/smart-spacing"]);
+        assert_eq!(turn.sources, ["labs/filler-words"]);
         assert_eq!(turn.cards.len(), 1);
         // A built-in model isn't asked again.
         assert_eq!(turn.refused.len(), 1);
-        assert_eq!(turn.refused[0].why, Why::Unknown);
+        assert_eq!(turn.refused[0].why, changes::Why::Unknown);
     }
 
     /// A remote model gets one silent round to fix refused lines.
@@ -908,7 +750,7 @@ mod tests {
             Ok(if asked.len() == 1 {
                 REFUSED.into()
             } else {
-                "```hex-change\n{\"key\":\"labs.files\",\"value\":true}\n```".into()
+                "```hex-change\n{\"key\":\"labs.spoken_formatting\",\"value\":true}\n```".into()
             })
         });
         assert!(start(
@@ -927,7 +769,7 @@ mod tests {
             .iter()
             .map(|card| card.items[0].key.as_str())
             .collect();
-        assert_eq!(keys, ["labs.smart_spacing", "labs.files"]);
+        assert_eq!(keys, ["labs.filler_words", "labs.spoken_formatting"]);
         // Its fix named another key: the refusal stays.
         assert_eq!(turn.refused.len(), 1);
     }
@@ -963,7 +805,7 @@ mod tests {
         let (_, turn) = finished();
         assert_eq!(*calls.lock().unwrap(), 2);
         assert_eq!(turn.cards.len(), 1);
-        assert_eq!(turn.cards[0].kind, CardKind::Vocabulary);
+        assert_eq!(turn.cards[0].kind, changes::CardKind::Vocabulary);
         let terms: Vec<String> = turn.cards[0]
             .items
             .iter()
@@ -1044,6 +886,85 @@ mod tests {
         let (_, turn) = finished();
         assert!(turn.cards.is_empty());
         assert!(turn.refused.is_empty());
+    }
+
+    /// What the gate drops is no card, and the turn keeps what and why
+    /// under "What Assistant knew". A setting this OS lacks is told to a
+    /// remote model, once, so its words offer no card there isn't.
+    #[test]
+    fn what_the_gate_drops_is_kept_in_the_turns_record() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let generate: Generate = Box::new(|_, _, _, _| {
+            Ok("Filter the picker, and drop fillers.\n```hex-change\n{\"key\":\"labs.picker_downloaded\",\"value\":true}\n{\"key\":\"labs.filler_words\",\"value\":true}\n```\nSources: none".into())
+        });
+        let mut question = with_changes("Which models have I downloaded?");
+        if let Some(context) = &mut question.changes {
+            context.settings.labs.picker_downloaded = false;
+            context.settings.labs.filler_words = false;
+        }
+        assert!(start(
+            question.clone(),
+            Room::Small,
+            "Qwen".into(),
+            generate,
+            true
+        ));
+        let (_, turn) = finished();
+        let keys: Vec<&str> = turn
+            .cards
+            .iter()
+            .map(|card| card.items[0].key.as_str())
+            .collect();
+        assert_eq!(keys, ["labs.filler_words"]);
+        assert!(turn.refused.is_empty());
+        assert!(
+            turn.knew.ends_with(
+                "Proposed and not offered:\n\
+                 labs.picker_downloaded = true: only a way to look something up\n"
+            ),
+            "{}",
+            turn.knew
+        );
+
+        let elsewhere = crate::control::settings::kinds()
+            .map(|(key, ..)| key)
+            .find(|key| {
+                key.starts_with("labs.") && crate::control::settings::unavailable(key).is_some()
+            });
+        let Some(key) = elsewhere else {
+            return;
+        };
+        let asked = Arc::new(Mutex::new(Vec::<String>::new()));
+        let seen = asked.clone();
+        let generate: Generate = Box::new(move |_, input, _, _| {
+            let mut asked = seen.lock().unwrap();
+            asked.push(input.to_owned());
+            Ok(if asked.len() == 1 {
+                format!(
+                    "Turn it on.\n```hex-change\n{{\"key\":\"{key}\",\"value\":true}}\n```\nSources: none"
+                )
+            } else {
+                "This computer doesn't have it.\nSources: none".into()
+            })
+        });
+        assert!(start(question, Room::Large, "GPT".into(), generate, false));
+        let (_, turn) = finished();
+        let asked = asked.lock().unwrap().clone();
+        assert_eq!(asked.len(), 2);
+        assert!(
+            asked[1].contains(&format!("<not_here>\n{key} = true : not available here")),
+            "{}",
+            asked[1]
+        );
+        assert!(!asked[1].contains("<already_set>"));
+        assert!(turn.cards.is_empty() && turn.refused.is_empty());
+        assert_eq!(turn.answer, "This computer doesn't have it.");
+        assert!(
+            turn.knew
+                .contains(&format!("{key} = true: not available here"))
+        );
     }
 
     fn setup(text: &str, stage: Stage) -> Question {

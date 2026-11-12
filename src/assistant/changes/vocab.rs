@@ -11,8 +11,8 @@
 use serde_json::{Map, Value, json};
 
 use super::parse::Proposal;
-use super::{Card, CardKind, Item, Why};
-use crate::app_settings::AppSettings;
+use super::{Card, CardKind, Item};
+use crate::assistant::offer::{self, Gate, Origin, Verdict};
 use crate::dictation::vocabulary::{self, VocabularyEntry};
 
 /// The key a vocabulary item carries: not a `hex settings` key.
@@ -110,26 +110,26 @@ pub fn proposals(object: &Map<String, Value>, plan: bool, line: &str) -> Option<
     (!proposals.is_empty()).then_some(proposals)
 }
 
-/// A term's card, or `None` when the vocabulary has it already; an empty
-/// or too long term is refused as `hex vocabulary add` would refuse it.
-pub fn card(proposal: &Proposal, settings: &AppSettings) -> Result<Option<Card>, Why> {
+/// A term's card, once it has passed the gate: one `hex vocabulary add`
+/// takes, that Vocabulary lacks, and that is a term at all.
+pub fn card(proposal: &Proposal, gate: &Gate, origin: Origin) -> Result<Card, offer::Why> {
     let term = proposal
         .value
         .as_ref()
         .and_then(term)
-        .ok_or_else(|| Why::Invalid("no term".into()))?;
-    // The same check `hex vocabulary add` makes, on a list of its own.
-    let mut scratch: Vec<VocabularyEntry> = Vec::new();
-    vocabulary::add(&mut scratch, &term.term, &term.sounds_like).map_err(Why::Invalid)?;
-    if vocabulary::contains(&settings.vocabulary, &term.term) {
-        return Ok(None);
+        .ok_or_else(|| offer::Why::Invalid("no term".into()))?;
+    if let Verdict::Drop(why) = gate.term(origin, &term, proposal.own) {
+        return Err(why);
     }
+    // As `hex vocabulary add` keeps it.
+    let mut scratch: Vec<VocabularyEntry> = Vec::new();
+    vocabulary::add(&mut scratch, &term.term, &term.sounds_like).map_err(offer::Why::Invalid)?;
     let entry = scratch.remove(0);
     let kept = Term {
         term: entry.term,
         sounds_like: entry.sounds_like,
     };
-    Ok(Some(Card {
+    Ok(Card {
         kind: CardKind::Vocabulary,
         items: vec![Item {
             key: KEY.to_owned(),
@@ -140,7 +140,7 @@ pub fn card(proposal: &Proposal, settings: &AppSettings) -> Result<Option<Card>,
             ..Item::default()
         }],
         ..Card::default()
-    }))
+    })
 }
 
 /// Adds `card`'s items to `into`, a vocabulary card, leaving out a term it
@@ -236,27 +236,24 @@ mod tests {
     /// here, in any case; a bad one is refused as the CLI refuses it.
     #[test]
     fn a_known_term_is_dropped_and_a_bad_one_refused() {
-        let settings = AppSettings {
+        use crate::assistant::offer::Why;
+        let settings = crate::app_settings::AppSettings {
             vocabulary: vec![VocabularyEntry {
                 term: "Kubernetes".into(),
                 sounds_like: Vec::new(),
             }],
-            ..AppSettings::default()
+            ..Default::default()
         };
-        let known = proposal(json!({"term":"kubernetes","sounds_like":["кубер"]}));
-        assert_eq!(card(&known, &settings), Ok(None));
-        let long = proposal(json!({"term": "x".repeat(80)}));
-        assert!(matches!(card(&long, &settings), Err(Why::Invalid(_))));
-        assert!(matches!(
-            card(&proposal(json!({"term":"  "})), &settings),
-            Err(Why::Invalid(_))
-        ));
-        let new = card(
-            &proposal(json!({"term":"Grafana","sounds_like":["графана","Графана","Grafana"]})),
-            &settings,
-        )
-        .unwrap()
-        .unwrap();
+        let state = crate::assistant::facts::State::default();
+        let gate = Gate::new(&settings, &state);
+        let card = |value: Value| card(&proposal(value), &gate, Origin::Answer);
+        let known = card(json!({"term":"kubernetes","sounds_like":["кубер"]}));
+        assert_eq!(known, Err(Why::Has));
+        let long = card(json!({"term": "x".repeat(80)}));
+        assert!(matches!(long, Err(Why::Invalid(_))), "{long:?}");
+        assert!(matches!(card(json!({"term":"  "})), Err(Why::Invalid(_))));
+        let new =
+            card(json!({"term":"Grafana","sounds_like":["графана","Графана","Grafana"]})).unwrap();
         assert_eq!(new.kind, CardKind::Vocabulary);
         assert_eq!(terms(&new.items[0].to)[0].sounds_like, ["графана"]);
     }

@@ -140,6 +140,20 @@ pub fn no_labs_card() -> Check {
     })
 }
 
+/// The gate dropped a proposal whose record line holds `what` and `why`
+/// (`offer::record`), with the reply a model is played as writing.
+pub fn dropped(what: &'static str, why: &'static str) -> Check {
+    offline(format!("the gate dropped {what}"), move |outcome| {
+        let lines = crate::assistant::offer::recorded(&outcome.turn.knew);
+        ensure(
+            lines
+                .iter()
+                .any(|line| line.contains(what) && line.contains(why)),
+            || format!("dropped: {lines:?}"),
+        )
+    })
+}
+
 /// A card changes `key` (to `value`, when given).
 pub fn card_for(key: &'static str, value: Option<Value>) -> Check {
     check(format!("a card for {key}"), move |outcome| {

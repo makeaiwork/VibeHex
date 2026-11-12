@@ -5,7 +5,8 @@
 //! key exists and may be changed from a card (`catalog`), what it is called
 //! in the window (`names`), its current value, what it needs first
 //! (`control::settings::requires`), and the narrow parts of two JSON keys
-//! (`parts`). Nothing is saved until the person presses the card's button,
+//! (`parts`). Whether a line becomes a card at all is the gate's
+//! (`assistant::offer`), the one way anything is offered. Nothing is saved until the person presses the card's button,
 //! and then only through `control::settings::check`, the path `hex settings`
 //! takes. `state` derives what a card shows each frame.
 
@@ -21,7 +22,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::app_settings::AppSettings;
-use crate::control::settings::{self, ShortcutRules};
+use crate::assistant::offer::{self, Dropped, Gate, Offer, Origin, Verdict};
+use crate::control::settings;
 use catalog::Class;
 use parse::Proposal;
 
@@ -194,87 +196,116 @@ impl Refused {
     }
 }
 
-/// The cards and refusals `proposals` make against `settings`: each line
-/// on its own, so one bad line drops only itself.
-pub fn resolve(
-    proposals: &[Proposal],
-    settings: &AppSettings,
-    shortcuts: &ShortcutRules,
-) -> (Vec<Card>, Vec<Refused>) {
-    let mut cards: Vec<Card> = Vec::new();
-    let mut refused = Vec::new();
-    for proposal in proposals {
-        if proposal.key == vocab_edit::KEY {
-            match vocab_edit::card(proposal, settings) {
-                Ok(card) => match cards.last_mut() {
-                    Some(edits) if edits.kind == CardKind::VocabularyEdit => {
-                        vocab_edit::merge(edits, card)
-                    }
-                    _ => cards.push(card),
-                },
-                Err(why) => refused.push(Refused {
-                    line: proposal.line.clone(),
-                    key: Some(vocab_edit::KEY.to_owned()),
-                    why,
-                }),
-            }
-            continue;
-        }
-        if proposal.key == vocab::KEY {
-            match vocab::card(proposal, settings) {
-                // The vocabulary has it: dropped, never told the model.
-                Ok(None) => {}
-                Ok(Some(card)) => match cards.last_mut() {
-                    Some(plan) if proposal.plan && plan.kind == CardKind::Plan => {
-                        plan.items.extend(card.items)
-                    }
-                    Some(terms) if !proposal.plan && terms.kind == CardKind::Vocabulary => {
-                        vocab::merge(terms, card)
-                    }
-                    _ if proposal.plan => cards.push(Card {
-                        kind: CardKind::Plan,
-                        ..card
-                    }),
-                    _ => cards.push(card),
-                },
-                Err(why) => refused.push(Refused {
-                    line: proposal.line.clone(),
-                    key: Some(vocab::KEY.to_owned()),
-                    why,
-                }),
-            }
-            continue;
-        }
-        match card(proposal, settings, shortcuts) {
-            Ok(card) if proposal.plan => match cards.last_mut() {
-                Some(plan) if plan.kind == CardKind::Plan => plan.items.extend(card.items),
-                _ => cards.push(Card {
-                    kind: CardKind::Plan,
-                    ..card
-                }),
-            },
-            Ok(card) => cards.push(card),
-            Err(why) => refused.push(Refused {
-                line: proposal.line.clone(),
-                key: (!proposal.key.is_empty()).then(|| proposal.key.clone()),
-                why,
-            }),
-        }
-    }
-    (cards, refused)
+/// What `proposals` come to once each has passed the gate.
+#[derive(Debug, Default)]
+pub struct Resolved {
+    pub cards: Vec<Card>,
+    /// Lines the model got wrong (no such key, a value a save refuses, a
+    /// key never changed from a card): shown muted, and told to it.
+    pub refused: Vec<Refused>,
+    /// Lines dropped for any other reason, for the turn's record.
+    pub dropped: Vec<Dropped>,
 }
 
-fn card(
-    proposal: &Proposal,
-    settings: &AppSettings,
-    shortcuts: &ShortcutRules,
-) -> Result<Card, Why> {
+impl Resolved {
+    /// The settings dropped because they have that value now, as
+    /// `key = value` lines for a round that tells the model.
+    pub fn already(&self, settings: &AppSettings) -> Vec<String> {
+        self.told(settings, |why| *why == offer::Why::Same)
+    }
+
+    /// The settings dropped because this computer can't have them.
+    pub fn not_here(&self, settings: &AppSettings) -> Vec<String> {
+        self.told(settings, |why| {
+            matches!(why, offer::Why::Elsewhere(_) | offer::Why::Hardware)
+        })
+    }
+
+    fn told(&self, settings: &AppSettings, which: impl Fn(&offer::Why) -> bool) -> Vec<String> {
+        self.dropped
+            .iter()
+            .filter(|dropped| which(&dropped.why))
+            .map(|dropped| match &dropped.why {
+                offer::Why::Same => {
+                    let key = dropped.what.split(" = ").next().unwrap_or_default();
+                    let now = current(settings, key).unwrap_or(Value::Null);
+                    format!("{} : already set to {now}", dropped.what)
+                }
+                why => format!("{} : {}", dropped.what, why.words()),
+            })
+            .collect()
+    }
+}
+
+/// The cards `proposals` make once each line has passed `gate` as coming
+/// from `origin`: each line on its own, so one bad line drops only itself.
+pub fn resolve(proposals: &[Proposal], gate: &Gate, origin: Origin) -> Resolved {
+    let mut resolved = Resolved::default();
+    for proposal in proposals {
+        let made = if proposal.key == vocab_edit::KEY {
+            match gate.edit(origin) {
+                Verdict::Drop(why) => Err(why),
+                _ => vocab_edit::card(proposal, gate.settings).map_err(|why| match why {
+                    Why::Invalid(why) => offer::Why::Invalid(why),
+                    Why::Unknown | Why::Malformed => offer::Why::Unknown,
+                    Why::Never => offer::Why::Never,
+                }),
+            }
+        } else if proposal.key == vocab::KEY {
+            vocab::card(proposal, gate, origin)
+        } else {
+            card(proposal, gate, origin)
+        };
+        let card = match made {
+            Ok(card) => card,
+            Err(why) => {
+                let key = proposal.key.trim();
+                match why.refusal() {
+                    Some(why) => resolved.refused.push(Refused {
+                        line: proposal.line.clone(),
+                        key: (!key.is_empty()).then(|| key.to_owned()),
+                        why,
+                    }),
+                    None => resolved.dropped.push(Dropped {
+                        what: proposal.what(),
+                        why,
+                    }),
+                }
+                continue;
+            }
+        };
+        let cards = &mut resolved.cards;
+        match (card.kind.clone(), cards.last_mut()) {
+            (CardKind::VocabularyEdit, Some(edits)) if edits.kind == CardKind::VocabularyEdit => {
+                vocab_edit::merge(edits, card)
+            }
+            (CardKind::VocabularyEdit, _) => cards.push(card),
+            // A plan is one list, its terms rows of it.
+            (_, Some(plan)) if proposal.plan && plan.kind == CardKind::Plan => {
+                plan.items.extend(card.items)
+            }
+            (_, _) if proposal.plan => cards.push(Card {
+                kind: CardKind::Plan,
+                ..card
+            }),
+            (CardKind::Vocabulary, Some(terms)) if terms.kind == CardKind::Vocabulary => {
+                vocab::merge(terms, card)
+            }
+            _ => cards.push(card),
+        }
+    }
+    resolved
+}
+
+/// The card one setting line makes, or why the gate drops it.
+fn card(proposal: &Proposal, gate: &Gate, origin: Origin) -> Result<Card, offer::Why> {
+    let settings = gate.settings;
     let key = proposal.key.trim();
-    let from = current(settings, key).ok_or(Why::Unknown)?;
+    let from = current(settings, key).ok_or(offer::Why::Unknown)?;
     let mut options = Vec::new();
     for raw in &proposal.options {
         let value = names::normalize(settings, key, raw);
-        if valid(settings, key, &value, shortcuts).is_ok() && !options.contains(&value) {
+        if gate.allowed(origin, key, &value).is_ok() && !options.contains(&value) {
             options.push(value);
         }
     }
@@ -300,7 +331,7 @@ fn card(
     } else {
         let to = suggested
             .or_else(|| options.pop())
-            .ok_or_else(|| Why::Invalid("no value".into()))?;
+            .ok_or_else(|| offer::Why::Invalid("no value".into()))?;
         let kind = if key == parts::PROMPT {
             CardKind::Prompt
         } else {
@@ -308,54 +339,42 @@ fn card(
         };
         (kind, to)
     };
-    let class = catalog::class(key, &to);
-    if class == Class::Never {
-        return Err(Why::Never);
-    }
-    valid(settings, key, &to, shortcuts)?;
-    let requires = match parts::part(key, settings) {
-        Some(part) => settings::missing(settings, part.parent(), &Value::Bool(true)),
-        None => settings::missing(settings, key, &to),
+    let mut item = Item {
+        key: key.to_owned(),
+        from,
+        why: proposal.why.trim().to_owned(),
+        included: !proposal.optional,
+        class: catalog::class(key, &to),
+        requires: gate.requires(key, &to),
+        ..Item::default()
     };
+    // A choice shows its options whatever the value is now.
+    let verdict = match kind {
+        CardKind::Choice { .. } => match gate.allowed(origin, key, &to) {
+            Ok(_) => Verdict::Show,
+            Err(why) => Verdict::Drop(why),
+        },
+        _ => gate.setting(
+            origin,
+            Offer {
+                key,
+                to: &to,
+                own: proposal.own,
+                note: proposal.note,
+            },
+        ),
+    };
+    match verdict {
+        Verdict::Drop(why) => return Err(why),
+        Verdict::Unchecked(held) => Gate::start(&mut item, &held),
+        Verdict::Show => {}
+    }
+    item.to = to;
     Ok(Card {
         kind,
-        items: vec![Item {
-            key: key.to_owned(),
-            from,
-            to,
-            why: proposal.why.trim().to_owned(),
-            included: !proposal.optional,
-            class,
-            requires,
-            ..Item::default()
-        }],
+        items: vec![item],
         ..Card::default()
     })
-}
-
-/// Takes out of `cards` each one that would change nothing: a single
-/// change (or the instructions) to the value the setting has now, compared
-/// as `names::same` compares them, so `codex` over `codex:<that model>` is
-/// no change either. Returns them as `key = value` lines, for a repair
-/// round to tell the model; a plan, a choice, and terms are left alone.
-pub fn already_set(cards: &mut Vec<Card>, settings: &AppSettings) -> Vec<String> {
-    let mut lines = Vec::new();
-    cards.retain(|card| {
-        let no_change = matches!(card.kind, CardKind::Single | CardKind::Prompt)
-            && !card.items.is_empty()
-            && card.items.iter().all(|item| {
-                let now = current(settings, &item.key).unwrap_or_else(|| item.from.clone());
-                names::same(settings, &item.key, &now, &item.to)
-            });
-        if no_change {
-            lines.extend(card.items.iter().map(|item| {
-                let now = current(settings, &item.key).unwrap_or_else(|| item.from.clone());
-                format!("{} = {} : already set to {now}", item.key, item.to)
-            }));
-        }
-        !no_change
-    });
-    lines
 }
 
 /// `key`'s value now, as `hex settings get` shows it, or a part's; `None`
@@ -369,36 +388,6 @@ pub fn current(settings: &AppSettings, key: &str) -> Option<Value> {
         .into_iter()
         .find(|setting| setting.key == key)
         .map(|setting| setting.value)
-}
-
-/// Whether `value` fits `key` alone, as a save would check it. A key this
-/// OS or an organization holds still makes a card, which shows why.
-fn valid(
-    settings: &AppSettings,
-    key: &str,
-    value: &Value,
-    shortcuts: &ShortcutRules,
-) -> Result<(), Why> {
-    let values = match parts::part(key, settings) {
-        Some(part) => {
-            let (parent, json) = part.with(settings, value).map_err(Why::Invalid)?;
-            Map::from_iter([(parent.to_owned(), json)])
-        }
-        None => Map::from_iter([(key.to_owned(), value.clone())]),
-    };
-    if values
-        .keys()
-        .any(|key| settings::unavailable(key).is_some())
-    {
-        return Ok(());
-    }
-    settings::check(settings, &values, shortcuts)
-        .map(|_| ())
-        .map_err(|error| match error.code {
-            "unknown-setting" => Why::Unknown,
-            "read-only" => Why::Never,
-            _ => Why::Invalid(error.message),
-        })
 }
 
 /// The values a card's save sends to `check`: what its items need first,
