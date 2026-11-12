@@ -70,6 +70,9 @@ pub struct Rules {
     /// Texts that show only their start by design, each with why: the end
     /// of its path, numbers as `#` (`from/label`, `was#/label`).
     pub cuts: &'static [(&'static str, &'static str)],
+    /// Keys of controls that unfold a text cut beside them ("Show all"):
+    /// a text with one for a sibling may show less than half of itself.
+    pub unfolds: &'static [&'static str],
 }
 
 impl Rules {
@@ -87,6 +90,18 @@ impl Rules {
     fn cut(&self, path: &str) -> bool {
         let path = numberless(path);
         self.cuts.iter().any(|(end, _)| path.ends_with(end))
+    }
+
+    /// Whether one of `elements` beside the text at `path` unfolds it.
+    fn unfolded_beside(&self, path: &str, elements: &[ElementInfo]) -> bool {
+        let Some(parent) = parent_of(path) else {
+            return false;
+        };
+        elements.iter().any(|element| {
+            parent_of(&element.path) == Some(parent)
+                && self.unfolds.contains(&key_of(&element.path))
+                && shows(element)
+        })
     }
 
     fn scroll(&self, path: &str) -> bool {
@@ -382,7 +397,8 @@ fn ink(laid: &Laid, rules: Rules) -> Vec<Problem> {
         // Cut by a box above it: a scroll container's business, or
         // reported as that already.
         let whole = leaves(text.rect, text.visible) <= SLACK;
-        if letters >= READ && whole && drawn * 2 < letters && !rules.cut(&text.path) {
+        let meant = rules.cut(&text.path) || rules.unfolded_beside(&text.path, &laid.elements);
+        if letters >= READ && whole && drawn * 2 < letters && !meant {
             add(
                 Kind::Clipped,
                 text,
@@ -452,6 +468,14 @@ mod tests {
                     .w_full()
                     .child(text(long).key("title").font(font).truncate().shrink()),
             ),
+            // The same with a way to see all of it beside it.
+            "unfolds" => card.child(
+                col()
+                    .key("row")
+                    .w(60.0)
+                    .child(text(long).key("title").font(font).truncate().w_full())
+                    .child(text("Show all").key("all").font(font)),
+            ),
             // The same in a quarter of the room: three dots and little else.
             "squeezed" => card.child(
                 row()
@@ -496,7 +520,11 @@ mod tests {
             cuts: &[("card/row/title", "a preview of a long value")],
             ..Rules::default()
         };
-        let table: [(&str, Rules, &[Kind]); 11] = [
+        let unfolds = Rules {
+            unfolds: &["all"],
+            ..Rules::default()
+        };
+        let table: [(&str, Rules, &[Kind]); 13] = [
             ("fits", scrolls, &[]),
             ("outside", scrolls, &[Kind::Outside]),
             ("word", scrolls, &[Kind::Outside]),
@@ -511,6 +539,10 @@ mod tests {
             ("overlap", named, &[]),
             // And so is a text that shows only its start.
             ("squeezed", named, &[]),
+            // A cut text with "Show all" beside it is meant; without the
+            // rule that names the control it is a cut like any other.
+            ("unfolds", unfolds, &[]),
+            ("unfolds", scrolls, &[Kind::Clipped]),
         ];
         for (shape, rules, want) in table {
             assert_eq!(kinds(shape, rules), want, "{shape}");

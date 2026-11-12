@@ -17,6 +17,7 @@ use super::super::icons;
 use super::super::lists::{Tone, tone_tag};
 use super::card_diff;
 use super::changes::{self as act, At};
+use super::value::{self, Change, Slot};
 use super::verbs::{anyway, applied_words, show_label, verb};
 use crate::assistant::changes::catalog::{Permission, Shorter};
 use crate::assistant::changes::names::{self, Home};
@@ -96,7 +97,7 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
     let (shell, glyph, head) = match &shown {
         Shown::Permission(permission) => {
             let (path, name) = permission_names(*permission);
-            let chip = value_chip(p, "now", tr("Not asked"), false, false);
+            let chip = value::short(p, "now", tr("Not asked"), false, false);
             body.extend(why(
                 p,
                 tr("Without it only your microphone is recorded. macOS asks once"),
@@ -110,7 +111,7 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
             (Shell::Open, &theme::LOCK, header(p, path, name, Some(chip)))
         }
         Shown::SignIn => {
-            let chip = value_chip(p, "now", tr("Signed out"), false, false);
+            let chip = value::short(p, "now", tr("Signed out"), false, false);
             body.extend(why(
                 p,
                 tr("You sign in on ChatGPT's page. VibeHex never sees your password"),
@@ -145,16 +146,31 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
                         1 => tr("1 line changed").to_owned(),
                         lines => tr_fill("{} lines changed", &lines.to_string()),
                     };
-                    Some(value_chip(p, "lines", &label, false, false))
+                    Some(value::short(p, "lines", &label, false, false))
                 }
-                (_, Shown::Blocked { .. }) => Some(value_chip(
+                (_, Shown::Blocked { .. }) => Some(value::chip(
+                    ui,
                     p,
+                    at.value(0, Slot::From),
                     "now",
                     &label(&item.key, &item.from),
                     false,
                     false,
                 )),
-                _ => Some(change_chips(p, &item.key, &item.from, &to, struck)),
+                _ => Some(value::change(
+                    ui,
+                    p,
+                    at,
+                    0,
+                    Change {
+                        key: &item.key,
+                        from: &item.from,
+                        to: &to,
+                        struck,
+                        end: true,
+                        beside: value::BESIDE,
+                    },
+                )),
             };
             body = state_body(ui, p, at, card, item, &to, &shown, main);
             let ink = if shell == Shell::Off {
@@ -467,56 +483,6 @@ pub(super) fn header_in(
         .center_y()
         .child(words)
         .children(chips)
-}
-
-/// From → to.
-pub(super) fn change_chips(p: Paint, key: &str, from: &Value, to: &Value, struck: bool) -> El {
-    row()
-        .key("values")
-        .gap(6.0)
-        .center_y()
-        .shrink()
-        .child(value_chip(p, "from", &label(key, from), false, false))
-        .child(text("→").key("arrow").font(p.k.ty.small).color(p.faint()))
-        .child(value_chip(p, "to", &label(key, to), !struck, struck))
-}
-
-/// A value: the one now outlined, the new one on a soft accent tint, or
-/// struck through when it was turned down.
-pub(super) fn value_chip(p: Paint, key: &str, label: &str, new: bool, struck: bool) -> El {
-    let c = &p.k.c;
-    let (fill, border, ink) = if new {
-        (
-            p.k.alpha(p.accent(), 0.12),
-            p.k.alpha(p.accent(), 0.4),
-            p.accent(),
-        )
-    } else if struck {
-        (c.layer_02, c.border_weak, p.faint())
-    } else {
-        (c.layer_02, c.border_weak, p.muted())
-    };
-    let mut words = text(label.to_owned())
-        .key("label")
-        .font(p.k.ty.small)
-        .color(ink)
-        .max_lines(1)
-        .shrink();
-    if struck {
-        words = words.strike(0, label.len(), None);
-    }
-    row()
-        .key(key.to_owned())
-        .h(20.0)
-        .px(7.0)
-        .center_y()
-        .shrink()
-        .min_w(0.0)
-        .max_w(220.0)
-        .radius(p.k.radius.xs)
-        .fill(fill)
-        .border(p.hair, border)
-        .child(words)
 }
 
 /// The model's reason, under the names.

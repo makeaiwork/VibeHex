@@ -21,7 +21,7 @@ Assistant                                        // rune_ui::assistant
 │   │           <version>" (a neutral row: a sparkles tile, "Ask me what's
 │   │           new…", a chevron), "Set VibeHex up for me" (an
 │   │           accent-tinted row: a sliders tile, a line on what it does,
-│   │           a chevron), with Russian recognition "Or set it up like
+│   │           a chevron), with Russian as the recognition language "Or set it up like
 │   │           Denis, who makes VibeHex ›" (quiet text under it; no such
 │   │           row with Auto or another language), four example questions, and what
 │   │           the guide holds (Labs features and topics)
@@ -71,11 +71,14 @@ Assistant                                        // rune_ui::assistant
 │   │           by area (Dictation, Code, Vocabulary, Meetings, Files,
 │   │           Models), each a
 │   │           checkbox (accent fill and a check, or an empty box with a
-│   │           grey border), name, where, why, from → to, "You chose …"
+│   │           grey border), name, where, why, from → to (a long value
+│   │           in three lines with "Show all"), "You chose …"
 │   │           over the person's own value, a warning where setup isn't
 │   │           finished, "Then: …"; a folded "Already set: 6 things ›";
 │   │           Not now and "Apply 5 changes"; after, a mark per row and
-│   │           "4 of 5 changes applied" with Undo
+│   │           "4 of 5 changes applied" with Undo. Vocabulary terms are
+│   │           counted apart: "3 changes and 81 terms, 3 and 81
+│   │           selected", "Apply 3 changes and 81 terms"
 │   ├── Coming  "Looking in the guide" as a step going on (three moving
 │   │           dots, like a search), then the draft as it streams, and
 │   │           "Preparing a change" the same way while a card is read;
@@ -195,6 +198,14 @@ Opened from a place link                         // rune_ui::assistant::places
   under the answer, or refuses it. A choice card names the chosen value
   on its button, cut with "…" past 28 letters (the option above has it
   whole), and puts "Suggested" under a name too long to stand beside.
+- A value in a card or a plan row is a chip (`rune_ui::assistant::value`,
+  Assistant's own; no other pane draws it). One that fits a line is as wide
+  as its words. A longer one (instructions, a long model's name, a long
+  way a term is heard) wraps in a chip 220 pt wide, to three lines; past
+  three a quiet "Show all" under them unfolds it in place and "Show less"
+  folds it back (owner decision 2026-11-12), per value and for the
+  session. A chip never gives up room: a from → to pair wider than the
+  room beside the row's words stands one under the other, with ↓.
 - The prompt lists only the keys a card may change, with their values,
   where they live in the window, and, with `assistant.send_settings` on,
   their value now (`assistant::changes::catalog`; a shortcut as the
@@ -635,11 +646,16 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   wraps beside it. Edit renames the term and changes its spellings in the
   row; Apply keeps an edit still open and adds what the rows say through
   `hex vocabulary add`'s path.
-- The terms are one change in "N changes, M selected", in "Apply N
-  changes" and in "N of M changes applied" (`state::plan_counts`,
-  `state::plan_applied`), however many they are: selected while any term
-  is checked, applied when any checked term went in. The save, a term's
-  own failure and Undo stay term by term.
+- The terms are counted apart from the settings (`changes::counts`, owner
+  decision 2026-11-12: "4 changes" hid the preset's terms): the header
+  reads "3 changes and 81 terms, 3 and 76 selected", the button "Apply 3
+  changes and 76 terms", the applied line "3 of 3 changes applied, 76 of
+  76 terms added". A plan with no terms reads as before ("3 changes, 2
+  selected", "Apply 2 changes", "2 of 2 changes applied"); one with only
+  terms, or with every setting unticked, adds terms ("81 terms, 76
+  selected", "Add 76 terms", "76 of 76 terms added"). One and many are
+  separate rows in all nine languages. The save, a term's own failure and
+  Undo stay term by term.
 
 ## Set me up like Denis
 
@@ -649,10 +665,12 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   "Or set it up like Denis, who makes VibeHex" under the Start row, answer
   with the owner's preset, no model asked (`setup::preset`,
   `rune_ui::assistant::preset`).
-- Only with Russian recognition (owner decision 2026-11-12;
-  `setup::preset::offered`): `assistant::language::spoken` is `ru`, which
-  is Russian set in General › Language, or a speech model that knows only
-  Russian (GigaAM v3). With Auto on a model of many languages, or any
+- Only when Russian is the recognition language (owner decision
+  2026-11-12; `setup::preset::offered`): `transcription.language` is `ru`,
+  whatever the speech model, one of many languages or GigaAM v3. A model
+  that knows only Russian counts by its language too: the app saves it
+  with Russian whenever it is chosen, so only a settings file edited by
+  hand pairs it with Auto, and that gets no preset. With Auto, or any
   other language, the preset doesn't exist for the person: no row on the
   start page, `intent::route` sends the typed request to the guide as an
   ordinary question (never to setup), the pane's `preset::begin` starts
@@ -1010,9 +1028,10 @@ with no golden image:
   box leaves its parent's or a glyph leaves every text's box, when a text
   is cut by a box above it or by its own "…" to less than half of itself,
   and when two siblings that show something overlap. A scroll container is
-  excepted by its key; what the pane hangs outside or cuts short on
-  purpose is named with its reason in `layout::RULES`, never skipped
-  silently.
+  excepted by its key, and so is a text with a control that unfolds it
+  beside it ("Show all", `Rules::unfolds`); what the pane hangs outside or
+  cuts short on purpose is named with its reason in `layout::RULES`, never
+  skipped silently.
 - **The matrix** (`rune_ui/assistant/layout/matrix.rs`) puts every surface
   below through that check in English, Russian, and German, with its
   fixture as it is and with long content (`long_fixture`: long questions,
@@ -1035,6 +1054,7 @@ gone.
 | Apply N changes | `assistant-cards-more`, `assistant-change-both` | `apply_n_changes` |
 | Plan with its terms folded | `assistant-plan-terms` | `plan_with_its_terms_folded` |
 | Plan with its terms unfolded | `assistant-plan-terms-open` | `plan_with_its_terms_unfolded` |
+| Plan with long values | `assistant-long-values`, `assistant-long-values-open` | `plan_with_long_values` |
 | Vocabulary edit card | `assistant-vocab-edit` | `vocabulary_edit_card` |
 | Follow-up round | `assistant-setup-follow`, `assistant-setup-follow-ru` | `follow_up_round` |
 | Returning opener | `assistant-setup-returning` | `returning_opener` |

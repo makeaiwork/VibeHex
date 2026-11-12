@@ -168,7 +168,7 @@ pub fn not_offered(
                 routed(|route| *route == Route::Guide, "the guide"),
                 sent_has(
                     "the guide saying whom the preset is for",
-                    &["offered only when speech recognition is set to Russian"],
+                    &["only when Russian is the recognition language"],
                 ),
                 dropped("labs.russian_vibe_coding", "the preset isn't offered"),
                 // A plan block a model writes here makes nothing.

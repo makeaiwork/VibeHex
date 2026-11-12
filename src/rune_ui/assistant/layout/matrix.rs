@@ -74,6 +74,11 @@ pub(super) const SURFACES: &[Surface] = &[
         scenes: &["assistant-plan-terms-open"],
     },
     Surface {
+        name: "Plan with long values",
+        test: "plan_with_long_values",
+        scenes: &["assistant-long-values", "assistant-long-values-open"],
+    },
+    Surface {
         name: "Vocabulary edit card",
         test: "vocabulary_edit_card",
         scenes: &["assistant-vocab-edit"],
@@ -211,6 +216,7 @@ surfaces!(
     apply_n_changes,
     plan_with_its_terms_folded,
     plan_with_its_terms_unfolded,
+    plan_with_long_values,
     vocabulary_edit_card,
     follow_up_round,
     returning_opener,

@@ -63,6 +63,16 @@ pub(in super::super) struct RequestsPane {
     text_under: bool,
     woken: bool,
     pub(super) fixture: bool,
+    /// A scene's fixed moment, so its dates and times draw the same on
+    /// every day.
+    pub(super) fixed_now: Option<u64>,
+}
+
+impl RequestsPane {
+    /// Now, or a scene's fixed moment.
+    pub(super) fn now(&self) -> u64 {
+        self.fixed_now.unwrap_or_else(crate::files::store::now_ms)
+    }
 }
 
 /// Whether `meeting` has the tab: a finished meeting with a transcript,
@@ -204,7 +214,12 @@ pub(in super::super) fn sessions_menu(ui: &Ui, p: Paint, layer: &mut Vec<El>) ->
     let mut sessions: Vec<&Session> = pane.sessions.iter().collect();
     sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_ms()));
     for session in sessions {
-        popover = popover.child(session_row(p, session, pane.open == Some(session.id)));
+        popover = popover.child(session_row(
+            p,
+            session,
+            pane.open == Some(session.id),
+            pane.now(),
+        ));
     }
     let new = row()
         .key("new-session")
@@ -242,21 +257,15 @@ pub(in super::super) fn sessions_menu(ui: &Ui, p: Paint, layer: &mut Vec<El>) ->
 
 /// One session in the list: its name over how many questions and when,
 /// ✓ on the open one.
-fn session_row(p: Paint, session: &Session, on: bool) -> El {
+fn session_row(p: Paint, session: &Session, on: bool, now: u64) -> El {
     let c = &p.k.c;
     let asked = match session.turns.len() {
-        1 => tr_fill(
-            "1 question, {}",
-            &session::when(session.updated_ms(), crate::files::store::now_ms()),
-        ),
+        1 => tr_fill("1 question, {}", &session::when(session.updated_ms(), now)),
         count => tr_named(
             "{count} questions, {when}",
             &[
                 ("count", &count.to_string()),
-                (
-                    "when",
-                    &session::when(session.updated_ms(), crate::files::store::now_ms()),
-                ),
+                ("when", &session::when(session.updated_ms(), now)),
             ],
         ),
     };
@@ -370,7 +379,7 @@ pub(in super::super) fn chat(ui: &Ui, p: Paint) -> El {
                     answer: &turn.answer,
                     model: &turn.model,
                     created_ms: turn.created_ms,
-                    now_ms: crate::files::store::now_ms(),
+                    now_ms: pane.now(),
                     stopped: turn.stopped,
                 },
                 (&turn.linked, turn.seconds),
@@ -764,7 +773,7 @@ pub(super) fn transcript(meeting: &Meeting) -> String {
 /// The scene's sessions: two about the meeting, the newer one open.
 pub(in super::super) fn fixture(ui: &mut Ui, meeting: &str) {
     use crate::files::store::FollowUp;
-    let now = crate::files::store::now_ms();
+    let now = ui.meetings.requests.now();
     let turn = |question: &str, answer: &str, model: &str, ago: u64| FollowUp {
         question: question.into(),
         answer: answer.into(),
@@ -814,6 +823,7 @@ pub(in super::super) fn fixture(ui: &mut Ui, meeting: &str) {
         open: Some(2),
         sessions,
         fixture: true,
+        fixed_now: ui.meetings.requests.fixed_now,
         ..RequestsPane::default()
     };
 }

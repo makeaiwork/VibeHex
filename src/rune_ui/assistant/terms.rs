@@ -4,9 +4,9 @@
 //! each term is the row it always was (checkbox, term, how it sounds,
 //! Edit), under why it is offered. It starts unfolded with a handful of
 //! terms (`Terms::FEW`) and folded above that: the owner's preset brings
-//! 95, and a list that long buries the settings it comes with. The group
-//! is one change in the plan's counts (`state::plan_counts`), whatever it
-//! holds; the save and Undo still work term by term.
+//! 95, and a list that long buries the settings it comes with. The plan
+//! counts its terms apart from its settings (`changes::counts`); the save
+//! and Undo work term by term.
 
 use rune::{El, col, icon, row, text};
 use rune_theme_opencode::icons as theme;
@@ -173,7 +173,7 @@ pub(super) fn head(ui: &Ui, p: Paint, at: At, card: &Card, terms: &Terms, live: 
 mod tests {
     use super::*;
     use crate::assistant::changes::Decision;
-    use crate::assistant::changes::state;
+    use crate::assistant::changes::counts;
 
     /// The scene's plan: two settings and eight terms, one unchecked.
     fn plan() -> (Ui, At) {
@@ -203,8 +203,18 @@ mod tests {
             named(&card, &group),
             "Kubernetes, kubectl, Model Context Protocol server, PostgreSQL and 4 more"
         );
-        // Two settings and the terms: three changes, whatever the terms.
-        assert_eq!(state::plan_counts(&card), (3, 3));
+        // Two settings, and the terms counted apart from them.
+        let said = |ui: &Ui| {
+            let (all, selected) = counts::held(act::card(ui, at).unwrap());
+            (counts::header(all, selected), counts::apply(all, selected))
+        };
+        assert_eq!(
+            said(&ui),
+            (
+                "2 changes and 8 terms, 2 and 7 selected".to_owned(),
+                "Apply 2 changes and 7 terms".to_owned()
+            )
+        );
 
         // The row's checkbox checks them all, then none.
         toggle_all(&mut ui, at);
@@ -212,9 +222,12 @@ mod tests {
         toggle_all(&mut ui, at);
         assert_eq!(terms(&ui, at).checked, 0);
         assert_eq!(
-            state::plan_counts(act::card(&ui, at).unwrap()),
-            (3, 2),
-            "no term checked: the group isn't selected"
+            said(&ui),
+            (
+                "2 changes and 8 terms, 2 and 0 selected".to_owned(),
+                "Apply 2 changes".to_owned()
+            ),
+            "no term checked: only the settings are applied"
         );
 
         // The chevron unfolds it; a term being edited never folds away.
@@ -257,7 +270,11 @@ mod tests {
         assert_eq!(ui.settings.vocabulary.len(), before + 7);
         assert!(has(&ui, "Kubernetes") && has(&ui, "Tailscale"));
         assert!(!has(&ui, "Supabase"), "the unchecked term stays out");
-        assert_eq!(state::plan_applied(&card), (3, 3));
+        let (done, of) = counts::applied(&card);
+        assert_eq!(
+            counts::went(done, of),
+            "2 of 2 changes applied, 7 of 7 terms added"
+        );
         act::undo(&mut ui, at);
         assert_eq!(ui.settings.vocabulary.len(), before);
         assert!(!has(&ui, "Kubernetes"));

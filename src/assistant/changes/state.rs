@@ -6,7 +6,7 @@
 use serde_json::Value;
 
 use super::catalog::{self, Class, Permission, Shorter};
-use super::{Card, CardKind, Decision, Item, current, vocab};
+use super::{Card, CardKind, Decision, current, vocab};
 use crate::app_settings::AppSettings;
 use crate::control::settings;
 
@@ -215,8 +215,9 @@ pub fn row(card: &Card, index: usize, live: &Live) -> Row {
     }
 }
 
-/// A plan's Vocabulary terms: one row to look at and one change to count,
-/// however many they are (the owner's preset brings 95).
+/// A plan's Vocabulary terms: one row to look at, however many they are
+/// (the owner's preset brings 95); the plan counts them apart from its
+/// settings (`counts`).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Terms {
     /// Their rows in the plan, in order.
@@ -278,40 +279,6 @@ impl Terms {
             Row::Left
         }
     }
-}
-
-/// How many changes a plan holds and how many are selected, its
-/// Vocabulary terms counting as one.
-pub fn plan_counts(card: &Card) -> (usize, usize) {
-    let terms = Terms::of(card);
-    let group = |count: usize| usize::from(count > 0);
-    let settings = card.items.iter().filter(|item| item.key != vocab::KEY);
-    let selected = settings.clone().filter(|item| item.included).count();
-    (
-        settings.count() + group(terms.as_ref().map_or(0, |terms| terms.rows.len())),
-        selected + group(terms.map_or(0, |terms| terms.checked)),
-    )
-}
-
-/// How many of a plan's selected changes its save applied, of how many;
-/// the Vocabulary terms count as one, applied when any of them went in.
-pub fn plan_applied(card: &Card) -> (usize, usize) {
-    let checked = |item: &&Item| item.included;
-    let settings = card
-        .items
-        .iter()
-        .filter(|item| item.key != vocab::KEY)
-        .filter(checked);
-    let terms = card
-        .items
-        .iter()
-        .filter(|item| item.key == vocab::KEY)
-        .filter(checked);
-    let group = usize::from(terms.clone().count() > 0);
-    let group_done = usize::from(terms.clone().any(|item| item.failed.is_none()));
-    let total = settings.clone().count();
-    let failed = settings.filter(|item| item.failed.is_some()).count();
-    (total - failed + group_done, total + group)
 }
 
 /// How many of a card's checked rows its save applied, of how many.
@@ -582,38 +549,11 @@ mod tests {
         }
     }
 
+    /// A vocabulary card's footer counts row by row, terms and all.
     #[test]
-    fn a_plans_terms_count_as_one_change_however_many() {
+    fn a_cards_applied_rows_are_counted_one_by_one() {
         const ON: (bool, bool) = (true, false);
-        const OFF: (bool, bool) = (false, false);
         const FAILED: (bool, bool) = (true, true);
-        // settings, terms, (all, selected), (applied, of).
-        type Case<'a> = (
-            &'a [(bool, bool)],
-            &'a [(bool, bool)],
-            (usize, usize),
-            (usize, usize),
-        );
-        let many = [ON; 95];
-        let cases: &[Case] = &[
-            // The owner's preset: 95 terms are one change, not 95.
-            (&[ON, ON], &many, (3, 3), (3, 3)),
-            (&[ON, OFF], &[ON, ON, OFF], (3, 2), (2, 2)),
-            // No term checked: the group is there, and not selected.
-            (&[ON], &[OFF, OFF], (2, 1), (1, 1)),
-            // No terms at all: only the settings.
-            (&[ON, ON], &[], (2, 2), (2, 2)),
-            // Some terms went in: the group is applied.
-            (&[ON], &[ON, FAILED], (2, 2), (2, 2)),
-            // None did: it is the one change that wasn't.
-            (&[ON, FAILED], &[FAILED, FAILED], (3, 3), (1, 3)),
-        ];
-        for (settings, terms, counts, applied) in cases {
-            let plan = plan_of(settings, terms);
-            assert_eq!(plan_counts(&plan), *counts, "{settings:?} {terms:?}");
-            assert_eq!(plan_applied(&plan), *applied, "{settings:?} {terms:?}");
-        }
-        // The per-row count a vocabulary card's footer reads is unchanged.
         assert_eq!(applied_count(&plan_of(&[ON], &[ON, FAILED])), (2, 3));
     }
 

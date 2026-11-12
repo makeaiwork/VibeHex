@@ -11,6 +11,7 @@
 //! takes. `state` derives what a card shows each frame.
 
 pub mod catalog;
+pub mod counts;
 pub mod names;
 pub mod parse;
 pub mod parts;

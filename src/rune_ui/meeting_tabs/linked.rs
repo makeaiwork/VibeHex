@@ -141,12 +141,19 @@ pub(in super::super) fn reopen(ui: &mut Ui, id: &str, session: u32, scroll_y: f3
     tx.scroll_to_y("meeting-requests", scroll_y);
 }
 
+/// The linked scenes' now, a Thursday as Files' scenes have it: the cited
+/// standup was that Tuesday, the retro a week before it.
+const SCENE_NOW_MS: u64 = 1_793_891_400_000;
+
 /// The scene's: Requests' sessions with a third open, its answer having
 /// read two other meetings and a dictation, citing each; with `consent`,
 /// a new session's question waits for the card instead.
 pub(in super::super) fn fixture(ui: &mut Ui, meeting: &str, consent: bool) {
+    // A fixed moment: the cited recordings' weekdays and dates would
+    // otherwise draw differently every day.
+    ui.meetings.requests.fixed_now = Some(SCENE_NOW_MS);
     super::requests::fixture(ui, meeting);
-    let now = crate::files::store::now_ms();
+    let now = SCENE_NOW_MS;
     let pane = &mut ui.meetings.requests;
     pane.sessions.push(session(now));
     pane.open = Some(3);
@@ -180,7 +187,7 @@ fn session(now: u64) -> Session {
     let turn = FollowUp {
         question: "Как мы решили с логином на прошлых встречах?".into(),
         answer: "Здесь вы договорились сначала сделать общий логин для всех игр Arcade \
-                 (00:01). Это не новое решение: на планёрке в четверг его уже назначили \
+                 (00:01). Это не новое решение: на планёрке во вторник его уже назначили \
                  первым шагом [1], а неделей раньше хотели отложить до прототипа на \
                  WebGPU [2]. Вечером вы надиктовали, что логин держит три игры из пяти [3]."
             .into(),
@@ -195,9 +202,9 @@ fn session(now: u64) -> Session {
                     Kind::Meeting,
                     "preview-standup",
                     "Планёрка Arcade",
-                    5 * day,
+                    2 * day,
                 ),
-                cite(2, Kind::Meeting, "preview-retro", "Ретро", 12 * day),
+                cite(2, Kind::Meeting, "preview-retro", "Ретро", 9 * day),
                 cite(3, Kind::Dictation, "7", "Notes", day),
             ],
             steps: vec![

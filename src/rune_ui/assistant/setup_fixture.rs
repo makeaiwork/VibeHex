@@ -222,11 +222,15 @@ pub(in super::super) fn setup_follow_ru(ui: &mut Ui) {
     ]) {
         ask.id = key.into();
         ask.q = q.into();
-        ask.hint = hint.into();
+        ask.hint = crate::desktop::i18n::tr_window(hint).to_owned();
         ask.own = false;
-        ask.options[0].label = "Да".into();
         ask.options[0].changes = vec![(key.into(), Value::Bool(true))];
-        ask.options[1].label = "Нет".into();
+        // As a model's question is kept (`follow::reworded`): its hint in
+        // the window's words, Yes and No the app's, in the language spoken
+        // when it was asked.
+        for option in &mut ask.options {
+            option.label = crate::desktop::i18n::tr(&option.label).to_owned();
+        }
     }
     let turns = vec![
         opening(ui, answered(ui, &state, "codex")),

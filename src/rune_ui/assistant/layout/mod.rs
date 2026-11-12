@@ -32,28 +32,11 @@ pub(super) const RULES: Rules = Rules {
             "General's shortcut recorder, 3 pt wider than its control: a place Assistant opens, not its surface",
         ),
     ],
-    cuts: &[
-        (
-            "assistant-picker/name",
-            "a narrow window cuts the open conversation's name, not the pane's title",
-        ),
-        (
-            "values/from/label",
-            "a value chip shows the start of long instructions",
-        ),
-        (
-            "values/to/label",
-            "a value chip shows the start of long instructions",
-        ),
-        (
-            "spellings/was#/label",
-            "a spelling's chip is a value chip, one line",
-        ),
-        (
-            "spellings/new#/label",
-            "a spelling's chip is a value chip, one line",
-        ),
-    ],
+    cuts: &[(
+        "assistant-picker/name",
+        "a narrow window cuts the open conversation's name, not the pane's title",
+    )], // A long value's three lines, with "Show all" under them (`value`).
+    unfolds: &["all"],
 };
 
 const SCALE: f32 = 2.0;

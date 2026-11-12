@@ -658,19 +658,34 @@ pub fn scenarios() -> Vec<Scenario> {
         Scenario {
             id: "14-like-denis",
             about: "\"Set me up like Denis\" came with retention checked and the shortcuts mixed \
-                    into the first list. It is offered with Russian recognition, as here.",
+                    into the first list. It is offered when Russian is the recognition \
+                    language, as here, whatever the model.",
             fixture: newcomer,
             app: vec![
                 app(
-                    "the preset is offered with Russian recognition",
+                    "the preset is offered with Russian as the recognition language",
                     |fixture| {
+                        use crate::transcription::models::TranscriptionModelId as Model;
                         ensure(preset::offered(&fixture.settings), || "not offered".into())?;
-                        // A model that knows only Russian is Russian too.
+                        // A model of many languages with Russian chosen.
+                        for model in [Model::ParakeetV3, Model::WhisperLargeV3Turbo] {
+                            let mut many = fixture.settings.clone();
+                            many.transcription.model = model;
+                            many.transcription.language = "ru".into();
+                            ensure(preset::offered(&many), || format!("{model:?} on ru"))?;
+                        }
+                        // A model that knows only Russian, as the app saves
+                        // it when it is chosen: with Russian.
                         let mut gigaam = fixture.settings.clone();
-                        gigaam.transcription.model =
-                            crate::transcription::models::TranscriptionModelId::GigaAmV3;
                         gigaam.transcription.language = "auto".into();
-                        ensure(preset::offered(&gigaam), || "GigaAM on Auto".into())
+                        gigaam.transcription = gigaam.transcription_for_model(Model::GigaAmV3);
+                        ensure(preset::offered(&gigaam), || {
+                            format!("GigaAM chosen: {}", gigaam.transcription.language)
+                        })?;
+                        // The same model on Auto, which only a file edited
+                        // by hand holds: by the language, so no preset.
+                        gigaam.transcription.language = "auto".into();
+                        ensure(!preset::offered(&gigaam), || "GigaAM on Auto".into())
                     },
                 ),
                 app("everything is checked but retention", |fixture| {

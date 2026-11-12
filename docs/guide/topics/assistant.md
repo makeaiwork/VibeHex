@@ -27,16 +27,15 @@ When a setting would do what you asked, the answer ends with a card: where
 the setting lives, its value now and the one suggested, and why. Nothing
 changes until you press the card's button; **Not now** leaves it as it is.
 What the change needs first, a Labs feature or Meetings, is turned on in the
-same save ("Also turns on…"), and a shorter retention says what it removes
-before you press it. A new speech model downloads first and switches when
-it is ready.
+same save ("Also turns on…"), and a shorter retention says what it removes.
+A new speech model downloads first and switches when ready.
 
 No card comes for a value you already have, a feature this computer lacks,
 or an ordinary word as a term: **What Assistant knew** lists what was left
 out.
 
 **Undo** puts back everything a card changed, while the conversation stays
-open; after that the card offers **Show in…** instead. A card follows your
+open; after that the card offers **Show in…**. A card follows your
 settings: changed by hand since, it says so.
 
 For the AI cleanup instructions, the card shows the lines that change.
@@ -44,8 +43,8 @@ For the AI cleanup instructions, the card shows the lines that change.
 **Save instructions**; **Cancel edit** goes back to the lines.
 
 Names your dictation gets wrong come as one **Add 3 terms** card: each term
-with what it sounds like, a checkbox, and **Edit** to fix the spelling or the
-spellings. Terms already in your Vocabulary are left out.
+with what it sounds like, a checkbox, and **Edit** to fix either. Terms
+already in your Vocabulary are left out.
 
 Ask why dictation wrote one word as another ("it writes AI cleanup when I
 say AI") and, with Your current settings on, Assistant reads your cleanup
@@ -54,7 +53,7 @@ looks for the cause there. Such a question never searches the web.
 
 ## Set VibeHex up for you
 
-**Set VibeHex up for me**, on the Assistant's start screen, or asking "help me
+**Set VibeHex up for me**, on Assistant's start screen, or asking "help me
 set VibeHex up", first says what is set now: the model that hears you and its language,
 where dictation is cleaned up, who writes meeting notes, the Labs features on,
 and how many Vocabulary terms you have. Then four questions, already answered
@@ -70,9 +69,10 @@ changes from and to, and what it takes: a download and its size, a ChatGPT
 sign-in, or a macOS permission. A setting you chose yourself is never ticked
 for you ("You chose …"), an engine not set up yet says where to finish, and a
 model that already hears your language stays. What already fits is
-folded under **Already set**. Untick what you don't need and press **Apply 5
-changes**. A change that can't be made says why, and the rest still apply;
-**Undo** takes the whole list back.
+folded under **Already set**; a long value folds to three lines (**Show
+all**). Untick what you don't need and press **Apply 3 changes and 81
+terms** (Vocabulary terms are counted apart). A change that can't be made
+says why, and the rest still apply; **Undo** takes the whole list back.
 
 Setting up again, after a setup or once you have used VibeHex a while (50
 dictations, or any meeting), skips the first questions: it says what came
@@ -91,11 +91,10 @@ cleanup instructions, and Vocabulary terms you don't have yet. Keeping meetings
 for a month starts unticked. Then it shows his shortcuts and asks whether they
 suit you: **Use these**, **Keep mine**, or type the key you'd like.
 
-That preset is his setup for dictating in one language, so it is
-offered only when speech recognition is set to Russian
-(**General › Language**, or a model that knows no other). With Auto or any
-other language there is no such row, and asking for it sets nothing up;
-**Set VibeHex up for me** is the way to a setup that fits.
+That preset is his setup for dictating in one language, so it is offered
+only when Russian is the recognition language in **General › Language**,
+whatever the speech model. With Auto or another language there is no such
+row and asking for it sets nothing up; use **Set VibeHex up for me**.
 
 ## Ask about your recordings
 

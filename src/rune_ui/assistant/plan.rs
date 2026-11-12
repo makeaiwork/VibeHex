@@ -3,8 +3,9 @@
 //! lives, why, and its value now and after, then Not now and the screen's
 //! Primary, "Apply 5 changes". Vocabulary's terms are one row that unfolds
 //! (`super::terms`), each term under it as the Vocabulary card has it
-//! (checkbox, term, how it sounds, Edit), under why they're offered; all
-//! of them count as one change.
+//! (checkbox, term, how it sounds, Edit), under why they're offered. The
+//! terms are counted apart from the settings: "3 changes and 81 terms" in
+//! the header, on the button and in the applied line (`changes::counts`).
 //!
 //! Before anything is applied the list says what else it takes: a speech
 //! model's download and its size, the OS permission a row needs, a ChatGPT
@@ -22,7 +23,9 @@ use super::super::Ui;
 use super::super::controls::{DESCRIPTION, Paint};
 use super::card::{self, Look, push};
 use super::changes::{self as act, At};
+use super::value::{self, Change, Slot};
 use crate::assistant::changes::catalog::{self, Class, Permission};
+use crate::assistant::changes::counts;
 use crate::assistant::changes::names;
 use crate::assistant::changes::state::{self, Row, Shown};
 use crate::assistant::changes::{Card, CardKind, Item, vocab};
@@ -63,19 +66,9 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
     let shown = act::shown(ui, at)?;
     let live = act::live(ui, at);
     let c = &p.k.c;
-    // The Vocabulary terms are one change, however many they are.
-    let (all, selected) = state::plan_counts(card);
+    let (all, selected) = counts::held(card);
     let terms = state::Terms::of(card);
-    let count = match all {
-        1 => tr_fill("1 change, {} selected", &selected.to_string()),
-        all => tr_named(
-            "{all} changes, {selected} selected",
-            &[
-                ("all", &all.to_string()),
-                ("selected", &selected.to_string()),
-            ],
-        ),
-    };
+    let count = counts::header(all, selected);
     let head = row()
         .key("head")
         .px(14.0)
@@ -273,8 +266,10 @@ fn kept(ui: &Ui, p: Paint, at: At, card: &Card) -> El {
                             .child(text(name).key("name").font(p.k.ty.small).color(p.text()))
                             .child(text(path).key("path").font(p.k.ty.small).color(p.faint())),
                     )
-                    .child(card::value_chip(
+                    .child(value::chip(
+                        ui,
                         p,
+                        at.value(index, Slot::Kept),
                         "now",
                         &card::label(&item.key, &item.from),
                         false,
@@ -370,12 +365,20 @@ fn line(
         .items_start()
         .child(row().key("lead").pt(2.0).child(lead))
         .child(words)
-        .child(
-            row()
-                .key("change")
-                .pt(1.0)
-                .child(card::change_chips(p, &item.key, &item.from, &item.to, off)),
-        )
+        .child(row().key("change").pt(1.0).child(value::change(
+            ui,
+            p,
+            at,
+            index,
+            Change {
+                key: &item.key,
+                from: &item.from,
+                to: &item.to,
+                struck: off,
+                end: true,
+                beside: value::BESIDE,
+            },
+        )))
 }
 
 /// `words` in Assistant's language with the places it names in the
@@ -597,11 +600,8 @@ fn footer(ui: &Ui, p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) 
     let space = || el().key("space").grow(1.0);
     match shown {
         Shown::Proposed { .. } => {
-            let (_, selected) = state::plan_counts(card);
-            let label = match selected {
-                1 => tr("Apply 1 change").to_owned(),
-                count => tr_fill("Apply {} changes", &count.to_string()),
-            };
+            let (all, selected) = counts::held(card);
+            let label = counts::apply(all, selected);
             let main = if primary {
                 rune_kit::ButtonVariant::Contrast
             } else {
@@ -609,7 +609,7 @@ fn footer(ui: &Ui, p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) 
             };
             let apply = rune_kit::Button::new(label)
                 .variant(main)
-                .disabled(selected == 0)
+                .disabled(selected.none())
                 .on_press(move |ui: &mut Ui| act::apply(ui, at));
             foot = foot
                 .children(
@@ -627,16 +627,9 @@ fn footer(ui: &Ui, p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) 
                 .child(super::super::controls::PushSize::build_small_push(apply, p.k).key("apply"));
         }
         Shown::Applied { .. } | Shown::ChangedSince { .. } => {
-            let (done, total) = state::plan_applied(card);
-            let words = tr_named(
-                "{done} of {total} changes applied",
-                &[("done", &done.to_string()), ("total", &total.to_string())],
-            );
-            let color = if done == total {
-                p.success()
-            } else {
-                p.muted()
-            };
+            let (done, of) = counts::applied(card);
+            let words = counts::went(done, of);
+            let color = if done == of { p.success() } else { p.muted() };
             foot = foot.child(status(words, color)).child(space());
             if *shown == (Shown::Applied { undo: true }) {
                 foot = foot.child(push(p, "undo", tr("Undo"), Look::Ghost, move |ui, _| {

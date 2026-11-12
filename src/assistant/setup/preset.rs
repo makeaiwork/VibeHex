@@ -40,15 +40,21 @@ pub struct Preset {
     pub vocabulary: Vec<Value>,
 }
 
-/// Whether the preset is offered at all: only to someone whose speech
-/// recognition is Russian and nothing else (Russian set as the language,
-/// or a speech model that knows only Russian), as `assistant::language`
-/// resolves it. It is the owner's setup for dictating Russian: Russian
-/// models, Russian word fixes, Russian cleanup instructions. On Auto, or
-/// any other language, there is no row for it, no plan from a typed
-/// request, and nothing of it in what the app itself tells a model.
+/// Whether the preset is offered at all: exactly when the recognition
+/// language saved is Russian (`transcription.language` is `ru`), whatever
+/// the speech model: one of many languages, GigaAM, Parakeet. It is the
+/// owner's setup for dictating Russian: Russian models, Russian word
+/// fixes, Russian cleanup instructions. On Auto, or any other language,
+/// there is no row for it, no plan from a typed request, and nothing of
+/// it in what the app itself tells a model.
+///
+/// A model that knows only Russian counts by its language like any
+/// other, never by the model alone. The app saves it with Russian every
+/// time it is chosen (`ModelDefinition::language_for`; with Auto the
+/// selection fails `models::validate`), so only a settings file edited
+/// by hand pairs it with Auto, and that file gets no preset.
 pub fn offered(settings: &AppSettings) -> bool {
-    crate::assistant::language::spoken(settings).as_deref() == Some("ru")
+    settings.transcription.language.trim() == "ru"
 }
 
 /// The owner's preset.
@@ -229,18 +235,21 @@ mod tests {
         }
     }
 
-    /// Russian recognition and nothing else: Russian set as the language,
-    /// or a speech model that knows only Russian. Auto on a model of many
-    /// languages, and every other language, get no preset.
+    /// Russian saved as the recognition language and nothing else, whatever
+    /// the model. Auto and every other language get no preset, a model that
+    /// knows only Russian included.
     #[test]
-    fn the_preset_is_offered_with_russian_recognition_alone() {
-        use crate::transcription::models::TranscriptionModelId as Model;
+    fn the_preset_is_offered_with_russian_as_the_recognition_language_alone() {
+        use crate::transcription::models::{self, TranscriptionModelId as Model};
         let cases = [
             (Model::ParakeetV3, "ru", true),
             (Model::Orukeet, "ru", true),
-            // GigaAM v3 knows only Russian, whatever the picker says.
-            (Model::GigaAmV3, "auto", true),
-            (Model::GigaAmV3, "", true),
+            (Model::WhisperLargeV3Turbo, "ru", true),
+            (Model::GigaAmV3, "ru", true),
+            // By the language, never by the model alone: a file edited by
+            // hand, since the app never saves GigaAM v3 with Auto.
+            (Model::GigaAmV3, "auto", false),
+            (Model::GigaAmV3, "", false),
             (Model::ParakeetV3, "auto", false),
             (Model::ParakeetV3, "", false),
             (Model::ParakeetV3, "en", false),
@@ -254,6 +263,21 @@ mod tests {
             settings.transcription.language = language.into();
             assert_eq!(offered(&settings), offer, "{model:?} on {language:?}");
         }
+        // Choosing a Russian-only model saves Russian, from any language.
+        for language in ["auto", "en", "ru"] {
+            let mut settings = AppSettings::default();
+            settings.transcription.model = Model::ParakeetV3;
+            settings.transcription.language = language.into();
+            let chosen = settings.transcription_for_model(Model::GigaAmV3);
+            assert_eq!(chosen.language, "ru", "from {language}");
+            settings.transcription = chosen;
+            assert!(offered(&settings), "GigaAM v3 chosen from {language}");
+        }
+        let by_hand = models::TranscriptionSelection {
+            model: Model::GigaAmV3,
+            language: "auto".into(),
+        };
+        assert!(models::validate(&by_hand).is_err());
     }
 
     #[test]

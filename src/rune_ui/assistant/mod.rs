@@ -40,6 +40,7 @@ pub(super) mod strong;
 mod terms;
 pub(super) mod terms_fixture;
 mod tick;
+mod value;
 mod verbs;
 mod vocab;
 mod vocab_edit;
@@ -114,6 +115,8 @@ pub(in super::super) struct AssistantPane {
     /// Plans whose Vocabulary terms are folded the other way than they
     /// start (`terms::open`).
     pub(super) terms_flipped: Vec<changes::At>,
+    /// Long values unfolded past their three lines ("Show all").
+    pub(super) values_open: Vec<value::ValueAt>,
     /// Setup rounds whose "Answered before" is unfolded.
     before_open: Vec<ask::At>,
     /// The conversation `undo` belongs to.

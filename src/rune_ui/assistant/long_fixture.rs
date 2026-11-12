@@ -2,7 +2,8 @@
 //! asked. The other fixtures are short and mostly English, and the layout
 //! faults the owner found were in none of them. The layout matrix
 //! (`layout::matrix`) lays every surface out with it; three of its cells
-//! are scenes here, with golden images.
+//! are scenes here, with golden images, and so is a plan whose values are
+//! long: cleanup instructions and a model's name in their chips.
 
 use serde_json::{Value, json};
 
@@ -231,19 +232,24 @@ pub(super) fn speak(ui: &mut Ui, language: &str) {
     ui.settings.transcription.language = language.into();
 }
 
+/// Codex lists the model with the long name.
+fn model_listed(ui: &mut Ui, description: &str) {
+    ui.files.codex_models.push(Model {
+        id: MODEL_ID.into(),
+        name: MODEL.into(),
+        description: description.into(),
+        efforts: vec!["low".into(), "medium".into(), "high".into()],
+        default_effort: "medium".into(),
+        default: false,
+    });
+}
+
 /// Makes everything a model wrote in what `ui` shows long, in `language`:
 /// questions, answers, reasons, option labels, the model's name, and a
 /// plan's or a card's terms, 95 of them.
 pub(super) fn stretch(ui: &mut Ui, language: &str) {
     let words = words(language);
-    ui.files.codex_models.push(Model {
-        id: MODEL_ID.into(),
-        name: MODEL.into(),
-        description: words.note.into(),
-        efforts: vec!["low".into(), "medium".into(), "high".into()],
-        default_effort: "medium".into(),
-        default: false,
-    });
+    model_listed(ui, words.note);
     if ui.settings.assistant.engine.is_some() {
         ui.settings.assistant.engine = Some(format!("codex:{MODEL_ID}"));
     }
@@ -286,4 +292,72 @@ pub(in super::super) fn choice_russian(ui: &mut Ui) {
     super::fixture_cards::cards_more(ui);
     speak(ui, "ru");
     stretch(ui, "ru");
+}
+
+/// The instructions a plan replaces, and what it writes instead: long
+/// enough that three lines don't hold them.
+const INSTRUCTIONS_NOW: &str =
+    "Rewrite the transcript into clear, natural text and keep every technical term as said.";
+const INSTRUCTIONS: &str = "You clean up Russian dictation with English technical terms. Keep the \
+     speaker's meaning and order. Remove filler words, false starts and repeats. Write product \
+     and library names as their makers do: Kubernetes, PostgreSQL, GitHub, VibeHex. Never \
+     translate a term, a command, a file name or a path. Keep numbers as digits. Split long \
+     speech into short paragraphs, and turn a spoken list into a list. Return only the cleaned \
+     text, with no comment before or after it.";
+
+/// A plan whose values are long: the cleanup instructions, the notes'
+/// writer with a long name, and one short switch. Its place.
+fn long_values(ui: &mut Ui) -> super::changes::At {
+    use super::fixture_cards::{conversation, item, with_cards};
+    super::fixture::open(ui);
+    model_listed(ui, "Latest workhorse model");
+    ui.settings.labs.filler_words = false;
+    let question = "Set up cleanup for how I dictate";
+    let answer = super::fixture::turn(
+        question,
+        "Here is what fits how you work. Untick what you don't need.",
+        &["topics/ai-cleanup"],
+        1,
+    );
+    let card = Card {
+        kind: CardKind::Plan,
+        items: vec![
+            item(
+                crate::assistant::changes::parts::PROMPT,
+                json!(INSTRUCTIONS_NOW),
+                json!(INSTRUCTIONS),
+                "Your dictation mixes Russian with English terms",
+            ),
+            item(
+                "labs.filler_words",
+                json!(false),
+                json!(true),
+                "Takes the ums and ahs out of what you dictate",
+            ),
+            item(
+                "meetings.notes.writer",
+                json!("opencode"),
+                json!(format!("codex:{MODEL_ID}")),
+                "Longer notes read better from a larger model",
+            ),
+        ],
+        ..Card::default()
+    };
+    let id = conversation(ui, question, vec![with_cards(answer, vec![card])], &[]);
+    super::changes::At {
+        conversation: id,
+        turn: 0,
+        card: 0,
+    }
+}
+
+/// Long values folded: three lines each, "Show all" where there is more.
+pub(in super::super) fn values(ui: &mut Ui) {
+    long_values(ui);
+}
+
+/// The same with the new instructions unfolded: all of them, "Show less".
+pub(in super::super) fn values_open(ui: &mut Ui) {
+    let at = long_values(ui);
+    ui.assistant.values_open = vec![at.value(0, super::value::Slot::To)];
 }

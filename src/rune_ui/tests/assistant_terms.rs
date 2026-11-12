@@ -21,7 +21,13 @@ fn folded_terms_are_one_row_and_unfold_to_a_row_each() {
         shown.iter().any(|t| t == "Add 7 of 8 Vocabulary terms"),
         "{shown:?}"
     );
-    assert!(shown.iter().any(|t| t == "Apply 3 changes"), "{shown:?}");
+    // The terms are counted apart from the two settings.
+    for line in [
+        "2 changes and 8 terms, 2 and 7 selected",
+        "Apply 2 changes and 7 terms",
+    ] {
+        assert!(shown.iter().any(|t| t == line), "{line}: {shown:?}");
+    }
     assert!(shown.iter().any(|t| t.ends_with("and 4 more")), "{shown:?}");
     assert!(rt.find("term2").is_none(), "folded: no row per term");
     // The chevron unfolds it: a row each, and the names line goes.
@@ -30,14 +36,17 @@ fn folded_terms_are_one_row_and_unfold_to_a_row_each() {
         assert!(rt.find(&format!("term{index}")).is_some(), "term{index}");
     }
     assert!(rt.find("terms/words/named").is_none());
-    // Unchecking a term there changes the one row's count, not the plan's.
+    // Unchecking a term there changes the one row's count and the plan's
+    // count of terms, never its count of settings.
     tap(&mut rt, "term2/check");
     let shown = texts(&rt);
-    assert!(
-        shown.iter().any(|t| t == "Add 6 of 8 Vocabulary terms"),
-        "{shown:?}"
-    );
-    assert!(shown.iter().any(|t| t == "Apply 3 changes"), "{shown:?}");
+    for line in [
+        "Add 6 of 8 Vocabulary terms",
+        "2 changes and 8 terms, 2 and 6 selected",
+        "Apply 2 changes and 6 terms",
+    ] {
+        assert!(shown.iter().any(|t| t == line), "{line}: {shown:?}");
+    }
     // The row's own checkbox takes them all.
     tap(&mut rt, "terms/lead/check");
     assert!(

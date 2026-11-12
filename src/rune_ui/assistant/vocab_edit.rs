@@ -16,6 +16,7 @@ use super::super::controls::{Paint, PushSize};
 use super::super::icons;
 use super::card::{self, INDENT, Look, Shell, push};
 use super::changes::{self as act, At};
+use super::value::{self, Change, Slot, ValueAt};
 use super::vocab::{mark, show, status};
 use crate::assistant::changes::state::{self, Row, Shown};
 use crate::assistant::changes::vocab::Term;
@@ -26,6 +27,9 @@ use crate::desktop::i18n::{tr, tr_fill, tr_window};
 
 /// The term column's width, as the terms card has it.
 const TERM_WIDTH: f32 = 120.0;
+/// A term before → after side by side takes this much at most; a longer
+/// pair stands one under the other, so the spellings keep their room.
+const TERM_PAIR: f32 = 200.0;
 
 /// The card at `at`; `primary` when Change is the screen's one.
 pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
@@ -72,7 +76,14 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
                     .fill(p.k.c.border_weak),
             );
         }
-        list = list.child(line(p, at, index, item, &state::row(card, index, &live)));
+        list = list.child(line(
+            ui,
+            p,
+            at,
+            index,
+            item,
+            &state::row(card, index, &live),
+        ));
     }
     let key = format!("card{}-{}", at.turn, at.card);
     Some(
@@ -93,7 +104,7 @@ fn entries(count: usize) -> String {
 
 /// One entry: its checkbox (or how it went), its term, its spellings
 /// before → after, and why.
-fn line(p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
+fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
     let before = entry(&item.from).unwrap_or_default();
     let after = entry(&item.to).unwrap_or_default();
     let lead = match shown {
@@ -121,7 +132,20 @@ fn line(p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
         }
         el().key("term").w(TERM_WIDTH).child(words)
     } else {
-        card::change_chips(p, "", &json!(before.term), &json!(after.term), off)
+        value::change(
+            ui,
+            p,
+            at,
+            index,
+            Change {
+                key: "",
+                from: &json!(before.term),
+                to: &json!(after.term),
+                struck: off,
+                end: false,
+                beside: TERM_PAIR,
+            },
+        )
     };
     let mut about = col()
         .key("about")
@@ -129,7 +153,14 @@ fn line(p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
         .shrink()
         .min_w(0.0)
         .gap(4.0)
-        .child(spellings(p, &before, &after, off));
+        .child(spellings(
+            ui,
+            p,
+            at.value(index, Slot::From),
+            &before,
+            &after,
+            off,
+        ));
     let why = item.why.trim();
     if !why.is_empty() {
         about = about.child(
@@ -164,7 +195,7 @@ fn line(p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
 
 /// "sounds like:" and each spelling: kept plain, removed struck, added
 /// new; none left reads "no spellings".
-fn spellings(p: Paint, before: &Term, after: &Term, off: bool) -> El {
+fn spellings(ui: &Ui, p: Paint, place: ValueAt, before: &Term, after: &Term, off: bool) -> El {
     let same = |one: &str, other: &str| one.to_lowercase() == other.to_lowercase();
     let mut chips = row()
         .key("spellings")
@@ -179,8 +210,13 @@ fn spellings(p: Paint, before: &Term, after: &Term, off: bool) -> El {
         );
     for (index, spelling) in before.sounds_like.iter().enumerate() {
         let kept = after.sounds_like.iter().any(|now| same(now, spelling));
-        chips = chips.child(card::value_chip(
+        chips = chips.child(value::chip(
+            ui,
             p,
+            ValueAt {
+                slot: Slot::Was(index),
+                ..place
+            },
             &format!("was{index}"),
             spelling,
             false,
@@ -193,8 +229,13 @@ fn spellings(p: Paint, before: &Term, after: &Term, off: bool) -> El {
         .filter(|now| !before.sounds_like.iter().any(|was| same(was, now)))
         .enumerate()
     {
-        chips = chips.child(card::value_chip(
+        chips = chips.child(value::chip(
+            ui,
             p,
+            ValueAt {
+                slot: Slot::New(index),
+                ..place
+            },
             &format!("new{index}"),
             spelling,
             !off,

@@ -804,6 +804,11 @@ pub(super) const SCENES: &[Scene] = &[
         "assistant-long-choice-russian",
         assistant::long_fixture::choice_russian,
     ),
+    ("assistant-long-values", assistant::long_fixture::values),
+    (
+        "assistant-long-values-open",
+        assistant::long_fixture::values_open,
+    ),
     ("meetings-cited", assistant::fixture::meeting_cited),
     // Opened from a meeting's Requests: Back to Requests.
     ("meetings-cited-requests", |ui| {
