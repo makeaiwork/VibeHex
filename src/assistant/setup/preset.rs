@@ -49,6 +49,17 @@ pub struct Preset {
     pub vocabulary: Vec<Value>,
 }
 
+/// Whether the preset is offered at all: only to someone whose speech
+/// recognition is Russian and nothing else (Russian set as the language,
+/// or a speech model that knows only Russian), as `assistant::language`
+/// resolves it. It is the owner's setup for dictating Russian: Russian
+/// models, Russian word fixes, Russian cleanup instructions. On Auto, or
+/// any other language, there is no row for it, no plan from a typed
+/// request, and nothing of it in what the app itself tells a model.
+pub fn offered(settings: &AppSettings) -> bool {
+    crate::assistant::language::spoken(settings).as_deref() == Some("ru")
+}
+
 /// The owner's preset.
 pub fn denis() -> Preset {
     serde_json::from_str(DENIS).unwrap_or_default()
@@ -256,6 +267,33 @@ mod tests {
             opencode_running: Fact::Known(true),
             openrouter_key: Fact::Known(true),
             ..State::default()
+        }
+    }
+
+    /// Russian recognition and nothing else: Russian set as the language,
+    /// or a speech model that knows only Russian. Auto on a model of many
+    /// languages, and every other language, get no preset.
+    #[test]
+    fn the_preset_is_offered_with_russian_recognition_alone() {
+        use crate::transcription::models::TranscriptionModelId as Model;
+        let cases = [
+            (Model::ParakeetV3, "ru", true),
+            (Model::Orukeet, "ru", true),
+            // GigaAM v3 knows only Russian, whatever the picker says.
+            (Model::GigaAmV3, "auto", true),
+            (Model::GigaAmV3, "", true),
+            (Model::ParakeetV3, "auto", false),
+            (Model::ParakeetV3, "", false),
+            (Model::ParakeetV3, "en", false),
+            (Model::ParakeetV3, "uk", false),
+            (Model::ParakeetV3, "de", false),
+            (Model::ParakeetUnifiedEnglish, "auto", false),
+        ];
+        for (model, language, offer) in cases {
+            let mut settings = AppSettings::default();
+            settings.transcription.model = model;
+            settings.transcription.language = language.into();
+            assert_eq!(offered(&settings), offer, "{model:?} on {language:?}");
         }
     }
 

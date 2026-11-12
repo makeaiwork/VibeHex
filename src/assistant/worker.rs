@@ -563,6 +563,10 @@ fn settle(
             asks,
         };
     };
+    // The preset asked for where it isn't offered is answered in words.
+    if super::intent::preset_not_offered(&question.question, &context.settings) {
+        parsed.proposals.clear();
+    }
     // Setup's answer is one list, whichever fence each line came in.
     if plan {
         changes::parse::as_plan(&mut parsed.proposals);

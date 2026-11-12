@@ -212,13 +212,19 @@ pub fn scenarios() -> Vec<Scenario> {
                     "Which Labs should I turn on?",
                     "Настрой VibeHex под меня",
                 ] {
-                    let route = crate::assistant::intent::route(question, &[], fixture.now_ms);
+                    let route = crate::assistant::intent::route(
+                        question,
+                        &[],
+                        &fixture.settings,
+                        fixture.now_ms,
+                    );
                     ensure(route == Route::Setup, || format!("{question}: {route:?}"))?;
                 }
                 // A question about one feature stays with the guide.
                 let route = crate::assistant::intent::route(
                     "Что делает Labs › Smart spacing?",
                     &[],
+                    &fixture.settings,
                     fixture.now_ms,
                 );
                 ensure(route == Route::Guide, || format!("{route:?}"))
@@ -647,9 +653,21 @@ pub fn scenarios() -> Vec<Scenario> {
         Scenario {
             id: "14-like-denis",
             about: "\"Set me up like Denis\" came with retention checked and the shortcuts mixed \
-                    into the first list.",
+                    into the first list. It is offered with Russian recognition, as here.",
             fixture: newcomer,
             app: vec![
+                app(
+                    "the preset is offered with Russian recognition",
+                    |fixture| {
+                        ensure(preset::offered(&fixture.settings), || "not offered".into())?;
+                        // A model that knows only Russian is Russian too.
+                        let mut gigaam = fixture.settings.clone();
+                        gigaam.transcription.model =
+                            crate::transcription::models::TranscriptionModelId::GigaAmV3;
+                        gigaam.transcription.language = "auto".into();
+                        ensure(preset::offered(&gigaam), || "GigaAM on Auto".into())
+                    },
+                ),
                 app("everything is checked but retention", |fixture| {
                     let planned = preset::plan(&preset::denis(), &fixture.settings, &fixture.state);
                     let card = planned.card.ok_or("no plan")?;
@@ -737,5 +755,83 @@ pub fn scenarios() -> Vec<Scenario> {
                 ],
             )],
         },
+        not_offered(
+            "14b-like-denis-english",
+            "With English recognition the preset, made for Russian dictation, was offered all \
+             the same.",
+            || fixtures::newcomer_speaking("en"),
+            "Set me up like Denis",
+        ),
+        not_offered(
+            "14c-like-denis-auto",
+            "With recognition on Auto the preset was offered all the same.",
+            || fixtures::newcomer_speaking("auto"),
+            "Настрой как у Дениса",
+        ),
     ]
+}
+
+/// The preset asked for where it isn't offered: no plan, no card, an
+/// ordinary question the guide answers honestly.
+fn not_offered(
+    id: &'static str,
+    about: &'static str,
+    fixture: fn() -> Fixture,
+    asked: &'static str,
+) -> Scenario {
+    Scenario {
+        id,
+        about,
+        fixture,
+        app: vec![
+            app("the preset isn't offered", |fixture| {
+                ensure(!preset::offered(&fixture.settings), || "offered".into())
+            }),
+            app(
+                "every way of asking for it is an ordinary question",
+                |fixture| {
+                    for question in [
+                        "Set me up like Denis",
+                        "set me up like the developer",
+                        "Настрой как у Дениса",
+                        "сделай настройки как у DenisKey",
+                    ] {
+                        let route = crate::assistant::intent::route(
+                            question,
+                            &[],
+                            &fixture.settings,
+                            fixture.now_ms,
+                        );
+                        ensure(route == Route::Guide, || format!("{question}: {route:?}"))?;
+                    }
+                    Ok(())
+                },
+            ),
+        ],
+        steps: vec![message(
+            asked,
+            &[
+                "That preset is made for dictating in Russian, so it is offered only when \
+                 **General › Language** is Russian. **Set VibeHex up for me** asks a few \
+                 questions and fits the setup to how you work.\n\n\
+                 ```hex-plan\n\
+                 {\"key\":\"labs.russian_vibe_coding\",\"value\":true,\"why\":\"as Denis has it\"}\n\
+                 ```\n\nSources: topics/assistant",
+            ],
+            vec![
+                routed(|route| *route == Route::Guide, "the guide"),
+                sent_has(
+                    "the guide saying whom the preset is for",
+                    &["offered only when speech recognition is set to Russian"],
+                ),
+                // A plan block a model writes here makes nothing.
+                check("no preset plan and no card", |outcome| {
+                    ensure(
+                        outcome.turn.cards.is_empty() && outcome.turn.asks.is_empty(),
+                        || format!("{:?} {:?}", outcome.turn.cards, outcome.turn.asks),
+                    )
+                }),
+            ],
+        )],
+    }
 }

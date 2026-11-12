@@ -89,6 +89,12 @@ cleanup instructions, and Vocabulary terms you don't have yet. Keeping meetings
 for a month starts unticked. Then it shows his shortcuts and asks whether they
 suit you: **Use these**, **Keep mine**, or type the key you'd like.
 
+That preset is his setup for dictating in one language, so it is
+offered only when speech recognition is set to Russian
+(**General › Language**, or a model that knows no other). With Auto or any
+other language there is no such row, and asking for it sets nothing up;
+**Set VibeHex up for me** is the way to a setup that fits.
+
 ## Ask about your recordings
 
 The first time a question is about your recordings, before anything is read,

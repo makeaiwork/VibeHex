@@ -143,6 +143,14 @@ pub fn newcomer() -> Fixture {
     }
 }
 
+/// The same fresh install with speech recognition in `language`: `en`,
+/// or `auto`.
+pub fn newcomer_speaking(language: &str) -> Fixture {
+    let mut fixture = newcomer();
+    fixture.settings.transcription.language = language.into();
+    fixture
+}
+
 /// Round one answered as a person who dictates code in Russian and
 /// records meetings would: Codex for cleanup and notes.
 pub fn answers() -> Vec<Answer> {

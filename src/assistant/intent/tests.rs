@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_settings::AppSettings;
 
 /// Tuesday 10 November 2026, noon local.
 fn now() -> u64 {
@@ -154,4 +155,49 @@ fn asking_to_find_or_recall_dictations_still_reads_them() {
     assert_eq!(intent.since_ms, Some(day(2026, 11, 9)));
     let intent = read("Find my dictation where accuracy came up", now()).unwrap();
     assert!(intent.kinds.dictations);
+}
+
+/// "Like Denis" is the preset only with Russian recognition; anywhere
+/// else the same words are a question the guide answers, never setup.
+#[test]
+fn the_preset_is_a_route_with_russian_recognition_alone() {
+    let speaking = |language: &str| {
+        let mut settings = AppSettings::default();
+        settings.transcription.model =
+            crate::transcription::models::TranscriptionModelId::ParakeetV3;
+        settings.transcription.language = language.into();
+        settings
+    };
+    let asked = [
+        "Set me up like Denis",
+        "set it up like DenisKey",
+        "Настрой как у Дениса",
+        "Сделай настройки как у Дениса",
+    ];
+    for question in asked {
+        assert_eq!(
+            route(question, &[], &speaking("ru"), now()),
+            Route::Preset,
+            "{question}"
+        );
+        assert!(!preset_not_offered(question, &speaking("ru")));
+        for language in ["en", "auto", "", "uk", "de"] {
+            let settings = speaking(language);
+            assert_eq!(
+                route(question, &[], &settings, now()),
+                Route::Guide,
+                "{question} on {language:?}"
+            );
+            assert!(preset_not_offered(question, &settings));
+        }
+    }
+    // Another question is nobody's preset, with any recognition.
+    for language in ["ru", "en"] {
+        let settings = speaking(language);
+        assert!(!preset_not_offered("How do I add a term?", &settings));
+        assert_eq!(
+            route("Set VibeHex up for me", &[], &settings, now()),
+            Route::Setup
+        );
+    }
 }

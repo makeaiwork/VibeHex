@@ -250,7 +250,7 @@ fn asks(fixture: &Fixture, turns: &[Turn], step: &Step) -> Asks {
         }
         Said::Message(text) => {
             let before: Vec<&str> = turns.iter().map(|turn| turn.question.as_str()).collect();
-            let route = intent::route(text, &before, fixture.now_ms);
+            let route = intent::route(text, &before, &fixture.settings, fixture.now_ms);
             let (recall, stage) = match route.clone() {
                 Route::Preset => return Asks::Preset,
                 Route::Setup => (Recall::Guide, Stage::Ask),

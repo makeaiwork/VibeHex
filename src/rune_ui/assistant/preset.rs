@@ -1,5 +1,6 @@
 //! "Set me up like Denis" in the pane: the owner's settings as one plan
-//! (`assistant::setup::preset`), no model asked. Once it is applied or put
+//! (`assistant::setup::preset`), no model asked, and only where it is
+//! offered (`preset::offered`: Russian recognition). Once it is applied or put
 //! off, a second step shows his shortcuts and asks whether they suit:
 //! "Use these" makes them a plan of their own, with Undo; "Keep mine"
 //! leaves them; typing a key instead asks the model, whose change card
@@ -25,7 +26,9 @@ const DONE: &str = "done";
 /// there, else in a new one.
 pub(super) fn begin(ui: &mut Ui, question: String) {
     let _speaking = crate::assistant::language::speak(&ui.settings);
-    if ui.assistant.answering.is_some() {
+    // Made for Russian dictation: with any other recognition there is no
+    // way in, and none is made here.
+    if ui.assistant.answering.is_some() || !preset::offered(&ui.settings) {
         return;
     }
     let context = super::changes::context(ui);
@@ -203,6 +206,13 @@ mod tests {
     #[test]
     fn the_preset_plans_settings_then_offers_shortcuts() {
         let mut ui = super::super::super::scenes::mac_fixture();
+        // Any recognition but Russian: no way in, and nothing started.
+        for language in ["en", "auto"] {
+            ui.settings.transcription.language = language.into();
+            begin(&mut ui, "Set me up like Denis".into());
+            assert!(ui.assistant.conversation().is_none(), "{language}");
+        }
+        ui.settings.transcription.language = "ru".into();
         begin(&mut ui, String::new());
         let first = &turns(&ui)[0];
         assert_eq!(first.preset, SETTINGS);

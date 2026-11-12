@@ -138,7 +138,7 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     };
     let earlier = asked_before(ui, id);
     let earlier: Vec<&str> = earlier.iter().map(String::as_str).collect();
-    match intent::route(&question, &earlier, ui.assistant.now_ms()) {
+    match intent::route(&question, &earlier, &ui.settings, ui.assistant.now_ms()) {
         Route::Preset => {
             super::preset::begin(ui, question);
             true

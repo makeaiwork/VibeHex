@@ -111,7 +111,9 @@ fn start(ui: &Ui, p: Paint) -> El {
         )
         .children(super::whats_new::row_for(ui, p).map(|row| row.mt(12.0)))
         .child(setup(p).mt(if ui.assistant.updated.is_some() { 8.0 } else { 12.0 }))
-        .child(like_denis(p))
+        .children(
+            crate::assistant::setup::preset::offered(&ui.settings).then(|| like_denis(p)),
+        )
         .child(grid.mt(8.0))
         .child(knows(p))
 }
@@ -171,7 +173,8 @@ fn setup(p: Paint) -> El {
         .on_press(super::ask::begin)
 }
 
-/// A quiet second way in: the owner's own settings.
+/// A quiet second way in: the owner's own settings. Only shown with
+/// Russian recognition (`setup::preset::offered`).
 fn like_denis(p: Paint) -> El {
     let c = &p.k.c;
     let title = tr("Or set it up like Denis, who makes VibeHex");

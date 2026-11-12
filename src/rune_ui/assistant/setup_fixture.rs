@@ -475,6 +475,8 @@ pub(in super::super) fn setup_result(ui: &mut Ui) {
 /// plan, what fits folded, the keep-meetings time unchecked.
 pub(in super::super) fn setup_preset(ui: &mut Ui) {
     open(ui);
+    // Offered with Russian recognition alone.
+    ui.settings.transcription.language = "ru".into();
     super::preset::begin(ui, "Сделай настройки как у Дениса".into());
     dated(ui);
 }
@@ -482,6 +484,7 @@ pub(in super::super) fn setup_preset(ui: &mut Ui) {
 /// His plan put off, then his shortcuts and whether they suit.
 pub(in super::super) fn setup_preset_shortcuts(ui: &mut Ui) {
     open(ui);
+    ui.settings.transcription.language = "ru".into();
     super::preset::begin(ui, String::new());
     if let Some(conversation) = ui.assistant.open {
         let at = At {

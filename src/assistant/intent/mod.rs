@@ -30,7 +30,7 @@ mod stop;
 use day::{Day, span};
 pub use follow::carried;
 pub use releases::releases;
-pub use route::{Reads, Route, reads, route};
+pub use route::{Reads, Route, preset_not_offered, reads, route};
 pub use setup::setup;
 pub use spoken::forms as spoken_forms_of;
 use stop::STOP;
