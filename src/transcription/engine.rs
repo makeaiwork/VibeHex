@@ -133,6 +133,8 @@ pub(crate) enum Command {
     /// no room for both (#1170).
     #[cfg_attr(target_os = "macos", allow(dead_code))]
     Reload(crate::transcription::models::TranscriptionSelection),
+    /// What an unloaded model reloads is now this selection.
+    Follow(crate::transcription::models::TranscriptionSelection),
     Background {
         /// The dictation generation when the work was submitted.
         generation: u64,
@@ -817,6 +819,21 @@ impl TranscriptionEngine {
             .map_err(|_| eyre!("transcription engine stopped"))
     }
 
+    /// Tells an unloaded engine that the person picked `selection`, so that
+    /// is what the next command loads; a loaded model is left to the work
+    /// that switches it. Without this an engine unloaded for idleness went on
+    /// reloading the model it had dropped, and failed every dictation once
+    /// that model was gone from disk.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn follow(
+        &self,
+        selection: crate::transcription::models::TranscriptionSelection,
+    ) -> Result<()> {
+        self.commands
+            .send(Command::Follow(selection))
+            .map_err(|_| eyre!("transcription engine stopped"))
+    }
+
     /// Drops the engine on its own thread, so replacing the model from the
     /// hotkey loop never waits on a run still in flight.
     #[cfg_attr(target_os = "macos", allow(dead_code))]
@@ -1053,6 +1070,12 @@ impl Worker {
                     self.parked = Some(selection);
                     // A failed load stays parked; the next command tries again.
                     let _ = self.model();
+                }
+                Command::Follow(selection) => {
+                    if self.model.is_none() && self.parked.is_some() {
+                        self.parked = Some(selection);
+                        self.reload_error = None;
+                    }
                 }
                 Command::Background { generation, work } => {
                     let current = self.requests.load(Ordering::Acquire) == generation;
@@ -2186,6 +2209,28 @@ mod tests {
                 .starts_with("the speech model could not be reloaded"),
             "the failure names why the reload failed"
         );
+    }
+
+    #[test]
+    fn an_unloaded_engine_follows_the_model_picked_meanwhile() {
+        // Languages no model supports: neither reload depends on a model
+        // installed on the test machine.
+        let dropped = crate::transcription::models::TranscriptionSelection {
+            language: "zz".into(),
+            ..Default::default()
+        };
+        let picked = crate::transcription::models::TranscriptionSelection {
+            language: "yy".into(),
+            ..Default::default()
+        };
+        let engine = TranscriptionEngine::start_parked(dropped.clone()).unwrap();
+        engine.follow(picked.clone()).unwrap();
+        let _ = engine
+            .finish_with(None, Vec::new(), Box::new(|_, _| Ok(String::new())))
+            .unwrap()
+            .wait();
+        assert!(engine.holds(&picked), "the next load is the picked model");
+        assert!(!engine.holds(&dropped));
     }
 
     /// A real engine thread over macOS's warm transcriber with no model
