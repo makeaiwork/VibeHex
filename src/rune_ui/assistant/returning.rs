@@ -25,7 +25,20 @@ pub(super) fn since(ui: &Ui) -> Option<Since> {
         return None;
     }
     let last = since::last(setups).cloned();
-    let after = last.as_ref().map_or(0, |last| last.at_ms);
+    // Without a setup, the releases since the first version run here
+    // (none in a scene).
+    let first = (last.is_none() && !ui.is_fixture() && !ui.assistant.fixture)
+        .then(|| {
+            crate::assistant::releases::history::read()
+                .into_iter()
+                .next()
+        })
+        .flatten();
+    let after = match (&last, &first) {
+        (Some(last), _) => last.at_ms,
+        (None, Some(first)) => first.first_ms,
+        (None, None) => 0,
+    };
     let fixture = ui.assistant.fixture || ui.is_fixture();
     let usage = recordings::Allowed::from_settings(&ui.settings.assistant)
         .filter(|_| !fixture)
@@ -48,6 +61,7 @@ pub(super) fn since(ui: &Ui) -> Option<Since> {
     Some(Since {
         last,
         releases: since::releases_after(after),
+        from: first.map(|first| first.version),
         usage,
     })
 }
@@ -233,6 +247,61 @@ mod tests {
         ui.assistant.open = None;
         ask::begin(&mut ui);
         assert!(ui.assistant.conversation().unwrap().turns[0].folded);
+    }
+
+    /// The terms the use shows wait for the plan: no card at the opening,
+    /// then in the plan the sure one checked and the other unchecked.
+    #[test]
+    fn the_uses_terms_come_with_the_plan() {
+        use crate::assistant::changes::vocab;
+        use crate::assistant::recordings::usage::{Term, Usage};
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.assistant.fixture = true;
+        let term = |word: &str, fixed: usize| Term {
+            word: word.into(),
+            count: 4,
+            heard: vec!["гранола".into()],
+            fixed,
+        };
+        let usage = Usage {
+            dictations: 80,
+            last_30_days: 80,
+            terms: vec![term("Granola", 3), term("Outkit", 1)],
+            ..Usage::default()
+        };
+        let since = super::Since {
+            usage: Some(usage),
+            ..super::Since::default()
+        };
+        ask::start(&mut ui, Some(since));
+        let opening = turns(&ui)[0].clone();
+        assert!(opening.cards.is_empty(), "no terms card at the opening");
+        assert!(opening.folded && opening.terms.len() == 2);
+        assert!(!opening.since.contains("Vocabulary"), "{}", opening.since);
+        let conversation = ui.assistant.open.unwrap();
+        for _ in 0..6 {
+            let open = turns(&ui);
+            let last = open.len() - 1;
+            if !open[last].cards.is_empty() {
+                break;
+            }
+            let at = ask::At {
+                conversation,
+                turn: last,
+            };
+            ask::answered(&mut ui, at, last > 0);
+        }
+        let plan = turns(&ui).last().unwrap().cards[0].clone();
+        let rows: Vec<(String, bool)> = plan
+            .items
+            .iter()
+            .filter(|item| item.key == vocab::KEY)
+            .map(|item| (vocab::label(&item.to), item.included))
+            .collect();
+        assert_eq!(
+            rows,
+            [("Granola".to_owned(), true), ("Outkit".to_owned(), false)]
+        );
     }
 
     /// A fresh install asks round one open, with nothing about since; 50

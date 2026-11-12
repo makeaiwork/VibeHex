@@ -338,6 +338,27 @@ fn say(step: &Step) -> String {
             tr_fill("Read their notes and {} passages", &passages.to_string())
         }
         Step::Read { passages, .. } => tr_fill("Read {} passages", &passages.to_string()),
+        Step::Looked {
+            dictations,
+            meetings,
+        } => tr_fill("Read {}", &looked(dictations, meetings)),
+    }
+}
+
+/// What a returning setup read: "your settings, 972 dictations and 5
+/// meetings".
+fn looked(dictations: usize, meetings: usize) -> String {
+    let dictations = self::dictations(dictations);
+    if meetings == 0 {
+        tr_fill("your settings and {}", &dictations)
+    } else {
+        tr_named(
+            "your settings, {dictations} and {meetings}",
+            &[
+                ("dictations", &dictations),
+                ("meetings", &self::meetings(meetings)),
+            ],
+        )
     }
 }
 
@@ -417,6 +438,10 @@ pub(in super::super) fn steps_folded(
             Step::Meetings { found, .. } if found > 0 => read.push(meetings(found)),
             Step::Files { found, .. } if found > 0 => read.push(files(found)),
             Step::Dictations { found, .. } if found > 0 => read.push(dictations(found)),
+            Step::Looked {
+                dictations,
+                meetings,
+            } => read.push(looked(dictations, meetings)),
             _ => {}
         }
     }

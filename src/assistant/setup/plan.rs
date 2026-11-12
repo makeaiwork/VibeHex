@@ -19,6 +19,7 @@
 
 use serde_json::Value;
 
+use super::since::Candidate;
 use super::{Answer, engines, follow, past, picked};
 use crate::app_settings::AppSettings;
 use crate::assistant::changes::catalog::{self, State};
@@ -342,13 +343,28 @@ fn yours(key: &str, settings: &AppSettings) -> bool {
     changes::current(settings, key) != changes::current(&default, key)
 }
 
-/// One checklist from the rules and a model's plan cards (none for the
-/// app's own): every item once, none held here, at most [`PLAN_LINES`],
-/// grouped by area, with "Already set". `None` when nothing is left to
-/// show.
+/// [`with_terms`] with no terms of the use's.
+#[cfg(test)]
 pub fn plan(
     cards: Vec<Card>,
     answers: &[Answer],
+    settings: &AppSettings,
+    state: &State,
+) -> Option<Card> {
+    with_terms(cards, answers, &[], settings, state)
+}
+
+/// One checklist from the rules and a model's plan cards (none for the
+/// app's own): every item once, none held here, at most [`PLAN_LINES`],
+/// grouped by area, with "Already set". The terms a returning setup's use
+/// shows (`candidates`) come as rows of their own: the sure ones checked,
+/// the rest unchecked, none Vocabulary has, a row lists already, or the
+/// person declined in an earlier setup. `None` when nothing is left to
+/// show.
+pub fn with_terms(
+    cards: Vec<Card>,
+    answers: &[Answer],
+    candidates: &[Candidate],
     settings: &AppSettings,
     state: &State,
 ) -> Option<Card> {
@@ -412,15 +428,30 @@ pub fn plan(
     items.retain(|item| !past::held(&state.declined, &item.key, &item.to, settings));
     items.sort_by_key(|item| area(&item.key));
     items.truncate(PLAN_LINES);
-    // Every term in one row: checked when a follow-up asked for them.
+    // Every term asked for in one row, checked when a follow-up asked for
+    // them; then the use's, sure ones checked.
+    let mut rows: Vec<Item> = Vec::new();
     if let Some(mut row) = vocab::row(terms) {
         row.included = answered_terms;
-        let at = items
-            .iter()
-            .position(|item| area(&item.key) > Area::Code)
-            .unwrap_or(items.len());
-        items.insert(at, row);
+        rows.push(row);
     }
+    let listed: Vec<String> = rows
+        .iter()
+        .flat_map(|row| vocab::terms(&row.to))
+        .map(|term| term.term)
+        .collect();
+    let (sure, maybe) = candidate_items(candidates, &listed, settings, state);
+    for (group, checked) in [(sure, true), (maybe, false)] {
+        if let Some(mut row) = vocab::row(group) {
+            row.included = checked;
+            rows.push(row);
+        }
+    }
+    let at = items
+        .iter()
+        .position(|item| area(&item.key) > Area::Code)
+        .unwrap_or(items.len());
+    items.splice(at..at, rows);
     let mut kept: Vec<Item> = Vec::new();
     for key in &rules.kept {
         let Some(now) = changes::current(settings, key) else {
@@ -445,10 +476,70 @@ pub fn plan(
     })
 }
 
+/// Why the use's sure terms are offered, and why the rest are.
+const SURE_TERMS: &str = "Cleanup keeps fixing how these are heard";
+const MAYBE_TERMS: &str = "You say these, and Vocabulary doesn't have them";
+
+/// The candidates as Vocabulary items, sure and the rest: each checked as
+/// `hex vocabulary add` checks it, leaving out what Vocabulary has, what
+/// `listed` has, and what an earlier setup offered and the person declined.
+fn candidate_items(
+    candidates: &[Candidate],
+    listed: &[String],
+    settings: &AppSettings,
+    state: &State,
+) -> (Vec<Item>, Vec<Item>) {
+    let declined: Vec<String> = state
+        .declined
+        .iter()
+        .filter(|line| line.key == vocab::KEY)
+        .flat_map(|line| vocab::terms(&line.to))
+        .map(|term| term.term.to_lowercase())
+        .collect();
+    let (mut sure, mut maybe) = (Vec::new(), Vec::new());
+    for candidate in candidates {
+        let lower = candidate.term.to_lowercase();
+        if declined.contains(&lower) || listed.iter().any(|known| known.to_lowercase() == lower) {
+            continue;
+        }
+        let proposal = Proposal {
+            key: vocab::KEY.into(),
+            value: Some(
+                vocab::Term {
+                    term: candidate.term.clone(),
+                    sounds_like: candidate.sounds_like.clone(),
+                }
+                .value(),
+            ),
+            why: tr(if candidate.sure {
+                SURE_TERMS
+            } else {
+                MAYBE_TERMS
+            })
+            .to_owned(),
+            plan: true,
+            line: vocab::KEY.into(),
+            ..Proposal::default()
+        };
+        let Ok(Some(card)) = vocab::card(&proposal, settings) else {
+            continue;
+        };
+        let into = if candidate.sure {
+            &mut sure
+        } else {
+            &mut maybe
+        };
+        into.extend(card.items);
+    }
+    (sure, maybe)
+}
+
 /// Every English reason the rules give, for the translation tables' test.
 #[cfg(test)]
 pub fn words() -> Vec<&'static str> {
     vec![
+        SURE_TERMS,
+        MAYBE_TERMS,
         "Russian speech with English tech terms written as they should be",
         "Records calls, with a transcript and notes",
         "Turns recordings you already have into text",

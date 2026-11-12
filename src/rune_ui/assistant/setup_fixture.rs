@@ -15,9 +15,10 @@ use super::fixture::{AT, MINUTE, open};
 use super::fixture_cards::{conversation, item};
 use crate::assistant::changes::catalog::{Class, State};
 use crate::assistant::changes::{Card, CardKind, Decision, Item, current, parts};
+use crate::assistant::recordings::Step;
 use crate::assistant::recordings::usage::{self, Usage};
 use crate::assistant::setup::past::Setup;
-use crate::assistant::setup::since::Since;
+use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Ask, follow};
 use crate::assistant::store::Turn;
 use crate::dictation::ShortcutMode;
@@ -407,9 +408,11 @@ pub(in super::super) fn setup_preset_shortcuts(ui: &mut Ui) {
     dated(ui);
 }
 
-/// A returning setup: the owner set up a month ago and declined a Labs
-/// feature then; what is set now, what his use shows since, round one
-/// folded with his answers, and the terms Vocabulary lacks as one card.
+/// A returning setup on Codex: the owner set up a month ago and declined
+/// a Labs feature then; what is set now, the updates since in one line
+/// and what his use shows as a short list, then what the app read folded
+/// to one line, the model's suggestions, and round one folded with his
+/// answers. The terms Vocabulary lacks wait for the plan.
 pub(in super::super) fn setup_returning(ui: &mut Ui) {
     open(ui);
     let state = sample(ui);
@@ -474,14 +477,63 @@ pub(in super::super) fn setup_returning(ui: &mut Ui) {
         meetings: 23,
         meeting_languages: vec![(usage::Language::Russian, 19), (usage::Language::Latin, 4)],
     };
+    let release = |version: &str, title: &str| since::Release {
+        version: version.into(),
+        title: title.into(),
+        ..since::Release::default()
+    };
     let since = Since {
         last: Some(last),
-        releases: Vec::new(),
+        releases: vec![
+            release(
+                "3.3.0-vibe.6",
+                "Files, Stop shortcut, Listen to the recording, and AI cleanup on Codex",
+            ),
+            release(
+                "next",
+                "Assistant, VibeHex in Russian, Screenshots, and more speech models",
+            ),
+        ],
+        from: None,
         usage: Some(usage),
     };
-    super::ask::start(ui, Some(since));
-    dated(ui);
+    // Round one as `ask::start` preselects it: as answered last time.
+    let mut asks = first(ui, &state);
+    since::preselect(&mut asks, &since);
+    setup::preselect(&mut asks, &ui.settings, &state);
+    let usage = since.usage.as_ref();
+    let turns = vec![
+        Turn {
+            now: setup::now::now(&ui.settings),
+            since: since::paragraph(&since),
+            created_ms: AT,
+            ..Turn::default()
+        },
+        // On Codex the opening looks first: what the app read, the model's
+        // suggestions, then round one folded.
+        Turn {
+            answer: SUGGESTIONS.into(),
+            model: "GPT-6.1-Sol".into(),
+            seconds: 8.0,
+            steps: vec![Step::Looked {
+                dictations: usage.map_or(0, |usage| usage.dictations),
+                meetings: usage.map_or(0, |usage| usage.meetings),
+            }],
+            asks,
+            folded: true,
+            facts: since::prompt(&since),
+            terms: usage.map(since::candidates).unwrap_or_default(),
+            created_ms: AT + MINUTE,
+            ..Turn::default()
+        },
+    ];
+    conversation(ui, "Set up for me", turns, &[]);
 }
+
+/// What a model suggests from the returning scene's use.
+const SUGGESTIONS: &str = "- Half of your dictations go to Ghostty and Cursor, and cleanup keeps fixing гитхаб → GitHub: with it in Vocabulary the speech model writes it right away.
+- 27% of your dictations are long. Codex cleans those up better than this Mac, at a few seconds more.
+- Files is new since your last setup: it turns the recordings you already have into text.";
 
 fn dated(ui: &mut Ui) {
     if let Some(id) = ui.assistant.open {

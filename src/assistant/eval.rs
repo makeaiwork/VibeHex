@@ -112,6 +112,7 @@ fn cases() -> Vec<Case> {
                 line: setup_line(&answers).unwrap_or_default(),
                 answers,
                 since: String::new(),
+                terms: Vec::new(),
             },
             // Code in Russian: Parakeet v3, never GigaAM.
             keys: vec![

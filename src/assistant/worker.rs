@@ -229,12 +229,16 @@ fn start_with(
         conversation: question.conversation,
         // Setup's answers show as chips, never as a question.
         question: match question.setup {
-            Stage::Plan { .. } | Stage::Follow { .. } => String::new(),
+            Stage::Plan { .. } | Stage::Follow { .. } | Stage::Look { .. } => String::new(),
             _ => question.question.clone(),
         },
         draft: String::new(),
         started,
-        steps: Vec::new(),
+        // A returning setup's opening says what the app read first.
+        steps: match &question.setup {
+            Stage::Look { step, .. } => vec![step.clone()],
+            _ => Vec::new(),
+        },
         searching: matches!(question.recall, Recall::Search(_)),
         cards_coming: false,
         web: Web::default(),
@@ -422,6 +426,15 @@ fn settle(
             };
         }
         (Stage::Follow { candidates, .. }, None) => candidates.clone(),
+        // Suggestions only: round one comes after them, as it was.
+        (Stage::Look { asks, .. }, _) => {
+            return Settled {
+                reply,
+                cards: Vec::new(),
+                refused: Vec::new(),
+                asks: asks.clone(),
+            };
+        }
         _ => Vec::new(),
     };
     let Some(context) = &question.changes else {
@@ -486,9 +499,14 @@ fn settle(
     }
     if plan {
         // The app's rules decide; the model's lines join them.
-        cards = setup::plan::plan(
+        let terms = match &question.setup {
+            Stage::Plan { terms, .. } => terms.as_slice(),
+            _ => &[],
+        };
+        cards = setup::plan::with_terms(
             cards,
             question.setup.answers(),
+            terms,
             &context.settings,
             &context.state,
         )
@@ -609,6 +627,22 @@ fn finish(
             turn.answer = draft;
             turn.error = Some(format!("{error:#}"));
         }
+    }
+    // A returning setup's opening: what the app read, then round one
+    // folded, however the suggestions went.
+    if let Stage::Look {
+        facts,
+        asks,
+        terms,
+        step,
+        ..
+    } = &question.setup
+    {
+        turn.steps = vec![step.clone()];
+        turn.asks = asks.clone();
+        turn.folded = true;
+        turn.facts = facts.clone();
+        turn.terms = terms.clone();
     }
     // The guide it read first, and the pages its answer cites.
     if !web.is_empty() {
@@ -841,6 +875,70 @@ mod tests {
             ],
             line: "use: dictation_code, meetings; language: ru; cleanup: codex".into(),
             since: String::new(),
+            terms: vec![setup::since::Candidate {
+                term: "Supabase".into(),
+                sounds_like: vec!["супабейс".into()],
+                sure: true,
+            }],
+        }
+    }
+
+    /// A returning setup's opening: the step of what the app read shows
+    /// while the model writes, then its suggestions, and round one folded
+    /// with the terms after them, even when the model fails.
+    #[test]
+    fn a_returning_setups_look_ends_in_round_one() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let look = || Stage::Look {
+            facts: "dictations kept: 972, 972 in the last 30 days".into(),
+            shown: "- 972 dictations in the last 30 days".into(),
+            asks: setup::questions("macos"),
+            terms: vec![setup::since::Candidate {
+                term: "Granola".into(),
+                ..Default::default()
+            }],
+            step: recordings::Step::Looked {
+                dictations: 972,
+                meetings: 5,
+            },
+        };
+        for fails in [false, true] {
+            let generate: Generate = Box::new(move |instructions, input, _, _| {
+                assert!(instructions.contains("2 to 4 suggestions"));
+                assert!(input.contains("<shown>"));
+                let steps = answering().unwrap().steps;
+                assert_eq!(steps.len(), 1, "the step shows while it writes");
+                if fails {
+                    return Err(eyre!("signed out"));
+                }
+                Ok("- Add Codex to Vocabulary.\n```hex-change\n{\"key\":\"labs.files\",\"value\":true}\n```\nSources: none".into())
+            });
+            assert!(start(
+                setup("", look()),
+                Room::Large,
+                "GPT".into(),
+                generate,
+                false
+            ));
+            let (_, turn) = finished();
+            assert!(turn.question.is_empty() && turn.answers.is_empty());
+            assert_eq!(turn.error.is_some(), fails);
+            if !fails {
+                assert_eq!(turn.answer, "- Add Codex to Vocabulary.");
+            }
+            assert!(turn.cards.is_empty(), "suggestions, never cards");
+            assert!(turn.folded && turn.asks.len() == 4);
+            assert_eq!(turn.terms[0].term, "Granola");
+            assert!(turn.facts.starts_with("dictations kept"));
+            assert!(matches!(
+                turn.steps[..],
+                [recordings::Step::Looked {
+                    dictations: 972,
+                    ..
+                }]
+            ));
         }
     }
 

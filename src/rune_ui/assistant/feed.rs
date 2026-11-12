@@ -352,9 +352,12 @@ fn reply(
     beside_face(p, &format!("answer{index}"), Mood::default(), words)
 }
 
-/// Asks a turn again: setup's answers as its plan, else its question.
+/// Asks a turn again: a returning setup's look as itself, setup's
+/// answers as its plan, else its question.
 fn retry(ui: &mut Ui, conversation: u32, turn: &Turn) {
-    if turn.answers.is_empty() {
+    if super::ask::is_look(turn) {
+        super::ask::look_again(ui, conversation, turn);
+    } else if turn.answers.is_empty() {
         ask(ui, turn.question.clone());
     } else {
         super::ask::again(ui, conversation, turn);

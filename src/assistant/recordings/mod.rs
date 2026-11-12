@@ -217,6 +217,12 @@ pub enum Step {
         searched: usize,
         found: usize,
     },
+    /// A returning setup read the settings and worked out what the
+    /// dictations and meetings show (`usage`): counts, never their text.
+    Looked {
+        dictations: usize,
+        meetings: usize,
+    },
 }
 
 /// How much a model may read: few for a small local one.

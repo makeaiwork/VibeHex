@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::changes::{Card, Refused};
 use super::recordings::{Ref, Step};
 use super::setup::past::{self, Setup};
+use super::setup::since::Candidate;
 use super::setup::{Answer, Ask};
 use super::web::Web;
 
@@ -82,6 +83,10 @@ pub struct Turn {
     /// says something changed.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub folded: bool,
+    /// The terms a returning setup's use shows Vocabulary lacks, which
+    /// its plan offers (`setup::since::candidates`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub terms: Vec<Candidate>,
     /// A preset's step ("Set me up like Denis"): `settings` its plan,
     /// `shortcuts` the question about its shortcuts, `shortcuts-plan` them
     /// as a plan, `done` once the person kept their own.
@@ -103,6 +108,10 @@ impl Turn {
                 | Step::Files { found, .. }
                 | Step::Dictations { found, .. } => found > 0,
                 Step::Read { passages, .. } => passages > 0,
+                Step::Looked {
+                    dictations,
+                    meetings,
+                } => dictations + meetings > 0,
             })
     }
 }

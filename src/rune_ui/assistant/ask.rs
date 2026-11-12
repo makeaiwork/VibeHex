@@ -20,6 +20,7 @@ use super::super::Ui;
 use super::super::controls::Paint;
 use super::composer;
 use crate::assistant::changes::CardKind;
+use crate::assistant::recordings::Step;
 use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow, past};
 use crate::assistant::store::Turn;
@@ -54,8 +55,9 @@ pub(super) fn begin(ui: &mut Ui) {
 }
 
 /// Opens setup: a first one with round one's questions, a returning one
-/// (`since`) with what came since, round one folded, and the terms the
-/// use shows Vocabulary lacks.
+/// (`since`) with what came since and round one folded. On a remote model
+/// with the use read, the model first looks at what came since and
+/// suggests a few things (`Stage::Look`), and round one comes after.
 pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
     let context = super::changes::context(ui);
     let mut asks = setup::questions(os(ui));
@@ -64,10 +66,6 @@ pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
         since::preselect(&mut asks, since);
         setup::preselect(&mut asks, &context.settings, &context.state);
     }
-    let terms = since
-        .as_ref()
-        .and_then(|since| since.usage.as_ref())
-        .and_then(|usage| since::terms_card(usage, &context.settings));
     let now = ui.assistant.now_ms();
     let pane = &mut ui.assistant;
     pane.consent = None;
@@ -77,21 +75,120 @@ pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
             .store
             .start(tr("Set up for me"), pane.engine.take(), pane.effort.take()),
     };
-    pane.store.push(
-        id,
-        Turn {
-            asks,
-            now: setup::now::now(&context.settings),
-            since: since.as_ref().map(since::paragraph).unwrap_or_default(),
-            facts: since.as_ref().map(since::prompt).unwrap_or_default(),
-            folded: since.is_some(),
-            cards: terms.into_iter().collect(),
-            created_ms: now,
-            ..Turn::default()
-        },
-    );
     pane.open = Some(id);
     pane.error = None;
+    let shown = since.as_ref().map(since::paragraph).unwrap_or_default();
+    let facts = since.as_ref().map(since::prompt).unwrap_or_default();
+    let terms = since
+        .as_ref()
+        .and_then(|since| since.usage.as_ref())
+        .map(since::candidates)
+        .unwrap_or_default();
+    let looked = since
+        .as_ref()
+        .and_then(|since| since.usage.as_ref())
+        .map(|usage| Step::Looked {
+            dictations: usage.dictations,
+            meetings: usage.meetings,
+        })
+        .filter(|_| !on_device(ui, id));
+    let opening = Turn {
+        now: setup::now::now(&context.settings),
+        since: shown.clone(),
+        created_ms: now,
+        ..Turn::default()
+    };
+    let round = Turn {
+        asks,
+        facts,
+        folded: since.is_some(),
+        terms,
+        created_ms: now,
+        ..Turn::default()
+    };
+    if let Some(step) = looked {
+        ui.assistant.store.push(id, opening);
+        let look = Stage::Look {
+            facts: round.facts.clone(),
+            shown,
+            asks: round.asks.clone(),
+            terms: round.terms.clone(),
+            step,
+        };
+        if composer::ask_with(ui, id, String::new(), Recall::Guide, look) {
+            return;
+        }
+        // Not asked after all: round one at once, as on a built-in model.
+        ui.assistant.store.push(id, round);
+        return;
+    }
+    ui.assistant.store.push(
+        id,
+        Turn {
+            now: opening.now,
+            since: opening.since,
+            ..round
+        },
+    );
+}
+
+/// Looks again at what came since: a returning setup's opening asked
+/// again, from the turn that showed it.
+pub(super) fn look_again(ui: &mut Ui, conversation: u32, turn: &Turn) {
+    if ui.assistant.answering.is_some() || ui.assistant.fixture {
+        return;
+    }
+    let Some(step) = turn.steps.first().cloned() else {
+        return;
+    };
+    let shown = ui
+        .assistant
+        .store
+        .get(conversation)
+        .and_then(|open| {
+            open.turns
+                .iter()
+                .rev()
+                .find(|turn| !turn.since.is_empty())
+                .map(|turn| turn.since.clone())
+        })
+        .unwrap_or_default();
+    let mut asks = turn.asks.clone();
+    for ask in &mut asks {
+        ask.done = false;
+    }
+    let look = Stage::Look {
+        facts: turn.facts.clone(),
+        shown,
+        asks,
+        terms: turn.terms.clone(),
+        step,
+    };
+    composer::ask_with(ui, conversation, String::new(), Recall::Guide, look);
+}
+
+/// Whether `turn` is a returning setup's look: what the app read, a model's
+/// suggestions, and round one after them.
+pub(super) fn is_look(turn: &Turn) -> bool {
+    turn.folded
+        && first(&turn.asks)
+        && turn
+            .steps
+            .iter()
+            .any(|step| matches!(step, Step::Looked { .. }))
+}
+
+/// The terms the open setup's use showed, for its plan.
+fn terms(ui: &Ui, conversation: u32) -> Vec<since::Candidate> {
+    ui.assistant
+        .store
+        .get(conversation)
+        .and_then(|open| {
+            setup_turns(&open.turns)
+                .first()
+                .map(|turn| turn.terms.clone())
+        })
+        .unwrap_or_default()
 }
 
 /// A question's words as the person sees them: the app's own in the
@@ -558,7 +655,14 @@ fn plan(ui: &mut Ui, conversation: u32) {
     let line = setup::answers_line(&asked, label);
     if on_device(ui, conversation) {
         let context = super::changes::context(ui);
-        let card = setup::plan::plan(Vec::new(), &answers, &context.settings, &context.state);
+        let terms = terms(ui, conversation);
+        let card = setup::plan::with_terms(
+            Vec::new(),
+            &answers,
+            &terms,
+            &context.settings,
+            &context.state,
+        );
         let now = ui.assistant.now_ms();
         let answer = if card.as_ref().is_some_and(|card| !card.items.is_empty()) {
             tr("Here is what fits how you work. Untick what you don't need.")
@@ -595,6 +699,7 @@ fn plan(ui: &mut Ui, conversation: u32) {
             answers,
             line,
             since: super::returning::facts(ui, conversation),
+            terms: terms(ui, conversation),
         },
     );
 }
@@ -652,6 +757,7 @@ pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
             answers: turn.answers.clone(),
             line: turn.question.clone(),
             since: super::returning::facts(ui, conversation),
+            terms: terms(ui, conversation),
         }
     };
     composer::ask_with(

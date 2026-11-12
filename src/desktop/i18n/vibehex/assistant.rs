@@ -81,6 +81,8 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Updated to {}", ["Zaktualizowano do {}", "已更新到 {}", "{} にアップデートしました", "Aktualisiert auf {}", "Actualizado a {}", "Оновлено до {}"]),
     ("Ask me what's new, and what of it suits how you work", ["Zapytaj mnie, co nowego i co z tego pasuje do twojej pracy", "问我有哪些新内容，以及哪些适合你的使用方式", "新しくなった点と、そのうちあなたの使い方に合うものを聞いてください", "Frag mich, was neu ist und was davon zu deiner Arbeit passt", "Pregúntame qué hay de nuevo y qué encaja con tu forma de trabajar", "Запитайте, що нового і що з цього підійде саме вам"]),
     ("What's new since my last version?", ["Co nowego od mojej poprzedniej wersji?", "自我上一个版本以来有哪些新内容？", "前のバージョンから何が新しくなりましたか？", "Was ist neu seit meiner letzten Version?", "¿Qué hay de nuevo desde mi versión anterior?", "Що нового з моєї попередньої версії?"]),
+    ("your settings and {}", ["twoje ustawienia i {}", "你的设置和 {}", "設定と{}", "deine Einstellungen und {}", "tus ajustes y {}", "ваші налаштування і {}"]),
+    ("your settings, {dictations} and {meetings}", ["twoje ustawienia, {dictations} i {meetings}", "你的设置、{dictations}和{meetings}", "設定、{dictations}、{meetings}", "deine Einstellungen, {dictations} und {meetings}", "tus ajustes, {dictations} y {meetings}", "ваші налаштування, {dictations} і {meetings}"]),
 ];
 
 /// French.
@@ -161,6 +163,8 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("Updated to {}", "Mis à jour vers {}"),
     ("Ask me what's new, and what of it suits how you work", "Demandez-moi ce qui est nouveau et ce qui convient à votre façon de travailler"),
     ("What's new since my last version?", "Quoi de neuf depuis ma version précédente ?"),
+    ("your settings and {}", "vos réglages et {}"),
+    ("your settings, {dictations} and {meetings}", "vos réglages, {dictations} et {meetings}"),
 ];
 
 /// Brazilian Portuguese.
@@ -241,6 +245,8 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Updated to {}", "Atualizado para {}"),
     ("Ask me what's new, and what of it suits how you work", "Pergunte o que há de novo e o que combina com o seu jeito de trabalhar"),
     ("What's new since my last version?", "O que há de novo desde a minha versão anterior?"),
+    ("your settings and {}", "suas configurações e {}"),
+    ("your settings, {dictations} and {meetings}", "suas configurações, {dictations} e {meetings}"),
 ];
 
 /// Russian.
@@ -321,4 +327,6 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("Updated to {}", "Обновлено до {}"),
     ("Ask me what's new, and what of it suits how you work", "Спросите, что нового и что из этого подойдёт вам"),
     ("What's new since my last version?", "Что нового с моей прошлой версии?"),
+    ("your settings and {}", "ваши настройки и {}"),
+    ("your settings, {dictations} and {meetings}", "ваши настройки, {dictations} и {meetings}"),
 ];

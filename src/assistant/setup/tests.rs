@@ -608,3 +608,74 @@ fn a_declined_line_is_not_offered_again() {
     let card = plan::plan(Vec::new(), &answers, &settings, &state).unwrap();
     assert!(card.items.iter().any(|item| item.key == row.key));
 }
+
+/// A returning setup's terms join the plan as rows of their own: the
+/// sure ones (cleanup fixed one heard word into them three times or more)
+/// checked, the rest unchecked; none Vocabulary has, and none the person
+/// declined in an earlier setup. Applied with the second left unticked,
+/// its terms are declined for next time.
+#[test]
+fn the_uses_terms_join_the_plan_sure_ones_checked() {
+    use crate::assistant::changes::vocab;
+    use since::Candidate;
+    let settings = owners();
+    let candidate = |term: &str, heard: &str, sure: bool| Candidate {
+        term: term.into(),
+        sounds_like: vec![heard.into()],
+        sure,
+    };
+    let candidates = [
+        candidate("Granola", "гранола", true),
+        candidate("Outkit", "ауткит", false),
+        candidate("Whisper", "виспер", false),
+        candidate("Term7", "терм", true),
+    ];
+    let rows = |state: &State| -> Vec<(Vec<String>, bool)> {
+        plan::with_terms(Vec::new(), &owners_answers(), &candidates, &settings, state)
+            .unwrap()
+            .items
+            .iter()
+            .filter(|item| item.key == vocab::KEY)
+            .map(|item| {
+                let terms = vocab::terms(&item.to);
+                (
+                    terms.into_iter().map(|term| term.term).collect(),
+                    item.included,
+                )
+            })
+            .collect()
+    };
+    // `Term7` is in the owner's Vocabulary already.
+    assert_eq!(
+        rows(&mac()),
+        [
+            (vec!["Granola".to_owned()], true),
+            (vec!["Outkit".to_owned(), "Whisper".to_owned()], false),
+        ]
+    );
+    let card = plan::with_terms(
+        Vec::new(),
+        &owners_answers(),
+        &candidates,
+        &settings,
+        &mac(),
+    )
+    .unwrap();
+    let mut card = card;
+    for item in &mut card.items {
+        if item.key == vocab::KEY && !item.included {
+            assert_eq!(item.why, "You say these, and Vocabulary doesn't have them");
+        }
+    }
+    card.decision = changes::Decision::Applied {
+        before: Default::default(),
+        after: Default::default(),
+        at_ms: 1,
+    };
+    let finished = past::finished(&[], &owners_answers(), Some(&card), &settings, 1);
+    let state = State {
+        declined: past::declined(&[finished]),
+        ..mac()
+    };
+    assert_eq!(rows(&state), [(vec!["Granola".to_owned()], true)]);
+}

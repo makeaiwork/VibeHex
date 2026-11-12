@@ -9,12 +9,11 @@
 
 use super::past::Setup;
 use super::{Answer, Ask};
-use crate::app_settings::AppSettings;
-use crate::assistant::changes::parse::Proposal;
-use crate::assistant::changes::{Card, vocab};
+use serde::{Deserialize, Serialize};
+
 use crate::assistant::recordings::usage::{self, Language, Usage};
 use crate::assistant::releases;
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::{tr, tr_fill, tr_named};
 
 /// This many dictations kept makes an install one used a while.
 pub const USED_DICTATIONS: usize = 50;
@@ -24,8 +23,9 @@ const CODE_SHARE: u32 = 30;
 const LONG_SHARE: u32 = 20;
 /// The most fixes the opening names.
 const FIXES_SHOWN: usize = 3;
-/// The most releases the opening names.
-const RELEASES_SHOWN: usize = 5;
+/// The most release headlines the opening names, and use lines it lists.
+const HEADLINES: usize = 5;
+const BULLETS: usize = 5;
 
 /// One VibeHex release, as its notes describe it.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -115,6 +115,9 @@ pub struct Since {
     /// The last setup, when there was one.
     pub last: Option<Setup>,
     pub releases: Vec<Release>,
+    /// Without a setup before, the first version this install ran, which
+    /// the releases are since.
+    pub from: Option<String>,
     /// The person's use; `None` while Assistant may not read recordings.
     pub usage: Option<Usage>,
 }
@@ -166,46 +169,125 @@ pub fn preselect(asks: &mut [Ask], since: &Since) {
     }
 }
 
-/// The opening's paragraph, in the window's language: since when, what is
-/// new, what the use shows (or that it could, if allowed).
+/// The opening's paragraph, in the window's language, as Markdown: one
+/// line of the updates since (a few of their headlines and where to hear
+/// more), then what the use shows as a short list, or that it could, if
+/// allowed.
 pub fn paragraph(since: &Since) -> String {
-    let heading = match &since.last {
-        Some(last) => tr_fill("Since your last setup ({}):", &date(last.at_ms)),
-        None => tr("What your use shows:").to_owned(),
-    };
-    let mut parts = Vec::new();
-    for release in since.releases.iter().rev().take(RELEASES_SHOWN) {
-        parts.push(tr_named_release(release));
-    }
+    let mut blocks = Vec::new();
+    blocks.extend(releases_line(since));
     match &since.usage {
-        Some(usage) => parts.extend(use_parts(usage)),
-        None => parts.push(
+        Some(usage) => {
+            let bullets: Vec<String> = use_parts(usage)
+                .into_iter()
+                .take(BULLETS)
+                .map(|part| format!("- {part}"))
+                .collect();
+            if !bullets.is_empty() {
+                blocks.push(format!("{}\n\n{}", tr("What your use shows:"), bullets.join("\n")));
+            }
+        }
+        None => blocks.push(format!(
+            "{}.",
             tr("Your dictations and meetings could show more here, if Assistant may read them (Assistant › Settings)")
-                .to_owned(),
-        ),
+        )),
     }
-    if parts.is_empty() {
-        parts.push(tr("Nothing new since then").to_owned());
-    }
-    format!("**{heading}** {}.", parts.join(". "))
+    blocks.join("\n\n")
 }
 
-fn tr_named_release(release: &Release) -> String {
-    let what = if release.title.is_empty() {
-        release.version.clone()
+/// "5 updates since your last setup (2026-11-06): Assistant, Files, …
+/// Ask “What's new?” to hear more." `None` with nothing to name and no
+/// setup before.
+fn releases_line(since: &Since) -> Option<String> {
+    let count = since.releases.len();
+    if count == 0 {
+        return since.last.as_ref().map(|last| {
+            format!(
+                "{}.",
+                tr_fill(
+                    "Nothing new in VibeHex since your last setup ({})",
+                    &date(last.at_ms)
+                )
+            )
+        });
+    }
+    let named = headlines(&since.releases);
+    let list = named
+        .iter()
+        .take(HEADLINES)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    // A list cut short trails off; a whole one ends.
+    let end = if named.len() > HEADLINES {
+        ", …"
     } else {
-        format!("{} ({})", release.title, release.version)
+        "."
     };
-    tr_fill("New in VibeHex: {}", &what)
+    let number = count.to_string();
+    let day = since
+        .last
+        .as_ref()
+        .map(|last| date(last.at_ms))
+        .unwrap_or_default();
+    let version = since.from.clone().unwrap_or_default();
+    let words = match (since.last.is_some(), since.from.is_some(), count) {
+        (true, _, 1) => "1 update since your last setup ({date}): {list}",
+        (true, ..) => "{count} updates since your last setup ({date}): {list}",
+        (false, true, 1) => "1 update since {version}: {list}",
+        (false, true, _) => "{count} updates since {version}: {list}",
+        (false, false, 1) => "1 VibeHex update: {list}",
+        (false, false, _) => "{count} VibeHex updates: {list}",
+    };
+    let line = tr_named(
+        words,
+        &[
+            ("count", &number),
+            ("date", &day),
+            ("version", &version),
+            ("list", &list),
+        ],
+    );
+    Some(format!(
+        "{line}{end} {}.",
+        tr("Ask “What's new?” to hear more")
+    ))
 }
 
+/// The releases' headlines, newest first, each feature once: a title
+/// "Files, Stop shortcut, and AI cleanup on Codex" names three.
+fn headlines(releases: &[Release]) -> Vec<String> {
+    let mut named: Vec<String> = Vec::new();
+    for release in releases.iter().rev() {
+        for part in release.title.split(", ") {
+            let part = part.trim();
+            let part = part
+                .strip_prefix("and ")
+                .or_else(|| part.strip_prefix("with "))
+                .unwrap_or(part)
+                .trim_end_matches('.');
+            if !part.is_empty() && !named.iter().any(|known| known.eq_ignore_ascii_case(part)) {
+                named.push(part.to_owned());
+            }
+        }
+        if release.title.trim().is_empty() && !named.contains(&release.version) {
+            named.push(release.version.clone());
+        }
+    }
+    named
+}
+
+/// What the use shows, one short line each: the dictations of the last
+/// 30 days, where most go and the code share, the long ones, what
+/// cleanup keeps fixing, the meetings.
 fn use_parts(usage: &Usage) -> Vec<String> {
     let mut parts = Vec::new();
-    parts.push(format!(
-        "{}, {}",
-        tr_fill("{} dictations kept", &usage.dictations.to_string()),
-        tr_fill("{} in the last 30 days", &usage.last_30_days.to_string())
-    ));
+    parts.push(match (usage.last_30_days, usage.dictations) {
+        (1, _) => tr("1 dictation in the last 30 days").to_owned(),
+        (0, 1) => tr("1 dictation kept").to_owned(),
+        (0, kept) => tr_fill("{} dictations kept", &kept.to_string()),
+        (recent, _) => tr_fill("{} dictations in the last 30 days", &recent.to_string()),
+    });
     if !usage.apps.is_empty() {
         let apps: Vec<&str> = usage
             .apps
@@ -213,13 +295,15 @@ fn use_parts(usage: &Usage) -> Vec<String> {
             .take(3)
             .map(|(app, _)| app.as_str())
             .collect();
-        parts.push(tr_fill("Dictated into most: {}", &apps.join(", ")));
-    }
-    if usage.code_share >= CODE_SHARE {
-        parts.push(tr_fill(
-            "{}% go into a terminal or a code editor",
-            &usage.code_share.to_string(),
-        ));
+        let apps = apps.join(", ");
+        parts.push(if usage.code_share >= CODE_SHARE {
+            tr_named(
+                "Mostly into {apps}, {share}% into a terminal or a code editor",
+                &[("apps", &apps), ("share", &usage.code_share.to_string())],
+            )
+        } else {
+            tr_fill("Dictated into most: {}", &apps)
+        });
     }
     if usage.long_share >= LONG_SHARE {
         parts.push(tr_fill(
@@ -236,16 +320,12 @@ fn use_parts(usage: &Usage) -> Vec<String> {
             .collect();
         parts.push(tr_fill("Cleanup keeps fixing {}", &fixes.join(", ")));
     }
-    match usage.terms.len() {
-        0 => {}
-        1 => parts.push(tr("1 term you say isn't in Vocabulary yet").to_owned()),
-        terms => parts.push(tr_fill(
-            "{} terms you say aren't in Vocabulary yet",
-            &terms.to_string(),
-        )),
-    }
     if usage.meetings > 0 {
-        let mut meetings = tr_fill("{} meetings recorded", &usage.meetings.to_string());
+        let mut meetings = if usage.meetings == 1 {
+            tr("1 meeting recorded").to_owned()
+        } else {
+            tr_fill("{} meetings recorded", &usage.meetings.to_string())
+        };
         if let Some((language, _)) = usage.meeting_languages.first() {
             let mostly = match language {
                 Language::Russian => "mostly in Russian",
@@ -282,6 +362,9 @@ pub fn prompt(since: &Since) -> String {
         }
         None => lines.push("no setup before; this install has been used a while".into()),
     }
+    if let Some(from) = since.from.as_ref().filter(|_| since.last.is_none()) {
+        lines.push(format!("first version run here: {from}"));
+    }
     for release in &since.releases {
         lines.push(format!(
             "new in VibeHex {}: {} ({})",
@@ -305,32 +388,30 @@ fn answers_line(answers: &[Answer]) -> String {
         .join("; ")
 }
 
-/// The terms the use shows Vocabulary lacks, as one card to add them,
-/// each with how it was heard.
-pub fn terms_card(usage: &Usage, settings: &AppSettings) -> Option<Card> {
-    let mut card: Option<Card> = None;
-    for term in &usage.terms {
-        let proposal = Proposal {
-            key: vocab::KEY.into(),
-            value: Some(
-                vocab::Term {
-                    term: term.word.clone(),
-                    sounds_like: term.heard.clone(),
-                }
-                .value(),
-            ),
-            why: tr("You say it often").into(),
-            ..Proposal::default()
-        };
-        let Ok(Some(one)) = vocab::card(&proposal, settings) else {
-            continue;
-        };
-        match &mut card {
-            Some(card) => vocab::merge(card, one),
-            None => card = Some(one),
-        }
-    }
-    card
+/// A term the use shows Vocabulary lacks, for setup's plan: `sure` when
+/// cleanup turned the same heard word into exactly it often
+/// (`usage::Term::sure`), and then offered checked.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Candidate {
+    pub term: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sounds_like: Vec<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub sure: bool,
+}
+
+/// The terms the use shows, for the plan.
+pub fn candidates(usage: &Usage) -> Vec<Candidate> {
+    usage
+        .terms
+        .iter()
+        .map(|term| Candidate {
+            term: term.word.clone(),
+            sounds_like: term.heard.clone(),
+            sure: term.sure(),
+        })
+        .collect()
 }
 
 /// `2026-10-12`, in UTC.
@@ -354,23 +435,28 @@ pub fn date(ms: u64) -> String {
 #[cfg(test)]
 pub fn words() -> Vec<&'static str> {
     vec![
-        "Since your last setup ({}):",
         "What your use shows:",
         "Your dictations and meetings could show more here, if Assistant may read them (Assistant › Settings)",
-        "Nothing new since then",
-        "New in VibeHex: {}",
+        "Nothing new in VibeHex since your last setup ({})",
+        "1 update since your last setup ({date}): {list}",
+        "{count} updates since your last setup ({date}): {list}",
+        "1 update since {version}: {list}",
+        "{count} updates since {version}: {list}",
+        "1 VibeHex update: {list}",
+        "{count} VibeHex updates: {list}",
+        "Ask “What's new?” to hear more",
+        "1 dictation in the last 30 days",
+        "{} dictations in the last 30 days",
+        "1 dictation kept",
         "{} dictations kept",
-        "{} in the last 30 days",
+        "Mostly into {apps}, {share}% into a terminal or a code editor",
         "Dictated into most: {}",
-        "{}% go into a terminal or a code editor",
         "{}% are long: Codex cleans long ones up better, this computer is faster",
         "Cleanup keeps fixing {}",
-        "1 term you say isn't in Vocabulary yet",
-        "{} terms you say aren't in Vocabulary yet",
+        "1 meeting recorded",
         "{} meetings recorded",
         "mostly in Russian",
         "mostly in English or another language",
-        "You say it often",
     ]
 }
 
@@ -476,6 +562,113 @@ mod tests {
         assert!(!returning(&[], 49, 0) && returning(&[], 50, 0) && returning(&[], 0, 1));
     }
 
+    fn release(version: &str, title: &str) -> Release {
+        Release {
+            version: version.into(),
+            title: title.into(),
+            ..Release::default()
+        }
+    }
+
+    /// The owner's opening, short: the updates in one line, newest
+    /// headlines first, no version and no repeated "New in VibeHex"; the
+    /// use as at most five lines, the last 30 days' dictations once, and
+    /// no count of terms (they go to the plan).
+    #[test]
+    fn the_opening_is_one_line_of_updates_and_a_short_list() {
+        let since = Since {
+            releases: vec![
+                release(
+                    "3.3.0-vibe.4",
+                    "What an update brings, Add to vocabulary from a selection, and Cleanup progress",
+                ),
+                release(
+                    "3.3.0-vibe.5",
+                    "Add to vocabulary hears what the speech model heard, and built-in models' meters",
+                ),
+                release(
+                    "3.3.0-vibe.6",
+                    "Files, Stop shortcut, Listen to the recording, and AI cleanup on Codex",
+                ),
+                release(
+                    "next",
+                    "Assistant, VibeHex in Russian, Screenshots, and more speech models",
+                ),
+            ],
+            from: Some("3.3.0-vibe.3".into()),
+            usage: Some(Usage {
+                dictations: 972,
+                last_30_days: 972,
+                apps: vec![
+                    ("Code".into(), 700),
+                    ("Anty".into(), 180),
+                    ("Sublime Text".into(), 35),
+                ],
+                code_share: 76,
+                long_share: 17,
+                fixes: vec![Fix {
+                    heard: "кодекс".into(),
+                    written: "Codex".into(),
+                    count: 26,
+                }],
+                terms: usage().terms,
+                meetings: 5,
+                meeting_languages: vec![(Language::Russian, 5)],
+                ..Usage::default()
+            }),
+            ..Since::default()
+        };
+        let shown = paragraph(&since);
+        let blocks: Vec<&str> = shown.split("\n\n").collect();
+        assert_eq!(
+            blocks[0],
+            "4 updates since 3.3.0-vibe.3: Assistant, VibeHex in Russian, Screenshots, \
+             more speech models, Files, … Ask “What's new?” to hear more."
+        );
+        assert!(
+            !shown.contains("New in VibeHex") && !shown.contains("vibe.6"),
+            "{shown}"
+        );
+        let bullets: Vec<&str> = shown
+            .lines()
+            .filter(|line| line.starts_with("- "))
+            .collect();
+        assert_eq!(
+            bullets,
+            [
+                "- 972 dictations in the last 30 days",
+                "- Mostly into Code, Anty, Sublime Text, 76% into a terminal or a code editor",
+                "- Cleanup keeps fixing кодекс → Codex",
+                "- 5 meetings recorded, mostly in Russian",
+            ]
+        );
+        assert!(
+            !shown.contains("kept") && !shown.contains("Vocabulary"),
+            "{shown}"
+        );
+        // One release, since the last setup; nothing since, said so.
+        let one = Since {
+            last: Some(Setup {
+                at_ms: 1_795_714_800_000,
+                ..Setup::default()
+            }),
+            releases: vec![release("3.3.0-vibe.6", "Files, and Stop shortcut")],
+            ..Since::default()
+        };
+        assert!(
+            paragraph(&one).starts_with(
+                "1 update since your last setup (2026-11-26): Files, Stop shortcut. Ask"
+            ),
+            "{}",
+            paragraph(&one)
+        );
+        let none = Since {
+            releases: Vec::new(),
+            ..one
+        };
+        assert!(paragraph(&none).starts_with("Nothing new in VibeHex since your last setup"));
+    }
+
     fn note(version: &str, date: &str) -> releases::Note {
         releases::Note {
             version: version.into(),
@@ -546,12 +739,21 @@ mod tests {
         assert_eq!(all.last().unwrap().version, releases::NEXT);
     }
 
+    /// The terms go to the plan, sure when one heard word was fixed into
+    /// exactly them three times or more.
     #[test]
-    fn the_terms_become_one_card() {
-        let card = terms_card(&usage(), &AppSettings::default()).unwrap();
-        assert_eq!(card.items.len(), 1);
-        let terms = vocab::terms(&card.items[0].to);
-        assert_eq!(terms[0].term, "GitHub");
-        assert_eq!(terms[0].sounds_like, ["гитхаб"]);
+    fn the_terms_become_candidates_for_the_plan() {
+        let mut usage = usage();
+        usage.terms.push(Term {
+            word: "Supabase".into(),
+            count: 4,
+            heard: vec!["супабейс".into()],
+            fixed: 2,
+        });
+        let candidates = candidates(&usage);
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].term, "GitHub");
+        assert_eq!(candidates[0].sounds_like, ["гитхаб"]);
+        assert!(candidates[0].sure && !candidates[1].sure);
     }
 }

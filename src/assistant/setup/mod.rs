@@ -112,11 +112,25 @@ pub enum Stage {
         since: String,
     },
     /// Every round is answered: the model writes the plan. `line` is the
-    /// answers as the model reads them, with the labels the person saw.
+    /// answers as the model reads them, with the labels the person saw;
+    /// `terms`, what a returning setup's use shows Vocabulary lacks.
     Plan {
         answers: Vec<Answer>,
         line: String,
         since: String,
+        terms: Vec<since::Candidate>,
+    },
+    /// A returning setup's opening, on a remote model: it reads what came
+    /// since (`facts`, aggregates only) and what the app already showed
+    /// (`shown`, in the window's language) and writes a few suggestions;
+    /// round one (`asks`, folded) and the terms come after them, with the
+    /// app's step of what it read.
+    Look {
+        facts: String,
+        shown: String,
+        asks: Vec<Ask>,
+        terms: Vec<since::Candidate>,
+        step: crate::assistant::recordings::Step,
     },
 }
 

@@ -221,6 +221,25 @@ words (never their text), or that it wasn't read. Let it decide what fits: never
 what they declined then, prefer what is new and fits, and name a fact from it in a few words \
 at most.";
 
+const SETUP_LOOK: &str = "
+
+The person pressed Set VibeHex up for me again: they set it up before, or have used it a \
+while. <since_last_setup> holds what the app knows: their last setup's answers and what it \
+applied and declined, what is new in VibeHex since, and what their own use shows, worked \
+out by the app as counts, shares, and single words (never their text). \
+<changeable_settings> is how VibeHex is set now. <shown> is what the app has just shown \
+them, in their language.
+
+- Write 2 to 4 suggestions as a short Markdown list, in the language of <shown>, no more \
+than two lines each: one concrete change to how they work with VibeHex, and the fact from \
+<since_last_setup> it comes from, in a few words. For example: most dictations go to code \
+editors and cleanup keeps fixing кодекс → Codex, so Codex belongs in Vocabulary.
+- Prefer what is new since and fits how they work. Never suggest what they declined then, \
+or what the settings already have. Name a setting by where it is in the window.
+- No greeting, no heading, no facts repeated from <shown>, no closing question: the app asks \
+next whether anything changed in how they use VibeHex, and the list of changes comes after \
+their answers. Write no change blocks. End with `Sources: none`.";
+
 /// What a question may read besides the guide.
 #[derive(Clone, Copy, Debug)]
 pub enum Reach<'a> {
@@ -302,6 +321,8 @@ pub fn build(
     // setup's answers, about what they picked.
     let query = match (stage, earlier.last()) {
         (Stage::Plan { answers, .. } | Stage::Follow { answers, .. }, _) => setup::query(answers),
+        // What came since names the features worth reading about.
+        (Stage::Look { facts, .. }, _) => format!("{} {facts}", setup::query(&[])),
         (_, Some(last)) => format!("{} {}", last.question, question),
         (_, None) => question.to_owned(),
     };
@@ -315,13 +336,17 @@ pub fn build(
         let os = changes.map_or(std::env::consts::OS, |context| context.state.os);
         instructions.push_str(&setup_ask(os));
     } else if let Some(context) = changes {
-        let plan = matches!(stage, Stage::Plan { .. } | Stage::Follow { .. });
+        let plan = matches!(
+            stage,
+            Stage::Plan { .. } | Stage::Follow { .. } | Stage::Look { .. }
+        );
         match stage {
             Stage::Follow { candidates, .. } => {
                 let (asks, others) = setup::follow::prompt_lines(candidates, &context.settings);
                 instructions.push_str(&setup_follow(&asks, &others));
             }
             Stage::Plan { .. } => instructions.push_str(SETUP_PLAN),
+            Stage::Look { .. } => instructions.push_str(SETUP_LOOK),
             _ => instructions.push_str(CHANGES),
         }
         if let Stage::Plan { since, .. } | Stage::Follow { since, .. } = stage
@@ -391,6 +416,11 @@ pub fn build(
             }
             input.push_str(&format!("\n<answers>\n{}\n</answers>\n", line.trim()));
         }
+        Stage::Look { facts, shown, .. } => input.push_str(&format!(
+            "\n<since_last_setup>\n{}\n</since_last_setup>\n<shown>\n{}\n</shown>\n",
+            facts.trim(),
+            shown.trim()
+        )),
         _ => input.push_str(&format!("\n<question>\n{}\n</question>\n", question.trim())),
     }
     Prompt {
@@ -1022,6 +1052,7 @@ mod tests {
                     ..Default::default()
                 }],
                 line: "language: ru (Русский)".into(),
+                terms: Vec::new(),
                 since: String::new(),
             },
         );
@@ -1063,6 +1094,7 @@ mod tests {
                 answers: Vec::new(),
                 line: "use: dictation_any (Dictation into any app)".into(),
                 since: facts.clone(),
+                terms: Vec::new(),
             },
         );
         assert!(plan.instructions.contains("never offer again"));
@@ -1082,6 +1114,49 @@ mod tests {
                     assert!(!block.contains(&three), "{three} in {block}");
                 }
             }
+        }
+    }
+
+    /// A returning setup's opening asks for a few suggestions from what
+    /// came since and what was shown, never for changes, and carries no
+    /// dictation's text.
+    #[test]
+    fn a_returning_setups_look_asks_for_suggestions_only() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/assistant/recordings/history.json");
+        let entries = crate::history::read_snapshot(&root).unwrap();
+        let usage = crate::assistant::recordings::usage::from_entries(&entries, &[], u64::MAX / 2);
+        let since = setup::since::Since {
+            usage: Some(usage),
+            ..Default::default()
+        };
+        let look = build(
+            "",
+            &[],
+            Room::Large,
+            Reach::Guide,
+            Some(&context(true)),
+            &Stage::Look {
+                facts: setup::since::prompt(&since),
+                shown: setup::since::paragraph(&since),
+                asks: Vec::new(),
+                terms: Vec::new(),
+                step: crate::assistant::recordings::Step::Looked {
+                    dictations: 5,
+                    meetings: 0,
+                },
+            },
+        );
+        assert!(look.instructions.contains("2 to 4 suggestions"));
+        assert!(!look.instructions.contains("```hex-change"));
+        assert!(
+            look.input.contains("<since_last_setup>\ndictations kept:")
+                || look.input.contains("<since_last_setup>\nno setup before")
+        );
+        assert!(look.input.contains("<shown>\n"));
+        assert!(!look.input.contains("<question>"));
+        for entry in &entries {
+            assert!(!look.input.contains(entry.final_text.as_str()));
         }
     }
 
