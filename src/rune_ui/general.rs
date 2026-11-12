@@ -135,11 +135,16 @@ pub(super) fn basics(ui: &Ui, p: Paint, layer: &mut Vec<El>, query: &str) -> Opt
             );
         }
     }
+    // While none is installed, the one on its way: the first run's pick
+    // downloads before it is the saved model.
+    let named = missing_model(ui)
+        .and_then(|_| super::onboarding::awaited_model(ui))
+        .map_or(model.name, |awaited| awaited.name);
     let picker_button = value_button(
         p,
         "transcription-control",
         tr("Speech model"),
-        model.name,
+        named,
         &rune_theme_opencode::icons::CHEVRON_RIGHT,
         super::picker::open,
     );

@@ -92,7 +92,7 @@ them on. Russian vibe coding turns on most of them in one go.
 
 - hold the shortcut, speak, then let go
 - VibeHex transcribes on your Mac and pastes into whatever app you're in
-- the first run downloads a speech model; after that nothing leaves your Mac
+- the first run asks which speech model to download; after that nothing leaves your Mac
   unless you choose a cloud engine for cleanup
 - experimental features live in Labs, at the bottom of the sidebar
 
