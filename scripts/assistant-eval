@@ -1,32 +1,52 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Opt-in live eval of Assistant's replies; never part of scripts/check or CI.
+# Opt-in live eval of Assistant on a real engine; never part of scripts/check or CI.
 #
-# Asks a real engine every question in tests/fixtures/assistant/questions.jsonl,
-# then guided setup (its four questions, the follow-ups, then a plan for fixed
-# answers) and a vocabulary request, through the same path the pane takes: the
-# prompt, the reply, the parse, and the repair round for a remote engine. It
-# prints one line per reply and writes a JSON report: the cards each made, what
-# was refused, and the expected changes it missed.
+# By default it runs the scenarios (src/assistant/eval: every problem reported
+# about Assistant, as a fixture install, a question or a setup step, and
+# assertions on what came of it) through the same path the pane takes: the
+# shared routing, the prompt, the reply, the parse, the gates, and the repair
+# round for a remote engine. It prints a table (pass/fail per scenario step, the
+# cards, time to the first event and in all, the prompt's size), writes a JSON
+# report, and exits non-zero when a check fails. The same scenarios run offline,
+# with played replies, in scripts/check.
 #
 # A remote engine is paid per request: choose one on purpose.
 #
 #   HEX_ASSISTANT_EVAL_ENGINE   codex | codex:<model> | local:<id> | openrouter | custom | opencode
 #                               (required; read with your own VibeHex settings and sign-ins)
 #   HEX_ASSISTANT_EVAL_EFFORT   Codex reasoning effort, low by default
-#   HEX_ASSISTANT_EVAL_LIMIT    ask only the first N guide questions (setup and vocabulary always run)
-#   HEX_ASSISTANT_EVAL_OUT      the report's path, $TMPDIR/assistant-eval.json by default
+#   HEX_ASSISTANT_EVAL_ONLY     scenario ids to run, comma separated, matched from their start
+#                               (after a fix, run only what failed: 08,11-returning)
+#   HEX_ASSISTANT_EVAL_SUITE    scenarios (default) | questions | all
+#                               questions: the guide questions of tests/fixtures/assistant/questions.jsonl,
+#                               then setup and a vocabulary request, with the cards each made
+#   HEX_ASSISTANT_EVAL_LIMIT    with questions: ask only the first N guide questions
+#   HEX_ASSISTANT_EVAL_OUT      the report's path, $TMPDIR/assistant-scenarios-live.json by default
+#   HEX_ASSISTANT_EVAL_DUMP     a folder to write what each step sent the model into, one file a step
 #
-# Example: HEX_ASSISTANT_EVAL_ENGINE=local:qwen3-4b HEX_ASSISTANT_EVAL_LIMIT=10 scripts/assistant-eval
+# Example: HEX_ASSISTANT_EVAL_ENGINE=codex scripts/assistant-eval
 
 if [[ -z "${HEX_ASSISTANT_EVAL_ENGINE:-}" ]]; then
-  sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//' >&2
   echo >&2
   echo "error: set HEX_ASSISTANT_EVAL_ENGINE to choose the engine to ask" >&2
   exit 2
 fi
 
 cd "$(dirname "$0")/.."
-exec cargo test --locked --bin hex assistant::eval::evaluate_assistant_replies \
-  -- --ignored --nocapture --test-threads=1
+case "${HEX_ASSISTANT_EVAL_SUITE:-scenarios}" in
+  scenarios) tests=(assistant::eval::scenarios::evaluate_assistant_scenarios) ;;
+  questions) tests=(assistant::eval::questions::evaluate_assistant_replies) ;;
+  all) tests=(assistant::eval::scenarios::evaluate_assistant_scenarios assistant::eval::questions::evaluate_assistant_replies) ;;
+  *)
+    echo "error: HEX_ASSISTANT_EVAL_SUITE is scenarios, questions, or all" >&2
+    exit 2
+    ;;
+esac
+status=0
+for name in "${tests[@]}"; do
+  cargo test --locked --bin hex "$name" -- --ignored --exact --nocapture --test-threads=1 || status=$?
+done
+exit "$status"

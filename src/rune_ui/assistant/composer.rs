@@ -9,9 +9,10 @@ use rune::{El, TextEdit, row};
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::super::files::composer::{self as files, MAX_LINES, SEND_ICON, STOP_ICON};
+use crate::assistant::intent::{self, Route};
+use crate::assistant::prompt;
 use crate::assistant::setup::Stage;
 use crate::assistant::worker::{self, Earlier, Question, Recall};
-use crate::assistant::{intent, prompt};
 use crate::desktop::i18n::tr;
 
 pub(super) const MODEL_MENU: &str = "assistant-model";
@@ -135,21 +136,36 @@ pub(super) fn ask(ui: &mut Ui, question: String) -> bool {
     let Some(id) = conversation_for(ui, &question) else {
         return false;
     };
-    if intent::preset::preset(&question) {
-        super::preset::begin(ui, question);
-        return true;
+    let earlier = asked_before(ui, id);
+    let earlier: Vec<&str> = earlier.iter().map(String::as_str).collect();
+    match intent::route(&question, &earlier, ui.assistant.now_ms()) {
+        Route::Preset => {
+            super::preset::begin(ui, question);
+            true
+        }
+        Route::Setup => ask_with(ui, id, question, Recall::Guide, Stage::Ask),
+        Route::Releases(asked) => ask_with(ui, id, question, Recall::Releases(asked), Stage::None),
+        Route::Recordings(intent) => match super::recall::allowed(ui, id, &question, intent) {
+            Some(recall) => ask_with(ui, id, question, recall, Stage::None),
+            None => true,
+        },
+        Route::Guide => ask_with(ui, id, question, Recall::Guide, Stage::None),
     }
-    if intent::setup(&question) {
-        return ask_with(ui, id, question, Recall::Guide, Stage::Ask);
-    }
-    // What changed in VibeHex: its release notes, never the recordings.
-    if let Some(asked) = intent::releases(&question) {
-        return ask_with(ui, id, question, Recall::Releases(asked), Stage::None);
-    }
-    match super::recall::recall(ui, id, &question) {
-        Some(recall) => ask_with(ui, id, question, recall, Stage::None),
-        None => true,
-    }
+}
+
+/// The questions `conversation` holds so far, oldest first.
+pub(super) fn asked_before(ui: &Ui, conversation: u32) -> Vec<String> {
+    ui.assistant
+        .store
+        .get(conversation)
+        .map(|conversation| {
+            conversation
+                .turns
+                .iter()
+                .map(|turn| turn.question.clone())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Asks `question`, in the window's language, about what changed since

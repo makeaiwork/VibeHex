@@ -132,10 +132,13 @@ Opened from a place link                         // rune_ui::assistant::places
   French, Portuguese, Russian; Cantonese reads Traditional Chinese) shows
   its rows; any other (Italian) shows English.
 - The prompt says the default language by name (`prompt::default_language`):
-  setup's questions, sentences, and plans when nothing was typed, and
-  answers until the person writes in another language; a latest message
-  clearly in another language is answered in it; a short unclear one keeps
-  the conversation's.
+  setup's questions, sentences, and plans when nothing was typed. It isn't
+  the language of an answer: a question clearly in another language is
+  answered in the question's, whatever the earlier turns were; a short
+  unclear one keeps the conversation's. A question's prompt also ends on
+  that rule (`prompt::LATEST`, the line after `<question>`): a model that
+  has just read English pages and Russian turns otherwise answers an
+  English question in Russian.
 - Setup's follow-up questions (each Labs article's `ask:` and `ask_if:`
   line) have rows in every language (`i18n/vibehex/follow.rs`, a test
   holds every one).
@@ -191,9 +194,11 @@ Opened from a place link                         // rune_ui::assistant::places
   window's keycaps show it, ⌥⇧A, or none). A large model reads every
   such key; a local one reads the keys its articles name, the shortcuts of
   the Labs among them, and a core set. With the values sent, the prompt
-  asks for an answer for this person: a feature that does what they ask
-  and is on comes first, with their own shortcut or value; one that is off
-  is offered as a card; what doesn't fit their setup goes last or not at all.
+  asks for an answer for this person, in order: the model looks up every
+  feature its pages offer in the now column first, and one that is on and
+  helps opens the answer, with their own shortcut or value; one that is
+  off is offered as a card after it; what doesn't fit their setup goes
+  last or not at all.
   Never offered: the update channel, API keys, sign-ins, folders and paths,
   microphones, app and site lists, calendar ids, Assistant's own settings.
 - Pressing a card's button is the only way it changes anything. The save
@@ -345,7 +350,9 @@ Opened from a place link                         // rune_ui::assistant::places
   `assistant-vocab-edit`.
 - A prompt carrying Vocabulary entries never searches the web
   (`worker::offline`, like recordings), and the recordings search never
-  reads more of it than before.
+  reads more of it than before. A block that names none of the entries
+  (an empty Vocabulary, a question naming no term) carries nothing of the
+  person's and keeps nothing off the web.
 - With `send_settings` off nothing of it goes, and the model says that
   **Assistant › Settings › Your current settings** lets it read them, with
   no card.
@@ -474,8 +481,9 @@ Opened from a place link                         // rune_ui::assistant::places
     and at most five bullets (`recordings::usage`, computed by the app):
     dictations in the last 30 days, where most go with the terminal or
     editor share (30%+ adds code to `use`), long dictations (60+ words,
-    20%+ names the Codex trade-off), what cleanup keeps fixing, meetings
-    and their language. Without leave it says the use could show more
+    20%+ names the Codex trade-off), what cleanup keeps fixing (never ё
+    put back, все → всё, which is spelling and would crowd out кодекс →
+    Codex), meetings and their language. Without leave it says the use could show more
     (its place, Assistant › Settings, in the window's words).
   - The opener, its step, the plan's term rows' captions, and "Answered
     before" are Assistant's own words: in its default language, with rows
@@ -499,8 +507,9 @@ Opened from a place link                         // rune_ui::assistant::places
   one, said twice or more, that isn't an ordinary English word (a list of
   common words, `recordings/english.txt`, with plurals and -ed/-ing
   forms), unless it is shaped like a name (`GitHub`, `API`, `gpt5`) or
-  cleanup turned one heard word into exactly it 3+ times; never a small
-  word ("to"). A word that is a Vocabulary term, one of a term's words
+  cleanup turned one heard word into exactly it 3+ times and wrote it as
+  a name every time (курсор → Cursor; тест → test is cleanup putting a
+  word into English, no term); never a small word ("to"). A word that is a Vocabulary term, one of a term's words
   ("Code" of "Claude Code"), or a sounds-like is known. A phrase cleanup
   writes twice or more for Russian it heard ("pull request") is one term,
   as a whole. How it was heard comes only from fixes into exactly it,
@@ -508,6 +517,7 @@ Opened from a place link                         // rune_ui::assistant::places
   own: the sure ones (one heard word fixed into exactly it 3+ times)
   checked, "Cleanup keeps fixing how these are heard"; the rest unchecked,
   "You say these, and Vocabulary doesn't have them" (`plan::with_terms`).
+  A sure term a model's plan lists too stays checked.
   A term left unticked on an applied plan, or a follow-up's No to terms,
   isn't offered again.
 - A term that is a near miss of a name VibeHex knows (`plan::app_names`:
@@ -620,7 +630,17 @@ Opened from a place link                         // rune_ui::assistant::places
   earlier question's intent, past other follow-ups (`intent::carried`): the
   search runs again for that question, and the prompt tells the model the
   excerpts answer it. One naming something new, asking how VibeHex works,
-  or following a guide question stays with the guide.
+  or following a guide question stays with the guide. A follow-up that
+  points at what was found and narrows it («а в какой из них было про
+  поиск?», "which of them mention the release?"; `follow::narrows`)
+  carries that intent too, with its own words added to the search.
+- Who or what writes the notes («кто у меня пишет заметки встреч»,
+  "which model writes my notes") asks how VibeHex is set, so it stays
+  with the guide unless it names a time.
+- Where a message goes is one function, `intent::route` (the preset,
+  setup, the release notes, the recordings, the guide), and what a
+  recordings question may read another, `intent::reads`; the pane and the
+  eval's scenarios both call them.
 - While `assistant.read_recordings` is not `true` such a question shows the
   consent card first; nothing is read. Allow sets it and asks; Answer
   without recordings answers from the guide, telling the model it may not
@@ -779,7 +799,7 @@ by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.
 
 Checks: `scripts/check assistant` (store, worker, retrieve, prompt, intent,
-facts and the window's rows they mirror,
+facts and the window's rows they mirror, the scenarios offline,
 releases and their notes,
 recordings and its eval, jump, settings keys, changes and their cards,
 setup, vocabulary terms, and the reply corpus
@@ -804,12 +824,53 @@ for `check` and what a key needs;
 `rune_ui::tests::assistant_jump` (Linux) drives a jump and Back by click and
 Cmd+[, and the landing at two window heights.
 
-The live eval, `scripts/assistant-eval`, is opt in and never in CI: with
-`HEX_ASSISTANT_EVAL_ENGINE` set (`codex`, `codex:<model>`, `local:<id>`,
-`openrouter`, `custom`, `opencode`) it asks that engine the guide questions
-of `tests/fixtures/assistant/questions.jsonl`, then setup's questions, its
-follow-ups and a plan for fixed answers, and a vocabulary request, through `worker::ask`
-with the repair round, and reports what each reply made: its cards, what
-was refused, and the expected changes it missed. A remote engine is paid
-per request. Not yet verified end to end by asking a real model from a
-running app.
+## Quality loop
+
+Every problem reported about Assistant becomes a scenario in the change
+that fixes it: the fix isn't done while no scenario fails without it.
+
+- **Scenarios** (`src/assistant/eval`, fixtures in
+  `tests/fixtures/assistant`): each is a made-up install (settings, facts,
+  hardware, and synthetic recordings: Russian speech with English terms,
+  never anybody's data), a typed message or a setup step, and assertions
+  on what came of it: the route, what the model was sent, and the parsed
+  turn (cards, asks, plan rows, steps, sources, language), never the
+  wording. Three checks hold for every step of every scenario: no error,
+  no card that changes a value to itself, nothing this computer can't use
+  offered. A step goes the way the pane sends it (`intent::route`,
+  `intent::reads`, the same `Question`, the worker with its parse, gates,
+  and repair round); which setup stage follows which is still the pane's
+  (`rune_ui::assistant::ask`), so a setup step builds its stage with the
+  same core calls.
+- **Offline**, in `scripts/check` (`scripts/check assistant::eval` alone):
+  the scenarios with a reply a model is played as writing, often a wrong
+  one (a card for a value already set, a question about a notch on a Mac
+  mini). It holds the routing, the prompt, the gates, the term heuristics
+  on the mixed-language fixture, and the returning setup's opener. Run it
+  for every change under `src/assistant` or `rune_ui/assistant`.
+- **Live**, `scripts/assistant-eval`, opt in and never in CI: the same
+  scenarios on a real engine (`HEX_ASSISTANT_EVAL_ENGINE`: `codex`,
+  `codex:<model>`, `local:<id>`, `openrouter`, `custom`, `opencode`; Codex
+  at low effort unless `HEX_ASSISTANT_EVAL_EFFORT` says otherwise). It
+  prints a table (pass or fail per step, the cards, time to the first
+  event and in all, the prompt's size), writes a JSON report
+  (`HEX_ASSISTANT_EVAL_OUT`), and exits non-zero on a failed check;
+  `HEX_ASSISTANT_EVAL_DUMP` names a folder for what each step sent the
+  model, to read when one fails. A
+  remote engine is paid per request: run it whole after a change to the
+  prompt, the catalog, the facts, or a gate, and before a release; after a
+  fix, only what failed (`HEX_ASSISTANT_EVAL_ONLY=08,11-returning`).
+  `HEX_ASSISTANT_EVAL_SUITE=questions` asks the guide questions of
+  `tests/fixtures/assistant/questions.jsonl` instead, then setup and a
+  vocabulary request, and reports the cards each made.
+- **Replay**, `scripts/assistant-replay`, local only: the app's own
+  heuristics over the real data on this machine, printed: the facts
+  Assistant would be told, the setups kept and what isn't asked again,
+  what the use shows, the terms setup would offer with how each was
+  heard, the returning opener, the follow-ups, and the app's plan. No
+  model, nothing sent, nothing written; recordings only when Assistant may
+  read them. Run it when a heuristic changes (terms, usage, the opener,
+  what is asked again): fixtures can't show what real use does to it.
+- A check that fails on a real engine is fixed where it is ours (a prompt
+  rule, a gate, the routing) and never by weakening it; a check that was
+  wrong is changed with the reason written beside it.

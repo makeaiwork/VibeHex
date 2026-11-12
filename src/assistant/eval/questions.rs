@@ -17,12 +17,12 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use super::changes::{self, CardKind, vocab};
-use super::facts;
-use super::setup::{self, Answer, Stage};
-use super::store::Turn;
-use super::worker::{self, Question, Recall};
 use crate::app_settings::AppSettings;
+use crate::assistant::changes::{self, CardKind, vocab};
+use crate::assistant::facts;
+use crate::assistant::setup::{self, Answer, Stage};
+use crate::assistant::store::Turn;
+use crate::assistant::worker::{self, Question, Recall};
 use crate::files::rewrite::Engine;
 
 /// How long one answer may take, repair round included.
@@ -39,7 +39,7 @@ struct Case {
 }
 
 fn cases() -> Vec<Case> {
-    let text = include_str!("../../tests/fixtures/assistant/questions.jsonl");
+    let text = include_str!("../../../tests/fixtures/assistant/questions.jsonl");
     let mut cases: Vec<Case> = text
         .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())

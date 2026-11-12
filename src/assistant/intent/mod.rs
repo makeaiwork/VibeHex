@@ -22,6 +22,7 @@ mod day;
 mod follow;
 pub mod preset;
 mod releases;
+mod route;
 mod setup;
 mod spoken;
 mod stop;
@@ -29,6 +30,7 @@ mod stop;
 use day::{Day, span};
 pub use follow::carried;
 pub use releases::releases;
+pub use route::{Reads, Route, reads, route};
 pub use setup::setup;
 pub use spoken::forms as spoken_forms_of;
 use stop::STOP;
@@ -329,6 +331,22 @@ const HOW: &[&str] = &[
     "delete",
     "retention",
     "why does",
+    // Who or what writes the notes is how VibeHex is set, not what was
+    // said: «кто у меня пишет заметки встреч», "which model writes notes".
+    "writes= notes=",
+    "writes= the= notes=",
+    "writes= my=",
+    "writes= meeting=",
+    "written= by=",
+    "which= model=",
+    "what= model=",
+    "пишет заметк",
+    "пишет конспект",
+    "пишет резюме",
+    "пишутся заметк",
+    "пишутся конспект",
+    "какая модель",
+    "какой модел",
     "как включ",
     "как настро",
     "как сдела",

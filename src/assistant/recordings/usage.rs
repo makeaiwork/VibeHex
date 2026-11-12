@@ -189,7 +189,11 @@ pub fn from_entries(entries: &[HistoryEntry], known: &[String], now_ms: u64) -> 
         .collect();
     fixes.sort_by(|a, b| b.count.cmp(&a.count).then(a.heard.cmp(&b.heard)));
     let terms = super::terms::pick(&seen, &fixes, known);
-    fixes.retain(|fix| fix.count >= 2);
+    // Putting ё back (все → всё, еще → ещё) is spelling, the most
+    // frequent change there is, and says nothing of how the person works:
+    // it would fill the list ahead of кодекс → Codex.
+    let yo = |text: &str| text.to_lowercase().replace('ё', "е");
+    fixes.retain(|fix| fix.count >= 2 && yo(&fix.heard) != yo(&fix.written));
     fixes.truncate(FIXES);
     usage.terms = terms;
     usage.fixes = fixes;

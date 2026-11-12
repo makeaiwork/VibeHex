@@ -99,6 +99,12 @@ with Russian vibe coding on they dictate English terms in Russian, so not GigaAM
 - End with one last line: `Sources:` and the ids of the articles you used, comma-separated \
 (for example `Sources: labs/meetings, topics/codex`), or `Sources: none`.";
 
+/// The last line a question's prompt ends on: a model that has just read
+/// pages in English and earlier turns in another language still answers
+/// in the question's own.
+const LATEST: &str = "Reply in the language the question above is written in; if it is too \
+short to tell (a word or two, a name), in the conversation's.";
+
 /// The language Assistant writes in when the person's own words don't say
 /// (`assistant::language`): their speech recognition language, else the
 /// window's.
@@ -107,9 +113,10 @@ fn default_language(settings: Option<&crate::app_settings::AppSettings>) -> Stri
     format!(
         "\n\nTheir default language is {name}: the language they dictate in (or, when that \
          isn't set, the app's). The app shows its own words in it. Write setup's questions, \
-         sentences, and plans in it when they typed no request of their own, and answer in it \
-         until they write in another language. A latest message clearly in another language \
-         gets its answer in that language."
+         sentences, and plans in it when they typed no request of their own. It is not the \
+         language of an answer: a question clearly in another language (English after turns in \
+         {name}, say) is answered in the question's language, whatever the earlier turns and \
+         this default are."
     )
 }
 
@@ -173,10 +180,13 @@ const HEARD_WROTE: &str = "
 /// With the person's settings sent: answers for them, not for anyone.
 const PERSONAL: &str = "
 
-The now column of <changeable_settings> shows the person's own settings. Answer for them:
-- A feature that does what they ask and is on comes first: say they have it on and how to \
-use it, with their own value as the now column shows it (their shortcut, not the default).
-- One that would help and is off: say what it does and offer it with a card.
+The now column of <changeable_settings> shows the person's own settings. Answer for them, in \
+this order:
+- Start from what they already have. Before recommending anything, look up the now column \
+for every feature the excerpts offer for this question. One that is on and helps opens the \
+answer: its first sentence says they have it on and how to use it, with their own value as \
+the now column shows it (their shortcut, not the default).
+- Then what would help and is off: say what it does and offer it with a card.
 - What doesn't fit their setup (another system, a model they don't use) goes last or not at all.";
 
 /// Guided setup, a typed request: round one's four questions, in the
@@ -471,7 +481,9 @@ pub fn build(
             let (block, named) = super::personal::vocabulary(&context.settings, &texts);
             input.push_str(&block);
             sent.vocabulary = Some((named, context.settings.vocabulary.len()));
-            vocabulary = true;
+            // Only entries are the person's own: a block naming none of
+            // them keeps nothing off the web.
+            vocabulary = named > 0;
             instructions.push_str(DIAGNOSE);
         }
         knew = facts::text::knew(&facts, &sent);
@@ -522,7 +534,10 @@ pub fn build(
             facts.trim(),
             shown.trim()
         )),
-        _ => input.push_str(&format!("\n<question>\n{}\n</question>\n", question.trim())),
+        _ => input.push_str(&format!(
+            "\n<question>\n{}\n</question>\n{LATEST}\n",
+            question.trim()
+        )),
     }
     Prompt {
         instructions,
@@ -810,11 +825,9 @@ mod tests {
                     .contains(&format!("<guide_article id=\"{id}\">"))
             );
         }
-        assert!(
-            prompt
-                .input
-                .ends_with("<question>\nCan VibeHex record my Zoom calls?\n</question>\n")
-        );
+        assert!(prompt.input.ends_with(&format!(
+            "<question>\nCan VibeHex record my Zoom calls?\n</question>\n{LATEST}\n"
+        )));
         assert!(
             prompt
                 .instructions
@@ -886,7 +899,8 @@ mod tests {
         for id in &prompt.articles {
             rest = rest.replace(&excerpt(guide::article(id).unwrap()), "");
         }
-        for text in ["earlier question", "earlier answer", "new question"] {
+        // And the app's own last line, on which language to answer in.
+        for text in ["earlier question", "earlier answer", "new question", LATEST] {
             rest = rest.replacen(text, "", 1);
         }
         for tag in ["earlier_question", "earlier_answer", "question"] {

@@ -1630,7 +1630,9 @@ capture), not just its UI. Never add a master switch or ship such a feature
 on by default. Remove it from Labs when it graduates or is dropped.
 Assistant (`assistant`, `rune_ui/assistant`, [docs/features/assistant.md](docs/features/assistant.md))
 is the one exception by the owner's decision: on by default, not in Labs,
-hidden only by `assistant.enabled`.
+hidden only by `assistant.enabled`. Every problem reported about Assistant
+becomes a scenario in `src/assistant/eval` in the change that fixes it
+(docs/features/assistant.md › Quality loop).
 
 Use `scripts/check [filter]` for the local loop, not raw `cargo test`. It runs
 tests through cargo-nextest (`brew install cargo-nextest`) with

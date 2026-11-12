@@ -52,6 +52,20 @@ const MORE: &[&str] = &[
     "ними=",
 ];
 
+/// Pointing at what the last answer found while naming what to look for
+/// among it: «а в какой из них было про поиск?», "which of them mention
+/// the release?".
+const AMONG: &[&str] = &[
+    "из= них=",
+    "среди= них=",
+    "в= них=",
+    "of= them=",
+    "of= those=",
+    "of= these=",
+    "among= them=",
+    "among= those=",
+];
+
 /// Words a follow-up may also hold without naming anything new.
 const SMALL: &[&str] = &[
     "ответ",
@@ -108,6 +122,30 @@ pub fn refers_back(question: &str) -> bool {
     })
 }
 
+/// Whether `question` asks about some of what was found before, naming
+/// what: it stays with the same recordings, and looks for its words too.
+pub fn narrows(question: &str) -> bool {
+    let words = words(question);
+    let how = HOW
+        .iter()
+        .chain(SETUP)
+        .any(|phrase| has_phrase(&words, phrase));
+    !how && AMONG.iter().any(|phrase| has_phrase(&words, phrase))
+}
+
+/// The words `question` names itself, past the ones any follow-up holds.
+fn own_terms(question: &str) -> Vec<String> {
+    terms(&words(question))
+        .into_iter()
+        .filter(|term| {
+            !MORE
+                .iter()
+                .chain(SMALL)
+                .any(|stem| starts(term, stem.trim_end_matches('=')) || starts(term, stem))
+        })
+        .collect()
+}
+
 /// What `question` reads: its own intent, or, when it only refers back,
 /// that of the newest `earlier` question (oldest first) about recordings,
 /// past other follow-ups. None for a question about VibeHex, and for a
@@ -126,14 +164,23 @@ pub(super) fn carry(
     if let Some(intent) = read(question) {
         return Some(intent);
     }
-    if !refers_back(question) {
+    let among = narrows(question);
+    if !refers_back(question) && !among {
         return None;
     }
     for asked in earlier.iter().rev() {
-        if let Some(intent) = read(asked) {
+        if let Some(mut intent) = read(asked) {
+            if among {
+                // What it asks about among them is searched for too.
+                for term in own_terms(question) {
+                    if !intent.terms.contains(&term) {
+                        intent.terms.push(term);
+                    }
+                }
+            }
             return Some(intent);
         }
-        if !refers_back(asked) {
+        if !refers_back(asked) && !narrows(asked) {
             return None;
         }
     }

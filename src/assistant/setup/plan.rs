@@ -443,7 +443,14 @@ pub fn with_terms(
     // checked, and a model's with them; then the use's, sure ones checked.
     let mut rows: Vec<Item> = vocab::split(terms);
     for row in &mut rows {
-        row.included = answered_terms;
+        // A model's row for a term the use is sure of is checked as the
+        // app's own would be.
+        let sure = vocab::terms(&row.to).iter().any(|term| {
+            candidates
+                .iter()
+                .any(|candidate| candidate.sure && candidate.term.eq_ignore_ascii_case(&term.term))
+        });
+        row.included = answered_terms || sure;
     }
     let listed: Vec<String> = rows
         .iter()

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Local only: runs Assistant's own heuristics over the real data on this
+# machine and prints what Assistant would show. No model is asked, nothing is
+# sent anywhere, nothing is written or changed; the output is for your eyes,
+# so don't paste it into an issue.
+#
+# It prints: what Assistant would be told of this install (its facts), the
+# setups kept and what is not asked again, what your use shows (the
+# aggregates), the terms setup would offer for Vocabulary with how each was
+# heard, the returning setup's opener, the follow-ups it would ask, and the
+# app's own plan. Recordings are read only when you have allowed Assistant to
+# (Assistant › Settings).
+#
+#   HEX_REPLAY_SUPPORT   another data folder than this account's
+#                        (settings.json, history.json, meetings/, files/, assistant/)
+#
+# Example: scripts/assistant-replay
+
+cd "$(dirname "$0")/.."
+exec cargo test --locked --bin hex assistant::eval::replay::replay_on_this_machine \
+  -- --ignored --exact --nocapture --test-threads=1

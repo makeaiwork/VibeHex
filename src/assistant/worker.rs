@@ -34,11 +34,11 @@ const FIRST_EVENT: Duration = Duration::from_secs(75);
 /// How often the watchdog looks.
 const WATCH_EVERY: Duration = Duration::from_millis(50);
 
-type Generate =
+pub(super) type Generate =
     Box<dyn Fn(&str, &str, &AtomicBool, Option<Streamed>) -> Result<String> + Send + 'static>;
 /// [`Generate`] with web search allowed; the last argument hears each of
 /// Codex's `webSearch` items, and whether it is done.
-type Searching = Box<
+pub(super) type Searching = Box<
     dyn Fn(&str, &str, &AtomicBool, Option<Streamed>, &dyn Fn(&Value, bool)) -> Result<String>
         + Send
         + 'static,
@@ -226,7 +226,7 @@ fn start(question: Question, room: Room, model: String, generate: Generate, loca
     start_with(question, room, model, (generate, None), (local, None))
 }
 
-fn start_with(
+pub(super) fn start_with(
     question: Question,
     room: Room,
     model: String,
@@ -324,6 +324,8 @@ fn start_with(
                 if search.is_some() {
                     prompt.instructions.push_str(super::web::RULES);
                 }
+                #[cfg(test)]
+                super::eval::sent(&prompt, search.is_some());
                 let ask = |stop: &AtomicBool, heard: &Arc<AtomicBool>| {
                     let streamed: Streamed = {
                         let (heard, drafts) = (heard.clone(), drafts());

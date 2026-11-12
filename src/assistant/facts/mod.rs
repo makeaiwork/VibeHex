@@ -36,6 +36,8 @@ use crate::dictation::cleanup_server::{self, Provider};
 use crate::files::rewrite::Engine;
 use crate::transcription::models;
 
+#[cfg(test)]
+pub use gather::on_disk;
 pub use gather::{Scene, Seen, gather};
 
 /// One thing read off this install: its value, or that it couldn't be told.

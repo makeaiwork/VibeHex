@@ -29,9 +29,9 @@ use super::face::Mood;
 use super::places::Known;
 use super::strong;
 use crate::assistant::intent;
-use crate::assistant::recordings::{Allowed, Kind, Ref, Sources, Step, cite};
+use crate::assistant::recordings::{Kind, Ref, Sources, Step, cite};
 use crate::assistant::store::Turn;
-use crate::assistant::worker::{Answering, Recall, Search};
+use crate::assistant::worker::{Answering, Recall};
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 
 /// A question waiting for the person to say whether recordings may be read.
@@ -53,41 +53,32 @@ static LOCK: Icon = Icon {
 /// more") reads what the conversation's last question about recordings did.
 pub(super) fn recall(ui: &mut Ui, conversation: u32, question: &str) -> Option<Recall> {
     let now = ui.assistant.now_ms();
-    let earlier: Vec<String> = ui
-        .assistant
-        .store
-        .get(conversation)
-        .map(|conversation| {
-            conversation
-                .turns
-                .iter()
-                .map(|turn| turn.question.clone())
-                .collect()
-        })
-        .unwrap_or_default();
+    let earlier = super::composer::asked_before(ui, conversation);
     let earlier: Vec<&str> = earlier.iter().map(String::as_str).collect();
-    let Some(intent) = intent::carried(question, &earlier, now) else {
-        return Some(Recall::Guide);
-    };
-    match Allowed::from_settings(&ui.settings.assistant) {
-        Some(allowed) => Some(match Sources::here() {
-            Some(sources) => Recall::Search(Box::new(Search {
-                allowed,
-                sources,
-                intent,
-                vocabulary: ui.settings.vocabulary.clone(),
-                now_ms: now,
-            })),
-            None => Recall::Guide,
-        }),
-        None if intent.sure => {
+    match intent::carried(question, &earlier, now) {
+        Some(intent) => allowed(ui, conversation, question, intent),
+        None => Some(Recall::Guide),
+    }
+}
+
+/// What a question with `intent` may read (`intent::reads`); `None` once
+/// the consent card is up for it.
+pub(super) fn allowed(
+    ui: &mut Ui,
+    conversation: u32,
+    question: &str,
+    intent: intent::Intent,
+) -> Option<Recall> {
+    let now = ui.assistant.now_ms();
+    match intent::reads(intent, &ui.settings, Sources::here(), now) {
+        intent::Reads::Recall(recall) => Some(recall),
+        intent::Reads::Consent => {
             ui.assistant.consent = Some(Pending {
                 conversation,
                 question: question.to_owned(),
             });
             None
         }
-        None => Some(Recall::Guide),
     }
 }
 

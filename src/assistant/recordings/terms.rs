@@ -192,8 +192,14 @@ pub fn pick(seen: &Seen, fixes: &[Fix], known: &[String]) -> Vec<Term> {
         let most = into.iter().map(|fix| fix.count).max().unwrap_or(0);
         let fits = if common(&word) && !brand(&word) {
             // An ordinary word only when one heard word keeps becoming
-            // it, and never a small one ("то" → "to").
-            most >= SURE && !SMALL.contains(&lower.as_str())
+            // it, never a small one ("то" → "to"), and only written as a
+            // name every time (курсор → Cursor): тест → test is cleanup
+            // putting a word into English, not a term.
+            let named = said
+                .forms
+                .keys()
+                .all(|form| form.chars().next().is_some_and(char::is_uppercase));
+            most >= SURE && named && !SMALL.contains(&lower.as_str())
         } else {
             said.count >= SAID || fixed >= FIXED
         };

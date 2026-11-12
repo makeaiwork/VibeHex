@@ -56,7 +56,7 @@ pub fn installed(
 
 /// The speech models on disk, each asked for in the language it is saved
 /// with, as the picker asks.
-fn on_disk(settings: &AppSettings) -> Vec<String> {
+pub fn on_disk(settings: &AppSettings) -> Vec<String> {
     installed(&transcription_models::all_models(), |model| {
         let language = settings.transcription_for_model(model.id).language;
         transcription_models::is_installed(model, &language)
