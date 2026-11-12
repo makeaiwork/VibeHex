@@ -58,7 +58,7 @@ pub(in super::super) struct RequestsPane {
     engine: Option<String>,
     effort: Option<String>,
     /// The worker's jobs on meetings.
-    pub(super) tasks: Vec<Task>,
+    pub(in super::super) tasks: Vec<Task>,
     composer_h: f32,
     text_under: bool,
     woken: bool,
@@ -389,8 +389,10 @@ pub(in super::super) fn chat(ui: &Ui, p: Paint) -> El {
             ));
     }
     if let Some(task) = running(ui, id) {
-        chat =
-            chat.children(linked::coming(p, task).unwrap_or_else(|| session::answering(p, task)));
+        chat = chat.children(
+            linked::coming(p, task, ui.assistant.dots.phase())
+                .unwrap_or_else(|| session::answering(p, task)),
+        );
     }
     chat.children(waiting(ui, p, Some(id)))
 }

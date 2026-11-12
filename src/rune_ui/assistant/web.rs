@@ -94,7 +94,7 @@ fn toggle(ui: &mut Ui, web: bool) {
 
 /// While it answers: each search and page with a check, then what it is
 /// doing. None before it goes online.
-pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
+pub(super) fn live(p: Paint, answering: &Answering, dots: Option<u8>) -> Option<El> {
     let web = &answering.web;
     if !web.went_online() {
         return None;
@@ -106,6 +106,7 @@ pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
             &format!("search{index}"),
             true,
             &tr_fill("Searched the web for “{}”", query),
+            None,
         ));
     }
     for (index, page) in web.pages.iter().enumerate() {
@@ -114,6 +115,7 @@ pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
             &format!("page{index}"),
             true,
             &tr_fill("Read {}", site(page)),
+            None,
         ));
     }
     let doing = if web.busy() {
@@ -123,7 +125,7 @@ pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
     } else {
         return Some(list);
     };
-    Some(list.child(super::recall::step_line(p, "doing", false, doing)))
+    Some(list.child(super::recall::step_line(p, "doing", false, doing, dots)))
 }
 
 /// The folded line of an answer that went online: "Read the guide and 2

@@ -184,7 +184,7 @@ pub(in super::super) fn answer(
 
 /// While a question that reaches past its recording is answered: its
 /// steps, then the draft with its marks. None for any other question.
-pub(in super::super) fn coming(p: Paint, task: &Task) -> Option<Vec<El>> {
+pub(in super::super) fn coming(p: Paint, task: &Task, dots: Option<u8>) -> Option<Vec<El>> {
     if task.steps.is_empty() && !task.searching {
         return None;
     }
@@ -202,6 +202,7 @@ pub(in super::super) fn coming(p: Paint, task: &Task) -> Option<Vec<El>> {
         &task.steps,
         task.searching,
         draft.is_some(),
+        dots,
     ));
     if let Some(draft) = draft {
         shown.push(recall::answer_with(

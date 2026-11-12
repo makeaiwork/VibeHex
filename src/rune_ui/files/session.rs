@@ -105,7 +105,7 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
         .tasks_of(&record.id)
         .find(|task| task.session == Some(version.id))
     {
-        let coming = super::linked::coming(p, task);
+        let coming = super::linked::coming(p, task, ui.assistant.dots.phase());
         chat = chat.children(coming.unwrap_or_else(|| answering(p, task)));
     }
     chat.children(super::linked::waiting(ui, p, Some(session)))

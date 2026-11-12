@@ -68,7 +68,7 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
-        feed = feed.children(coming(p, answering, mood));
+        feed = feed.children(coming(p, answering, mood, pane.dots.phase()));
     } else if let Some(pending) = pane
         .consent
         .as_ref()
@@ -426,9 +426,9 @@ fn sources(p: Paint, ids: &[String], web: &[String]) -> Option<El> {
 }
 
 /// The question being answered and what came so far, the face reading.
-fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
-    let steps = super::recall::live(p, answering);
-    let web = super::web::live(p, answering);
+fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<El> {
+    let steps = super::recall::live(p, answering, dots);
+    let web = super::web::live(p, answering, dots);
     let words = if !answering.draft.trim().is_empty() {
         let mut draft = answering.draft.trim_end().to_owned();
         draft.push('▌');

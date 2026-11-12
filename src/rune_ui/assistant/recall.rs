@@ -241,25 +241,33 @@ fn decide(ui: &mut Ui, allow: bool) {
 }
 
 /// While it works: each step with a check, then the current one.
-pub(super) fn live(p: Paint, answering: &Answering) -> Option<El> {
+pub(super) fn live(p: Paint, answering: &Answering, dots: Option<u8>) -> Option<El> {
     let drafted = !answering.draft.trim().is_empty();
-    live_steps(p, &answering.steps, answering.searching, drafted)
+    live_steps(p, &answering.steps, answering.searching, drafted, dots)
 }
 
 /// The search's `steps` so far, each with a check, then what goes on: the
-/// search while `searching`, else the answer until it is `drafted`.
+/// search while `searching`, else the answer until it is `drafted`; its
+/// dots at `dots` (`Dots::phase`).
 pub(in super::super) fn live_steps(
     p: Paint,
     steps: &[Step],
     searching: bool,
     drafted: bool,
+    dots: Option<u8>,
 ) -> Option<El> {
     if steps.is_empty() && !searching {
         return None;
     }
     let mut list = col().key("steps").gap(6.0);
     for (index, step) in steps.iter().enumerate() {
-        list = list.child(step_line(p, &format!("step{index}"), true, &say(step)));
+        list = list.child(step_line(
+            p,
+            &format!("step{index}"),
+            true,
+            &say(step),
+            None,
+        ));
     }
     let doing = if searching {
         tr("Searching your recordings")
@@ -268,11 +276,12 @@ pub(in super::super) fn live_steps(
     } else {
         return Some(list);
     };
-    Some(list.child(step_line(p, "doing", false, doing)))
+    Some(list.child(step_line(p, "doing", false, doing, dots)))
 }
 
-/// One step: a check when done, three dots while it goes on.
-pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str) -> El {
+/// One step: a check when done, three dots while it goes on, their wave
+/// at `dots` (`None`: still).
+pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str, dots: Option<u8>) -> El {
     let c = &p.k.c;
     let mark = if done {
         icon(&rune_theme_opencode::icons::CHECK_SMALL, 14.0)
@@ -285,14 +294,15 @@ pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str) -> El {
                 .radius(1.5)
                 .fill(p.k.alpha(c.icon_base, alpha))
         };
+        let [a, b, c] = super::dots::alphas(dots);
         row()
             .key("mark")
             .size(14.0, 14.0)
             .gap(2.0)
             .center()
-            .child(dot("a", 0.9))
-            .child(dot("b", 0.6))
-            .child(dot("c", 0.35))
+            .child(dot("a", a))
+            .child(dot("b", b))
+            .child(dot("c", c))
     };
     row()
         .key(key.to_owned())
@@ -501,7 +511,13 @@ pub(in super::super) fn steps_folded(
     if open {
         let mut list = col().key("steps").gap(6.0).pl(2.0);
         for (index, step) in steps.iter().enumerate() {
-            list = list.child(step_line(p, &format!("step{index}"), true, &say(step)));
+            list = list.child(step_line(
+                p,
+                &format!("step{index}"),
+                true,
+                &say(step),
+                None,
+            ));
         }
         list = list.children(web.into_iter().flat_map(|turn| super::web::steps(p, turn)));
         shown = shown.child(list);

@@ -15,6 +15,7 @@ mod card_diff;
 mod changes;
 mod composer;
 mod connect;
+pub(super) mod dots;
 pub(super) mod face;
 mod feed;
 pub(super) mod fixture;
@@ -92,6 +93,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) clear_armed: bool,
     /// The face's blink, squish, and reading eyes.
     pub(super) face: face::FaceState,
+    /// The wave of a live step's three dots, wherever one shows.
+    pub(super) dots: dots::Dots,
     /// Cards applied in the open conversation this session: Undo holds
     /// for them until another conversation opens (owner decision 2).
     pub(super) undo: Vec<changes::At>,
@@ -298,6 +301,9 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         .map(|answering| answering.started);
     let mut changed =
         ui.assistant.face.poll(reading, tx) | jump::poll(ui, tx) | places::poll(ui, tx);
+    // Scenes hold the dots still, so goldens stay the same.
+    let live = !ui.is_fixture() && steps_live(ui);
+    changed |= ui.assistant.dots.poll(live, tx);
     changes::follow_open(ui);
     if ui.is_fixture() || ui.assistant.fixture {
         return changed;
@@ -351,6 +357,16 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         changed = true;
     }
     changed | composer::poll(ui) | connect::poll(ui)
+}
+
+/// Whether a step line still going on shows anywhere: an answer's in
+/// Assistant, or a question's in Files or Meetings' Requests.
+fn steps_live(ui: &Ui) -> bool {
+    let answering = ui.assistant.answering.as_ref().is_some_and(|answering| {
+        !answering.steps.is_empty() || answering.searching || answering.web.went_online()
+    });
+    let task = |task: &crate::files::worker::Task| !task.steps.is_empty() || task.searching;
+    answering || ui.files.tasks.iter().any(task) || ui.meetings.requests.tasks.iter().any(task)
 }
 
 /// The most recently used conversation.
