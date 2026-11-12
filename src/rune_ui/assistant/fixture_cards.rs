@@ -86,7 +86,7 @@ pub(super) fn conversation(
     id
 }
 
-fn with_cards(mut turn: Turn, cards: Vec<Card>) -> Turn {
+pub(super) fn with_cards(mut turn: Turn, cards: Vec<Card>) -> Turn {
     turn.cards = cards;
     turn
 }
@@ -404,7 +404,7 @@ pub(in super::super) fn change_coming(ui: &mut Ui) {
 }
 
 /// A term as a vocabulary card's row holds it.
-fn term(term: &str, sounds_like: &[&str]) -> Item {
+pub(super) fn term(term: &str, sounds_like: &[&str]) -> Item {
     item(
         crate::assistant::changes::vocab::KEY,
         Value::Null,

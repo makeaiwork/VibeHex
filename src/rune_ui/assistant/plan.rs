@@ -1,9 +1,10 @@
 //! Setup's one list of changes (the Setup board): "Suggested changes,
 //! 6 changes, 5 selected", a row per setting with its checkbox, where it
 //! lives, why, and its value now and after, then Not now and the screen's
-//! Primary, "Apply 5 changes". Vocabulary's terms are a row each, as the
-//! Vocabulary card has them (checkbox, term, how it sounds, Edit), under
-//! why they're offered; each counts as a change.
+//! Primary, "Apply 5 changes". Vocabulary's terms are one row that unfolds
+//! (`super::terms`), each term under it as the Vocabulary card has it
+//! (checkbox, term, how it sounds, Edit), under why they're offered; all
+//! of them count as one change.
 //!
 //! Before anything is applied the list says what else it takes: a speech
 //! model's download and its size, the OS permission a row needs, a ChatGPT
@@ -62,8 +63,10 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
     let shown = act::shown(ui, at)?;
     let live = act::live(ui, at);
     let c = &p.k.c;
-    let selected = card.items.iter().filter(|item| item.included).count();
-    let count = match card.items.len() {
+    // The Vocabulary terms are one change, however many they are.
+    let (all, selected) = state::plan_counts(card);
+    let terms = state::Terms::of(card);
+    let count = match all {
         1 => tr_fill("1 change, {} selected", &selected.to_string()),
         all => tr_named(
             "{all} changes, {selected} selected",
@@ -106,7 +109,18 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
         .collect();
     let mut area = None;
     let mut why: Option<&str> = None;
+    let unfolded = terms
+        .as_ref()
+        .is_some_and(|terms| super::terms::open(ui, at, card, terms));
     for (index, item) in card.items.iter().enumerate() {
+        let term = item.key == vocab::KEY;
+        let first = terms
+            .as_ref()
+            .is_some_and(|terms| terms.rows.first() == Some(&index));
+        // Folded, the terms are their one row and nothing more.
+        if term && !first && !unfolded {
+            continue;
+        }
         let shown = state::row(card, index, &live);
         let here = setup::plan::area(&item.key);
         list = list.child(rule(p, &format!("rule{index}")));
@@ -114,9 +128,16 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
             area = Some(here);
             list = list.child(heading(p, here));
         }
-        if item.key != vocab::KEY {
+        if !term {
             list = list.child(line(ui, p, at, index, item, &shown, &included));
             continue;
+        }
+        if let Some(terms) = terms.as_ref().filter(|_| first) {
+            list = list.child(super::terms::head(ui, p, at, card, terms, &live));
+            if !unfolded {
+                continue;
+            }
+            list = list.child(rule(p, "rule-terms"));
         }
         // A term as the Vocabulary card has it, under why it's offered.
         let reason = item.why.trim();
@@ -576,7 +597,7 @@ fn footer(ui: &Ui, p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) 
     let space = || el().key("space").grow(1.0);
     match shown {
         Shown::Proposed { .. } => {
-            let selected = card.items.iter().filter(|item| item.included).count();
+            let (_, selected) = state::plan_counts(card);
             let label = match selected {
                 1 => tr("Apply 1 change").to_owned(),
                 count => tr_fill("Apply {} changes", &count.to_string()),
@@ -606,7 +627,7 @@ fn footer(ui: &Ui, p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) 
                 .child(super::super::controls::PushSize::build_small_push(apply, p.k).key("apply"));
         }
         Shown::Applied { .. } | Shown::ChangedSince { .. } => {
-            let (done, total) = state::applied_count(card);
+            let (done, total) = state::plan_applied(card);
             let words = tr_named(
                 "{done} of {total} changes applied",
                 &[("done", &done.to_string()), ("total", &total.to_string())],

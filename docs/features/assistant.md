@@ -20,8 +20,9 @@ Assistant                                        // rune_ui::assistant
 │   │           <version>" (a neutral row: a sparkles tile, "Ask me what's
 │   │           new…", a chevron), "Set VibeHex up for me" (an
 │   │           accent-tinted row: a sliders tile, a line on what it does,
-│   │           a chevron), "Or set it up like Denis, who makes VibeHex ›"
-│   │           (quiet text under it), four example questions, and what
+│   │           a chevron), with Russian recognition "Or set it up like
+│   │           Denis, who makes VibeHex ›" (quiet text under it; no such
+│   │           row with Auto or another language), four example questions, and what
 │   │           the guide holds (Labs features and topics)
 │   ├── Feed    the person's bubble; the answer as Markdown beside the face,
 │   │           then "From the guide" chips naming the articles it drew on
@@ -545,13 +546,26 @@ Opened from a place link                         // rune_ui::assistant::places
   heard ("Outkit", heard «ауткит», is offered as Orukeet); one of a
   Vocabulary term is left out, since `hex vocabulary add` can't give a
   term another spelling.
-- Every term in a plan, the use's, a model's, a follow-up's or the
-  preset's, is a row of its own under Vocabulary, drawn as the Vocabulary
-  card draws it (checkbox, term, "sounds like: …", Edit), under its why
-  as a small caption where the why changes. Edit renames the term and
-  changes its spellings in the row; Apply keeps an edit still open and adds
-  what the rows say through `hex vocabulary add`'s path. Each term counts
-  as one change in "N changes, M selected" and in Apply.
+- A plan's terms, the use's, a model's, a follow-up's or the preset's, are
+  one row under Vocabulary (`changes::state::Terms`,
+  `rune_ui::assistant::terms`; owner decision 2026-11-12, the preset
+  brings 95): a checkbox for them all, "Add 95 Vocabulary terms" ("Add 90
+  of 95 Vocabulary terms" once some are unchecked) with a chevron, and
+  while folded the first four by name, "and 91 more". It starts unfolded
+  with five terms or fewer (`Terms::FEW`), or when a checked term's save
+  failed, and folded above that; a term being edited is never folded away.
+  Unfolded, each term is a row of its own, drawn as the Vocabulary card
+  draws it (checkbox, term, "sounds like: …", Edit), under its why as a
+  small caption where the why changes; a long term wraps in its column
+  (inside a word when one word is wider) and a long list of spellings
+  wraps beside it. Edit renames the term and changes its spellings in the
+  row; Apply keeps an edit still open and adds what the rows say through
+  `hex vocabulary add`'s path.
+- The terms are one change in "N changes, M selected", in "Apply N
+  changes" and in "N of M changes applied" (`state::plan_counts`,
+  `state::plan_applied`), however many they are: selected while any term
+  is checked, applied when any checked term went in. The save, a term's
+  own failure and Undo stay term by term.
 
 ## Set me up like Denis
 
@@ -561,6 +575,16 @@ Opened from a place link                         // rune_ui::assistant::places
   "Or set it up like Denis, who makes VibeHex" under the Start row, answer
   with the owner's preset, no model asked (`setup::preset`,
   `rune_ui::assistant::preset`).
+- Only with Russian recognition (owner decision 2026-11-12;
+  `setup::preset::offered`): `assistant::language::spoken` is `ru`, which
+  is Russian set in General › Language, or a speech model that knows only
+  Russian (GigaAM v3). With Auto on a model of many languages, or any
+  other language, the preset doesn't exist for the person: no row on the
+  start page, `intent::route` sends the typed request to the guide as an
+  ordinary question (never to setup), the pane's `preset::begin` starts
+  nothing, and the worker drops every card and plan from that answer
+  (`intent::preset_not_offered`), so no model can stand in for it. The
+  guide's article says whom it is for, so the answer is honest.
 - `presets/deniskey.json` is written by `scripts/export-preset` from the
   owner's settings.json and shipped with `include_str!`. It is an
   allow-list over the `hex settings` registry: every Labs switch, the
@@ -576,7 +600,7 @@ Opened from a place link                         // rune_ui::assistant::places
   is left out and named under "Not available here"; an engine not ready
   starts unchecked with where to finish; a value already the same folds
   into "Already set" (Labs off on both sides are left out); the prompt is
-  a row, each term a row of its own less those the person has. All
+  a row, the terms one folded row (above) less those the person has. All
   checked but `meetings.retention`, which moves older meetings to the
   Trash.
 - Once it is applied or put off: "These are Denis's shortcuts — do they
@@ -652,8 +676,8 @@ Opened from a place link                         // rune_ui::assistant::places
 - Who or what writes the notes («кто у меня пишет заметки встреч»,
   "which model writes my notes") asks how VibeHex is set, so it stays
   with the guide unless it names a time.
-- Where a message goes is one function, `intent::route` (the preset,
-  setup, the release notes, the recordings, the guide), and what a
+- Where a message goes is one function, `intent::route` (the preset
+  where it is offered, setup, the release notes, the recordings, the guide), and what a
   recordings question may read another, `intent::reads`; the pane and the
   eval's scenarios both call them.
 - While `assistant.read_recordings` is not `true` such a question shows the
@@ -832,7 +856,10 @@ each with the parse it must make); scenes `assistant`,
 `assistant-updated`, setup's
 `assistant-setup-ask`, `assistant-setup-follow`, `assistant-setup-plan`,
 `assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
-`assistant-setup-preset-shortcuts`,
+`assistant-setup-preset-shortcuts`, the terms' `assistant-plan-terms`,
+`assistant-plan-terms-open`, `assistant-setup-preset-terms`
+(`rune_ui::tests::assistant_terms`, Linux, presses the fold and both
+checkboxes and holds a long term and a long list inside their row),
 the web's `assistant-web`, `assistant-web-off`, `assistant-web-held`,
 `assistant-web-answering`, and their goldens; `scripts/check control::settings`
 for `check` and what a key needs;

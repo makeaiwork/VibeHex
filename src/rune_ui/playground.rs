@@ -293,6 +293,18 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/Denis's shortcuts",
     ),
     (
+        "assistant-setup-preset-terms",
+        "Window/Assistant/Setup/Set up like Denis, the terms unfolded",
+    ),
+    (
+        "assistant-plan-terms",
+        "Window/Assistant/Setup/A plan's terms as one row",
+    ),
+    (
+        "assistant-plan-terms-open",
+        "Window/Assistant/Setup/A plan's terms unfolded, long ones wrapped",
+    ),
+    (
         "assistant-setup-returning",
         "Window/Assistant/Setup/Returning",
     ),

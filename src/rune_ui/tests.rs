@@ -2921,13 +2921,20 @@ fn goldens() {
         "assistant-setup-plan",
         "assistant-setup-kept",
         "assistant-setup-result",
-        "assistant-setup-preset",
         "assistant-setup-preset-shortcuts",
         "assistant-setup-returning",
         "assistant-setup-returning-plan",
+        "assistant-plan-terms",
+        "assistant-plan-terms-open",
     ] {
         check_golden(scene, false, PANE_SIZE);
         check_golden(scene, true, PANE_SIZE);
+    }
+    // Denis's preset is taller than the window: tall enough here that its
+    // Vocabulary row shows, folded and with the last of its terms.
+    for scene in ["assistant-setup-preset", "assistant-setup-preset-terms"] {
+        check_golden(scene, false, GOLDEN_SIZE);
+        check_golden(scene, true, GOLDEN_SIZE);
     }
     // Answers from recordings, and the places one opens, in both themes.
     for scene in [
@@ -2964,6 +2971,7 @@ fn goldens() {
 
 mod assistant_coming;
 mod assistant_jump;
+mod assistant_terms;
 mod onboarding_check;
 mod panes;
 

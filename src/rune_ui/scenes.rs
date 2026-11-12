@@ -776,6 +776,15 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::setup_fixture::setup_preset_shortcuts,
     ),
     (
+        "assistant-setup-preset-terms",
+        assistant::terms_fixture::preset_terms_open,
+    ),
+    ("assistant-plan-terms", assistant::terms_fixture::plan_terms),
+    (
+        "assistant-plan-terms-open",
+        assistant::terms_fixture::plan_terms_open,
+    ),
+    (
         "assistant-setup-returning",
         assistant::setup_fixture::setup_returning,
     ),

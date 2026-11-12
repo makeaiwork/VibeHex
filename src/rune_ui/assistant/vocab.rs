@@ -177,7 +177,10 @@ pub(super) fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: 
             ..p.k.ty.ui
         })
         .color(if off { p.faint() } else { p.text() })
-        .max_lines(1);
+        // A long term wraps in its column, inside a word when one word
+        // is wider than it, rather than running over how it sounds.
+        .wrap_anywhere()
+        .w_full();
     if off {
         words = words.strike(0, term.term.len(), None);
     }

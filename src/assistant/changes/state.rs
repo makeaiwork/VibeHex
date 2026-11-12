@@ -6,7 +6,7 @@
 use serde_json::Value;
 
 use super::catalog::{self, Class, Permission, Shorter};
-use super::{Card, CardKind, Decision, current};
+use super::{Card, CardKind, Decision, Item, current, vocab};
 use crate::app_settings::AppSettings;
 use crate::control::settings;
 
@@ -215,7 +215,106 @@ pub fn row(card: &Card, index: usize, live: &Live) -> Row {
     }
 }
 
-/// How many of a plan's checked rows its save applied, of how many.
+/// A plan's Vocabulary terms: one row to look at and one change to count,
+/// however many they are (the owner's preset brings 95).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Terms {
+    /// Their rows in the plan, in order.
+    pub rows: Vec<usize>,
+    /// How many of them are checked.
+    pub checked: usize,
+}
+
+impl Terms {
+    /// With this many terms or fewer the row starts unfolded.
+    pub const FEW: usize = 5;
+
+    /// The terms `card` adds; none when it adds no term.
+    pub fn of(card: &Card) -> Option<Self> {
+        let rows: Vec<usize> = card
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| item.key == vocab::KEY)
+            .map(|(index, _)| index)
+            .collect();
+        let checked = rows
+            .iter()
+            .filter(|index| card.items[**index].included)
+            .count();
+        (!rows.is_empty()).then_some(Self { rows, checked })
+    }
+
+    /// Unfolded before anyone presses: few enough to read at a glance, or
+    /// one of them failed and says why.
+    pub fn starts_open(&self, card: &Card) -> bool {
+        self.rows.len() <= Self::FEW
+            || self
+                .rows
+                .iter()
+                .any(|index| card.items[*index].included && card.items[*index].failed.is_some())
+    }
+
+    /// What the one row shows: checked while any term is, and after the
+    /// save how the checked ones went.
+    pub fn row(&self, card: &Card, live: &Live) -> Row {
+        let rows: Vec<Row> = self
+            .rows
+            .iter()
+            .map(|index| row(card, *index, live))
+            .collect();
+        if let Some(Row::Open { .. }) = rows.first() {
+            return Row::Open {
+                checked: self.checked > 0,
+                sign_in: false,
+                shorter: None,
+            };
+        }
+        if rows.contains(&Row::Applied) {
+            Row::Applied
+        } else if let Some(failed) = rows.iter().find(|row| matches!(row, Row::Failed(_))) {
+            failed.clone()
+        } else {
+            Row::Left
+        }
+    }
+}
+
+/// How many changes a plan holds and how many are selected, its
+/// Vocabulary terms counting as one.
+pub fn plan_counts(card: &Card) -> (usize, usize) {
+    let terms = Terms::of(card);
+    let group = |count: usize| usize::from(count > 0);
+    let settings = card.items.iter().filter(|item| item.key != vocab::KEY);
+    let selected = settings.clone().filter(|item| item.included).count();
+    (
+        settings.count() + group(terms.as_ref().map_or(0, |terms| terms.rows.len())),
+        selected + group(terms.map_or(0, |terms| terms.checked)),
+    )
+}
+
+/// How many of a plan's selected changes its save applied, of how many;
+/// the Vocabulary terms count as one, applied when any of them went in.
+pub fn plan_applied(card: &Card) -> (usize, usize) {
+    let checked = |item: &&Item| item.included;
+    let settings = card
+        .items
+        .iter()
+        .filter(|item| item.key != vocab::KEY)
+        .filter(checked);
+    let terms = card
+        .items
+        .iter()
+        .filter(|item| item.key == vocab::KEY)
+        .filter(checked);
+    let group = usize::from(terms.clone().count() > 0);
+    let group_done = usize::from(terms.clone().any(|item| item.failed.is_none()));
+    let total = settings.clone().count();
+    let failed = settings.filter(|item| item.failed.is_some()).count();
+    (total - failed + group_done, total + group)
+}
+
+/// How many of a card's checked rows its save applied, of how many.
 pub fn applied_count(card: &Card) -> (usize, usize) {
     let checked = card.items.iter().filter(|item| item.included);
     let total = checked.clone().count();
@@ -460,5 +559,116 @@ mod tests {
         };
         assert_eq!(shorter, Some(Shorter::Meetings));
         assert_eq!(also, [("meetings.enabled".to_owned(), json!(true))]);
+    }
+
+    /// A plan of `settings` setting rows and `terms` term rows, each as
+    /// `(checked, failed)`.
+    fn plan_of(settings: &[(bool, bool)], terms: &[(bool, bool)]) -> Card {
+        let item = |key: &str, (included, failed): (bool, bool)| Item {
+            key: key.into(),
+            to: json!(true),
+            included,
+            failed: failed.then(|| "no".to_owned()),
+            ..Item::default()
+        };
+        Card {
+            kind: CardKind::Plan,
+            items: settings
+                .iter()
+                .map(|row| item("labs.smart_spacing", *row))
+                .chain(terms.iter().map(|row| item(vocab::KEY, *row)))
+                .collect(),
+            ..Card::default()
+        }
+    }
+
+    #[test]
+    fn a_plans_terms_count_as_one_change_however_many() {
+        const ON: (bool, bool) = (true, false);
+        const OFF: (bool, bool) = (false, false);
+        const FAILED: (bool, bool) = (true, true);
+        // settings, terms, (all, selected), (applied, of).
+        type Case<'a> = (
+            &'a [(bool, bool)],
+            &'a [(bool, bool)],
+            (usize, usize),
+            (usize, usize),
+        );
+        let many = [ON; 95];
+        let cases: &[Case] = &[
+            // The owner's preset: 95 terms are one change, not 95.
+            (&[ON, ON], &many, (3, 3), (3, 3)),
+            (&[ON, OFF], &[ON, ON, OFF], (3, 2), (2, 2)),
+            // No term checked: the group is there, and not selected.
+            (&[ON], &[OFF, OFF], (2, 1), (1, 1)),
+            // No terms at all: only the settings.
+            (&[ON, ON], &[], (2, 2), (2, 2)),
+            // Some terms went in: the group is applied.
+            (&[ON], &[ON, FAILED], (2, 2), (2, 2)),
+            // None did: it is the one change that wasn't.
+            (&[ON, FAILED], &[FAILED, FAILED], (3, 3), (1, 3)),
+        ];
+        for (settings, terms, counts, applied) in cases {
+            let plan = plan_of(settings, terms);
+            assert_eq!(plan_counts(&plan), *counts, "{settings:?} {terms:?}");
+            assert_eq!(plan_applied(&plan), *applied, "{settings:?} {terms:?}");
+        }
+        // The per-row count a vocabulary card's footer reads is unchanged.
+        assert_eq!(applied_count(&plan_of(&[ON], &[ON, FAILED])), (2, 3));
+    }
+
+    #[test]
+    fn a_plans_terms_fold_above_a_handful_and_show_how_they_went() {
+        const ON: (bool, bool) = (true, false);
+        const OFF: (bool, bool) = (false, false);
+        const FAILED: (bool, bool) = (true, true);
+        let settings = AppSettings::default();
+        let live = live(&settings);
+        assert_eq!(Terms::of(&plan_of(&[ON], &[])), None);
+
+        let few = plan_of(&[ON], &[ON; Terms::FEW]);
+        let terms = Terms::of(&few).unwrap();
+        assert_eq!(
+            (terms.rows.clone(), terms.checked),
+            (vec![1, 2, 3, 4, 5], 5)
+        );
+        assert!(terms.starts_open(&few), "a handful starts unfolded");
+
+        let mut many = plan_of(&[ON], &[ON, OFF, ON, ON, ON, ON]);
+        let terms = Terms::of(&many).unwrap();
+        assert_eq!(terms.checked, 5);
+        assert!(!terms.starts_open(&many), "six start folded");
+        // Checked while any term is, and not once none is.
+        let open = |checked| Row::Open {
+            checked,
+            sign_in: false,
+            shorter: None,
+        };
+        assert_eq!(terms.row(&many, &live), open(true));
+        let none = plan_of(&[ON], &[OFF; 6]);
+        assert_eq!(Terms::of(&none).unwrap().row(&none, &live), open(false));
+
+        // Saved: applied when any went in, and unfolded by a failure.
+        let saved = |card: &mut Card| {
+            card.decision = Decision::Applied {
+                before: Default::default(),
+                after: Default::default(),
+                at_ms: 1,
+            };
+        };
+        saved(&mut many);
+        assert_eq!(terms.row(&many, &live), Row::Applied);
+        let mut mixed = plan_of(&[ON], &[ON, FAILED, ON, ON, ON, ON]);
+        saved(&mut mixed);
+        let terms = Terms::of(&mixed).unwrap();
+        assert_eq!(terms.row(&mixed, &live), Row::Applied);
+        assert!(terms.starts_open(&mixed), "a failure says why, unfolded");
+        let mut failed = plan_of(&[ON], &[FAILED; 6]);
+        saved(&mut failed);
+        let terms = Terms::of(&failed).unwrap();
+        assert_eq!(terms.row(&failed, &live), Row::Failed("no".into()));
+        let mut left = plan_of(&[ON], &[OFF; 6]);
+        saved(&mut left);
+        assert_eq!(Terms::of(&left).unwrap().row(&left, &live), Row::Left);
     }
 }

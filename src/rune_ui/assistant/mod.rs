@@ -34,6 +34,8 @@ mod returning;
 mod settings;
 pub(super) mod setup_fixture;
 pub(super) mod strong;
+mod terms;
+pub(super) mod terms_fixture;
 mod tick;
 mod verbs;
 mod vocab;
@@ -106,6 +108,9 @@ pub(in super::super) struct AssistantPane {
     pub(super) undo: Vec<changes::At>,
     /// Setup plans whose "Already set" is unfolded.
     pub(super) kept_open: Vec<changes::At>,
+    /// Plans whose Vocabulary terms are folded the other way than they
+    /// start (`terms::open`).
+    pub(super) terms_flipped: Vec<changes::At>,
     /// Setup rounds whose "Answered before" is unfolded.
     before_open: Vec<ask::At>,
     /// The conversation `undo` belongs to.
