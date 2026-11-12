@@ -1,17 +1,19 @@
-# Vibe-coding vocabulary for Russian dictation: names and acronyms written
-# in Latin letters, and how a Russian speech model tends to hear them.
-# Paste it into the Vocabulary sheet's Text view (Labs › Vocabulary text view) or
-# load it with the loop in docs/features/vocabulary.md.
-# One term per line: Term | sounds like, …
+# Vibe-coding vocabulary for Russian dictation: the names and terms the
+# owner dictates, written as he writes them, and how a Russian speech model
+# tends to hear them.
 #
-# Only names, acronyms, files, and commands belong here. Russian IT jargon
-# that takes case endings (коммит, пуш, ревью, промпт, скилл, репозиторий,
-# деплой, хоткей, тултип, лендинг, артефакт, канбан) stays in Cyrillic, so
-# it isn't listed: a term here would turn «в репозитории» into Latin.
+# This is the list Labs › Russian vibe coding adds, and the one "Set me up
+# like Denis" offers: the Vocabulary of presets/deniskey.json. It is written
+# from that file by scripts/export-preset, so change the preset, not this
+# file (dictation::presets holds the two to each other).
+#
+# To use it without the Labs feature, paste it into the Vocabulary sheet's
+# Text view (Labs › Vocabulary text view) or load it with the loop in
+# docs/features/vocabulary.md. One term per line: Term | sounds like, …
 #
 # Parakeet's biasing takes the first 64 terms and skips paths and file
-# names (anything with . / @ : \ _), so those sit at the end, where AI
-# cleanup still uses them.
+# names (anything with . / @ : \ _), so those sit past the 64th line, where
+# AI cleanup still uses them.
 
 Claude Code | клод код, клот код, клауд код, клод кот, код код
 Claude | клод, клауд, клот
@@ -28,8 +30,6 @@ Sentry | сентри, сэнтри
 Linear | линеар, линер, линеар апп
 Figma | фигма, фигме, фигмы
 Notion | ноушен, ноушн, ноушине
-Trello | трелло, трейло, трэлло
-Zapier | запир, запьер, заппир
 VPS | впс, ви пи эс
 SSH | эс эс эйч, эсэсэйч, ссх
 API | эй пи ай, апи, апиай
@@ -43,7 +43,7 @@ PDF | пдф, пи ди эф
 LM Studio | эл эм студио, элэм студио, лм студио
 OpenRouter | опен роутер, опенроутер, оупен роутер
 Ollama | оллама, олама
-Gemma | джемма, гемма
+Gemma | джемма, гемма, Гема
 Gemini | джемини, гемини
 ChatGPT | чат джи пи ти, чатджипити, чат гпт
 GPT | джи пи ти, гпт
@@ -51,13 +51,11 @@ Anthropic | антропик, энтропик
 OpenAI | опен эй ай, опенаи, оупен эй ай
 Parakeet | паракит, паракид, паракиту
 GigaAM | гигам, гига ам, гигаам
-Pipit | пипит, пиппит, пипита, пипите
 Hex | хекс, хекса, хексе
 Fish Audio | фиш аудио, фишаудио
 cmux | смукс, симукс, си мукс, цмукс
 Lucide | люсид, люсайд, люсидовские
 Sparkle | спаркл, спаркле
-Postman | постман, постмане
 VS Code | вс код, ви эс код, вэ эс код, вс коде
 Sublime Text | саблайм, сублайм, собламе
 Docker | докер, докере
@@ -74,12 +72,8 @@ CLI | си эл ай, клиай
 npm | эн пи эм, нпм
 Playwright | плейрайт, плэйрайт
 Homebrew | хомбрю, хоумбрю
-WhatsApp | ватсап, вотсап, вацап
 Telegram | телеграм, телеграме, телеграмм
 GGUF | ггуф, джи джи ю эф
-
-# Past the 64th line: names Parakeet's biasing can't take (paths, files,
-# punctuation, or one that only matters to cleanup). AI cleanup uses them.
 Claude Design | клод дизайн
 MLX | эм эл икс, млх
 Browser Use | браузер юз, браузер юс, браузер юза
@@ -90,9 +84,24 @@ UI/UX | юай юикс, ю ай ю икс, юикс юай
 todo.md | ту ду мд, туду мд, ту ду точка мд
 CLAUDE.md | клод мд, клод точка мд
 AGENTS.md | эйджентс мд, агентс мд, эджент мд, эдж мд
-SKILL.md | скилл мд, скил мд
 README.md | ридми мд, ридми
 /do-all | слэш ду ол, слеш ду ол, слэш дуол
 Next.js | некст джей эс, некстджс
 Node.js | нод джей эс, ноуд джей эс
+Cancel | кенсел, кэнсел
 CI/CD | си ай си ди, сиай сиди
+Labs | Лэбс, Лэпс
+AI cleanup | AI клинап
+Context7 | контекст семь
+VibeHex | Vibe hex, Wipe Hex
+Заревьювь | За ревью
+bug | бак
+Qwen | Квена
+E2B | Е2Б
+E4B | Е4Б
+vibecoding | Вайп кодинг
+DingDone | Дингдан
+cleanup | клинап
+AI slop | я и слоп
+New Session | нью сессион
+AskTool | асктул

@@ -355,6 +355,16 @@ mod tests {
             .collect();
         assert!(terms.iter().all(|terms| terms.len() == 1));
         assert_eq!(terms.len(), denis().vocabulary.len());
+        // All 90 of the owner's terms, as they are: the rule that keeps an
+        // ordinary word out of a plan's terms doesn't judge the preset's
+        // (`offer`: `Origin::Preset`), so "New Session", "AskTool" and
+        // "Cancel" are rows, checked. His own app is not in the file.
+        assert_eq!(terms.len(), 90);
+        let named: Vec<&str> = terms.iter().map(|terms| terms[0].term.as_str()).collect();
+        for term in ["New Session", "AskTool", "Cancel", "Claude Code"] {
+            assert!(named.contains(&term), "{term}");
+        }
+        assert!(!named.iter().any(|term| term.eq_ignore_ascii_case("monki")));
     }
 
     /// What is the same is "Already set"; terms the person has are left

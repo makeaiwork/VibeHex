@@ -75,7 +75,7 @@ heard is put back.
 
 ## Russian vibe coding
 
-**Labs › Russian vibe coding** adds a starter list of 80 terms (Claude Code, GitHub,
+**Labs › Russian vibe coding** adds a starter list of 90 terms (Claude Code, GitHub,
 MCP, Docker, and so on, with how Russian speech models hear them), plus Russian word fixes and
 cleanup instructions, and turns on Clean up with AI, **Labs › Vocabulary in meeting
 notes** (so meeting titles and summaries use the terms), and the other VibeHex

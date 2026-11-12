@@ -304,22 +304,6 @@
       ]
     },
     {
-      "term": "Trello",
-      "sounds_like": [
-        "трелло",
-        "трейло",
-        "трэлло"
-      ]
-    },
-    {
-      "term": "Zapier",
-      "sounds_like": [
-        "запир",
-        "запьер",
-        "заппир"
-      ]
-    },
-    {
       "term": "VPS",
       "sounds_like": [
         "впс",
@@ -477,15 +461,6 @@
       ]
     },
     {
-      "term": "Pipit",
-      "sounds_like": [
-        "пипит",
-        "пиппит",
-        "пипита",
-        "пипите"
-      ]
-    },
-    {
       "term": "Hex",
       "sounds_like": [
         "хекс",
@@ -522,13 +497,6 @@
       "sounds_like": [
         "спаркл",
         "спаркле"
-      ]
-    },
-    {
-      "term": "Postman",
-      "sounds_like": [
-        "постман",
-        "постмане"
       ]
     },
     {
@@ -644,14 +612,6 @@
       "sounds_like": [
         "хомбрю",
         "хоумбрю"
-      ]
-    },
-    {
-      "term": "WhatsApp",
-      "sounds_like": [
-        "ватсап",
-        "вотсап",
-        "вацап"
       ]
     },
     {
@@ -798,7 +758,7 @@
     {
       "term": "AI cleanup",
       "sounds_like": [
-        "AI клинапу"
+        "AI клинап"
       ]
     },
     {
@@ -869,9 +829,15 @@
       ]
     },
     {
-      "term": "Ask tool",
+      "term": "New Session",
       "sounds_like": [
-        "Асктул"
+        "нью сессион"
+      ]
+    },
+    {
+      "term": "AskTool",
+      "sounds_like": [
+        "асктул"
       ]
     }
   ]

@@ -120,7 +120,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Lower every app no   labs.lower_every_app         (macOS 14.2+) Mute and Lower audio on an output without a volume (a monitor's) play every other app back lower through a system audio tap
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
 ├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there (files.md, meetings.md)
-├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
+├── Russian vibe coding no labs.russian_vibe_coding     on: writes the Russian preset into settings (the owner's 90 Vocabulary terms from presets/deniskey.json, docs/vocabulary's Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
 ├── Collapsible sidebar no labs.collapsible_sidebar + labs.sidebar_collapsed
@@ -2170,8 +2170,9 @@ text to paste, fix, or delete many terms at once, and Save makes the list
 exactly that text. The behaviour is in [vocabulary.md](vocabulary.md); the
 gate is the toggle itself, checked where the button shows and again when it
 is pressed. `dictation::vocabulary::to_list` writes the text and
-`parse_list` reads it back. A starter list for Russian vibe coding lives in
-[docs/vocabulary/vibe-coding-ru.txt](../vocabulary/vibe-coding-ru.txt).
+`parse_list` reads it back. The list Russian vibe coding adds, as text to paste, is
+[docs/vocabulary/vibe-coding-ru.txt](../vocabulary/vibe-coding-ru.txt),
+written by `scripts/export-preset` from the preset.
 Checks: `a_pasted_list_reads_terms_and_spellings_per_line`,
 `a_list_written_as_text_reads_back_the_same`, and
 `the_vibe_coding_starter_list_fits` in
@@ -2238,18 +2239,23 @@ surrounding words is not yet observed in a running Hex.
 Russian vibe coding (`russian-vibe-coding`, every OS) is a preset, not a
 runtime gate: turning it on (the row, `hex labs on`, or
 `hex settings set labs.russian_vibe_coding true`) writes
-[docs/vocabulary/](../vocabulary/)'s files into the person's own settings
-once, through `dictation::presets::russian_vibe_coding`:
+the owner's Vocabulary ([presets/deniskey.json](../../presets/deniskey.json),
+the 90 terms "Set me up like Denis" offers, read from the one file so the
+two can't differ) and [docs/vocabulary/](../vocabulary/)'s word fixes and
+instructions into the person's own settings once, through
+`dictation::presets::russian_vibe_coding`:
 
 ```ts
 on
-├── vibe-coding-ru.txt        merged into the shared vocabulary (new terms and spellings only)
+├── presets/deniskey.json     its Vocabulary merged into the shared vocabulary (new terms and spellings only)
 ├── replacements-ru.json      added to Global's word fixes, unless a fix for the same phrase exists
 ├── cleanup-instructions-ru.txt  Global's instructions: replaces Hex's default prompt, else appended once
 ├── Global's Clean up with AI    on (it runs where Output says: OpenCode, OpenRouter, or your server)
 └── Labs it builds on            every other starred Lab but Stop shortcut, and Vocabulary in meeting notes, on
 off
 ├── vocabulary entries and fixes exactly as the preset wrote them are removed; edited ones stay
+│   (also an entry exactly as the earlier 80-term list wrote it, through 3.3.0:
+│   src/dictation/presets/starter-through-3.3.0.txt)
 ├── instructions: only the preset's text is removed; if nothing else was there, Hex's default
 │   prompt returns and Clean up with AI turns off
 └── Clean up on your own server and Paste vocabulary as a list stay on (a server or key set up there is the person's own)
@@ -2258,7 +2264,10 @@ off
 Everything it writes stays editable in Vocabulary and Output. The managed
 Labs lock turns only the switch off and leaves what was written. Checks:
 `turning_it_on_then_off_leaves_a_fresh_install_as_it_was`,
-`it_keeps_what_the_person_wrote_and_changed`, and `the_preset_files_load` in
+`it_keeps_what_the_person_wrote_and_changed`,
+`the_starter_list_is_the_presets_vocabulary`,
+`the_list_it_wrote_before_is_still_taken_back`,
+`both_lists_side_by_side_are_taken_back`, and `the_preset_files_load` in
 [dictation/presets.rs](../../src/dictation/presets.rs);
 `the_russian_vibe_coding_lab_writes_its_preset_once_and_takes_it_back` in
 [control/settings.rs](../../src/control/settings.rs). Not yet observed: the

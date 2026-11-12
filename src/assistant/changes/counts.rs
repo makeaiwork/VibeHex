@@ -1,6 +1,6 @@
 //! A plan's changes counted, and the words for the count: settings and
 //! Vocabulary terms apart, "3 changes and 81 terms" (owner decision
-//! 2026-11-12; the preset brings 95 terms, and "4 changes" hid them). A
+//! 2026-11-12; the preset brings 90 terms, and "4 changes" hid them). A
 //! plan with no terms reads as it always did, and one with only terms
 //! adds terms: "Add 81 terms".
 //!

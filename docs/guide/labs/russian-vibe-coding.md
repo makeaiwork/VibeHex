@@ -14,8 +14,9 @@ vibehex: true
 **What it does.** For Russian speech full of English tech words, so «клод
 код» becomes Claude Code. One switch writes a ready preset into your settings.
 
-**Turning it on adds.** 80 terms (Claude Code, GitHub, MCP) with how a Russian
-model hears them, in General › Vocabulary. 8 word fixes in Modes › Global ›
+**Turning it on adds.** 90 terms (Claude Code, GitHub, MCP) with how a Russian
+model hears them, in General › Vocabulary: the same list "Set me up like
+Denis" offers in Assistant. 8 word fixes in Modes › Global ›
 Corrections («тот есть» to «то есть»). Russian cleanup instructions (speech
 stays Russian; product names and commands in English; коммит, пуш stay
 Cyrillic), with Clean up with AI switched on. It also switches on the other
@@ -31,7 +32,8 @@ same phrase, yours stays; your own instructions stay too, with the
 preset's added after them.
 
 **Turning it off.** Removes the terms, fixes and instruction text that still
-read as the preset wrote them. If those were your only instructions, Clean up
+read as the preset wrote them, the 80 terms of its earlier list among them;
+a term you added or edited stays. If those were your only instructions, Clean up
 with AI goes off too. The Labs it switched on stay on.
 
 **Where.** Labs › Russian vibe coding (`labs.russian_vibe_coding`).

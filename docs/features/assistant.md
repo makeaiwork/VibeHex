@@ -639,7 +639,7 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
 - A plan's terms, the use's, a model's, a follow-up's or the preset's, are
   one row under Vocabulary (`changes::state::Terms`,
   `rune_ui::assistant::terms`; owner decision 2026-11-12, the preset
-  brings 95): a checkbox for them all, "Add 95 Vocabulary terms" ("Add 90
+  brings 90): a checkbox for them all, "Add 95 Vocabulary terms" ("Add 90
   of 95 Vocabulary terms" once some are unchecked) with a chevron, and
   while folded the first four by name, "and 91 more". It starts unfolded
   with five terms or fewer (`Terms::FEW`), or when a checked term's save
@@ -718,7 +718,15 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   speech model and language, dictation cleanup (on/off, `runs_on`, local
   and Codex model, Codex effort), Meetings' engines, writer, efforts and
   toggles, Files' engines, efforts and toggles, `meetings.retention`, the
-  Global prompt, Vocabulary with spellings, and the shortcuts. Never API
+  Global prompt, Vocabulary with spellings, and the shortcuts. The
+  Vocabulary leaves without the terms that are the owner's alone
+  (`PRIVATE_TERMS`: Monki, his own app; any case): 90 terms. They are
+  also the list Labs › Russian vibe coding adds (`dictation::presets`
+  reads this file), so the two can't differ, and the export writes them
+  once more as text to paste (`docs/vocabulary/vibe-coding-ru.txt`). The
+  term rule doesn't judge the preset's terms (`Origin::Preset`), so names
+  that read as ordinary words ("New Session", "AskTool", "Cancel") are
+  rows like the rest. Never API
   keys or other secrets, server addresses, folders, the microphone,
   calendars, window or update state, Assistant's own settings, app lists or
   browser hosts; `scripts/test-export-preset.py` (in `scripts/check`, exit

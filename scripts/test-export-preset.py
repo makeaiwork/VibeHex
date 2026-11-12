@@ -73,6 +73,9 @@ FIXTURE = {
         {"term": "Claude Code", "sounds_like": ["клод код"]},
         "GitHub",
         {"term": " "},
+        {"term": "Monki", "sounds_like": ["монки"]},
+        "MONKI",
+        {"term": " monki "},
     ],
 }
 
@@ -120,6 +123,26 @@ class ExportTest(unittest.TestCase):
             if key != "dictation_processing.default_mode.cleanup":
                 self.assertIn(key, keys)
 
+    def test_the_owners_private_terms_stay_with_him(self):
+        # His own app's name, in any case, as an entry or a plain term; a
+        # term that only holds the word is another term.
+        self.assertIn("monki", export_preset.PRIVATE_TERMS)
+        self.assertNotIn("monki", self.text.casefold())
+        self.assertNotIn("монки", self.text)
+        longer = dict(FIXTURE, vocabulary=["Monki Pro", "Monkit"])
+        kept = [term["term"] for term in export_preset.export(longer)["vocabulary"]]
+        self.assertEqual(kept, ["Monki Pro", "Monkit"])
+
+    def test_the_pasteable_list_is_the_presets_vocabulary(self):
+        text = export_preset.pasteable(self.preset["vocabulary"])
+        lines = [line for line in text.splitlines() if line and not line.startswith("#")]
+        self.assertEqual(lines, ["Claude Code | клод код", "GitHub"])
+        committed = json.loads((export_preset.ROOT / "presets/deniskey.json").read_text())
+        self.assertEqual(
+            export_preset.DEFAULT_LIST.read_text(),
+            export_preset.pasteable(committed["vocabulary"]),
+        )
+
     def test_the_committed_preset_is_clean(self):
         committed = export_preset.ROOT / "presets/deniskey.json"
         preset = json.loads(committed.read_text())
@@ -128,6 +151,10 @@ class ExportTest(unittest.TestCase):
                 self.assertIsNone(export_preset.DENIED.search(key), key)
                 self.assertIsNotNone(export_preset.wanted(key, export_preset.registry().get(key, "Bool"))
                                      or key == "dictation_processing.default_mode.cleanup", key)
+        terms = [term["term"].casefold() for term in preset["vocabulary"]]
+        self.assertEqual(len(terms), 90)
+        for private in export_preset.PRIVATE_TERMS:
+            self.assertNotIn(private, terms)
 
 
 if __name__ == "__main__":

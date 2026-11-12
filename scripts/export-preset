@@ -4,12 +4,16 @@
     python3 -I scripts/export-preset [settings.json] [preset.json]
 
 Reads ~/Library/Application Support/hex/settings.json by default and writes
-presets/deniskey.json, which the app ships (`assistant::setup::preset`).
+presets/deniskey.json, which the app ships (`assistant::setup::preset`; its
+Vocabulary is also the list Labs › Russian vibe coding adds,
+`dictation::presets`), and with it docs/vocabulary/vibe-coding-ru.txt, the
+same Vocabulary as text to paste.
 
 It is an allow-list: it walks the `hex settings` registry (the keys
 src/control/settings.rs and src/control/settings/*.rs declare) and keeps only
 the keys ALLOWED names, then the Global mode's cleanup switch and prompt and
-the Vocabulary. Nothing else leaves the file: no API keys or other secrets,
+the Vocabulary, less the terms PRIVATE_TERMS names. Nothing else leaves the
+file: no API keys or other secrets,
 server addresses, folders or paths, microphone, calendars, window or update
 state, Assistant's own settings, app lists or browser hosts. DENIED is checked
 on top of the allow-list, so a key added to ALLOWED by mistake still can't
@@ -24,6 +28,27 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_SETTINGS = pathlib.Path.home() / "Library/Application Support/hex/settings.json"
 DEFAULT_OUT = ROOT / "presets/deniskey.json"
+# The preset's Vocabulary as text to paste, written beside the default preset.
+DEFAULT_LIST = ROOT / "docs/vocabulary/vibe-coding-ru.txt"
+
+LIST_HEADER = """\
+# Vibe-coding vocabulary for Russian dictation: the names and terms the
+# owner dictates, written as he writes them, and how a Russian speech model
+# tends to hear them.
+#
+# This is the list Labs › Russian vibe coding adds, and the one "Set me up
+# like Denis" offers: the Vocabulary of presets/deniskey.json. It is written
+# from that file by scripts/export-preset, so change the preset, not this
+# file (dictation::presets holds the two to each other).
+#
+# To use it without the Labs feature, paste it into the Vocabulary sheet's
+# Text view (Labs › Vocabulary text view) or load it with the loop in
+# docs/features/vocabulary.md. One term per line: Term | sounds like, …
+#
+# Parakeet's biasing takes the first 64 terms and skips paths and file
+# names (anything with . / @ : \\ _), so those sit past the 64th line, where
+# AI cleanup still uses them.
+"""
 
 # Registry keys a preset carries, besides every Labs on/off switch.
 ALLOWED = {
@@ -72,6 +97,12 @@ DENIED = re.compile(
     re.IGNORECASE,
 )
 
+# Vocabulary terms that never leave the owner's list: they are his own, of
+# no use to anyone the preset sets up. Matched on the term, in any case.
+PRIVATE_TERMS = {
+    "monki",  # his own app
+}
+
 KEY_CALL = re.compile(
     r"\b(?:key|optional|read_only)\(\s*\"([a-z_.]+)\",\s*(Kind::(\w+)|[A-Z_]+)"
 )
@@ -117,12 +148,23 @@ def vocabulary(settings):
             entry = {"term": entry}
         if not isinstance(entry, dict) or not str(entry.get("term", "")).strip():
             continue
+        if str(entry["term"]).strip().casefold() in PRIVATE_TERMS:
+            continue
         term = {"term": str(entry["term"]).strip()}
         heard = [str(s).strip() for s in entry.get("sounds_like") or [] if str(s).strip()]
         if heard:
             term["sounds_like"] = heard
         terms.append(term)
     return terms
+
+
+def pasteable(terms):
+    """The terms as the Vocabulary sheet's Text view reads them."""
+    lines = []
+    for term in terms:
+        heard = term.get("sounds_like") or []
+        lines.append(term["term"] + (" | " + ", ".join(heard) if heard else ""))
+    return LIST_HEADER + "\n" + "\n".join(lines) + "\n"
 
 
 def export(settings, keys=None):
@@ -149,6 +191,8 @@ def main(argv):
     preset = export(json.loads(source.read_text()))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preset, ensure_ascii=False, indent=2) + "\n")
+    if out.resolve() == DEFAULT_OUT.resolve():
+        DEFAULT_LIST.write_text(pasteable(preset["vocabulary"]))
     print(f"{out}: {len(preset['settings'])} settings, {len(preset['shortcuts'])} shortcut keys, "
           f"{len(preset['vocabulary'])} terms, prompt {'yes' if 'prompt' in preset else 'no'}")
     for part in ("settings", "shortcuts"):
