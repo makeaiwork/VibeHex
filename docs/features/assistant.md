@@ -424,10 +424,13 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   same place as in what was written); otherwise its text, 900 at most.
   With such a dictation the prompt (`HEARD_WROTE`) asks the model to quote
   both and name the cause: wrong in Heard is the speech model or a
-  Vocabulary spelling, changed only in Wrote is cleanup (a replacement, the
-  instructions, or a Vocabulary entry the cleanup model was told to write),
-  with a card when it is a setting it sees, and a line changing the entry
-  when it is one. The Vocabulary entries the dictations name come too.
+  Vocabulary spelling, changed only in Wrote came after transcription (a
+  replacement, the instructions, a Vocabulary entry whose exact "sounds
+  like" spelling was heard, which the app writes as its term in code before
+  cleanup, or a term the cleanup model wrote because what was heard sounds
+  like it: `dictation::vocabulary_guard` undoes one nothing heard sounds
+  like), with a card when it is a setting it sees, and a line changing the
+  entry when it is one. The Vocabulary entries the dictations name come too.
 - An entry already in Vocabulary changes through a `hex-vocab` line naming
   it with what changes: `{"term":"AI cleanup","remove_sounds_like":["ай"]}`,
   `add_sounds_like`, `rename` (`changes::vocab_edit`). Only an entry the
@@ -575,7 +578,9 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
     editor share (30%+ adds code to `use`), long dictations (60+ words,
     20%+ names the Codex trade-off), what cleanup keeps fixing (never ё
     put back, все → всё, which is spelling and would crowd out кодекс →
-    Codex), meetings and their language. Without leave it says the use could show more
+    Codex; and never a "sounds like" spelling Vocabulary lists written as
+    its term, which is the list at work in code before cleanup, not a
+    thing it lacks), meetings and their language. Without leave it says the use could show more
     (its place, Assistant › Settings, in the window's words).
   - The opener, its step, the plan's term rows' captions, and "Answered
     before" are Assistant's own words: in its default language, with rows

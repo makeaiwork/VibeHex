@@ -194,6 +194,12 @@ pub fn from_entries(entries: &[HistoryEntry], known: &[String], now_ms: u64) -> 
     // it would fill the list ahead of кодекс → Codex.
     let yo = |text: &str| text.to_lowercase().replace('ё', "е");
     fixes.retain(|fix| fix.count >= 2 && yo(&fix.heard) != yo(&fix.written));
+    // A listed "sounds like" spelling written as its term is Vocabulary at
+    // work, in code before cleanup (`dictation::vocabulary_guard`): not a
+    // thing cleanup keeps fixing, and nothing the list lacks.
+    let listed = super::terms::knowns(known);
+    let has = |words: &str| listed.contains(&words.to_lowercase());
+    fixes.retain(|fix| !(has(&fix.heard) && has(&fix.written)));
     fixes.truncate(FIXES);
     usage.terms = terms;
     usage.fixes = fixes;
@@ -472,6 +478,19 @@ mod tests {
         assert!(usage.terms.iter().all(|term| term.word != "Docker"));
         // `API` in English sentences only: never.
         assert!(usage.terms.iter().all(|term| term.word != "API"));
+        // A spelling Vocabulary lists, written as its term, is the list
+        // at work (in code, before cleanup): not a fix cleanup keeps
+        // making, and no term the list lacks. What it doesn't list stays.
+        let listed = ["GitHub".to_owned(), "гитхаб".to_owned()];
+        let with_list = from_entries(&entries, &listed, 10_000);
+        let fixed: Vec<&str> = with_list
+            .fixes
+            .iter()
+            .map(|fix| fix.written.as_str())
+            .collect();
+        assert!(!fixed.contains(&"GitHub"), "{fixed:?}");
+        assert!(fixed.contains(&"pull request"), "{fixed:?}");
+        assert!(with_list.terms.iter().all(|term| term.word != "GitHub"));
         let lines = lines(&usage).join("\n");
         assert!(lines.contains("GitHub x2 (heard as \"гитхаб\")"), "{lines}");
         assert!(!lines.contains("открой"), "{lines}");

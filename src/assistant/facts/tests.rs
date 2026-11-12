@@ -322,7 +322,10 @@ fn the_vocabulary_line_says_what_the_model_and_cleanup_each_read() {
         line(&settings),
         "Vocabulary: 97 terms; while transcribing, Orukeet is biased toward only the first 64 \
          (Labs › Vocabulary biasing is on); AI cleanup is on and reads all 97 with their \
-         sounds-like spellings, so every term is still corrected after transcription"
+         sounds-like spellings, so every term is still corrected after transcription; before \
+         cleanup the app itself writes each exact sounds-like spelling heard as its term, for \
+         the whole list, and a term cleanup writes is kept only when what was heard sounds \
+         like it"
     );
 
     // Cleanup off: what the model doesn't take is used nowhere.

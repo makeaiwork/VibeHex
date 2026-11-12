@@ -41,6 +41,12 @@ transcription, with no guessing. Spellings under two characters are ignored. A
 spelling that is also an ordinary word is replaced every time it is heard, so
 keep spellings distinctive. AI cleanup also sees each spelling next to its term.
 
+With Clean up with AI on, the same exact match is made in code before cleanup,
+for the whole list and with any speech model: a "sounds like" spelling that was
+heard is written as its term. And a term cleanup writes is kept only when what
+was heard sounds like the term or one of its spellings; otherwise what was
+heard is put back.
+
 ## Limits
 
 - What the speech model reads while it transcribes: Parakeet-based models

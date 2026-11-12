@@ -121,6 +121,9 @@ fn listed(items: &[String]) -> String {
 /// model takes while it transcribes, and whether AI cleanup reads the
 /// rest. A model told only "the first 64" answers that the others are
 /// lost; with cleanup on they are not.
+/// With cleanup on the list also works in code on both sides of the model
+/// (`dictation::vocabulary_guard`): exact spellings before it, and a term
+/// it writes kept only where what was heard supports it.
 fn vocabulary(facts: &Facts) -> String {
     let vocabulary = &facts.vocabulary;
     let count = match vocabulary.terms {
@@ -154,7 +157,9 @@ fn vocabulary(facts: &Facts) -> String {
     let cleanup = match (vocabulary.cleanup, vocabulary.unused()) {
         (true, _) => format!(
             "AI cleanup is on and reads all {} with their sounds-like spellings, so every \
-             term is still corrected after transcription",
+             term is still corrected after transcription; before cleanup the app itself writes \
+             each exact sounds-like spelling heard as its term, for the whole list, and a term \
+             cleanup writes is kept only when what was heard sounds like it",
             vocabulary.terms
         ),
         (false, 0) => "AI cleanup is off".to_owned(),

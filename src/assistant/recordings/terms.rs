@@ -164,7 +164,7 @@ pub fn note(seen: &mut Seen, words: &[&str]) {
 
 /// What Vocabulary has, in lower case: its terms, how they sound, and
 /// each word of the ones made of several (`Code` of "Claude Code").
-fn knowns(known: &[String]) -> HashSet<String> {
+pub(super) fn knowns(known: &[String]) -> HashSet<String> {
     let mut all = HashSet::new();
     for known in known {
         let lower = known.trim().to_lowercase();
