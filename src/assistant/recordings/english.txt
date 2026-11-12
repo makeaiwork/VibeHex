@@ -1,0 +1,117 @@
+# Ordinary English words, lower case: a Latin word said in Russian speech
+# is a term for Vocabulary only when it isn't one of these (or cleanup
+# keeps turning a heard word into it, or it is shaped like a brand).
+# Plurals and -ed/-ing forms are found from these (`recordings::terms`).
+# Leave out words that are mostly names here: cursor, linear, notion,
+# react, rust, python, swift, slack, zoom, docker.
+
+a about above across act action active actually add address after again
+against age ago agree ah ahead air all allow almost alone along already
+also although always am among amount an and animal another answer any
+anyone anything anyway anywhere appear approach area argue arm around
+arrive art article as ask at attack attention audio author available
+avoid away baby back bad bag ball bank bar base basic be beat beautiful
+because become bed been before begin behavior behind being believe below
+best better between beyond big bill bit black block blue board body book
+born both bottom box boy break bring brother brown budget build building
+business busy but button buy by call camera can cancel candidate capital
+car card care career carry case cat catch cause cell center central
+century certain chair challenge chance change chapter character charge
+chat cheap check child choice choose church city claim class clean clear
+click client close coach code coffee cold collection college color come
+comment common community company compare complete computer concern
+condition conference confirm consider contain content context continue
+control cool copy corner correct cost could count country couple course
+court cover create crime cultural culture cup current customer cut dark
+data date daughter day dead deal dear death debate decade decide
+decision deep default defense degree delete deliver demand describe
+design despite detail determine develop development device did die
+difference different difficult dinner direction director discover
+discuss discussion disease do doctor document does dog done door down
+draft drag draw dream drink drive drop drug during each early east easy
+eat economic economy edge edit editor education effect effort eight
+either election else email employee end energy enjoy enough enter entire
+environment error especially even evening event ever every everybody
+everyone everything evidence exactly example exist expect experience
+expert explain export eye face fact factor fail fall family far fast
+father fear feature federal feed feel few field fight figure fill film
+final finally financial find fine finger finish fire firm first fish
+five fix floor fly focus folder follow food foot for force foreign forget
+form format former forward four free friend from front full fun function
+fund future game garden gas general generation get girl give glass go
+goal good got government great green ground group grow growth guess gun
+guy hair half hand handle hang happen happy hard has have he head health
+hear heart heat heavy hello help her here herself hey hi high him himself
+his history hit hold home hope hospital hot hotel hour house how however
+huge human hundred husband i idea identify if image imagine impact
+import important improve in include including increase indeed indicate
+individual industry info information inside instead institution interest
+interesting international interview into investment involve is issue it
+item its itself job join just keep key kid kill kind kitchen know
+knowledge land language large last late later laugh law lawyer lay lead
+leader learn least leave left leg legal less let letter level lie life
+light like likely limit line link list listen little live load local
+lock log long look lose loss lot love low machine magazine main maintain
+major majority make man manage management manager many map market
+marriage material matter may maybe me mean measure media medical meet
+meeting member memory mention menu message method middle might military
+million mind minute miss mission mode model modern moment money month
+more morning most mother mouth move movement movie mr mrs much music must
+my myself name nation national natural nature near nearly necessary need
+network never new news newspaper next nice night nine no none nor north
+not note nothing notice now number of off offer office officer official
+often oh ok okay old on once one online only onto open operation
+opportunity option or order organization other others our out outside
+over own owner page pain painting paper parent part participant
+particular particularly partner party pass past paste patient pattern
+pause pay peace people per perform performance perhaps period person
+personal phone physical pick picture piece place plan plant play player
+please plus point police policy political politics poor popular
+population position positive possible power practice prepare present
+president pressure pretty prevent preview price print private probably
+problem process produce product production professional professor
+program project property protect prove provide public pull purpose push
+put quality question quick quickly quiet quite race radio raise range
+rate rather reach read ready real reality realize really reason receive
+recent recently recognize record red reduce reflect region relate
+relationship release religious remain remember remove repeat replace
+reply report represent republican request require research resource
+respond response rest result return reveal review rich right rise risk
+road rock role room rule run safe same save say scene school science
+scientist score screen sea search season seat second section security
+see seek seem select sell send senior sense series serious serve server
+service session set setting settings setup seven several sex shake
+share she shoot short shot should shoulder show side sign significant
+similar simple simply since sing single sister sit site situation six
+size skill skin small smile so social society soft soldier some somebody
+someone something sometimes son song soon sort sound source south
+southern space speak special specific speech spend sport spring staff
+stage stand standard star start state statement station stay step still
+stock stop store story strategy street strong structure student study
+stuff style subject submit success successful such suddenly suffer
+suggest summary summer support sure surface system table take talk task
+tax teach teacher team technology television tell ten tend term test
+text than thank thanks that the their them themselves then theory there
+these they thing think third this those though thought thousand threat
+three through throughout throw thus time tip title to today together
+tomorrow tonight too tool top total touch toward town track trade
+traditional training travel treat treatment tree trial trip trouble true
+truth try turn tv two type under understand unit until up update upon
+us use user usual usually value various very victim view violence visit
+voice vote wait walk wall want war watch water way we weapon wear week
+weight welcome well west western what whatever when where whether which
+while white who whole whom whose why wide wife will win window wish with
+within without woman wonder word work worker world worry would write
+writer wrong yard yeah year yes yet you young your yourself zero
+# Words of apps and screens, ordinary in English.
+app application browser website web tab scroll swipe popup dialog toggle
+slider icon label badge layout panel sidebar header footer theme hover
+notification video photo transcribe transcript transcription dictate
+dictation recording benefit session sync backup account profile login
+password upload download install feedback mobile desktop laptop online
+offline beta demo pro bot mail inbox calendar assistant built
+# Plurals and forms the endings don't reach.
+children men women people feet teeth mice did done went gone made said
+saw seen took taken came given gave got known knew thought told found
+left kept felt brought bought began begun ran wrote written spoke spoken
+better best worse worst

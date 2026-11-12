@@ -444,16 +444,19 @@ pub(in super::super) fn setup_returning(ui: &mut Ui) {
                 word: "GitHub".into(),
                 count: 21,
                 heard: vec!["гитхаб".into()],
+                fixed: 21,
             },
             usage::Term {
                 word: "Claude Code".into(),
                 count: 14,
                 heard: vec!["клод код".into()],
+                fixed: 14,
             },
             usage::Term {
                 word: "Supabase".into(),
                 count: 6,
                 heard: vec!["супабейс".into()],
+                fixed: 2,
             },
         ],
         fixes: vec![

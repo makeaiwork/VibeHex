@@ -394,6 +394,7 @@ mod tests {
                 word: "GitHub".into(),
                 count: 9,
                 heard: vec!["гитхаб".into()],
+                fixed: 9,
             }],
             fixes: vec![Fix {
                 heard: "гитхаб".into(),

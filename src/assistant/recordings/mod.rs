@@ -14,6 +14,7 @@
 pub mod cite;
 mod meetings;
 mod spoken;
+mod terms;
 mod texts;
 pub mod usage;
 

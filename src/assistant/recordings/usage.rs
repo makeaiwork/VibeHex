@@ -12,8 +12,7 @@ use crate::meeting::query::Library;
 
 /// A dictation this many words long or longer is a long one.
 pub const LONG_WORDS: usize = 60;
-/// The most terms and fixes kept.
-const TERMS: usize = 15;
+/// The most fixes kept.
 const FIXES: usize = 10;
 /// The most apps named.
 const APPS: usize = 5;
@@ -62,7 +61,7 @@ pub struct Usage {
     /// The share of [`LONG_WORDS`]+ dictations, in percent.
     pub long_share: u32,
     pub median_words: usize,
-    /// Latin-script terms said often (or fixed), not in Vocabulary.
+    /// Terms said in Russian speech, not in Vocabulary (`terms`).
     pub terms: Vec<Term>,
     /// What cleanup changed more than once, as heard and as written.
     pub fixes: Vec<Fix>,
@@ -76,8 +75,19 @@ pub struct Usage {
 pub struct Term {
     pub word: String,
     pub count: usize,
-    /// How the speech model heard it before cleanup fixed it.
+    /// How the speech model heard it before cleanup fixed it into
+    /// exactly it, most often first.
     pub heard: Vec<String>,
+    /// The most times one heard form was fixed into it.
+    pub fixed: usize,
+}
+
+impl Term {
+    /// Cleanup turned the same heard word into it often enough that
+    /// setup offers it checked.
+    pub fn sure(&self) -> bool {
+        self.fixed >= super::terms::SURE
+    }
 }
 
 /// One change cleanup made more than once.
@@ -132,7 +142,6 @@ pub fn read(_allowed: &Allowed, sources: &Sources, known: &[String], now_ms: u64
 
 /// The dictations' part of [`Usage`].
 pub fn from_entries(entries: &[HistoryEntry], known: &[String], now_ms: u64) -> Usage {
-    let known: Vec<String> = known.iter().map(|word| word.to_lowercase()).collect();
     let mut usage = Usage {
         dictations: entries.len(),
         last_30_days: entries
@@ -144,7 +153,7 @@ pub fn from_entries(entries: &[HistoryEntry], known: &[String], now_ms: u64) -> 
     let mut apps: HashMap<String, usize> = HashMap::new();
     let (mut with_app, mut code, mut long) = (0, 0, 0);
     let mut lengths = Vec::new();
-    let mut terms: HashMap<String, (String, usize)> = HashMap::new();
+    let mut seen = super::terms::Seen::new();
     let mut fixes: HashMap<(String, String), usize> = HashMap::new();
     for entry in entries {
         if let Some(app) = entry.application.as_deref().filter(|app| !app.is_empty()) {
@@ -160,16 +169,7 @@ pub fn from_entries(entries: &[HistoryEntry], known: &[String], now_ms: u64) -> 
         if written.len() >= LONG_WORDS {
             long += 1;
         }
-        // Latin words in Russian speech are terms.
-        let cyrillic = entry.final_text.chars().any(is_cyrillic);
-        for word in &written {
-            if is_term(word, cyrillic) {
-                let slot = terms
-                    .entry(word.to_lowercase())
-                    .or_insert_with(|| ((*word).to_owned(), 0));
-                slot.1 += 1;
-            }
-        }
+        super::terms::note(&mut seen, &written);
         for (heard, fixed) in changed(&words(&entry.raw_text), &written) {
             *fixes.entry((heard, fixed)).or_default() += 1;
         }
@@ -188,46 +188,7 @@ pub fn from_entries(entries: &[HistoryEntry], known: &[String], now_ms: u64) -> 
         })
         .collect();
     fixes.sort_by(|a, b| b.count.cmp(&a.count).then(a.heard.cmp(&b.heard)));
-    let mut terms: Vec<Term> = terms
-        .into_iter()
-        .filter(|(lower, _)| !known.contains(lower))
-        .map(|(lower, (word, count))| Term {
-            heard: fixes
-                .iter()
-                .filter(|fix| {
-                    fix.written
-                        .split(' ')
-                        .any(|part| part.to_lowercase() == lower)
-                })
-                .map(|fix| fix.heard.clone())
-                .collect(),
-            word,
-            count,
-        })
-        .filter(|term| term.count >= 2 || !term.heard.is_empty())
-        .collect();
-    // A fix to a few Latin words is one term ("pull request"), not each.
-    for fix in &fixes {
-        let parts: Vec<&str> = fix.written.split(' ').collect();
-        let latin = parts.iter().all(|part| is_term(part, true));
-        let lower = fix.written.to_lowercase();
-        if parts.len() < 2 || !latin || known.contains(&lower) {
-            continue;
-        }
-        terms.retain(|term| {
-            !(term.count <= fix.count
-                && parts
-                    .iter()
-                    .any(|part| part.eq_ignore_ascii_case(&term.word)))
-        });
-        terms.push(Term {
-            word: fix.written.clone(),
-            count: fix.count,
-            heard: vec![fix.heard.clone()],
-        });
-    }
-    terms.sort_by(|a, b| b.count.cmp(&a.count).then(a.word.cmp(&b.word)));
-    terms.truncate(TERMS);
+    let terms = super::terms::pick(&seen, &fixes, known);
     fixes.retain(|fix| fix.count >= 2);
     fixes.truncate(FIXES);
     usage.terms = terms;
@@ -307,23 +268,6 @@ fn words(text: &str) -> Vec<&str> {
         .map(|word| word.trim_matches(|c: char| ".'’-—–…".contains(c)))
         .filter(|word| word.chars().any(char::is_alphanumeric))
         .collect()
-}
-
-/// Whether `word` looks like a term: Latin letters inside Russian speech,
-/// or anywhere with a capital inside it (`GitHub`), all capitals
-/// (`API`), or digits among its letters (`gpt5`).
-fn is_term(word: &str, cyrillic: bool) -> bool {
-    let letters = word.chars().filter(|c| c.is_alphabetic()).count();
-    if letters < 2
-        || !word
-            .chars()
-            .all(|c| c.is_ascii() && !c.is_ascii_whitespace())
-    {
-        return false;
-    }
-    let inner_capital = word.chars().skip(1).any(|c| c.is_ascii_uppercase());
-    let digits = word.chars().any(|c| c.is_ascii_digit());
-    cyrillic || inner_capital || digits
 }
 
 /// Russian when most of `text`'s letters are Cyrillic, else Latin; none
@@ -468,14 +412,19 @@ mod tests {
     #[test]
     fn terms_fixes_and_shares_come_from_the_words() {
         let long = "слово ".repeat(LONG_WORDS);
-        let entries = [
+        let mut entries = vec![
             entry(
                 1,
                 "Ghostty",
                 "открой гитхаб и сделай пул реквест",
                 "открой GitHub и сделай pull request",
             ),
-            entry(2, "Cursor", "запушь на гитхаб", "запушь на GitHub"),
+            entry(
+                2,
+                "Cursor",
+                "запушь на гитхаб и пул реквест",
+                "запушь на GitHub и pull request",
+            ),
             entry(
                 3,
                 "Slack",
@@ -485,17 +434,18 @@ mod tests {
             entry(4, "Telegram", &long, &long),
             entry(5, "Notes", "the API is fine", "the API is fine"),
         ];
+        entries.push(entry(6, "Notes", "API is fine", "the API is fine"));
         let known = ["docker".to_owned()];
         let usage = from_entries(&entries, &known, 10_000);
-        assert_eq!(usage.code_share, 40);
-        assert_eq!(usage.long_share, 20);
+        assert_eq!(usage.code_share, 33);
+        assert_eq!(usage.long_share, 17);
         assert_eq!(
-            usage.fixes,
-            [Fix {
+            usage.fixes[0],
+            Fix {
                 heard: "гитхаб".into(),
                 written: "GitHub".into(),
                 count: 2,
-            }]
+            }
         );
         let github = usage
             .terms
@@ -506,8 +456,8 @@ mod tests {
             (github.count, github.heard.as_slice()),
             (2, ["гитхаб".to_owned()].as_slice())
         );
-        // Said once but fixed: a term, with how it was heard, its words
-        // as one.
+        assert!(!github.sure(), "fixed twice, not three times");
+        // Fixed twice: a term, with how it was heard, its words as one.
         let pull = usage
             .terms
             .iter()
@@ -516,10 +466,158 @@ mod tests {
         assert_eq!(pull.heard, ["пул реквест"]);
         assert!(usage.terms.iter().all(|term| term.word != "pull"));
         assert!(usage.terms.iter().all(|term| term.word != "Docker"));
-        // `API` once in English: not yet.
+        // `API` in English sentences only: never.
         assert!(usage.terms.iter().all(|term| term.word != "API"));
         let lines = lines(&usage).join("\n");
         assert!(lines.contains("GitHub x2 (heard as \"гитхаб\")"), "{lines}");
         assert!(!lines.contains("открой"), "{lines}");
+    }
+
+    fn said(id: u64, raw: &str, written: &str) -> HistoryEntry {
+        entry(id, "Ghostty", raw, written)
+    }
+
+    /// Russian speech with English in it, as a vibe coder dictates: the
+    /// ordinary English words in it, a word of a term Vocabulary has, and
+    /// the words of a longer fix are no terms, and no heard form comes
+    /// from a fix into more than the term. What is one stays: Codex from
+    /// кодекс (sure, three times), a name like GitHub, a phrase like pull
+    /// request.
+    #[test]
+    fn only_real_terms_come_from_mixed_speech() {
+        let mut entries = Vec::new();
+        let mut id = 0;
+        let mut add = |raw: &str, written: &str, times: usize| {
+            for _ in 0..times {
+                id += 1;
+                entries.push(said(id, raw, written));
+            }
+        };
+        add(
+            "запусти клод код и скажи то есть",
+            "запусти Claude Code и скажи to есть",
+            3,
+        );
+        add(
+            "открой Claude код в терминале",
+            "открой Claude Code в терминале",
+            2,
+        );
+        add(
+            "сделай драгн дропом файл and потом use",
+            "сделай drag and drop файл and потом use",
+            2,
+        );
+        add(
+            "напиши струкче саммари экшен итемс call",
+            "напиши Structure summary action items call",
+            2,
+        );
+        add("включи History и Play там", "включи History и Play там", 3);
+        add("спроси кодекс про это", "спроси Codex про это", 3);
+        add("открой гитхаб сейчас", "открой GitHub сейчас", 1);
+        add("запушь в GitHub ветку", "запушь в GitHub ветку", 1);
+        add("сделай пул реквест сейчас", "сделай pull request сейчас", 2);
+        let known = ["Claude Code".to_owned(), "клод код".to_owned()];
+        let usage = from_entries(&entries, &known, 10_000);
+        let words: Vec<&str> = usage.terms.iter().map(|term| term.word.as_str()).collect();
+        for gone in [
+            "to",
+            "and",
+            "use",
+            "Code",
+            "Claude",
+            "Structure",
+            "summary",
+            "action",
+            "items",
+            "call",
+            "History",
+            "Play",
+            "drag",
+            "drop",
+        ] {
+            assert!(!words.contains(&gone), "{gone} in {words:?}");
+        }
+        let codex = &usage.terms[0];
+        assert_eq!(codex.word, "Codex", "{words:?}");
+        assert_eq!(codex.heard, ["кодекс"]);
+        assert!(codex.sure());
+        let github = usage
+            .terms
+            .iter()
+            .find(|term| term.word == "GitHub")
+            .unwrap();
+        assert_eq!(github.heard, ["гитхаб"]);
+        assert!(!github.sure());
+        let pull = usage
+            .terms
+            .iter()
+            .find(|term| term.word == "pull request")
+            .unwrap();
+        assert_eq!(pull.heard, ["пул реквест"]);
+        // A phrase of ordinary words cleanup keeps writing stays one, as
+        // a whole; never its words.
+        let drag = usage
+            .terms
+            .iter()
+            .find(|term| term.word == "drag and drop")
+            .unwrap();
+        assert_eq!(drag.heard, ["драгн дропом"]);
+        for term in &usage.terms {
+            for heard in &term.heard {
+                assert!(
+                    !heard.eq_ignore_ascii_case(&term.word),
+                    "{} heard as itself",
+                    term.word
+                );
+            }
+        }
+    }
+
+    /// The owner's real History against their Vocabulary, read-only:
+    /// `HEX_USAGE_HISTORY=… HEX_USAGE_SETTINGS=… cargo test --bin hex
+    /// owners_terms -- --ignored --nocapture` prints the terms.
+    #[test]
+    #[ignore = "reads a real History named by HEX_USAGE_HISTORY"]
+    fn owners_terms() {
+        let history = std::env::var("HEX_USAGE_HISTORY").unwrap();
+        let entries = crate::history::read_snapshot(std::path::Path::new(&history)).unwrap();
+        let known: Vec<String> = std::env::var("HEX_USAGE_SETTINGS")
+            .ok()
+            .and_then(|path| std::fs::read(path).ok())
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .and_then(|settings| settings.get("vocabulary").cloned())
+            .and_then(|vocabulary| vocabulary.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .flat_map(|entry| {
+                let term = entry.get("term").and_then(serde_json::Value::as_str);
+                let sounds = entry
+                    .get("sounds_like")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                term.map(str::to_owned).into_iter().chain(
+                    sounds
+                        .into_iter()
+                        .filter_map(|sound| sound.as_str().map(str::to_owned)),
+                )
+            })
+            .collect();
+        let usage = from_entries(&entries, &known, u64::MAX / 2);
+        for term in &usage.terms {
+            println!(
+                "{} x{} fixed {}{} heard {:?}",
+                term.word,
+                term.count,
+                term.fixed,
+                if term.sure() { " SURE" } else { "" },
+                term.heard
+            );
+        }
+        for line in lines(&usage) {
+            println!("{line}");
+        }
     }
 }
