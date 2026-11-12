@@ -281,10 +281,9 @@ pub(super) fn run(question: &Question, asker: &Asker, limits: Limits) -> Answere
         };
         let Some(reads) = reads else {
             live::doing(None);
-            let answer = match last {
-                true => protocol::without(&reply),
-                false => reply,
-            };
+            // Never a call shown as words: the last reply's block, and a
+            // call line an answer carries with no fence.
+            let answer = protocol::without(&reply);
             if answer.trim().is_empty() {
                 break Err(eyre!("the model kept asking to read and never answered"));
             }

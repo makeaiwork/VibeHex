@@ -115,17 +115,35 @@ pub fn reads(reply: &str) -> Option<Reads> {
     if fenced {
         return Some(reads);
     }
-    // No fence: a reply that is nothing but calls.
+    // No fence: a reply that is nothing but calls, and what a fence
+    // written wrong leaves around them.
     let written: Vec<&str> = lines
         .iter()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty())
         .collect();
-    if written.is_empty() || !written.iter().all(|line| starts_call(line)) {
+    if !written.iter().all(|line| starts_call(line) || debris(line)) {
         return None;
     }
-    block(&written, &mut reads);
+    let calls: Vec<&str> = written
+        .into_iter()
+        .filter(|line| starts_call(line))
+        .collect();
+    block(&calls, &mut reads);
     (!reads.calls.is_empty()).then_some(reads)
+}
+
+/// A line that says nothing: a fence of any kind, or brackets alone. A
+/// live reply was a call, then "```" with a marker after it, then "}":
+/// the person must never be shown that as an answer.
+fn debris(line: &str) -> bool {
+    let line = line.trim();
+    line.starts_with("```")
+        || line.starts_with("~~~")
+        || (!line.is_empty()
+            && line
+                .chars()
+                .all(|c| matches!(c, '{' | '}' | '[' | ']' | ',')))
 }
 
 /// `reply` without what asks to read: its read blocks, and call lines
@@ -146,6 +164,13 @@ pub fn without(reply: &str) -> String {
             kept.push(lines[index]);
         }
         index += 1;
+    }
+    // Nothing but what a call left around it is no answer.
+    if kept
+        .iter()
+        .all(|line| line.trim().is_empty() || debris(line))
+    {
+        return String::new();
     }
     kept.join("\n").trim().to_owned()
 }
@@ -345,6 +370,15 @@ mod tests {
         );
         // Calls and prose with no fence are an answer.
         assert_eq!(reads("See:\n{\"tool\":\"facts\"}"), None);
+        // A fence written wrong, as a live reply had it: still a call, and
+        // never an answer.
+        let broken = "{\"tool\":\"cleanup_instructions\"}\n```⊢final_marker\n}";
+        assert_eq!(tools(broken), ["cleanup_instructions"]);
+        assert_eq!(without(broken), "");
+        assert_eq!(tools("```text\n{\"tool\":\"facts\"}\n```"), ["facts"]);
+        // Code alone, or brackets alone, asks for nothing.
+        assert_eq!(reads("```sh\nhex status\n```"), None);
+        assert_eq!(reads("}"), None);
     }
 
     #[test]
