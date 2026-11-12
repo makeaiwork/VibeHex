@@ -26,6 +26,13 @@ use crate::files::rewrite::Engine;
 
 /// How often a growing draft reaches the pane.
 const DRAFT_EVERY: Duration = Duration::from_millis(80);
+/// How long a cloud model may stay silent after its turn starts (no word,
+/// no reasoning, no search) before the turn is stopped and asked once
+/// more; the engine's own deadline then counts from the new turn. A model
+/// that is merely slow has said something by then.
+const FIRST_EVENT: Duration = Duration::from_secs(75);
+/// How often the watchdog looks.
+const WATCH_EVERY: Duration = Duration::from_millis(50);
 
 type Generate =
     Box<dyn Fn(&str, &str, &AtomicBool, Option<Streamed>) -> Result<String> + Send + 'static>;
@@ -107,6 +114,8 @@ pub struct Answering {
     pub cards_coming: bool,
     /// What it has searched on the web so far.
     pub web: Web,
+    /// The model stayed silent past [`FIRST_EVENT`] and is asked again.
+    pub retrying: bool,
 }
 
 #[derive(Default)]
@@ -170,10 +179,14 @@ pub fn ask(question: Question, engine: Engine) -> bool {
             },
         ) as Searching
     });
+    // A cloud model's silence is a stall; a built-in model, OpenCode
+    // (which answers whole) and the person's own server (reading a long
+    // prompt on their hardware) may be silent a long while.
+    let silence = engine.streams_from_the_cloud().then_some(FIRST_EVENT);
     let generate: Generate = Box::new(move |instructions, input, cancel, streamed| {
         engine.generate(context, instructions, input, cancel, streamed)
     });
-    start_with(question, room, model, (generate, search), local)
+    start_with(question, room, model, (generate, search), (local, silence))
 }
 
 /// Whether `question`'s answer may search the web: its conversation's Web
@@ -197,8 +210,9 @@ enum Offline {
     Earlier,
 }
 
-fn offline(question: &Question, found: Option<&Found>) -> Option<Offline> {
-    if found.is_some() || matches!(question.recall, Recall::Declined) {
+fn offline(question: &Question, found: Option<&Found>, vocabulary: bool) -> Option<Offline> {
+    // Vocabulary entries are the person's own, as recordings are.
+    if found.is_some() || vocabulary || matches!(question.recall, Recall::Declined) {
         Some(Offline::Recordings)
     } else if question.earlier.iter().any(|earlier| earlier.recordings) {
         Some(Offline::Earlier)
@@ -209,7 +223,7 @@ fn offline(question: &Question, found: Option<&Found>) -> Option<Offline> {
 
 #[cfg(test)]
 fn start(question: Question, room: Room, model: String, generate: Generate, local: bool) -> bool {
-    start_with(question, room, model, (generate, None), local)
+    start_with(question, room, model, (generate, None), (local, None))
 }
 
 fn start_with(
@@ -217,7 +231,7 @@ fn start_with(
     room: Room,
     model: String,
     (generate, search): (Generate, Option<Searching>),
-    local: bool,
+    (local, silence): (bool, Option<Duration>),
 ) -> bool {
     let mut held = state();
     if held.answering.is_some() {
@@ -242,78 +256,124 @@ fn start_with(
         searching: matches!(question.recall, Recall::Search(_)),
         cards_coming: false,
         web: Web::default(),
+        retrying: false,
     });
     held.cancel = Some(cancel.clone());
     changed(held);
     let spawned = std::thread::Builder::new()
         .name("assistant".into())
         .spawn(move || {
-            let earlier: Vec<prompt::Turn> = question
-                .earlier
-                .iter()
-                .map(|earlier| prompt::Turn {
-                    question: &earlier.question,
-                    answer: &earlier.answer,
-                    changes: &earlier.changes,
-                })
-                .collect();
-            let found = match &question.recall {
-                Recall::Search(search) => read(search, room),
-                _ => None,
-            };
-            let notes = match &question.recall {
-                Recall::Releases(asked) => Some(releases::select(asked, releases::Running::here())),
-                _ => None,
-            };
-            let reach = match (&question.recall, &found, &notes) {
-                (Recall::Declined, ..) => Reach::Declined,
-                (Recall::Search(search), Some(found), _) => Reach::Recordings(found, search.now_ms),
-                (_, _, Some(notes)) => Reach::Releases(notes),
-                _ => Reach::Guide,
-            };
-            let search = match search.as_ref().and(offline(&question, found.as_ref())) {
-                None => search,
-                Some(why) => {
-                    if why == Offline::Earlier {
-                        let mut state = state();
-                        if let Some(answering) = &mut state.answering {
-                            answering.web.held_back = true;
-                        }
+            // Its own words (setup's questions, "Now:", a plan's reasons)
+            // in Assistant's language, as the pane makes them.
+            let settings = question
+                .changes
+                .as_ref()
+                .map(|context| context.settings.clone());
+            super::language::within_maybe(settings.as_ref(), || {
+                let earlier: Vec<prompt::Turn> = question
+                    .earlier
+                    .iter()
+                    .map(|earlier| prompt::Turn {
+                        question: &earlier.question,
+                        answer: &earlier.answer,
+                        changes: &earlier.changes,
+                    })
+                    .collect();
+                let found = match &question.recall {
+                    Recall::Search(search) => read(search, room),
+                    _ => None,
+                };
+                let notes = match &question.recall {
+                    Recall::Releases(asked) => {
+                        Some(releases::select(asked, releases::Running::here()))
                     }
-                    None
-                }
-            };
-            let mut prompt = prompt::build(
-                &question.question,
-                &earlier,
-                room,
-                reach,
-                question.changes.as_ref(),
-                &question.setup,
-            );
-            let first = match &search {
-                Some(search) => {
+                    _ => None,
+                };
+                let reach = match (&question.recall, &found, &notes) {
+                    (Recall::Declined, ..) => Reach::Declined,
+                    (Recall::Search(search), Some(found), _) => {
+                        Reach::Recordings(found, search.now_ms)
+                    }
+                    (_, _, Some(notes)) => Reach::Releases(notes),
+                    _ => Reach::Guide,
+                };
+                let mut prompt = prompt::build(
+                    &question.question,
+                    &earlier,
+                    room,
+                    reach,
+                    question.changes.as_ref(),
+                    &question.setup,
+                );
+                let search =
+                    match search
+                        .as_ref()
+                        .and(offline(&question, found.as_ref(), prompt.vocabulary))
+                    {
+                        None => search,
+                        Some(why) => {
+                            if why == Offline::Earlier {
+                                let mut state = state();
+                                if let Some(answering) = &mut state.answering {
+                                    answering.web.held_back = true;
+                                }
+                            }
+                            None
+                        }
+                    };
+                if search.is_some() {
                     prompt.instructions.push_str(super::web::RULES);
-                    search(
-                        &prompt.instructions,
-                        &prompt.input,
-                        &cancel,
-                        Some(drafts()),
-                        &seen,
-                    )
                 }
-                None => generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts())),
-            };
-            let result =
-                first.map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
-            let what = Read {
-                found: found.as_ref(),
-                articles: &prompt.articles,
-            };
-            finish(&question, &model, started, result, &cancel, what);
-            if local {
-                engine::narrow();
-            }
+                let ask = |stop: &AtomicBool, heard: &Arc<AtomicBool>| {
+                    let streamed: Streamed = {
+                        let (heard, drafts) = (heard.clone(), drafts());
+                        Arc::new(move |chars, text| {
+                            heard.store(true, Ordering::Release);
+                            drafts(chars, text);
+                        })
+                    };
+                    match &search {
+                        Some(search) => {
+                            let seen = |item: &Value, done: bool| {
+                                heard.store(true, Ordering::Release);
+                                seen(item, done);
+                            };
+                            search(
+                                &prompt.instructions,
+                                &prompt.input,
+                                stop,
+                                Some(streamed),
+                                &seen,
+                            )
+                        }
+                        None => generate(&prompt.instructions, &prompt.input, stop, Some(streamed)),
+                    }
+                };
+                let first = match silence {
+                    Some(silence) => match watched(&cancel, silence, ask) {
+                        Some(result) => result,
+                        None => {
+                            tracing::warn!(
+                                "Assistant's model said nothing in {} s; asking again",
+                                silence.as_secs()
+                            );
+                            retrying();
+                            ask(&cancel, &Arc::new(AtomicBool::new(false)))
+                        }
+                    },
+                    None => ask(&cancel, &Arc::new(AtomicBool::new(false))),
+                };
+                let result = first
+                    .map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
+                let what = Read {
+                    found: found.as_ref(),
+                    articles: &prompt.articles,
+                };
+                finish(&question, &model, started, result, &cancel, what);
+                if local {
+                    engine::narrow();
+                }
+            });
         });
     if let Err(error) = spawned {
         let mut state = state();
@@ -367,6 +427,52 @@ fn read(search: &Search, room: Room) -> Option<Found> {
 }
 
 /// One of Codex's web searches, as a step the pane shows.
+/// Runs `ask` with a stop of its own, which `cancel` sets, and so does
+/// `silence` passing before `ask` hears anything. None when it was the
+/// silence that stopped it.
+fn watched<T>(
+    cancel: &AtomicBool,
+    silence: Duration,
+    ask: impl FnOnce(&AtomicBool, &Arc<AtomicBool>) -> Result<T>,
+) -> Option<Result<T>> {
+    let stop = AtomicBool::new(false);
+    let heard = Arc::new(AtomicBool::new(false));
+    let done = AtomicBool::new(false);
+    let silent = AtomicBool::new(false);
+    let result = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let started = Instant::now();
+            while !done.load(Ordering::Acquire) {
+                if cancel.load(Ordering::Acquire) {
+                    stop.store(true, Ordering::Release);
+                } else if !heard.load(Ordering::Acquire)
+                    && !silent.load(Ordering::Acquire)
+                    && started.elapsed() >= silence
+                {
+                    silent.store(true, Ordering::Release);
+                    stop.store(true, Ordering::Release);
+                }
+                std::thread::sleep(WATCH_EVERY);
+            }
+        });
+        let result = ask(&stop, &heard);
+        done.store(true, Ordering::Release);
+        result
+    });
+    let stalled = silent.load(Ordering::Acquire) && !cancel.load(Ordering::Acquire);
+    (!stalled).then_some(result)
+}
+
+/// The steps say it is asking again.
+fn retrying() {
+    let mut state = state();
+    if let Some(answering) = &mut state.answering {
+        answering.retrying = true;
+        answering.web = Web::default();
+    }
+    changed(state);
+}
+
 fn seen(item: &Value, done: bool) {
     let mut state = state();
     if let Some(answering) = &mut state.answering {
@@ -418,8 +524,13 @@ fn settle(
         // Follow-up questions only: any change lines are dropped.
         (Stage::Follow { candidates, .. }, Some(context)) => {
             let settled = setup::follow::settled(&context.settings, &context.state);
-            let asks =
-                setup::follow::follow_ups(&parsed.asks, candidates, &context.settings, &settled);
+            let asks = setup::follow::follow_ups(
+                &parsed.asks,
+                candidates,
+                &context.settings,
+                &settled,
+                &context.state.hardware,
+            );
             return Settled {
                 reply,
                 cards: Vec::new(),
@@ -454,12 +565,21 @@ fn settle(
     let rules = crate::rune_ui::shortcut_rules();
     let (mut cards, mut refused) = changes::resolve(&parsed.proposals, &context.settings, &rules);
     refused.extend(malformed(&parsed.malformed));
+    // A change to the value there is now never becomes a card; a plan's
+    // rules fold such lines into "Already set" themselves.
+    let already = if plan {
+        Vec::new()
+    } else {
+        changes::already_set(&mut cards, &context.settings)
+    };
+    let mut reply = reply;
     let fixable: Vec<Refused> = refused
         .iter()
         .filter(|refused| refused.why != Why::Never)
         .cloned()
         .collect();
-    if remote && !fixable.is_empty() && !cancel.load(Ordering::Acquire) {
+    let asking_again = !fixable.is_empty() || !already.is_empty();
+    if remote && asking_again && !cancel.load(Ordering::Acquire) {
         {
             let mut state = state();
             if let Some(answering) = &mut state.answering {
@@ -467,6 +587,24 @@ fn settle(
             }
             changed(state);
         }
+    }
+    if remote && !already.is_empty() && !cancel.load(Ordering::Acquire) {
+        // Its words may claim a difference there isn't: the whole reply
+        // again, told what is set already; its own refusals fixed with it.
+        let again = prompt::rewrite(prompt, &reply, &already, &fixable);
+        if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None)
+            && !changes::parse::parse(&fixed).body.trim().is_empty()
+        {
+            let parsed = changes::parse::parse(&fixed);
+            let (mut more, mut more_refused) =
+                changes::resolve(&parsed.proposals, &context.settings, &rules);
+            more_refused.extend(malformed(&parsed.malformed));
+            changes::already_set(&mut more, &context.settings);
+            cards = more;
+            refused = more_refused;
+            reply = fixed;
+        }
+    } else if remote && !fixable.is_empty() && !cancel.load(Ordering::Acquire) {
         let again = prompt::repair(prompt, &reply, &fixable);
         if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None) {
             let mut parsed = changes::parse::parse(&fixed);
@@ -486,6 +624,12 @@ fn settle(
                         .find(|known| known.kind == CardKind::Vocabulary)
                 {
                     changes::vocab::merge(terms, card);
+                } else if card.kind == CardKind::VocabularyEdit
+                    && let Some(edits) = cards
+                        .iter_mut()
+                        .find(|known| known.kind == CardKind::VocabularyEdit)
+                {
+                    changes::vocab_edit::merge(edits, card);
                 } else if !cards.iter().any(|known| same_keys(known, &card)) {
                     cards.push(card);
                 }
@@ -617,6 +761,17 @@ fn finish(
             }
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
+            // An answer from the recordings that drew on the guide too says
+            // so in its steps.
+            let articles: Vec<String> = turn
+                .sources
+                .iter()
+                .filter(|id| super::guide::article(id).is_some())
+                .cloned()
+                .collect();
+            if !turn.steps.is_empty() && !articles.is_empty() {
+                turn.steps.push(Step::Guide { articles });
+            }
             // The lines cited are kept with the places; the answer shows
             // their excerpts' `[n]`.
             if let Some(found) = found {
@@ -853,6 +1008,55 @@ mod tests {
         assert_eq!(turn.refused.len(), 1);
     }
 
+    /// The owner's case: notes already written by Codex, and a reply that
+    /// offers Codex as the writer. No card; a remote model writes its
+    /// reply again, told the value is set, and that reply is the answer.
+    #[test]
+    fn a_value_already_set_is_no_card_and_its_words_are_rewritten() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let asked = Arc::new(Mutex::new(Vec::<String>::new()));
+        let seen = asked.clone();
+        let generate: Generate = Box::new(move |_, input, _, _| {
+            let mut asked = seen.lock().unwrap();
+            asked.push(input.to_owned());
+            Ok(if asked.len() == 1 {
+                "Notes are written on this Mac; switch them to Codex.\n```hex-change\n{\"key\":\"meetings.notes.writer\",\"value\":\"codex\"}\n```\nSources: none".into()
+            } else {
+                "Codex already writes your notes.\nSources: none".into()
+            })
+        });
+        let mut question = with_changes("can you recommend anything else?");
+        if let Some(context) = &mut question.changes {
+            context.settings.meetings.notes.writer = Some("codex:gpt-6.1-terra".into());
+            context.settings.dictation_processing.server.codex_model = "gpt-6.1-terra".into();
+        }
+        assert!(start(
+            question.clone(),
+            Room::Large,
+            "GPT".into(),
+            generate,
+            false
+        ));
+        let (_, turn) = finished();
+        let asked = asked.lock().unwrap().clone();
+        assert_eq!(asked.len(), 2);
+        assert!(asked[1].contains("<already_set>\nmeetings.notes.writer = \"codex\""));
+        assert!(turn.cards.is_empty(), "{:?}", turn.cards);
+        assert!(turn.refused.is_empty());
+        assert_eq!(turn.answer, "Codex already writes your notes.");
+
+        // A built-in model isn't asked again: the card just goes.
+        let generate: Generate = Box::new(|_, _, _, _| {
+            Ok("Switch them.\n```hex-change\n{\"key\":\"meetings.notes.writer\",\"value\":\"codex:gpt-6.1-terra\"}\n```\nSources: none".into())
+        });
+        assert!(start(question, Room::Small, "Qwen".into(), generate, true));
+        let (_, turn) = finished();
+        assert!(turn.cards.is_empty());
+        assert!(turn.refused.is_empty());
+    }
+
     fn setup(text: &str, stage: Stage) -> Question {
         Question {
             setup: stage,
@@ -1031,6 +1235,115 @@ mod tests {
         panic!("no answer came");
     }
 
+    /// A cloud model silent past the watchdog is stopped and asked once
+    /// more, the steps saying so; the second answer is the turn's.
+    #[test]
+    fn a_silent_model_is_asked_once_more() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        take_finished();
+        let asked = Arc::new(Mutex::new(0));
+        let seen_retry = Arc::new(AtomicBool::new(false));
+        let generate: Generate = {
+            let (asked, seen_retry) = (asked.clone(), seen_retry.clone());
+            Box::new(move |_, _, stop, streamed| {
+                let round = {
+                    let mut asked = asked.lock().unwrap();
+                    *asked += 1;
+                    *asked
+                };
+                if round == 1 {
+                    // Silent until stopped.
+                    while !stop.load(Ordering::Acquire) {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    return Err(eyre!("stopped"));
+                }
+                if answering().is_some_and(|answering| answering.retrying) {
+                    seen_retry.store(true, Ordering::Release);
+                }
+                if let Some(streamed) = streamed {
+                    streamed(5, "Hello");
+                }
+                Ok("Hello".into())
+            })
+        };
+        assert!(start_with(
+            question("Why?"),
+            Room::Large,
+            "GPT".into(),
+            (generate, None),
+            (false, Some(Duration::from_millis(100)))
+        ));
+        let (_, turn) = finished();
+        assert_eq!(turn.answer, "Hello");
+        assert_eq!(*asked.lock().unwrap(), 2);
+        assert!(
+            seen_retry.load(Ordering::Acquire),
+            "the steps said it asked again"
+        );
+    }
+
+    /// A model that answers, however slowly after its first sign, is never
+    /// asked again; one silent twice fails with its own error.
+    #[test]
+    fn a_model_that_speaks_is_not_asked_again_and_a_second_silence_fails() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        take_finished();
+        let generate: Generate = Box::new(|_, _, _, streamed| {
+            if let Some(streamed) = streamed {
+                streamed(0, "");
+            }
+            std::thread::sleep(Duration::from_millis(300));
+            Ok("Slow but here".into())
+        });
+        assert!(start_with(
+            question("Why?"),
+            Room::Large,
+            "GPT".into(),
+            (generate, None),
+            (false, Some(Duration::from_millis(100)))
+        ));
+        let (_, turn) = finished();
+        assert_eq!(turn.answer, "Slow but here");
+
+        let asked = Arc::new(Mutex::new(0));
+        let generate: Generate = {
+            let asked = asked.clone();
+            Box::new(move |_, _, stop, _| {
+                *asked.lock().unwrap() += 1;
+                let started = Instant::now();
+                // The second turn runs to the engine's own deadline.
+                while !stop.load(Ordering::Acquire) {
+                    if started.elapsed() > Duration::from_millis(300) {
+                        return Err(eyre!("Codex didn't answer within 240 seconds"));
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(eyre!("stopped"))
+            })
+        };
+        assert!(start_with(
+            question("Why?"),
+            Room::Large,
+            "GPT".into(),
+            (generate, None),
+            (false, Some(Duration::from_millis(100)))
+        ));
+        let (_, turn) = finished();
+        assert_eq!(*asked.lock().unwrap(), 2, "asked again once, not more");
+        assert!(
+            turn.error
+                .as_deref()
+                .is_some_and(|error| error.contains("didn't answer")),
+            "{:?}",
+            turn.error
+        );
+    }
+
     #[test]
     fn a_reply_becomes_a_turn_with_its_sources() {
         let _serial = SERIAL
@@ -1106,7 +1419,7 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, Some(search)),
-            false
+            (false, None)
         ));
         let (_, turn) = finished();
         (searched.load(Ordering::SeqCst), turn)
@@ -1156,6 +1469,27 @@ mod tests {
         let (searched, turn) = called_with_web(question("How do I start LM Studio's server?"));
         assert!(searched, "a guide question with Web on may search");
         assert!(!turn.web.held_back);
+    }
+
+    /// The owner's question about cleanup writing "AI cleanup" for "AI":
+    /// the prompt carries their instructions and the Vocabulary entries it
+    /// names, and so, with Web on, the call never searches.
+    #[test]
+    fn a_turn_carrying_vocabulary_stays_off_the_web() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut question = with_changes(
+            "можешь проверить, в промпте есть ли какие-то штуки, которые могли привести к этому, для AI cleanup",
+        );
+        if let Some(context) = &mut question.changes {
+            context.settings.vocabulary = vec![crate::dictation::vocabulary::VocabularyEntry {
+                term: "AI cleanup".into(),
+                sounds_like: vec!["AI".into()],
+            }];
+        }
+        let (searched, _) = called_with_web(question);
+        assert!(!searched, "Vocabulary went online");
     }
 
     /// After an answer from the recordings, the conversation's next answers
@@ -1225,7 +1559,7 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, Some(search)),
-            false
+            (false, None)
         ));
         let (_, turn) = finished();
         assert_eq!(turn.web.searches, ["LM Studio local server"]);

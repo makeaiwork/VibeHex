@@ -19,6 +19,8 @@ pub mod changes;
 mod eval;
 pub mod guide;
 pub mod intent;
+pub mod language;
+pub mod personal;
 pub mod prompt;
 pub mod recordings;
 pub mod releases;

@@ -310,7 +310,9 @@ impl Pump {
                     entries: settings.vocabulary,
                 }
             }))),
-            ControlCommand::VocabularyAdd { .. } | ControlCommand::VocabularyRemove { .. } => {
+            ControlCommand::VocabularyAdd { .. }
+            | ControlCommand::VocabularyRemove { .. }
+            | ControlCommand::VocabularyEdit { .. } => {
                 Some(reply_with(self.edit_vocabulary(&command)))
             }
         }

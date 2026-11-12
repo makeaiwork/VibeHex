@@ -112,6 +112,7 @@ impl Turn {
                     dictations,
                     meetings,
                 } => dictations + meetings > 0,
+                Step::Guide { .. } => false,
             })
     }
 }

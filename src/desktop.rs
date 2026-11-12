@@ -3,6 +3,7 @@ pub(crate) mod background_process;
 #[cfg_attr(any(target_os = "linux", target_os = "windows"), allow(dead_code))]
 pub(crate) mod events;
 pub(crate) mod file_dialog;
+pub(crate) mod hardware;
 pub(crate) mod host;
 pub(crate) mod i18n;
 pub(crate) mod instance;

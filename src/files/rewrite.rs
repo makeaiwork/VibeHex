@@ -185,6 +185,13 @@ impl Engine {
 
     /// Built in: a model on this Mac with a small window, so Assistant
     /// gives it fewer guide articles and widens the window while it asks.
+    /// Whether it streams from a cloud service (Codex, OpenRouter): one
+    /// whose long silence is a stall, not work.
+    pub fn streams_from_the_cloud(&self) -> bool {
+        matches!(self, Self::Server(server)
+            if matches!(server.provider, Provider::Codex | Provider::OpenRouter))
+    }
+
     pub fn is_local(&self) -> bool {
         self.local().is_some()
     }

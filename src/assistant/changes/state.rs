@@ -69,7 +69,10 @@ pub enum Shown {
 /// What `card` shows with `live`.
 pub fn shown(card: &Card, live: &Live) -> Shown {
     // A vocabulary card's rows, like a plan's, show the rest.
-    if matches!(card.kind, CardKind::Plan | CardKind::Vocabulary) {
+    if matches!(
+        card.kind,
+        CardKind::Plan | CardKind::Vocabulary | CardKind::VocabularyEdit
+    ) {
         return plan(card, live);
     }
     let Some(item) = card.items.first() else {

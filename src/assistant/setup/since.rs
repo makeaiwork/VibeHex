@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::assistant::recordings::usage::{self, Language, Usage};
 use crate::assistant::releases;
-use crate::desktop::i18n::{tr, tr_fill, tr_named};
+use crate::desktop::i18n::{tr, tr_fill, tr_named, tr_window};
 
 /// This many dictations kept makes an install one used a while.
 pub const USED_DICTATIONS: usize = 50;
@@ -197,9 +197,13 @@ pub fn paragraph(since: &Since) -> String {
                 blocks.push(format!("{}\n\n{}", tr("What your use shows:"), bullets.join("\n")));
             }
         }
+        // The place keeps the window's words, as the window names it.
         None => blocks.push(format!(
             "{}.",
-            tr("Your dictations and meetings could show more here, if Assistant may read them (Assistant › Settings)")
+            tr_fill(
+                "Your dictations and meetings could show more here, if Assistant may read them ({})",
+                &format!("{} › {}", tr_window("Assistant"), tr_window("Settings"))
+            )
         )),
     }
     blocks.join("\n\n")
@@ -446,7 +450,7 @@ pub fn date(ms: u64) -> String {
 pub fn words() -> Vec<&'static str> {
     vec![
         "What your use shows:",
-        "Your dictations and meetings could show more here, if Assistant may read them (Assistant › Settings)",
+        "Your dictations and meetings could show more here, if Assistant may read them ({})",
         "Nothing new in VibeHex since your last setup ({})",
         "1 update since your last setup ({date}): {list}",
         "{count} updates since your last setup ({date}): {list}",

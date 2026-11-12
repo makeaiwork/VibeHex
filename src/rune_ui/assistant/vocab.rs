@@ -20,7 +20,7 @@ use crate::assistant::changes::state::{self, Row, Shown};
 use crate::assistant::changes::vocab::{self, Term};
 use crate::assistant::changes::{Card, Decision, Item};
 use crate::control::{ControlCommand, edit_vocabulary};
-use crate::desktop::i18n::{tr, tr_fill, tr_named};
+use crate::desktop::i18n::{tr, tr_fill, tr_named, tr_window};
 use crate::dictation::vocabulary::{self, VocabularyEntry};
 
 /// The term column's width, as the board has it.
@@ -52,7 +52,7 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
         .child(card::tile(p, glyph, shell))
         .child(card::header_in(
             p,
-            &format!("{} › {}", tr("General"), tr("Vocabulary")),
+            &format!("{} › {}", tr_window("General"), tr_window("Vocabulary")),
             &name,
             None,
             ink,
@@ -192,7 +192,7 @@ pub(super) fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: 
     line
 }
 
-fn mark(glyph: &'static Icon, color: rune::Color) -> El {
+pub(super) fn mark(glyph: &'static Icon, color: rune::Color) -> El {
     el().key("mark")
         .size(16.0, 16.0)
         .center()
@@ -279,7 +279,7 @@ fn foot(p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) -> Vec<El> 
     }
 }
 
-fn status(words: String, color: rune::Color) -> El {
+pub(super) fn status(words: String, color: rune::Color) -> El {
     text(words)
         .key("status")
         .font(DESCRIPTION)
@@ -307,6 +307,7 @@ pub(super) fn edit(ui: &mut Ui, at: At, index: usize) {
 /// Done: the edited term back into its row. An emptied term keeps the
 /// one before.
 pub(super) fn done(ui: &mut Ui) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some((at, index)) = ui.assistant.vocab_edit.take() else {
         return;
     };
@@ -353,6 +354,7 @@ pub(super) fn add(list: &mut Vec<VocabularyEntry>, item: &mut Item) -> Vec<Strin
 
 /// Add N terms: the checked ones in one save.
 pub(super) fn apply(ui: &mut Ui, at: At, mut card: Card) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let mut list = ui.drafted().vocabulary;
     let mut added: Vec<String> = Vec::new();
     for item in &mut card.items {
@@ -402,7 +404,7 @@ pub(super) fn take_back(ui: &mut Ui, after: &Map<String, Value>) -> Result<(), S
 }
 
 /// Show in Vocabulary: General, with the Vocabulary sheet open.
-fn show(ui: &mut Ui, tx: &mut rune::Tx) {
+pub(super) fn show(ui: &mut Ui, tx: &mut rune::Tx) {
     ui.select_pane(super::super::sidebar::Pane::General, tx);
     super::super::vocabulary::open(ui);
 }

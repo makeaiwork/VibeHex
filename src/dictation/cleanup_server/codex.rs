@@ -226,8 +226,26 @@ pub fn model_name(id: &str) -> String {
     match (found, id.trim()) {
         (Some(model), _) => model.name.clone(),
         (None, "") => "Codex".into(),
-        (None, id) => id.into(),
+        (None, id) => named(id),
     }
+}
+
+/// A model Codex hasn't listed yet, named as it names its own: `gpt-6.1-sol`
+/// reads GPT-6.1-Sol, `o4-mini` O4-Mini.
+fn named(id: &str) -> String {
+    id.split('-')
+        .map(|part| match part {
+            "gpt" => "GPT".to_owned(),
+            part => {
+                let mut chars = part.chars();
+                chars
+                    .next()
+                    .map(|first| first.to_uppercase().chain(chars).collect())
+                    .unwrap_or_default()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("-")
 }
 
 /// Account, models, and plan usage, starting Codex if it isn't running.
@@ -425,6 +443,13 @@ fn answer(
                     searched(&item, done);
                 }
             }
+            // Before the answer's first words, its listener hears that
+            // the model is at work (Assistant's first-event watchdog).
+            Ok(Event::Alive) => {
+                if let Some(streamed) = streamed.as_ref().filter(|_| text.is_empty()) {
+                    streamed(0, "");
+                }
+            }
             Ok(Event::Completed(turn)) => return finished(&turn, &text),
             Ok(Event::Failed(why)) => return Err(eyre!("Codex: {why}")),
             Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -596,6 +621,9 @@ enum Event {
     Web(Value, bool),
     Completed(Value),
     Failed(String),
+    /// The model is at work on the turn (reasoning, a tool, an item of its
+    /// own) without words of the answer yet.
+    Alive,
 }
 
 /// A thread's events while a request follows it; dropping it unsubscribes.
@@ -950,10 +978,17 @@ fn route_to(threads: &Mutex<HashMap<String, mpsc::Sender<Event>>>, method: &str,
             .get("delta")
             .and_then(Value::as_str)
             .map(|delta| Event::Delta(delta.to_owned())),
-        "item/started" | "item/completed" => params
-            .get("item")
-            .filter(|item| item.get("type").and_then(Value::as_str) == Some("webSearch"))
-            .map(|item| Event::Web(item.clone(), method == "item/completed")),
+        "item/started" | "item/completed" => params.get("item").and_then(|item| {
+            match item.get("type").and_then(Value::as_str) {
+                Some("webSearch") => Some(Event::Web(item.clone(), method == "item/completed")),
+                // The person's own words come back first; they say nothing
+                // of the model.
+                Some("userMessage") | None => None,
+                Some(_) => Some(Event::Alive),
+            }
+        }),
+        // Reasoning and other items' deltas.
+        method if method.starts_with("item/") => Some(Event::Alive),
         "turn/completed" => params.get("turn").cloned().map(Event::Completed),
         // An error Codex retries by itself is only a warning.
         "error" if params.get("willRetry").and_then(Value::as_bool) != Some(true) => params
@@ -1170,6 +1205,27 @@ mod tests {
         assert_eq!(got[1].0, item);
     }
 
+    /// The model's own work before its words counts as a sign of life; the
+    /// person's message coming back does not.
+    #[test]
+    fn the_models_work_reaches_its_thread_as_alive() {
+        let (sender, receiver) = mpsc::channel();
+        let threads = Mutex::new(HashMap::from([("t".to_owned(), sender)]));
+        let alive = |method: &str, params: Value| {
+            route_to(&threads, method, &params);
+            receiver
+                .try_iter()
+                .any(|event| matches!(event, Event::Alive))
+        };
+        let user = json!({ "threadId": "t", "item": { "type": "userMessage", "id": "u" } });
+        assert!(!alive("item/started", user));
+        let reasoning = json!({ "threadId": "t", "item": { "type": "reasoning", "id": "r" } });
+        assert!(alive("item/started", reasoning));
+        let delta = json!({ "threadId": "t", "itemId": "r", "delta": "thinking" });
+        assert!(alive("item/reasoning/summaryTextDelta", delta));
+        assert!(!alive("turn/started", json!({ "threadId": "t" })));
+    }
+
     /// A whole answer's stream with web searches, as the reader routes it:
     /// each search's start and end, the answer's words, the turn's end.
     #[test]
@@ -1190,9 +1246,16 @@ mod tests {
                 Event::Delta(_) => words += 1,
                 Event::Completed(_) => ended += 1,
                 Event::Failed(why) => panic!("{why}"),
+                Event::Alive => {}
             }
         }
         assert_eq!((started, done, words, ended), (3, 3, 1, 1));
+    }
+
+    #[test]
+    fn a_model_not_listed_yet_is_named_as_codex_names_its_own() {
+        assert_eq!(named("gpt-6.1-sol"), "GPT-6.1-Sol");
+        assert_eq!(named("o4-mini"), "O4-Mini");
     }
 
     #[test]

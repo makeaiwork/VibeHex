@@ -90,7 +90,9 @@ pub(super) fn row_for(ui: &Ui, p: Paint) -> Option<El> {
                     .color(c.icon_muted),
             )
             .on_press(|ui: &mut Ui| {
-                super::composer::ask_releases(ui, tr(QUESTION).to_owned());
+                let question =
+                    crate::assistant::language::within(&ui.settings, || tr(QUESTION).to_owned());
+                super::composer::ask_releases(ui, question);
             }),
     )
 }

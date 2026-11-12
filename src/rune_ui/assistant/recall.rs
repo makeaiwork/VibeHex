@@ -331,6 +331,22 @@ fn say(step: &Step) -> String {
             )
         }
     };
+    if let Step::Guide { articles } = step {
+        // Titles as the guide's sources show them.
+        let names: Vec<&str> = articles
+            .iter()
+            .filter_map(|id| crate::assistant::guide::article(id))
+            .map(|article| article.title.as_str())
+            .collect();
+        return match names.len() {
+            0 => String::new(),
+            1 => tr_fill("Read 1 guide article: {}", names[0]),
+            count => tr_named(
+                "Read {count} guide articles: {names}",
+                &[("count", &count.to_string()), ("names", &names.join(", "))],
+            ),
+        };
+    }
     match *step {
         Step::Meetings {
             searched: count,
@@ -352,6 +368,7 @@ fn say(step: &Step) -> String {
             dictations,
             meetings,
         } => tr_fill("Read {}", &looked(dictations, meetings)),
+        Step::Guide { .. } => String::new(),
     }
 }
 
@@ -436,48 +453,7 @@ pub(in super::super) fn steps_folded(
         return None;
     }
     let c = &p.k.c;
-    let mut read = Vec::new();
-    for step in steps {
-        match *step {
-            Step::Meetings { found, .. } if found > 0 && other => {
-                read.push(counted(found, "1 other meeting", "{} other meetings"));
-            }
-            Step::Files { found, .. } if found > 0 && other => {
-                read.push(counted(found, "1 other file", "{} other files"));
-            }
-            Step::Meetings { found, .. } if found > 0 => read.push(meetings(found)),
-            Step::Files { found, .. } if found > 0 => read.push(files(found)),
-            Step::Dictations { found, .. } if found > 0 => read.push(dictations(found)),
-            Step::Looked {
-                dictations,
-                meetings,
-            } => read.push(looked(dictations, meetings)),
-            _ => {}
-        }
-    }
-    let seconds = format!("{:.0}", seconds.max(1.0));
-    let line = match (read.as_slice(), web) {
-        // An answer from the guide and the web.
-        ([], Some(turn)) if steps.is_empty() => super::web::folded(turn, &seconds),
-        ([], _) => tr_fill("Found nothing in your recordings in {} s", &seconds),
-        ([one], _) => tr_named(
-            "Read {what} in {seconds} s",
-            &[("what", one), ("seconds", &seconds)],
-        ),
-        ([first, second], _) => tr_named(
-            "Read {first} and {second} in {seconds} s",
-            &[("first", first), ("second", second), ("seconds", &seconds)],
-        ),
-        ([first, second, third, ..], _) => tr_named(
-            "Read {first}, {second}, and {third} in {seconds} s",
-            &[
-                ("first", first),
-                ("second", second),
-                ("third", third),
-                ("seconds", &seconds),
-            ],
-        ),
-    };
+    let line = summary((steps, other), web, seconds);
     let toggle = row()
         .key("folded")
         .role("button")
@@ -781,9 +757,100 @@ pub(in super::super) fn chips_with(
     Some(line)
 }
 
+/// The folded line: what the steps read, and in how long.
+fn summary((steps, other): (&[Step], bool), web: Option<&Turn>, seconds: f32) -> String {
+    let mut read = Vec::new();
+    for step in steps {
+        if let Step::Guide { articles } = step {
+            read.push(counted(
+                articles.len(),
+                "1 guide article",
+                "{} guide articles",
+            ));
+            continue;
+        }
+        match *step {
+            Step::Meetings { found, .. } if found > 0 && other => {
+                read.push(counted(found, "1 other meeting", "{} other meetings"));
+            }
+            Step::Files { found, .. } if found > 0 && other => {
+                read.push(counted(found, "1 other file", "{} other files"));
+            }
+            Step::Meetings { found, .. } if found > 0 => read.push(meetings(found)),
+            Step::Files { found, .. } if found > 0 => read.push(files(found)),
+            Step::Dictations { found, .. } if found > 0 => read.push(dictations(found)),
+            Step::Looked {
+                dictations,
+                meetings,
+            } => read.push(looked(dictations, meetings)),
+            _ => {}
+        }
+    }
+    let seconds = format!("{:.0}", seconds.max(1.0));
+    match (read.as_slice(), web) {
+        // An answer from the guide and the web.
+        ([], Some(turn)) if steps.is_empty() => super::web::folded(turn, &seconds),
+        ([], _) => tr_fill("Found nothing in your recordings in {} s", &seconds),
+        ([one], _) => tr_named(
+            "Read {what} in {seconds} s",
+            &[("what", one), ("seconds", &seconds)],
+        ),
+        ([first, second], _) => tr_named(
+            "Read {first} and {second} in {seconds} s",
+            &[("first", first), ("second", second), ("seconds", &seconds)],
+        ),
+        ([first, second, third, ..], _) => tr_named(
+            "Read {first}, {second}, and {third} in {seconds} s",
+            &[
+                ("first", first),
+                ("second", second),
+                ("third", third),
+                ("seconds", &seconds),
+            ],
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{GAP, marked};
+    use super::{GAP, marked, say, summary};
+    use crate::assistant::recordings::Step;
+
+    /// A recordings answer that drew on the guide too names both.
+    #[test]
+    fn the_steps_name_the_guide_articles_read() {
+        let steps = [
+            Step::Dictations {
+                searched: 40,
+                found: 8,
+            },
+            Step::Guide {
+                articles: vec![
+                    "topics/vocabulary".into(),
+                    "topics/output-and-instructions".into(),
+                ],
+            },
+        ];
+        {
+            assert_eq!(
+                summary((&steps, false), None, 29.2),
+                "Read 8 dictations and 2 guide articles in 29 s"
+            );
+            let guide = say(&steps[1]);
+            assert!(guide.starts_with("Read 2 guide articles: "), "{guide}");
+            let titles: Vec<String> = ["topics/vocabulary", "topics/output-and-instructions"]
+                .iter()
+                .map(|id| crate::assistant::guide::article(id).unwrap().title.clone())
+                .collect();
+            assert!(guide.ends_with(&titles.join(", ")), "{guide}");
+            assert_eq!(
+                say(&Step::Guide {
+                    articles: vec!["topics/vocabulary".into()]
+                }),
+                format!("Read 1 guide article: {}", titles[0])
+            );
+        }
+    }
 
     #[test]
     fn citations_become_links_and_the_rest_stays() {

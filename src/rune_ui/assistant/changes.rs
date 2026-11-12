@@ -35,13 +35,12 @@ pub(super) fn context(ui: &Ui) -> Context {
     let answered = crate::assistant::setup::past::answered_before(setups, &settings, |key, at| {
         crate::assistant::setup::since::changed_since(key, at)
     });
-    let installed = ui
-        .picker
-        .installed
-        .iter()
-        .flatten()
-        .map(|id| id.as_str().to_owned())
-        .collect();
+    // A scene's own list, else the disk, as the picker asks it: called
+    // when a question is sent or setup moves on, never per frame.
+    let installed = Some(installed(&transcription_models::all_models(), |model| {
+        let language = ui.settings.transcription_for_model(model.id).language;
+        ui.picker.installed(model, &language)
+    }));
     Context {
         settings,
         send: ui.settings.assistant.send_settings,
@@ -63,8 +62,27 @@ pub(super) fn context(ui: &Ui) -> Context {
             },
             declined: crate::assistant::setup::past::declined(setups),
             answered,
+            // Read when a question is sent or setup moves on; a scene's own.
+            hardware: if ui.assistant.fixture {
+                ui.assistant.hardware.clone()
+            } else {
+                crate::desktop::hardware::detect()
+            },
         },
     }
+}
+
+/// The ids of the `models` this computer can run that `has` finds
+/// downloaded.
+fn installed(
+    models: &[&transcription_models::ModelDefinition],
+    has: impl Fn(&transcription_models::ModelDefinition) -> bool,
+) -> Vec<String> {
+    models
+        .iter()
+        .filter(|model| model.available() && has(model))
+        .map(|model| model.id.as_str().to_owned())
+        .collect()
 }
 
 /// The card at `at`.
@@ -161,6 +179,7 @@ fn is_download(item: &changes::Item) -> bool {
 /// Saves the card's change: what it needs first and the change itself, in
 /// one save, or nothing.
 pub(super) fn apply(ui: &mut Ui, at: At) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     // A term still being edited is kept first.
     super::vocab::done(ui);
     let Some(card) = card(ui, at).cloned() else {
@@ -171,6 +190,9 @@ pub(super) fn apply(ui: &mut Ui, at: At) {
     }
     if card.kind == CardKind::Vocabulary {
         return super::vocab::apply(ui, at, card);
+    }
+    if card.kind == CardKind::VocabularyEdit {
+        return super::vocab_edit::apply(ui, at, card);
     }
     let decision = match card.items.first() {
         Some(item) if is_download(item) => {
@@ -402,6 +424,7 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
             prepare(ui, &item.key, &item.from)
         }
         _ if card.kind == CardKind::Vocabulary => super::vocab::take_back(ui, after),
+        _ if card.kind == CardKind::VocabularyEdit => super::vocab_edit::take_back(ui, after),
         _ if card.kind == CardKind::Plan => {
             let saved = if before.is_empty() {
                 Ok(())
@@ -519,6 +542,40 @@ mod tests {
     use crate::assistant::changes::Item;
     use crate::assistant::store::Turn;
     use serde_json::json;
+
+    /// A live window has no scene's list: the models on disk are read,
+    /// and the model reads them by name, the one in use marked.
+    #[test]
+    fn a_live_window_reports_the_models_on_disk() {
+        let models = transcription_models::all_models();
+        let on_disk = |model: &transcription_models::ModelDefinition| {
+            model.id == TranscriptionModelId::ParakeetV3
+        };
+        let ids = installed(&models, on_disk);
+        assert_eq!(ids, ["parakeet_v3"]);
+
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.picker.installed = None;
+        assert!(context(&ui).state.installed.is_some(), "read from disk");
+
+        ui.picker.installed = Some(vec![TranscriptionModelId::ParakeetV3]);
+        let mut context = context(&ui);
+        context.settings.transcription.model = TranscriptionModelId::ParakeetV3;
+        let reading = catalog::Reading {
+            every: false,
+            keys: Vec::new(),
+            send: true,
+            instructions: false,
+        };
+        let section = catalog::section(&context.settings, &reading, &context.state);
+        assert!(
+            section.contains("speech models downloaded: Parakeet v3 (parakeet_v3, in use);"),
+            "{section}"
+        );
+        context.state.installed = None;
+        let section = catalog::section(&context.settings, &reading, &context.state);
+        assert!(section.contains("speech models downloaded: unknown;"));
+    }
 
     /// A scene's pane with one card in an open conversation.
     fn with_card(key: &str, from: Value, to: Value) -> (Ui, At) {

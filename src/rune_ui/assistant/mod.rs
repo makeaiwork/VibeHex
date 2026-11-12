@@ -34,6 +34,7 @@ pub(super) mod strong;
 mod tick;
 mod verbs;
 mod vocab;
+mod vocab_edit;
 mod web;
 mod whats_new;
 
@@ -120,6 +121,8 @@ pub(in super::super) struct AssistantPane {
     woken: bool,
     /// A scene: nothing reads the disk or asks a model.
     pub(super) fixture: bool,
+    /// A scene's screens and pointing devices; unknown otherwise.
+    pub(super) hardware: crate::desktop::hardware::Hardware,
     /// A scene's clock, so its times read the same on any day.
     pub(super) fixed_now: Option<u64>,
     /// The version this install updated to lately, and when (`whats_new`).
@@ -246,7 +249,10 @@ fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     // With no model to ask, the panel stands in for the field (and for the
     // greeting of a new conversation).
     let connect = connect::needed(ui);
-    let mut feed = feed::feed(ui, p, !connect, still);
+    // The conversation is Assistant's: its own words in its language (the
+    // dictation language when set); places it names keep the window's.
+    let mut feed =
+        crate::assistant::language::within(&ui.settings, || feed::feed(ui, p, !connect, still));
     if connect {
         feed = feed.child(connect::panel(ui, p));
     }
@@ -365,7 +371,10 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
 /// Assistant, or a question's in Files or Meetings' Requests.
 fn steps_live(ui: &Ui) -> bool {
     let answering = ui.assistant.answering.as_ref().is_some_and(|answering| {
-        !answering.steps.is_empty() || answering.searching || answering.web.went_online()
+        !answering.steps.is_empty()
+            || answering.searching
+            || answering.web.went_online()
+            || (answering.retrying && answering.draft.trim().is_empty())
     });
     let task = |task: &crate::files::worker::Task| !task.steps.is_empty() || task.searching;
     answering || ui.files.tasks.iter().any(task) || ui.meetings.requests.tasks.iter().any(task)

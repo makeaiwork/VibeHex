@@ -194,8 +194,9 @@ const CORE: [&str; 16] = [
 #[derive(Clone, Debug, Default)]
 pub struct State {
     pub os: &'static str,
-    /// Speech model ids downloaded.
-    pub installed: Vec<String>,
+    /// Speech model ids downloaded; `None` when it couldn't be told, so
+    /// the model reads "unknown", never that none are.
+    pub installed: Option<Vec<String>>,
     pub codex_signed_in: Option<bool>,
     pub opencode_running: Option<bool>,
     /// Whether an OpenRouter key is saved; `None` while unknown. Only the
@@ -209,6 +210,8 @@ pub struct State {
     /// The follow-ups answered in an earlier setup and not asked again
     /// (`setup::past::answered_before`), as answered then.
     pub answered: Vec<crate::assistant::setup::Ask>,
+    /// The screens and pointing devices, for Labs features that need them.
+    pub hardware: crate::desktop::hardware::Hardware,
 }
 
 /// How much of the catalog a model reads.
@@ -270,7 +273,15 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
                     .find(|(known, _)| *known == key)
                     .and_then(|(_, value)| sendable(key, kind, value))
             };
-            out.push_str(&format!(" | {}", now.unwrap_or_default()));
+            let now = now.unwrap_or_default();
+            match key {
+                // Summaries only decides while no writer is chosen: said
+                // where its value stands, so it never reads as who writes.
+                "meetings.summaries" if notes_writer(settings).is_some() => out.push_str(&format!(
+                    " | {now} (fallback, not used now: meetings.notes.writer decides)"
+                )),
+                _ => out.push_str(&format!(" | {now}")),
+            }
         }
         out.push('\n');
     }
@@ -310,22 +321,19 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
         "Never through a card: sign-ins, API keys, folders, microphones, app lists, the update \
          channel, Assistant's own settings.\n",
     );
+    out.push_str(&unfit_line(state));
     if reading.send {
-        out.push_str(&state_line(state));
+        out.push_str(&notes_line(settings));
+        out.push_str(&state_line(state, settings));
         if reading.instructions {
-            out.push_str(&format!(
-                "<global_instructions>\n{}\n</global_instructions>\n",
-                settings
-                    .dictation_processing
-                    .default_mode
-                    .post_processing
-                    .prompt
-                    .trim()
-            ));
+            out.push_str(&crate::assistant::personal::instructions(settings));
         }
     } else {
         out.push_str(
-            "You don't know the person's current values; the app shows each on its card.\n",
+            "You don't know the person's current values, cleanup instructions, or Vocabulary; \
+             the app shows each value on its card. When an answer needs them, say in one \
+             sentence that **Assistant › Settings › Your current settings** lets you read them, \
+             with no card.\n",
         );
     }
     out
@@ -387,27 +395,143 @@ fn sendable(key: &str, kind: &str, value: &Value) -> Option<String> {
         ("text", Value::String(id)) if key == "dictation_processing.server.local_model" => {
             crate::dictation::cleanup_server::local_models::find(id).map(|model| model.id.into())
         }
+        // An engine by its id (`codex:gpt-6.1-terra`), never an address.
+        ("text", Value::String(engine)) if names::is_engine(key) => {
+            let engine = engine.trim();
+            let known = ["", "codex", "opencode", "openrouter", "custom"].contains(&engine)
+                || engine.starts_with("codex:")
+                || engine.starts_with("local:");
+            (known && !engine.contains(char::is_whitespace)).then(|| match engine {
+                "" => "none".to_owned(),
+                engine => engine.to_owned(),
+            })
+        }
+        ("text", Value::Null) if names::is_engine(key) => Some("none".into()),
+        ("text", Value::String(effort)) if key.ends_with("effort") => ["", "low", "medium", "high"]
+            .contains(&effort.trim())
+            .then(|| match effort.trim() {
+                "" => "default".to_owned(),
+                effort => effort.to_owned(),
+            }),
         _ => None,
     }
 }
 
-fn state_line(state: &State) -> String {
+/// The engine writing meeting notes, when one is chosen and in use, as
+/// the window names it: `Codex (GPT-6.1 Terra)`. Mirrors
+/// `meeting::generator`: a writer other than OpenCode needs Labs › AI
+/// cleanup server on, else Summaries decides.
+fn notes_writer(settings: &AppSettings) -> Option<String> {
+    let writer = settings.meetings.notes.writer.as_deref()?.trim();
+    if writer.is_empty() || (writer != "opencode" && !settings.labs.ai_cleanup_server) {
+        return None;
+    }
+    // `codex` alone is Codex on AI cleanup's model.
+    let model = settings.dictation_processing.server.codex_model.trim();
+    let writer = match writer {
+        "codex" if !model.is_empty() => format!("codex:{model}"),
+        writer => writer.to_owned(),
+    };
+    Some(names::label(
+        "meetings.notes.writer",
+        &Value::String(writer),
+    ))
+}
+
+/// Who writes meeting notes, in one sentence, so `meetings.summaries` (a
+/// fallback) never reads as the writer.
+fn notes_line(settings: &AppSettings) -> String {
+    use crate::app_settings::MeetingSummaries;
+    let fallback = match settings.meetings.summaries {
+        MeetingSummaries::Mac => "On this Mac (Apple Intelligence)",
+        MeetingSummaries::OpenCode => "OpenCode",
+        MeetingSummaries::Off => "Off",
+    };
+    match notes_writer(settings) {
+        Some(writer) => format!(
+            "Meeting notes: written by {writer} (meetings.notes.writer); the meetings.summaries \
+             fallback ({fallback}) is only for when no writer is chosen, and is not used now.\n"
+        ),
+        None => format!(
+            "Meeting notes: no writer chosen in meetings.notes.writer, so meetings.summaries \
+             decides: {fallback}.\n"
+        ),
+    }
+}
+
+/// The speech models downloaded, by the names the window shows, each
+/// with its id, the one in use marked: `Orukeet (orukeet, in use),
+/// Parakeet v3 (parakeet_v3)`.
+fn downloaded(state: &State, settings: &AppSettings) -> String {
+    let Some(installed) = &state.installed else {
+        return "unknown".into();
+    };
+    if installed.is_empty() {
+        return "none".into();
+    }
+    let models = crate::transcription::models::all_models();
+    let in_use = settings.transcription.model.as_str();
+    installed
+        .iter()
+        .map(|id| {
+            let name = models
+                .iter()
+                .find(|model| model.id.as_str() == id.as_str())
+                .map_or(id.as_str(), |model| model.name);
+            match id.as_str() == in_use {
+                true => format!("{name} ({id}, in use)"),
+                false => format!("{name} ({id})"),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn state_line(state: &State, settings: &AppSettings) -> String {
     let known = |known: Option<bool>| match known {
         Some(true) => "yes",
         Some(false) => "no",
         None => "unknown",
     };
+    let hardware = state.hardware.line();
     format!(
-        "<state>OS: {}; speech models downloaded: {}; Codex signed in: {}; OpenCode running: {}</state>\n",
+        "<state>OS: {}; speech models downloaded: {}; Codex signed in: {}; OpenCode running: {}{}</state>\n",
         state.os,
-        if state.installed.is_empty() {
-            "none".to_owned()
-        } else {
-            state.installed.join(", ")
-        },
+        downloaded(state, settings),
         known(state.codex_signed_in),
         known(state.opencode_running),
+        match hardware.is_empty() {
+            true => String::new(),
+            false => format!("; {hardware}"),
+        },
     )
+}
+
+/// The Labs features this computer can't use (no notch, no mouse with
+/// extra buttons), so an answer never suggests one and, asked about one,
+/// says what it needs; empty while the hardware is unknown.
+fn unfit_line(state: &State) -> String {
+    let unfit: Vec<String> = crate::assistant::guide::articles()
+        .iter()
+        .filter(|article| article.is_lab() && !article.fits(&state.hardware))
+        .map(|article| {
+            let needs: Vec<&str> = article
+                .needs
+                .iter()
+                .filter(|need| state.hardware.has(**need) == Some(false))
+                .map(|need| need.words())
+                .collect();
+            format!("{} (needs {})", article.title, needs.join(" and "))
+        })
+        .collect();
+    match unfit.is_empty() {
+        true => String::new(),
+        false => format!(
+            "Not on this Mac: {}. Don't suggest them or offer their cards; asked about one \
+             directly, say what it needs and that this Mac doesn't have it.\n",
+            unfit.join(", ")
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -553,6 +677,41 @@ mod tests {
     /// What reaches a model of the person's settings: switches, choices,
     /// numbers, and known models. No path, list, host, key, word, or
     /// instruction (unless asked about instructions).
+    #[test]
+    fn a_feature_this_mac_cant_use_is_named_with_what_it_needs() {
+        use crate::desktop::hardware::{Hardware, Pointer, Screens};
+        let every = reading(true, Vec::new(), true);
+        let mini = State {
+            hardware: Hardware {
+                screens: Some(Screens {
+                    built_in: false,
+                    external: 1,
+                    notch: false,
+                }),
+                pointers: Some(vec![Pointer {
+                    name: "Magic Mouse".into(),
+                    extra_buttons: false,
+                }]),
+                model: None,
+            },
+            ..State::default()
+        };
+        let section = section(&AppSettings::default(), &every, &mini);
+        let unfit = section
+            .lines()
+            .find(|line| line.starts_with("Not on this Mac: "))
+            .unwrap();
+        assert!(unfit.contains("Notch indicator (needs a screen with a notch)"));
+        assert!(unfit.contains("Mouse shortcuts (needs a mouse with extra buttons)"));
+        assert!(section.contains(
+            "OpenCode running: unknown; screens: 1 external, no notch; pointing: Magic Mouse, \
+             no extra buttons</state>"
+        ));
+        // Unknown hardware leaves nothing out.
+        let unknown = super::section(&AppSettings::default(), &every, &State::default());
+        assert!(!unknown.contains("Not on this Mac"));
+    }
+
     #[test]
     fn the_snapshot_carries_nothing_personal() {
         let mut settings = AppSettings::default();
@@ -701,5 +860,58 @@ mod tests {
             shorter("labs.files", &Value::Bool(true), &Value::Bool(false)),
             None
         );
+    }
+
+    /// The owner's case: Codex writes the notes and Summaries is still
+    /// mac. The model reads who writes them, and that mac is a fallback.
+    #[test]
+    fn a_chosen_writer_says_summaries_is_only_the_fallback() {
+        let mut settings = AppSettings::default();
+        settings.labs.ai_cleanup_server = true;
+        settings.meetings.enabled = true;
+        settings.meetings.summaries = crate::app_settings::MeetingSummaries::Mac;
+        settings.meetings.notes.writer = Some("codex:gpt-6.1-terra".into());
+        let every = reading(true, Vec::new(), true);
+        let section = section(&settings, &every, &State::default());
+        let line = |key: &str| {
+            section
+                .lines()
+                .find(|line| line.starts_with(&format!("{key} |")))
+                .unwrap_or_default()
+                .to_owned()
+        };
+        assert!(
+            line("meetings.notes.writer").ends_with("| codex:gpt-6.1-terra"),
+            "{section}"
+        );
+        assert!(
+            line("meetings.summaries")
+                .ends_with("| mac (fallback, not used now: meetings.notes.writer decides)"),
+            "{section}"
+        );
+        let notes = section
+            .lines()
+            .find(|line| line.starts_with("Meeting notes:"))
+            .unwrap();
+        assert!(
+            notes.starts_with("Meeting notes: written by Codex ("),
+            "{notes}"
+        );
+        assert!(
+            notes.ends_with(
+                "the meetings.summaries fallback (On this Mac (Apple Intelligence)) is only for \
+                 when no writer is chosen, and is not used now."
+            ),
+            "{notes}"
+        );
+
+        // No writer: Summaries decides, and says so.
+        settings.meetings.notes.writer = None;
+        let section = super::section(&settings, &every, &State::default());
+        assert!(section.contains(
+            "Meeting notes: no writer chosen in meetings.notes.writer, so meetings.summaries \
+             decides: On this Mac (Apple Intelligence)."
+        ));
+        assert!(section.contains("meetings.notes.writer | codex, codex:<model>"));
     }
 }

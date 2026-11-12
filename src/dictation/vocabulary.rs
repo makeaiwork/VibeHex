@@ -510,6 +510,40 @@ pub fn contains(list: &[VocabularyEntry], term: &str) -> bool {
 }
 
 /// Removes the entry for `term`, in any case. Returns whether it was there.
+/// Rewrites the entry for `term` where it stands: renamed to `rename`, if
+/// given, with exactly `sounds_like` as its spellings, checked as [`add`]
+/// checks a new one. Whether it changed; an error when no entry is `term`,
+/// or the new name is another entry's.
+pub fn edit(
+    list: &mut [VocabularyEntry],
+    term: &str,
+    rename: Option<&str>,
+    sounds_like: &[String],
+) -> Result<bool, String> {
+    let term = clean(term);
+    let Some(index) = list.iter().position(|entry| same(&entry.term, &term)) else {
+        return Err(format!("“{term}” isn't in the vocabulary"));
+    };
+    let name = rename
+        .map(clean)
+        .unwrap_or_else(|| list[index].term.clone());
+    if list
+        .iter()
+        .enumerate()
+        .any(|(at, entry)| at != index && same(&entry.term, &name))
+    {
+        return Err(format!("“{name}” is in the vocabulary already"));
+    }
+    let mut scratch = Vec::new();
+    add(&mut scratch, &name, sounds_like)?;
+    let entry = scratch.remove(0);
+    if list[index] == entry {
+        return Ok(false);
+    }
+    list[index] = entry;
+    Ok(true)
+}
+
 pub fn remove(list: &mut Vec<VocabularyEntry>, term: &str) -> bool {
     let term = clean(term);
     let before = list.len();
@@ -520,6 +554,26 @@ pub fn remove(list: &mut Vec<VocabularyEntry>, term: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_edit_rewrites_its_entry_where_it_stands() {
+        let mut list = vec![
+            entry("AI cleanup", &["эй ай клинап", "ай"]),
+            entry("Kubernetes", &[]),
+        ];
+        let kept = ["эй ай клинап".to_owned()];
+        assert_eq!(edit(&mut list, "ai cleanup", None, &kept), Ok(true));
+        assert_eq!(list[0], entry("AI cleanup", &["эй ай клинап"]));
+        assert_eq!(edit(&mut list, "AI cleanup", None, &kept), Ok(false));
+        assert_eq!(
+            edit(&mut list, "AI cleanup", Some("AI Cleanup"), &kept),
+            Ok(true)
+        );
+        assert_eq!(list[0].term, "AI Cleanup");
+        assert!(edit(&mut list, "Grafana", None, &[]).is_err());
+        assert!(edit(&mut list, "AI Cleanup", Some("kubernetes"), &[]).is_err());
+        assert_eq!(list[1], entry("Kubernetes", &[]), "the others stay");
+    }
 
     fn entry(term: &str, sounds_like: &[&str]) -> VocabularyEntry {
         VocabularyEntry {

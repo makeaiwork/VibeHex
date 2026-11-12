@@ -692,7 +692,7 @@ const KEYS: &[Key] = &[
     key(
         "meetings.summaries",
         SUMMARIES,
-        "Who titles and summarizes meetings: off, mac (Apple Intelligence, nothing leaves this Mac), or opencode (sends the transcript to the OpenCode model)",
+        "Who titles and summarizes meetings while meetings.notes.writer names no writer (a writer there decides instead): off, mac (Apple Intelligence, nothing leaves this Mac), or opencode (sends the transcript to the OpenCode model)",
     ),
     optional(
         "meetings.opencode_model",

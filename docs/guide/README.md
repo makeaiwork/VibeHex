@@ -79,6 +79,8 @@ title: Smart spacing              # the Labs row title, exactly
 for: [dictation]                  # whom guided setup asks: dictation, code, meetings, files, ru, cleanup; [] never
 ask: Add a space automatically when you dictate right after a word?  # setup's yes/no, 12 words or fewer
 then: …                           # optional: what follows a Yes, 12 words or fewer
+needs: [notch]                    # optional hardware: notch, mouse_buttons; known unmet, never suggested
+ask_if: If your screen has a notch, …?  # with needs: the ask while the hardware is unknown
 group: Pasting                    # the Labs section it sits in
 os: macOS                         # macOS | Windows | Linux | every OS, or a list
 vibehex: false                    # true when VibeHex added it (a star in Labs)

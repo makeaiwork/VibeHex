@@ -89,6 +89,10 @@ impl Sources {
     }
 }
 
+/// How a dictation's excerpt opens when cleanup changed it: what was heard,
+/// then `Wrote: ` and what was written.
+pub const HEARD: &str = "Heard: ";
+
 /// What a recording is.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -222,6 +226,10 @@ pub enum Step {
     Looked {
         dictations: usize,
         meetings: usize,
+    },
+    /// The guide articles the answer drew on too, by id.
+    Guide {
+        articles: Vec<String>,
     },
 }
 

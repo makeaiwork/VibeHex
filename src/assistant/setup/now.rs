@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::app_settings::{AppSettings, MeetingSummaries};
 use crate::assistant::changes::{names, parts};
 use crate::assistant::guide;
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::{tr, tr_fill, tr_window};
 use crate::dictation::cleanup_server::{codex, local_models};
 use crate::transcription::models;
 
@@ -133,13 +133,13 @@ fn labs(settings: &AppSettings) -> Option<String> {
                 && key.starts_with("labs.")
                 && crate::assistant::changes::current(settings, key) == Some(Value::Bool(true))
         })
-        .map(|article| tr(&article.title))
+        .map(|article| tr_window(&article.title))
         .collect();
     // Russian vibe coding first: it says the most.
     let mut on = on;
     if let Some(at) = on
         .iter()
-        .position(|title| *title == tr("Russian vibe coding"))
+        .position(|title| *title == tr_window("Russian vibe coding"))
     {
         let vibe = on.remove(at);
         on.insert(0, vibe);

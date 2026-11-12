@@ -2892,6 +2892,7 @@ fn goldens() {
     for scene in [
         "assistant-answering",
         "assistant-start",
+        "assistant-start-russian",
         "assistant-connect",
         "assistant-settings",
         "assistant-consent",
@@ -2910,6 +2911,7 @@ fn goldens() {
         "assistant-applied",
         "assistant-vocab-card",
         "assistant-vocab-applied",
+        "assistant-vocab-edit",
         "assistant-change-both",
         "assistant-change-coming",
         "assistant-setup-ask",
@@ -3062,4 +3064,56 @@ fn output_fixes_show_only_with_their_lab_and_fix_this_copies_for_the_sentence() 
     );
     tap(&mut on, "output-vocabulary");
     assert!(on.state.vocabulary.open);
+}
+
+/// A Russian setup round speaks Russian throughout: its controls (Continue,
+/// Skip to the plan, Change answers, a plan's buttons), the plan's
+/// reasons and term rows, and a returning setup's opener, step, and
+/// "Answered before". Settings' and Labs' names stay in the window's
+/// English.
+#[test]
+fn a_russian_setup_round_has_no_english_controls() {
+    const ENGLISH: &[&str] = &[
+        "Continue",
+        "Skip to the plan",
+        "Change answers",
+        "Not now",
+        "Suggested changes",
+        "Undo",
+        "Try again",
+        "Hold to talk suits short commands to an agent",
+        "You said yes to this",
+        "Cleanup keeps fixing how these are heard",
+        "You say these, and Vocabulary doesn't have them",
+        "Here is what fits how you work. Untick what you don't need.",
+    ];
+    // A returning setup's opener, its step, and "Answered before".
+    const STARTS: &[&str] = &[
+        "Answered before",
+        "What your use shows",
+        "Read your settings",
+        "Half of your dictations",
+    ];
+    for scene in [
+        "assistant-setup-ask",
+        "assistant-setup-follow",
+        "assistant-setup-plan",
+        "assistant-setup-kept",
+        "assistant-setup-result",
+        "assistant-setup-returning",
+        "assistant-setup-returning-plan",
+    ] {
+        let rt = runtime(scene, false, PANE_SIZE);
+        let shown = texts(&rt);
+        let english: Vec<&String> = shown
+            .iter()
+            .filter(|text| {
+                ENGLISH.contains(&text.as_str())
+                    || text.contains("isn't installed")
+                    || STARTS.iter().any(|start| text.starts_with(start))
+                    || text.contains("updates since your last setup")
+            })
+            .collect();
+        assert!(english.is_empty(), "{scene} shows {english:?}");
+    }
 }

@@ -25,7 +25,8 @@ pub(super) fn item(key: &str, from: Value, to: Value, why: &str) -> Item {
         key: key.into(),
         from,
         to,
-        why: why.into(),
+        // The rules' reasons are Assistant's words, as a plan makes them.
+        why: crate::desktop::i18n::tr(why).into(),
         included: true,
         ..Item::default()
     }
@@ -398,6 +399,7 @@ pub(in super::super) fn change_coming(ui: &mut Ui) {
         searching: false,
         cards_coming: true,
         web: Default::default(),
+        retrying: false,
     });
 }
 
@@ -428,6 +430,54 @@ pub(in super::super) fn vocab_card(ui: &mut Ui) {
             term("Kubernetes", &["кубернетес", "кубер", "кубернетис"]),
             term("kubectl", &["куб контрол", "кубкатл", "куб си ти эл"]),
             term("Grafana", &["графана"]),
+        ],
+        ..Card::default()
+    };
+    conversation(ui, question, vec![with_cards(answer, vec![card])], &[]);
+}
+
+/// "Why does it write AI cleanup for a plain AI?": the entry whose
+/// spelling catches it, before → after, and a renamed one.
+pub(in super::super) fn vocab_edit(ui: &mut Ui) {
+    use crate::assistant::changes::vocab_edit;
+    use crate::dictation::vocabulary::VocabularyEntry;
+    open(ui);
+    let entry = |term: &str, sounds_like: &[&str]| VocabularyEntry {
+        term: term.into(),
+        sounds_like: sounds_like.iter().map(|s| (*s).into()).collect(),
+    };
+    ui.settings.vocabulary = vec![
+        entry("AI cleanup", &["эй ай клинап", "ай"]),
+        entry("Kubernates", &["кубер"]),
+    ];
+    let question = "Почему он пишет AI cleanup, когда я говорю просто AI?";
+    let answer = turn(
+        question,
+        "У записи **AI cleanup** в словаре есть вариант «ай», и он ловит простое AI. Уберу его; заодно поправлю опечатку в Kubernetes.",
+        &["topics/vocabulary"],
+        1,
+    );
+    let edit = |from: VocabularyEntry, to: VocabularyEntry, why: &str| Item {
+        key: vocab_edit::KEY.into(),
+        from: vocab_edit::value(&from),
+        to: vocab_edit::value(&to),
+        why: why.into(),
+        included: true,
+        ..Item::default()
+    };
+    let card = Card {
+        kind: CardKind::VocabularyEdit,
+        items: vec![
+            edit(
+                entry("AI cleanup", &["эй ай клинап", "ай"]),
+                entry("AI cleanup", &["эй ай клинап", "клинап"]),
+                "«ай» ловит простое AI",
+            ),
+            edit(
+                entry("Kubernates", &["кубер"]),
+                entry("Kubernetes", &["кубер"]),
+                "",
+            ),
         ],
         ..Card::default()
     };

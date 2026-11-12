@@ -25,7 +25,7 @@ use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow, past};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Recall;
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::{tr, tr_fill, tr_window};
 
 /// Where a round is: its conversation and turn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +47,7 @@ pub(super) fn os(ui: &Ui) -> &'static str {
 /// preselected from it, in a new conversation (or the empty one open). A
 /// returning setup says what came since and folds round one to a row.
 pub(super) fn begin(ui: &mut Ui) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     if ui.assistant.answering.is_some() {
         return;
     }
@@ -59,6 +60,7 @@ pub(super) fn begin(ui: &mut Ui) {
 /// with the use read, the model first looks at what came since and
 /// suggests a few things (`Stage::Look`), and round one comes after.
 pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let context = super::changes::context(ui);
     let mut asks = setup::questions(os(ui));
     setup::preselect(&mut asks, &context.settings, &context.state);
@@ -195,6 +197,16 @@ fn terms(ui: &Ui, conversation: u32) -> Vec<since::Candidate> {
 /// window's language, the model's as written.
 fn words<'a>(ask: &Ask, words: &'a str) -> &'a str {
     if ask.own { tr(words) } else { words }
+}
+
+/// A question's hint: a follow-up's is its Labs feature's title, a place
+/// in the window, so in the window's words.
+fn hint(ask: &Ask) -> String {
+    if ask.own && ask.id.starts_with("labs.") {
+        tr_window(&ask.hint).to_owned()
+    } else {
+        words(ask, &ask.hint).to_owned()
+    }
 }
 
 /// An option's label as the person saw it, with the server it names.
@@ -337,7 +349,7 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
     );
     if !ask.hint.is_empty() && !small {
         line = line.child(
-            text(words(ask, &ask.hint).to_owned())
+            text(hint(ask))
                 .key("hint")
                 .font(p.k.ty.small)
                 .color(p.faint())
@@ -569,6 +581,7 @@ fn set_round(ui: &mut Ui, at: At, asks: Vec<Ask>) {
 /// the person picked is theirs; an untouched question follows it (code
 /// with Russian is Russian with English tech terms).
 fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(mut asks) = round(ui, at) else {
         return;
     };
@@ -600,6 +613,7 @@ fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
 /// The round is answered (or skipped, `skip`): the next round, or the
 /// plan.
 pub(super) fn answered(ui: &mut Ui, at: At, skip: bool) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(mut asks) = round(ui, at) else {
         return;
     };
@@ -693,7 +707,7 @@ fn next(ui: &mut Ui, at: At) {
     // What was answered in an earlier setup isn't asked again: it joins
     // the round folded, as answered then, or, with nothing new to ask,
     // round one's answers.
-    let before = follow::before(&answers, &context.settings, &context.state);
+    let before = follow::before(&answers, &context.state);
     if candidates.is_empty() {
         let done = before
             .into_iter()
@@ -808,6 +822,7 @@ fn plan(ui: &mut Ui, conversation: u32) {
 /// A setup's plan was applied or put off: the setup is finished, and kept
 /// with what it applied and what the person declined (`setup::past`).
 pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(open) = ui.assistant.store.get(at.conversation) else {
         return;
     };
@@ -861,6 +876,7 @@ fn keep(ui: &mut Ui, conversation: u32, plan: Option<(&Card, u64)>) {
 
 /// Asks an answers turn again: its follow-ups, or its plan.
 pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     if ui.assistant.answering.is_some() || ui.assistant.fixture {
         return;
     }
@@ -868,7 +884,7 @@ pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
         let context = super::changes::context(ui);
         Stage::Follow {
             candidates: follow::candidates(&turn.answers, &context.settings, &context.state),
-            before: follow::before(&turn.answers, &context.settings, &context.state),
+            before: follow::before(&turn.answers, &context.state),
             answers: turn.answers.clone(),
             line: turn.question.clone(),
             since: super::returning::facts(ui, conversation),

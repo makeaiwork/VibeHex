@@ -136,6 +136,9 @@ fn read_block(lines: &[&str], fence: Fence, parsed: &mut Parsed) {
     for (line, value) in objects {
         match (fence, value) {
             (Fence::Ask, Some(value @ Value::Object(_))) => parsed.asks.push(value),
+            (_, Some(Value::Object(object))) if super::vocab_edit::is_edit(&object) => parsed
+                .proposals
+                .push(super::vocab_edit::proposal(&object, &line)),
             (_, Some(Value::Object(object))) if super::vocab::is_term(&object) => {
                 match super::vocab::proposals(&object, fence == Fence::Plan, &line) {
                     Some(terms) => parsed.proposals.extend(terms),

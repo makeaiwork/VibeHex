@@ -326,6 +326,7 @@ fn reply(
         words = words.children(match turn.cards[card].kind {
             CardKind::Plan => super::plan::view(ui, p, at, primary),
             CardKind::Vocabulary => super::vocab::view(ui, p, at, primary),
+            CardKind::VocabularyEdit => super::vocab_edit::view(ui, p, at, primary),
             _ => super::card::view(ui, p, at, primary),
         });
     }
@@ -429,11 +430,15 @@ fn sources(p: Paint, ids: &[String], web: &[String]) -> Option<El> {
 fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<El> {
     let steps = super::recall::live(p, answering, dots);
     let web = super::web::live(p, answering, dots);
+    // The model said nothing in time and is asked again.
+    let retry = (answering.retrying && answering.draft.trim().is_empty()).then(|| {
+        super::recall::step_line(p, "retry", false, tr("No reply yet, asking again"), dots)
+    });
     let words = if !answering.draft.trim().is_empty() {
         let mut draft = answering.draft.trim_end().to_owned();
         draft.push('▌');
         Some(super::recall::answer(p, &draft, None, None, (true, true)))
-    } else if steps.is_none() && web.is_none() {
+    } else if steps.is_none() && web.is_none() && retry.is_none() {
         Some(
             text(tr("Looking in the guide…"))
                 .key("looking")
@@ -467,8 +472,123 @@ fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<
                 .gap(10.0)
                 .children(steps)
                 .children(web)
+                .children(retry)
                 .children(words)
                 .children(preparing),
         )])
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assistant::language;
+    use crate::desktop::i18n::speaking;
+    use crate::transcription::models::{TranscriptionModelId, TranscriptionSelection};
+
+    fn dictating(language: &str) -> Ui {
+        crate::desktop::i18n::apply(Some("en"));
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.pane = super::super::super::sidebar::Pane::Assistant;
+        ui.settings.transcription = TranscriptionSelection {
+            model: TranscriptionModelId::ParakeetV3,
+            language: language.into(),
+        };
+        ui
+    }
+
+    fn russian(english: &str) -> String {
+        speaking(Some("ru"), || tr(english).to_owned())
+    }
+
+    /// An English window, Russian dictated: the start page's questions and
+    /// setup's own questions, chips, and "Now:" are Russian.
+    #[test]
+    fn the_dictation_language_speaks_on_the_start_page_and_in_setup() {
+        let mut ui = dictating("ru");
+        let shown = language::within(&ui.settings, || EXAMPLES.map(tr));
+        for (shown, english) in shown.iter().zip(EXAMPLES) {
+            assert_eq!(*shown, russian(english));
+            assert_ne!(*shown, english, "{english} has a Russian row");
+        }
+        super::super::ask::begin(&mut ui);
+        let turn = &ui.assistant.conversation().unwrap().turns[0];
+        assert!(
+            turn.now.starts_with(&format!("**{}**", russian("Now:"))),
+            "{}",
+            turn.now
+        );
+        let ask = &turn.asks[0];
+        let (q, label) = language::within(&ui.settings, || {
+            (
+                tr(&ask.q).to_owned(),
+                super::super::ask::label(ask, &ask.options[0]),
+            )
+        });
+        assert_eq!(q, russian(&ask.q));
+        assert_ne!(q, ask.q);
+        assert_eq!(label, russian(&ask.options[0].label));
+        // The window stays English.
+        assert_eq!(
+            tr("Ask anything about VibeHex"),
+            "Ask anything about VibeHex"
+        );
+    }
+
+    /// A setup round's own controls (Continue, Skip to the plan, Change
+    /// answers, a plan's buttons) and a returning setup's own lines speak
+    /// every language Assistant speaks.
+    #[test]
+    fn setup_controls_speak_every_language() {
+        const CONTROLS: &[&str] = &[
+            "Continue",
+            "Skip to the plan",
+            "Change answers",
+            "Setup questions",
+            "Suggested changes",
+            "Not now",
+            "Apply 1 change",
+            "Already set: 1 thing",
+            "Also turns on",
+            "Needs a download",
+            "Undo",
+            "Try again",
+            "Left as it was",
+            // A returning setup's opener, its step, its plan's term rows,
+            // and the follow-ups kept from before.
+            "What your use shows:",
+            "Ask “What's new?” to hear more",
+            "Read {}",
+            "your settings and {}",
+            "your settings, {dictations} and {meetings}",
+            "Cleanup keeps fixing how these are heard",
+            "You say these, and Vocabulary doesn't have them",
+            "Answered before: {}",
+        ];
+        for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
+            let english: Vec<&str> = CONTROLS
+                .iter()
+                .copied()
+                .filter(|control| speaking(Some(code), || tr(control)) == *control)
+                .collect();
+            assert!(english.is_empty(), "{code} shows {english:?} in English");
+        }
+    }
+
+    /// Recognition on Auto follows the window; a language without a table
+    /// (Italian) shows English.
+    #[test]
+    fn auto_follows_the_window_and_italian_reads_english() {
+        for language in ["auto", "it"] {
+            let ui = dictating(language);
+            let shown = language::within(&ui.settings, || EXAMPLES.map(tr));
+            assert_eq!(shown, EXAMPLES, "{language}");
+        }
+        let ui = dictating("auto");
+        crate::desktop::i18n::apply(Some("de"));
+        let shown = language::within(&ui.settings, || tr(EXAMPLES[0]).to_owned());
+        assert_eq!(shown, speaking(Some("de"), || tr(EXAMPLES[0]).to_owned()));
+        assert_ne!(shown, EXAMPLES[0]);
+        crate::desktop::i18n::apply(Some("en"));
+    }
 }

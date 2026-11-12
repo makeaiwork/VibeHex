@@ -21,6 +21,7 @@ use crate::assistant::setup::past::Setup;
 use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Ask, follow};
 use crate::assistant::store::Turn;
+use crate::desktop::i18n::tr;
 use crate::dictation::ShortcutMode;
 use crate::transcription::models::{ModelPreparationStage, TranscriptionModelId};
 
@@ -137,6 +138,8 @@ fn round(answered: bool) -> Vec<Ask> {
 pub(in super::super) fn setup_ask(ui: &mut Ui) {
     open(ui);
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let asks = first(ui, &state);
     let turn = opening(ui, asks);
     conversation(ui, "Set up for me", vec![turn], &[]);
@@ -147,6 +150,8 @@ pub(in super::super) fn setup_ask(ui: &mut Ui) {
 pub(in super::super) fn setup_follow(ui: &mut Ui) {
     open(ui);
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let mut asks = round(false);
     asks.truncate(2);
     let mut before = round(true);
@@ -307,7 +312,7 @@ fn rows(ui: &Ui) -> (Vec<Item>, Vec<Item>) {
 /// The answers turn: no bubble, the app's line, and the plan.
 fn answers(asks: &[Ask], plan: Card) -> Turn {
     Turn {
-        answer: "Here is what fits how you work. Untick what you don't need.".into(),
+        answer: tr("Here is what fits how you work. Untick what you don't need.").into(),
         answers: setup::answers(asks),
         cards: vec![plan],
         created_ms: AT + 2 * MINUTE,
@@ -330,6 +335,8 @@ fn plan_scene(ui: &mut Ui, unfolded: bool) {
     open(ui);
     ui.platform.system_audio = true;
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let first = answered(ui, &state, "openrouter");
     let follow = round(true);
     let (items, kept) = rows(ui);
@@ -420,9 +427,11 @@ pub(in super::super) fn setup_result(ui: &mut Ui) {
     open(ui);
     ui.platform.system_audio = true;
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let first = answered(ui, &state, "codex");
     let mut items = fresh_rows(ui);
-    items[3].failed = Some("Codex isn't installed on this Mac".into());
+    items[3].failed = Some(crate::desktop::i18n::tr("Codex isn't installed on this Mac").into());
     let settings = &mut ui.settings;
     settings.labs.russian_vibe_coding = true;
     settings.labs.spoken_symbols = true;
@@ -499,6 +508,8 @@ pub(in super::super) fn setup_returning(ui: &mut Ui) {
 /// being edited, and "Already set" folded.
 pub(in super::super) fn setup_returning_plan(ui: &mut Ui) {
     let (mut turns, state) = returning(ui);
+    // The owner dictates Russian: the plan's words are Russian too.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     // Round one answered as preselected.
     if let Some(look) = turns.last_mut() {
         look.asks.iter_mut().for_each(|ask| ask.done = true);
@@ -523,6 +534,8 @@ pub(in super::super) fn setup_returning_plan(ui: &mut Ui) {
 fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
     open(ui);
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     // The pane reads the settings as drafted: its Vocabulary too.
     let terms = ui.settings.vocabulary.clone();
     ui.vocabulary.reload(&terms);
@@ -637,10 +650,11 @@ fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
     (turns, state)
 }
 
-/// What a model suggests from the returning scene's use.
-const SUGGESTIONS: &str = "- Half of your dictations go to Ghostty and Cursor, and cleanup keeps fixing гитхаб → GitHub: with it in Vocabulary the speech model writes it right away.
-- 27% of your dictations are long. Codex cleans those up better than this Mac, at a few seconds more.
-- Files is new since your last setup: it turns the recordings you already have into text.";
+/// What a model suggests from the returning scene's use, written in the
+/// owner's default language as the prompt asks.
+const SUGGESTIONS: &str = "- Половина диктовок уходит в Ghostty и Cursor, а очистка раз за разом исправляет гитхаб → GitHub: с ним в Vocabulary модель распознавания сразу напишет его верно.
+- 27% диктовок длинные. Codex очищает их лучше, чем этот Mac, ценой нескольких секунд.
+- С прошлой настройки появились Files: они превращают уже имеющиеся записи в текст.";
 
 fn dated(ui: &mut Ui) {
     if let Some(id) = ui.assistant.open {

@@ -26,7 +26,8 @@ use crate::assistant::changes::vocab::{self, Term};
 use crate::assistant::changes::{self, parse::Proposal};
 use crate::assistant::guide::{self, Article};
 use crate::control::settings;
-use crate::desktop::i18n::tr;
+use crate::desktop::hardware::Hardware;
+use crate::desktop::i18n::{tr, tr_window};
 
 /// The most questions a round asks.
 pub const ROUND: usize = 4;
@@ -108,21 +109,30 @@ fn fits(article: &Article, answers: &[Answer]) -> Option<usize> {
 }
 
 /// The Labs articles setup may ask about here: they say whom they are for
-/// and ask a question, and this OS and build have their switch.
-fn askable() -> impl Iterator<Item = (&'static Article, &'static str)> {
-    guide::articles().iter().filter_map(|article| {
+/// and ask a question, this OS and build have their switch, and this
+/// computer may have what they need (a notch, a mouse's extra buttons).
+fn askable(hardware: &Hardware) -> impl Iterator<Item = (&'static Article, &'static str)> {
+    guide::articles().iter().filter_map(move |article| {
         let key = article.keys.first()?.as_str();
         (article.is_lab()
             && !article.uses.is_empty()
             && !article.ask.is_empty()
+            && article.fits(hardware)
             && settings::unavailable(key).is_none())
         .then_some((article, key))
     })
 }
 
+/// Whether `key` is a Labs switch whose feature this computer can't use.
+pub fn unfit(key: &str, hardware: &Hardware) -> bool {
+    guide::articles().iter().any(|article| {
+        article.is_lab() && article.keys.iter().any(|known| known == key) && !article.fits(hardware)
+    })
+}
+
 /// The switches of the Labs features that fit `answers`, best first.
-pub fn relevant(answers: &[Answer], _settings: &AppSettings) -> Vec<String> {
-    let mut found: Vec<(usize, &str)> = askable()
+pub fn relevant(answers: &[Answer], hardware: &Hardware) -> Vec<String> {
+    let mut found: Vec<(usize, &str)> = askable(hardware)
         .filter_map(|(article, key)| Some((fits(article, answers)?, key)))
         .collect();
     found.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
@@ -215,7 +225,7 @@ pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> 
     {
         asks.push(terms_ask());
     }
-    for key in relevant(answers, settings) {
+    for key in relevant(answers, &state.hardware) {
         // Declined before, while it is still as it was then.
         if asked.contains(&key.as_str())
             || changes::current(&after, &key) == Some(Value::Bool(true))
@@ -224,10 +234,14 @@ pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> 
         {
             continue;
         }
-        let Some((article, _)) = askable().find(|(_, known)| *known == key) else {
+        let Some((article, _)) = askable(&state.hardware).find(|(_, known)| *known == key) else {
             continue;
         };
-        asks.push(yes_no(&key, &article.ask, &article.title));
+        asks.push(yes_no(
+            &key,
+            article.question(&state.hardware),
+            &article.title,
+        ));
     }
     asks.truncate(ROUND * ROUNDS);
     asks
@@ -241,8 +255,8 @@ fn answered(state: &State, id: &str) -> bool {
 
 /// The follow-ups answered before that these `answers` would ask about,
 /// as answered then, to show folded beside the round.
-pub fn before(answers: &[Answer], settings: &AppSettings, state: &State) -> Vec<Ask> {
-    let relevant = relevant(answers, settings);
+pub fn before(answers: &[Answer], state: &State) -> Vec<Ask> {
+    let relevant = relevant(answers, &state.hardware);
     let code = picked(answers, "use").any(|id| id == "dictation_code");
     state
         .answered
@@ -273,24 +287,25 @@ pub fn prompt_lines(
     state: &State,
 ) -> (String, String, String) {
     let settled = settled(settings, state);
+    let hardware = &state.hardware;
     let asks = candidates
         .iter()
         .map(super::ask_line)
         .collect::<Vec<_>>()
         .join("\n");
-    let others = askable()
+    let others = askable(hardware)
         .filter(|(_, key)| {
             !candidates.iter().any(|ask| ask.id == *key)
                 && changes::current(settings, key) != Some(Value::Bool(true))
                 && !settled.iter().any(|known| known == key)
         })
-        .map(|(article, key)| format!("{key} | {} | {}", article.title, article.ask))
+        .map(|(article, key)| format!("{key} | {} | {}", article.title, article.question(hardware)))
         .collect::<Vec<_>>()
         .join("\n");
     let before = settled
         .iter()
         .map(|key| {
-            let title = askable()
+            let title = askable(hardware)
                 .find(|(_, known)| known == key)
                 .map(|(article, _)| article.title.as_str())
                 .unwrap_or_default();
@@ -307,12 +322,13 @@ pub fn prompt_lines(
 /// `value` to be one a save takes, and never a key no card changes. At
 /// most [`ROUND`] × [`ROUNDS`]; none usable, the candidates as they are.
 /// A key in `settled` (answered or declined before) is never asked unless
-/// the app picked it.
+/// the app picked it, nor a Labs feature this computer can't use.
 pub fn follow_ups(
     written: &[Value],
     candidates: &[Ask],
     settings: &AppSettings,
     settled: &[String],
+    hardware: &Hardware,
 ) -> Vec<Ask> {
     let shortcuts = crate::rune_ui::shortcut_rules();
     let mut asks: Vec<Ask> = Vec::new();
@@ -320,10 +336,12 @@ pub fn follow_ups(
         let Some(id) = line.get("id").and_then(Value::as_str).map(str::trim) else {
             continue;
         };
-        // Answered before, or declined while it holds: never again.
+        // Answered before, or declined while it holds: never again; nor
+        // a feature this computer can't use.
         let candidate = candidates.iter().any(|ask| ask.id == id);
         if asks.iter().any(|known| known.id == id)
             || (!candidate && settled.iter().any(|known| known == id))
+            || unfit(id, hardware)
         {
             continue;
         }
@@ -332,10 +350,10 @@ pub fn follow_ups(
             .find(|ask| ask.id == id)
             .cloned()
             .or_else(|| {
-                askable()
+                askable(hardware)
                     .find(|(_, key)| *key == id)
                     .filter(|(_, key)| changes::current(settings, key) != Some(Value::Bool(true)))
-                    .map(|(article, key)| yes_no(key, &article.ask, &article.title))
+                    .map(|(article, key)| yes_no(key, article.question(hardware), &article.title))
             });
         let ask = match found {
             Some(ask) => reworded(ask, line),
@@ -362,7 +380,8 @@ fn reworded(mut ask: Ask, line: &Value) -> Option<Ask> {
     };
     ask.q = q.into();
     ask.own = false;
-    ask.hint = tr(&ask.hint).to_owned();
+    // A Labs feature's title names its place: the window's words.
+    ask.hint = tr_window(&ask.hint).to_owned();
     let written = line.get("options").and_then(Value::as_array);
     for option in &mut ask.options {
         let label = written

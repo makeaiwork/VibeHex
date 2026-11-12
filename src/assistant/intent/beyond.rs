@@ -143,6 +143,7 @@ pub fn read(question: &str, item: &Item<'_>, now_ms: u64) -> Option<Intent> {
         spoken: latin_forms(question, &terms),
         terms,
         sure,
+        written: None,
     })
 }
 

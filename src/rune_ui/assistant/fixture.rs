@@ -87,6 +87,7 @@ pub(in super::super) fn answering(ui: &mut Ui) {
         searching: false,
         cards_coming: false,
         web: Default::default(),
+        retrying: false,
     });
 }
 
@@ -181,6 +182,7 @@ pub(in super::super) fn web_answering(ui: &mut Ui) {
             going: vec!["ws_2".into()],
             ..Web::default()
         },
+        retrying: false,
     });
 }
 
@@ -213,6 +215,14 @@ pub(in super::super) fn place_opened(ui: &mut Ui) {
 /// A new conversation: the greeting and the example questions.
 pub(in super::super) fn start(ui: &mut Ui) {
     open(ui);
+}
+
+/// The same in an English window while dictating Russian: Assistant's own
+/// words in Russian, the window's in English.
+pub(in super::super) fn start_russian(ui: &mut Ui) {
+    open(ui);
+    ui.settings.transcription.model = crate::transcription::models::TranscriptionModelId::Orukeet;
+    ui.settings.transcription.language = "ru".into();
 }
 
 /// Assistant › Settings.
@@ -272,6 +282,7 @@ pub(in super::super) fn steps(ui: &mut Ui) {
         searching: true,
         cards_coming: false,
         web: Default::default(),
+        retrying: false,
     });
 }
 

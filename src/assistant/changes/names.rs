@@ -199,6 +199,12 @@ pub const WHERE: &[(&str, &str, &str, Home)] = &[
     ),
     (super::vocab::KEY, "General", "Vocabulary", Home::General),
     (
+        super::vocab_edit::KEY,
+        "General",
+        "Vocabulary",
+        Home::General,
+    ),
+    (
         "dictation_processing.server.runs_on",
         "Output › AI cleanup",
         "Runs on",
@@ -512,6 +518,25 @@ fn lab_title(settings_key: &str) -> Option<&'static str> {
         .map(|article| article.title.as_str())
 }
 
+/// The words a card shows for values, which the pane translates (brand
+/// names aside): Assistant's own, so every language has them.
+#[cfg(test)]
+pub fn words() -> Vec<&'static str> {
+    const BRANDS: [&str; 6] = [
+        "OpenCode",
+        "OpenRouter",
+        "Codex",
+        "Apple Intelligence",
+        "CPU",
+        "GPU",
+    ];
+    ["On", "Off", "Not set", "Empty", "Built in"]
+        .into_iter()
+        .chain(LABELS.iter().map(|(_, label)| *label))
+        .filter(|label| !BRANDS.contains(label))
+        .collect()
+}
+
 /// Choice ids and the words the window shows for them.
 const LABELS: &[(&str, &str)] = &[
     ("opencode", "OpenCode"),
@@ -549,6 +574,9 @@ pub fn label(key: &str, value: &Value) -> String {
     if key == super::vocab::KEY {
         return super::vocab::label(value);
     }
+    if key == super::vocab_edit::KEY {
+        return super::vocab_edit::entry(value).unwrap_or_default().term;
+    }
     match value {
         Value::Bool(true) => "On".into(),
         Value::Bool(false) => "Off".into(),
@@ -570,9 +598,16 @@ pub fn label(key: &str, value: &Value) -> String {
         // A shortcut as `hex settings` writes it: `right-option` reads
         // Right Option, `option+shift+v` Option+Shift+V.
         Value::String(text) if key.ends_with("hotkey") => shortcut(text),
-        // An engine with its model: `codex:gpt-5.5`, `local:qwen3`.
-        Value::String(text) if text.starts_with("codex:") => "Codex".into(),
-        Value::String(text) if text.starts_with("local:") => "Built in".into(),
+        // An engine with its model, as the window names both: `Codex
+        // (GPT-6 Luna)`, `Built in (Qwen3 4B)`.
+        Value::String(text) if text.starts_with("codex:") => engine_with(
+            "Codex",
+            &crate::dictation::cleanup_server::codex::model_name(&text[6..]),
+        ),
+        Value::String(text) if text.starts_with("local:") => engine_with(
+            "Built in",
+            crate::dictation::cleanup_server::local_models::chosen(&text[6..]).name,
+        ),
         Value::String(text) => {
             if let Some(name) = model_name(key, text) {
                 return name.to_owned();
@@ -584,6 +619,50 @@ pub fn label(key: &str, value: &Value) -> String {
         }
         other => other.to_string(),
     }
+}
+
+/// `Codex (GPT-6 Luna)`; `Codex` when the model has no name of its own.
+fn engine_with(engine: &str, model: &str) -> String {
+    match model.trim() {
+        "" => engine.to_owned(),
+        model if model == engine => engine.to_owned(),
+        model => format!("{engine} ({model})"),
+    }
+}
+
+/// A value an engine key stores, compared as the engine it runs: `codex`
+/// alone is Codex on AI cleanup's model, so it equals `codex:<that model>`.
+fn engine_id(settings: &AppSettings, value: &Value) -> String {
+    let text = value
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let model = settings.dictation_processing.server.codex_model.trim();
+    match text.as_str() {
+        "codex" if !model.is_empty() => format!("codex:{}", model.to_ascii_lowercase()),
+        "codex:" => "codex".into(),
+        _ => text,
+    }
+}
+
+/// Whether a key that stores an engine (`meetings.notes.writer`,
+/// `files.cleanup_engine`) names one: those values compare as engines.
+pub fn is_engine(key: &str) -> bool {
+    key.ends_with(".writer") || key.ends_with("_engine") || key.ends_with(".engine")
+}
+
+/// Whether `one` and `other`, as `key` stores them, are the same setting:
+/// equal, or the same engine written two ways (`codex` and `codex:<the
+/// model AI cleanup uses>`; empty and none).
+pub fn same(settings: &AppSettings, key: &str, one: &Value, other: &Value) -> bool {
+    if one == other {
+        return true;
+    }
+    is_engine(key)
+        && matches!(one, Value::String(_) | Value::Null)
+        && matches!(other, Value::String(_) | Value::Null)
+        && engine_id(settings, one) == engine_id(settings, other)
 }
 
 fn shortcut(text: &str) -> String {
@@ -724,7 +803,13 @@ mod tests {
                 keys.iter().any(|known| known.starts_with(key))
             } else {
                 keys.iter().any(|known| known == key)
-                    || [parts::PROMPT, parts::CLEANUP, super::super::vocab::KEY].contains(key)
+                    || [
+                        parts::PROMPT,
+                        parts::CLEANUP,
+                        super::super::vocab::KEY,
+                        super::super::vocab_edit::KEY,
+                    ]
+                    .contains(key)
             };
             // Annotate's keys exist only in capture builds.
             assert!(real || key.starts_with("capture."), "{key} is no setting");

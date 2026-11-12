@@ -180,6 +180,10 @@ const PATHS: &[(&str, &str)] = &[
     ("assistant-places", "Window/Assistant/Places named"),
     ("assistant-place-opened", "Window/Assistant/Place opened"),
     ("assistant-start", "Window/Assistant/New conversation"),
+    (
+        "assistant-start-russian",
+        "Window/Assistant/New conversation, dictating Russian",
+    ),
     ("assistant-connect", "Window/Assistant/Connect a model"),
     ("assistant-settings", "Window/Assistant/Settings"),
     (
@@ -247,6 +251,10 @@ const PATHS: &[(&str, &str)] = &[
     (
         "assistant-vocab-applied",
         "Window/Assistant/Cards/Vocabulary added, and a term in Edit",
+    ),
+    (
+        "assistant-vocab-edit",
+        "Window/Assistant/Cards/Vocabulary entries changed",
     ),
     (
         "assistant-change-both",

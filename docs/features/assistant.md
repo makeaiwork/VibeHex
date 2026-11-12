@@ -33,9 +33,16 @@ Assistant                                        // rune_ui::assistant
 │   │           didn't cover it all, "Searched the web: 2 pages read", and
 │   │           each search's words. While it searches: "Searched the web
 │   │           for “…”", "Read lmstudio.ai", "Searching the web".
+│   │           A cloud model (Codex, OpenRouter) silent 75 s after its
+│   │           turn starts (no word, reasoning, or search) is stopped and
+│   │           asked once more, "No reply yet, asking again" in the steps;
+│   │           its deadline counts from the new turn.
 │   │           A failed answer says why and offers Try again.
 │   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
-│   │           the answer (a click lists the steps), [n] marks inline, and
+│   │           the answer (a click lists the steps), and with the guide
+│   │           cited too "Read 8 dictations and 2 guide articles in 29 s",
+│   │           its step "Read 2 guide articles: Vocabulary, AI cleanup";
+│   │           [n] marks inline, and
 │   │           "From your recordings" chips (title, date, time).
 │   │           A place in the window named in bold (General › Vocabulary,
 │   │           Labs › Smart spacing, Output) reads in the link colour and
@@ -47,8 +54,8 @@ Assistant                                        // rune_ui::assistant
 │   │           three dots on the current one, the face reading; the
 │   │           dots wave (the bright one a → b → c, 380 ms a step,
 │   │           `assistant::dots`) in Assistant, Files and Meetings'
-│   │           Requests, still under Reduce Motion and in scenes, no
-│   │           wakeups while nothing is live
+│   │           Requests (and "No reply yet, asking again"), still under
+│   │           Reduce Motion and in scenes, no wakeups while nothing is live
 │   ├── Setup   "Now: …" (what is set: speech model and language,
 │   │           dictation cleanup, meeting notes, Files cleanup, Labs on,
 │   │           Vocabulary terms), then round one as one form: four
@@ -102,6 +109,39 @@ Opened from a place link                         // rune_ui::assistant::places
                 Advanced fold opened when it is under one; a lab: Labs on
                 its group, its card's title lit. Lit until another pane
 ```
+
+## Language
+
+- Assistant's default language (`assistant::language`) is the speech
+  recognition language when it is a specific one (`transcription.language`,
+  or the one language its speech model knows, GigaAM's Russian), else the
+  window's. It drives Assistant's own words, never the rest of the window:
+  the Chat view's feed (`rune_ui::assistant::chat` builds it inside
+  `i18n::speaking`): the start page and its example questions, What's new,
+  setup's questions, chips, "Now:", and plan, the consent card, steps,
+  "From the guide", card buttons and statuses, the field's placeholder;
+  and the words presses write into a conversation (setup, the preset,
+  What's new's question, a card's apply), each under `language::speak`.
+  The worker builds setup's words and "Now:" under it too. The header,
+  Settings view, model menus, and the connect panel keep the window's.
+- `i18n::speaking` sets a column for one thread (`i18n::speaking.rs`),
+  read by every `tr`; `tr_window` gives a place's name in the window's
+  words inside it: a card's where and name, "General › Vocabulary", the
+  preset's shortcut places, a pane in "Now set to…, in Output". A language
+  with a table (Polish, Chinese, Japanese, German, Spanish, Ukrainian,
+  French, Portuguese, Russian; Cantonese reads Traditional Chinese) shows
+  its rows; any other (Italian) shows English.
+- The prompt says the default language by name (`prompt::default_language`):
+  setup's questions, sentences, and plans when nothing was typed, and
+  answers until the person writes in another language; a latest message
+  clearly in another language is answered in it; a short unclear one keeps
+  the conversation's.
+- Setup's follow-up questions (each Labs article's `ask:` and `ask_if:`
+  line) have rows in every language (`i18n/vibehex/follow.rs`, a test
+  holds every one).
+- Scene `assistant-start-russian`: an English window dictating Russian.
+  The setup scenes play the owner's settings (Orukeet, Russian), so
+  their questions and chips show in Russian too.
 
 ## Behaviour
 
@@ -170,6 +210,41 @@ Opened from a place link                         // rune_ui::assistant::places
 - What a card shows follows the settings each frame: applied, declined,
   already set, changed by hand since, downloading, a macOS permission to
   ask, a Codex sign-in, or held by the organization or the OS.
+- A change to the value the setting has now is never a card, compared as
+  the engine it runs (`names::same`: `codex` equals `codex:<AI cleanup's
+  model>`, empty equals none; `changes::already_set`). A remote model gets
+  one silent round (`prompt::rewrite`) to write its whole reply again, told
+  in `<already_set>` that the value is set, so its words claim no
+  difference; a built-in model's card just goes. A card's from side names
+  the engine with its model (Codex (GPT-6.1 Terra)).
+- The snapshot says who writes meeting notes (`catalog::notes_line`):
+  with `meetings.notes.writer` in use, `meetings.summaries` reads as the
+  fallback, not used now; engine ids and Codex efforts go in the now
+  column as stored. `<state>` names the speech models downloaded as the
+  window does, the one in use marked (`Parakeet v3 (parakeet_v3, in
+  use)`), read from disk when a question is sent (a scene's list in
+  scenes); "unknown" when it couldn't be told, never "none". It also
+  names the hardware (`desktop::hardware`, read when a question is sent or
+  setup moves on, never per frame; a scene's own, unknown by default):
+  `screens: 1 external, no notch; pointing: Magic Mouse, no extra
+  buttons`, with `model: Mac16,11` (`hw.model`, raw: a `MacNN,N` id
+  doesn't say MacBook or desktop). Screens come from `NSScreen` on the
+  main thread (a notch is a top safe-area inset, built in by
+  `CGDisplayIsBuiltin`); pointing devices from IOKit's HID registry
+  without opening one (no Input Monitoring), the owner's name dropped
+  ("Anna's Magic Mouse" is Magic Mouse). Apple's mice and trackpads have
+  no extra buttons; another reporting more than two, or not saying, may.
+- A Labs article may say what it needs (`needs: [notch]`,
+  `[mouse_buttons]`): one known unmet keeps the feature out of setup's
+  follow-ups (the app's and a model's), the plan (the rules' lines and a
+  model's), and the answers' suggestions: the prompt says "Not on this
+  Mac: Notch indicator (needs a screen with a notch)", and asked about it
+  directly the model says what it needs. Unknown hardware leaves nothing
+  out: setup asks the article's `ask_if:` ("If your mouse has extra
+  buttons, …"), and the plain `ask:` once the need is known met.
+- No card stands in for what the model doesn't know, or only lets the
+  person look something up (Labs › Downloaded models only "to see the
+  list"): where it can't tell, it names the place to look, no card.
 - A line the app refuses (no such key, a value it doesn't take, a key
   never changed from a card) shows as a muted row, never an action. Codex,
   OpenCode, OpenRouter, and your own server get one silent round to fix
@@ -193,9 +268,58 @@ Opened from a place link                         // rune_ui::assistant::places
   (`{"vocabulary_add":[…]}`, the older shape, reads too). Each term is
   checked as `hex vocabulary add` checks it (`changes::vocab`); an empty or
   too long one is refused like any line.
-- The model never sees the vocabulary (`assistant.send_settings` leaves it
-  out), so a term the vocabulary has, in any case, is dropped by the app
-  and never named back to the model.
+- A term the vocabulary has, in any case, is dropped by the app and never
+  named back to the model.
+
+## Why a word came out wrong
+
+- `intent::cleanup::wants` reads from the words (every language the app
+  speaks: промпт, инструкции, prompt, cleanup, клинап, очистка, «вместо»,
+  «заменяет», «дописывает», «распозналось», словарь…) whether a question,
+  or one of the two before it, is about what cleanup or recognition did to
+  the person's words. With `assistant.send_settings` on it then reads
+  (`assistant::personal`): `<cleanup_instructions>` (the Global mode's, each
+  mode's with its replacements and own terms count, Files' own, each cut at
+  4,000 characters) and `<vocabulary total="N">`, the entries whose term or
+  "sounds like" the question and the last two turns name, at most 30. The
+  cleanup article found brings the instructions too; a Vocabulary article,
+  the entries. The prompt (`DIAGNOSE`) asks for the cause: an entry whose
+  spelling catches the word, a replacement, a line of the instructions, or
+  the speech model, with a card for the instructions when they are it.
+- "Why does it write X instead of Y" (`intent::cleanup::written`: «пишет X
+  вместо Y», «вместо Y пишет X», "X rather than Y", statt, au lieu de, a
+  quoted form first) is also a question the dictations may answer, once
+  the person has let them be read (`intent.written`, never sure, so it
+  brings no consent card): the History search looks for X in what was
+  written, the ones that wrote the whole form first.
+- A dictation sent to the model reads "Heard: …" (the History entry's
+  `raw_text`) and "Wrote: …" (`final_text`) when cleanup changed it, each
+  cut to 450 characters around the words searched (what was heard at the
+  same place as in what was written); otherwise its text, 900 at most.
+  With such a dictation the prompt (`HEARD_WROTE`) asks the model to quote
+  both and name the cause: wrong in Heard is the speech model or a
+  Vocabulary spelling, changed only in Wrote is cleanup (a replacement, the
+  instructions, or a Vocabulary entry the cleanup model was told to write),
+  with a card when it is a setting it sees, and a line changing the entry
+  when it is one. The Vocabulary entries the dictations name come too.
+- An entry already in Vocabulary changes through a `hex-vocab` line naming
+  it with what changes: `{"term":"AI cleanup","remove_sounds_like":["ай"]}`,
+  `add_sounds_like`, `rename` (`changes::vocab_edit`). Only an entry the
+  vocabulary has, and a spelling it has, make a card; anything else is
+  refused for the repair round. The card ("General › Vocabulary, Change 2
+  entries") shows each entry with a checkbox, its term (old → new when
+  renamed), and its spellings: kept plain, removed struck, added on the
+  accent tint. Change saves through `hex vocabulary edit`'s path
+  (`control::edit_vocabulary`, `VocabularyEdit`), each entry rewritten where
+  it stands; one changed since the card is left out with why. Undo writes
+  each back exactly as it was, unless it changed since. Scene:
+  `assistant-vocab-edit`.
+- A prompt carrying Vocabulary entries never searches the web
+  (`worker::offline`, like recordings), and the recordings search never
+  reads more of it than before.
+- With `send_settings` off nothing of it goes, and the model says that
+  **Assistant › Settings › Your current settings** lets it read them, with
+  no card.
 - The card, "General › Vocabulary, Add 3 terms", lists each term with
   "sounds like: …", a checkbox, and Edit, which renames the term and
   changes its spellings in the row (two fields and Done). "Add N terms"
@@ -237,7 +361,7 @@ Opened from a place link                         // rune_ui::assistant::places
   - `notes`, "may take longer", shown only when calls or files are picked:
     `codex`, `opencode`, `openrouter`, `custom`, `local`, and on a Mac
     `apple` (Apple Intelligence, meeting notes only).
-  - The Start row draws them at once, in the window's language, with no
+  - The Start row draws them at once, in Assistant's language, with no
     model. A typed request asks the model (`SETUP_ASK`) to word them as
     `hex-ask` lines in the message's language; missing, broken, or with
     unknown ids, the app's own show.
@@ -322,7 +446,12 @@ Opened from a place link                         // rune_ui::assistant::places
     dictations in the last 30 days, where most go with the terminal or
     editor share (30%+ adds code to `use`), long dictations (60+ words,
     20%+ names the Codex trade-off), what cleanup keeps fixing, meetings
-    and their language. Without leave it says the use could show more.
+    and their language. Without leave it says the use could show more
+    (its place, Assistant › Settings, in the window's words).
+  - The opener, its step, the plan's term rows' captions, and "Answered
+    before" are Assistant's own words: in its default language, with rows
+    in every language (`setup::since::words`, `plan::words`, and the
+    controls test in `rune_ui::assistant::feed`).
   - On a remote model (Codex, OpenCode, OpenRouter, your own server) with
     the use read, the model then looks (`Stage::Look`, `SETUP_LOOK`): the
     step "Read your settings, 972 dictations and 5 meetings" shows while
@@ -332,8 +461,10 @@ Opened from a place link                         // rune_ui::assistant::places
     the model fails. Try again looks again. It reads `<since_last_setup>`
     (the last setup's answers, applied, declined; releases; the use's
     aggregates), the settings now, and what was shown (`<shown>`), never a
-    recording's text, and writes no change lines. A built-in model, no
-    engine, or a scene: the app's facts only, round one at once.
+    recording's text, and writes no change lines; it writes in the default
+    language, as every prompt is told (`prompt::default_language`). A
+    built-in model, no engine, or a scene: the app's facts only, round one
+    at once.
 - Terms Vocabulary lacks (`recordings::terms`) never show at the opening;
   they wait for the plan. A term is a Latin word said beside a Russian
   one, said twice or more, that isn't an ordinary English word (a list of
@@ -437,7 +568,7 @@ Opened from a place link                         // rune_ui::assistant::places
 - After an update (two weeks from the first run of a new release, when an
   earlier one ran here) a new conversation shows "Updated to <version>"
   over Set VibeHex up for me (`rune_ui::assistant::whats_new`). A press
-  asks "What's new since my last version?" in the window's language,
+  asks "What's new since my last version?" in Assistant's language,
   answered from the notes whatever its words; once such a question is asked
   the row goes. There is no speech bubble on the face to put it in.
 
@@ -610,7 +741,10 @@ addresses and local names are a setting's value, not a source.
 
 What reaches a model is the question, the conversation so far, and guide
 text; never history, meetings, Files texts, or keys, except the passages
-`recordings` found once the person allowed it. Keys never. Kept
+`recordings` found once the person allowed it, and, with
+`assistant.send_settings`, settings' values and, for a question about what
+cleanup did to a word, the cleanup instructions and the Vocabulary entries
+it names. Keys never. Kept
 conversations live in `<support>/assistant/conversations.json`, readable only
 by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.
@@ -621,7 +755,7 @@ recordings and its eval, jump, settings keys, changes and their cards,
 setup, vocabulary terms, and the reply corpus
 `tests/fixtures/assistant/replies`: replies strong and weak models write,
 each with the parse it must make); scenes `assistant`,
-`assistant-answering`, `assistant-start`, `assistant-connect`,
+`assistant-answering`, `assistant-start`, `assistant-start-russian`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
 `assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
 `meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`,

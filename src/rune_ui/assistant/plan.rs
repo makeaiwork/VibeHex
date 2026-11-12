@@ -26,7 +26,7 @@ use crate::assistant::changes::names;
 use crate::assistant::changes::state::{self, Row, Shown};
 use crate::assistant::changes::{Card, CardKind, Item, vocab};
 use crate::assistant::setup;
-use crate::desktop::i18n::{tr, tr_fill, tr_named};
+use crate::desktop::i18n::{tr, tr_fill, tr_named, tr_window};
 use crate::transcription::models;
 
 /// Whether the open conversation ends in a plan still to decide: the
@@ -227,7 +227,10 @@ fn kept(ui: &Ui, p: Paint, at: At, card: &Card) -> El {
     if open {
         for (index, item) in card.kept.iter().enumerate() {
             let (name, path) = match names::place(&item.key, &ui.settings) {
-                Some(place) => (tr(&place.name).to_owned(), tr(place.path).to_owned()),
+                Some(place) => (
+                    tr_window(&place.name).to_owned(),
+                    tr_window(place.path).to_owned(),
+                ),
                 None => (item.key.clone(), String::new()),
             };
             fold = fold.child(
@@ -283,7 +286,10 @@ fn line(
 ) -> El {
     let place = names::place(&item.key, &ui.settings);
     let (path, name) = match &place {
-        Some(place) => (tr(place.path).to_owned(), tr(&place.name).to_owned()),
+        Some(place) => (
+            tr_window(place.path).to_owned(),
+            tr_window(&place.name).to_owned(),
+        ),
         None => (String::new(), item.key.clone()),
     };
     let lead = match shown {
@@ -351,6 +357,17 @@ fn line(
         )
 }
 
+/// `words` in Assistant's language with the places it names in the
+/// window's words, which link to them: "Output › AI cleanup".
+fn window_places(words: &str) -> String {
+    const PLACES: [[&str; 2]; 1] = [["Output", "AI cleanup"]];
+    PLACES.iter().fold(words.to_owned(), |words, [pane, row]| {
+        let spoken = format!("{} › {}", tr(pane), tr(row));
+        let shown = format!("{} › {}", tr_window(pane), tr_window(row));
+        words.replace(&spoken, &shown)
+    })
+}
+
 /// A setup row's notes while it is open: "You chose" its value now, what
 /// to finish before it can run, and what the Labs feature takes after the
 /// switch.
@@ -374,7 +391,7 @@ fn notes(p: Paint, item: &Item, shown: &Row) -> Vec<El> {
         ));
     }
     if !item.note.is_empty() {
-        lines.push(line("note", tr(&item.note).to_owned(), p.warning()));
+        lines.push(line("note", window_places(tr(&item.note)), p.warning()));
     }
     let then = crate::assistant::guide::articles()
         .iter()
@@ -455,7 +472,9 @@ fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<
                 .take(1)
             {
                 let name = match names::place(key, &ui.settings) {
-                    Some(place) => format!("{} › {}", tr(place.path), tr(&place.name)),
+                    Some(place) => {
+                        format!("{} › {}", tr_window(place.path), tr_window(&place.name))
+                    }
                     None => key.clone(),
                 };
                 lines.push(

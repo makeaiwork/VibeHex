@@ -17,6 +17,7 @@
 //! about recordings (`releases`).
 
 pub mod beyond;
+pub mod cleanup;
 mod day;
 mod follow;
 pub mod preset;
@@ -65,6 +66,9 @@ pub struct Intent {
     pub spoken: Vec<(String, Vec<String>)>,
     /// Surely about recordings; otherwise only if a search finds them.
     pub sure: bool,
+    /// "Why does it write X instead of Y": X, which the dictations search
+    /// looks for in what was written (`cleanup::written`).
+    pub written: Option<String>,
 }
 
 /// The question's intent when it may be about recordings.
@@ -103,8 +107,20 @@ pub fn read(question: &str, now_ms: u64) -> Option<Intent> {
     let timed = when.is_some() || latest.is_some();
     let sure = named && (timed || said) && !(guide && !timed);
     let maybe = (named && personal && !guide) || (said && personal && !guide) || (timed && said);
+    let written = cleanup::written(question);
     if !sure && !maybe {
-        return None;
+        // "Why does it write X instead of Y" may be answered from the
+        // dictations that wrote X, once the person has let them be read.
+        let form = written?;
+        return Some(Intent {
+            kinds: Kinds {
+                dictations: true,
+                ..Kinds::default()
+            },
+            terms: terms(&self::words(&form)),
+            written: Some(form),
+            ..Intent::default()
+        });
     }
     let (since_ms, until_ms) = when.unzip();
     let terms = terms(&words);
@@ -116,6 +132,7 @@ pub fn read(question: &str, now_ms: u64) -> Option<Intent> {
         spoken: latin_forms(question, &terms),
         terms,
         sure,
+        written,
     })
 }
 
