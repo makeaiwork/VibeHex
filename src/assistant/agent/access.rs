@@ -21,8 +21,8 @@ pub enum Access {
         sources: Sources,
         vocabulary: Vec<VocabularyEntry>,
     },
-    /// They said no, here or in Settings for good, or there is nowhere to
-    /// read from.
+    /// They said no on the card in this conversation, or there is nowhere
+    /// to read from.
     #[default]
     Closed,
 }

@@ -12,6 +12,7 @@ use super::Limits;
 use super::table;
 use super::tools::Desk;
 use crate::assistant::changes::catalog;
+use crate::assistant::intent::cleanup;
 use crate::assistant::prompt::{self as base, Room};
 use crate::assistant::worker::{Question, Recall};
 use crate::assistant::{releases, retrieve};
@@ -22,10 +23,12 @@ const PRE_READ: usize = 3;
 /// How to ask, and what for. `{ROUNDS}` and `{TOOLS}` are filled in.
 const RULES: &str = "
 
-You can read more before you answer. The app runs what you ask for on the person's computer \
-and asks you again with the results. Nothing you can ask for changes anything.
-- To read, reply with ONLY one fenced block, nothing before it and nothing after, one JSON \
-object per line, at most {CALLS} lines:
+You can read more before you answer: the app reads for you on the person's computer and \
+asks you again with what it read. Nothing you can ask for changes anything.
+- This is the only way to read. What is listed below are not functions or commands of \
+yours: don't look for them among your own tools and don't try to run anything. To read, \
+reply with ONLY one fenced block, nothing before it and nothing after, one JSON object per \
+line, at most {CALLS} lines:
 
 ```hex-read
 {\"tool\":\"guide_read\",\"ids\":[\"labs/meetings\"]}
@@ -39,16 +42,21 @@ in one block.
 - Most questions about VibeHex are answered by the articles already here: answer those at \
 once and read nothing. Before you say the guide doesn't cover something, read the articles \
 <guide_contents> lists that could cover it (guide_read), or search it (guide_search).
-- Read what is the person's own only when the question is about it: a setting \
-<changeable_settings> doesn't list (settings_get); why dictation wrote a word as it did \
-(cleanup_instructions, vocabulary_lookup, and the dictation itself); what was said or decided \
-in their meetings, files, and dictations (the recordings tools); how they use VibeHex \
-(usage_insights); what changed in a release (release_notes). Never for a question the guide \
-answers.
+- When the question is about what is the person's own, the guide can't answer it: read \
+first. A setting <changeable_settings> doesn't list (settings_get); what their cleanup \
+instructions say (cleanup_instructions); why dictation wrote a word as it did \
+(cleanup_instructions, vocabulary_lookup, and a recordings_search of their dictations for \
+the word); what their Vocabulary holds (vocabulary_lookup); what was said or decided in \
+their meetings, files, and dictations (the recordings tools); how they use VibeHex \
+(usage_insights); what is new or changed in a release (release_notes). Never for a question \
+the guide answers.
+- Never say you can't read something, that it isn't available, or that it holds or lacks \
+something, and never ask the person to paste it, before you asked to read it and a result \
+said so. <state> gives counts, never contents.
 - <hint>, when it is there, is the app's own reading of the question; follow it unless the \
 question plainly says otherwise.
 
-The tools:
+What you can ask for:
 {TOOLS}
 What the recordings tools find comes in <recordings> blocks: numbered excerpts of their \
 meetings (notes and passages; You is the person, Them the others), Files texts, and \
@@ -60,6 +68,8 @@ topic coming back, a decision that changed, one thing leading to another), and n
 [2.3], or a run of lines, [2.3-2.5]; an excerpt without numbered lines by its number, [1]. \
 Cite the fewest lines that say it, only numbers the results hold. No Sources line entry for \
 them.
+- Only this answer's results can be cited. An earlier answer's excerpts are gone and its \
+[n] marks point at nothing now: to say more about them, read again.
 - A search finds passages, not everything. For what a whole meeting was about, read its notes \
 (meeting_notes); for exactly what was said, its transcript (meeting_transcript); a list \
 (meetings_list, files_list) names what there is.
@@ -67,6 +77,35 @@ them.
 - Times are the person's local time; each block says when now is.
 - When a tool says the recordings may not be read, call no recordings tool again, and say so \
 as it tells you.";
+
+/// The base instructions' guide-only rules, and what an agent turn is told
+/// in their place: it answers from what it reads too, and what the
+/// person's recordings hold is a question about VibeHex.
+const SWAPS: &[(&str, &str)] = &[
+    (
+        "from the guide \
+excerpts you are given.",
+        "from the guide \
+excerpts you are given and from what you ask the app to read (below).",
+    ),
+    (
+        "- Use only the excerpts. When they don't answer the question, say the guide doesn't cover \
+it.",
+        "- Use only the excerpts and what the app read for you. When they don't answer the \
+question, ask to read what could (below) before you say the guide doesn't cover it.",
+    ),
+    (
+        "- For questions that are not about VibeHex, say in one sentence that you help with VibeHex.",
+        "- For questions that are not about VibeHex, say in one sentence that you help with \
+VibeHex. What the person's own meetings, files, and dictations hold, and how they use \
+VibeHex, are questions about VibeHex.",
+    ),
+];
+
+/// Under the question in the first request.
+const ASK: &str = "Answer now if what is above answers the question. If it takes what is \
+the person's own, or an article that isn't above, reply with only a ```hex-read block \
+instead: the app reads it and asks you again.";
 
 /// What replaces the web's rules once the turn holds something of the
 /// person's own.
@@ -79,6 +118,12 @@ online. Don't say you searched the web; if the answer needs the web, say it stay
 const GO_ON: &str = "What you asked to read is above. Answer the question in <question> \
 now, or ask to read more.";
 
+/// Under the results once they hold excerpts of the recordings: the rule
+/// a model forgets most, said again where it writes the answer.
+const CITE: &str = "Put the number of the excerpt after each thing you take from the \
+<recordings> above, in square brackets, like [1] or [2.3]: each becomes a link to the \
+recording.";
+
 /// Under the results at the last request.
 const ANSWER_NOW: &str = "You can read nothing more. Answer the question in <question> now \
 from what is above, with no hex-read block, and say plainly what you couldn't find out.";
@@ -90,20 +135,44 @@ pub struct First {
     pub articles: Vec<&'static str>,
 }
 
-/// The app's guess at what a question is about, when the router is sure:
-/// a line for the model, which decides.
-fn hint(recall: &Recall) -> Option<&'static str> {
-    match recall {
-        Recall::Search(search) if search.intent.sure => Some(
-            "The question looks to be about the person's own recordings (meetings, files, \
-             dictations): the recordings tools read them.",
+/// The app's own reading of the question, as lines for the model, which
+/// decides: the router's route when it has one, and what the question's
+/// words say of cleanup. A hint reads nothing; it says what to ask for.
+fn hints(question: &Question) -> Vec<&'static str> {
+    let mut hints = Vec::new();
+    let written = cleanup::written(&question.question).is_some();
+    match &question.recall {
+        Recall::Search(search) if search.intent.sure => hints.push(
+            "The question is about the person's own recordings (meetings, files, dictations). \
+             Nothing above holds them, and an earlier answer's excerpts are gone. Reply now \
+             with a hex-read block that reads them (recordings_search; meetings_list or \
+             files_list for a list), then answer from what comes back.",
         ),
-        Recall::Releases(_) => Some(
-            "The question looks to be about what is new or changed in VibeHex: release_notes \
-             reads the release notes.",
+        Recall::Search(_) if !written => hints.push(
+            "The question may be about the person's own recordings (meetings, files, \
+             dictations). If it is, reply now with a hex-read block that reads them \
+             (recordings_search; meetings_list or files_list for a list).",
         ),
-        _ => None,
+        Recall::Releases(_) => hints.push(
+            "The question is about what is new or changed in VibeHex. Reply now with a \
+             hex-read block asking for release_notes, then answer from the notes.",
+        ),
+        _ => {}
     }
+    if written {
+        hints.push(
+            "The question is about a word dictation wrote as another. Reply now with one \
+             hex-read block asking for cleanup_instructions, vocabulary_lookup of both forms, \
+             and a recordings_search of their dictations for the form written; then say which \
+             of them explains it.",
+        );
+    } else if cleanup::instructions(&question.question) {
+        hints.push(
+            "The question looks to be about the person's own cleanup instructions. Reply now \
+             with a hex-read block asking for cleanup_instructions, then answer from them.",
+        );
+    }
+    hints
 }
 
 pub fn first(question: &Question, limits: Limits) -> First {
@@ -125,6 +194,9 @@ pub fn first(question: &Question, limits: Limits) -> First {
     let context = question.changes.as_ref();
 
     let mut instructions = base::INSTRUCTIONS.to_owned();
+    for (guide_only, agent) in SWAPS {
+        instructions = instructions.replacen(guide_only, agent, 1);
+    }
     instructions.push_str(&base::default_language(
         context.map(|context| &context.settings),
     ));
@@ -165,11 +237,12 @@ pub fn first(question: &Question, limits: Limits) -> First {
         ));
     }
     input.push_str(&base::earlier_turns(&earlier, Room::Large));
-    if let Some(hint) = hint(&question.recall) {
-        input.push_str(&format!("\n<hint>\n{hint}\n</hint>\n"));
+    let hints = hints(question);
+    if !hints.is_empty() {
+        input.push_str(&format!("\n<hint>\n{}\n</hint>\n", hints.join("\n")));
     }
     input.push_str(&format!(
-        "\n<question>\n{}\n</question>\n{}\n",
+        "\n<question>\n{}\n</question>\n{ASK}\n{}\n",
         question.question.trim(),
         base::LATEST
     ));
@@ -199,6 +272,10 @@ pub fn tail(desk: &Desk, last: bool, read: bool) -> String {
     }
     if read.releases {
         tail.push_str(releases::prompt::INSTRUCTIONS.trim_start());
+        tail.push('\n');
+    }
+    if !desk.shelf().is_empty() {
+        tail.push_str(CITE);
         tail.push('\n');
     }
     format!(
@@ -291,6 +368,26 @@ mod tests {
         assert_eq!(first.input.matches("Zyxwvutsr").count(), 1);
     }
 
+    /// The base instructions answer from the guide alone; an agent turn's
+    /// say it reads too. Each rule swapped is still there to swap.
+    #[test]
+    fn the_guide_only_rules_are_swapped() {
+        let first = first(&question("what is smart spacing?", true), Limits::REMOTE);
+        for (guide_only, agent) in SWAPS {
+            assert_eq!(
+                base::INSTRUCTIONS.matches(guide_only).count(),
+                1,
+                "{guide_only}"
+            );
+            assert!(first.instructions.contains(agent), "{agent}");
+        }
+        assert!(!first.instructions.contains("Use only the excerpts. When"));
+        // What to do is the last thing under the question, before the
+        // language's line.
+        let question = first.input.find("</question>").unwrap();
+        assert!(first.input[question..].contains(ASK));
+    }
+
     #[test]
     fn the_instructions_list_every_tool_and_the_rounds() {
         let first = first(&question("what is smart spacing?", true), Limits::REMOTE);
@@ -320,11 +417,24 @@ mod tests {
         assert!(
             first
                 .input
-                .contains("<hint>\nThe question looks to be about what is new")
+                .contains("<hint>\nThe question is about what is new")
         );
         assert!(!first.input.contains("<releases"), "a hint reads nothing");
         let hint = first.input.find("<hint>").unwrap();
         assert!(hint < first.input.find("<question>").unwrap());
+
+        // What the question's words say of cleanup is a hint too.
+        let first = super::first(
+            &question("Почему пишет AI cleanup вместо AI?", true),
+            Limits::REMOTE,
+        );
+        assert!(first.input.contains("a word dictation wrote as another"));
+        let first = super::first(
+            &question("Что написано в моих инструкциях?", true),
+            Limits::REMOTE,
+        );
+        assert!(first.input.contains("asking for cleanup_instructions"));
+        assert!(!first.input.contains("<cleanup_instructions>"));
 
         let mut declined = question("what did we decide yesterday?", true);
         declined.recall = Recall::Declined;

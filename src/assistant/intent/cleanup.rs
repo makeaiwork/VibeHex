@@ -155,6 +155,13 @@ pub fn wants(question: &str) -> Wants {
     }
 }
 
+/// Whether `question` speaks of the cleanup instructions themselves
+/// ("what does my prompt say?", «что в моих инструкциях?»): what an agent
+/// turn is told to read first.
+pub fn instructions(question: &str) -> bool {
+    names(&question.to_lowercase(), PROMPT)
+}
+
 /// "X instead of Y": the words that follow the form written.
 const INSTEAD: &[&str] = &[
     "instead of",

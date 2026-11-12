@@ -41,10 +41,11 @@ use color_eyre::eyre::eyre;
 use self::access::Access;
 use self::tools::Desk;
 use self::trace::{Did, Doing};
+use super::intent::cleanup;
 use super::recordings::Budget;
 use super::settle::settle;
 use super::worker::{self, Answered, Asker, Question, Recall};
-use super::{facts, web};
+use super::{facts, personal, web};
 use crate::app_settings::AssistantSettings;
 use crate::files::rewrite::Engine;
 
@@ -146,22 +147,59 @@ pub(super) enum Net {
     Off,
 }
 
+/// Whether the app's own reading says the turn is about what is the
+/// person's own from its first request on, as the router's prompt would
+/// hold it: a question that is or may be about their recordings (a word
+/// dictation wrote as another too: the router searches History for it),
+/// or one that names entries of their Vocabulary.
+fn own(question: &Question) -> bool {
+    if matches!(question.recall, Recall::Search(_)) {
+        return true;
+    }
+    let Some(context) = question.changes.as_ref().filter(|context| context.send()) else {
+        return false;
+    };
+    if !cleanup::wants(&question.question).vocabulary {
+        return false;
+    }
+    let mut texts = vec![question.question.as_str()];
+    for turn in question.earlier.iter().rev().take(2) {
+        texts.extend([turn.question.as_str(), turn.answer.as_str()]);
+    }
+    personal::vocabulary(&context.settings, &texts).1 > 0
+}
+
 /// The one place that decides, before each request, whether it may search
 /// the web: never once the turn has read anything of the person's own
 /// (recordings, a list of them, what their use shows, their cleanup
 /// instructions, Vocabulary entries), never after an earlier answer that
-/// did, and never for a question about recordings they said no to.
+/// did, never for a question about recordings they said no to, and never
+/// for a question the app itself reads as about their own ([`own`]): the
+/// first request holds nothing of theirs, but the web has nothing for
+/// such a question, and its words are not for a search engine.
 pub(super) fn net(searches: bool, question: &Question, desk: &Desk) -> Net {
     if !searches {
         Net::None
     } else if desk.personal()
         || matches!(question.recall, Recall::Declined)
         || question.earlier.iter().any(|earlier| earlier.recordings)
+        || own(question)
     {
         Net::Off
     } else {
         Net::On
     }
+}
+
+/// Whether a turn whose web is off says so (`Web::held_back`), as the
+/// router does: when the web was on earlier in the turn and what it read
+/// since turned it off, or when only an earlier answer keeps it off. A
+/// question about their own never had the web to lose, and nothing is said.
+fn says_held_back(question: &Question, was_on: bool) -> bool {
+    was_on
+        || (!own(question)
+            && !matches!(question.recall, Recall::Declined)
+            && question.earlier.iter().any(|earlier| earlier.recordings))
 }
 
 /// Answers `question` as an agent, within `limits`.
@@ -197,15 +235,17 @@ pub(super) fn run(question: &Question, asker: &Asker, limits: Limits) -> Answere
     let mut results = String::new();
     let mut model_time = Duration::ZERO;
     let mut held_back = false;
+    let mut was_on = false;
     let mut request = 0;
     let result = loop {
         request += 1;
         let last = request >= limits.requests || desk.spent() || model_time >= limits.model_time;
         let net = net(asker.search.is_some(), question, &desk);
-        if net == Net::Off && !held_back {
+        if net == Net::Off && !held_back && says_held_back(question, was_on) {
             held_back = true;
             worker::held_back();
         }
+        was_on |= net == Net::On;
         let prompt = crate::assistant::prompt::Prompt {
             instructions: format!(
                 "{}{}",

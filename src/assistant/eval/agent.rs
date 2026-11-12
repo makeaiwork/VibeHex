@@ -214,7 +214,11 @@ pub fn scenarios() -> Vec<Scenario> {
                             || "the instructions were sent unasked".into(),
                         )
                     }),
-                    web_by_request(&[true, false]),
+                    // The question names an entry of their Vocabulary ("AI
+                    // cleanup"), which the router's prompt would hold: the
+                    // web is off from the first request, and nothing is said
+                    // of it (27 holds the turn that loses the web midway).
+                    web_by_request(&[false, false]),
                     offline("the model is told the web is off", |outcome| {
                         let last = outcome.sent.last().map(|sent| sent.instructions.as_str());
                         let last = last.unwrap_or_default();
@@ -226,11 +230,6 @@ pub fn scenarios() -> Vec<Scenario> {
                     }),
                     traced("the trace says the instructions were read", |trace| {
                         trace.contains(&Did::Instructions)
-                    }),
-                    check("the turn says the web was held back", |outcome| {
-                        ensure(!outcome.agent() || outcome.turn.web.held_back, || {
-                            format!("{:?}", outcome.turn.web)
-                        })
                     }),
                     steps_at_most(4),
                     answer_in_russian(),
@@ -259,7 +258,11 @@ pub fn scenarios() -> Vec<Scenario> {
                         }),
                         sent_has(
                             "the hint that it is about recordings",
-                            &["<hint>\nThe question looks to be about the person's own recordings"],
+                            &["<hint>\nThe question is about the person's own recordings"],
+                        ),
+                        sent_has(
+                            "the reminder to cite, under the excerpts",
+                            &["Put the number of the excerpt after each thing you take"],
                         ),
                         offline("the transcript is numbered on from the search", |outcome| {
                             let third = outcome.sent.get(2).map(|sent| sent.input.as_str());
@@ -284,7 +287,15 @@ pub fn scenarios() -> Vec<Scenario> {
                                 || format!("search at {first:?}, transcript numbered {numbered}"),
                             )
                         }),
-                        web_by_request(&[true, false, false]),
+                        // The app itself reads the question as about their
+                        // recordings: the web is off from the first request,
+                        // as the router has it, and nothing is said of it.
+                        web_by_request(&[false, false, false]),
+                        offline("nothing is said of the web", |outcome| {
+                            ensure(!outcome.turn.web.held_back, || {
+                                format!("{:?}", outcome.turn.web)
+                            })
+                        }),
                         check("what it cites is in the fixture", |outcome| {
                             (citations_resolve().test)(outcome)
                         }),
@@ -331,8 +342,9 @@ pub fn scenarios() -> Vec<Scenario> {
             fixture: owner_with_meetings,
             app: Vec::new(),
             steps: vec![online(
-                "Which Ollama model should I pull for cleanup, and did we talk about Ollama in \
-                 any meeting?",
+                // Nothing in its words says recordings to the app, so the
+                // first request may search the web.
+                "Which Ollama model should I pull? Anna named one she liked.",
                 &[
                     "```hex-read\n{\"tool\":\"guide_search\",\"query\":\"ollama server model\"}\n```",
                     "```hex-read\n{\"tool\":\"recordings_search\",\"query\":\"Ollama\",\"kinds\":[\"meetings\"]}\n```",
@@ -449,6 +461,11 @@ pub fn scenarios() -> Vec<Scenario> {
                     web_by_request(&[true, false]),
                     traced("the trace says usage was read", |trace| {
                         trace.contains(&Did::Usage)
+                    }),
+                    check("the turn says the web was held back", |outcome| {
+                        ensure(!outcome.agent() || outcome.turn.web.held_back, || {
+                            format!("{:?}", outcome.turn.web)
+                        })
                     }),
                     steps_at_most(4),
                     answer_in_russian(),

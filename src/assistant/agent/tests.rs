@@ -13,7 +13,7 @@ use crate::assistant::eval::SERIAL;
 use crate::assistant::facts::State;
 use crate::assistant::recordings::{Allowed, Sources};
 use crate::assistant::setup::Stage;
-use crate::assistant::worker::{Earlier, Generate, Searching};
+use crate::assistant::worker::{Earlier, Generate, Search, Searching};
 use crate::dictation::cleanup_pieces::Streamed;
 use crate::dictation::vocabulary::VocabularyEntry;
 
@@ -292,6 +292,41 @@ fn one_function_decides_the_web() {
     let mut declined = plain.clone();
     declined.recall = Recall::Declined;
     assert_eq!(net(true, &declined, &fresh), Net::Off);
+
+    // A question the app itself reads as about their own: one that may be
+    // about their recordings, and one that names a Vocabulary entry.
+    let mut theirs = plain.clone();
+    theirs.recall = Recall::Search(Box::new(Search {
+        allowed: Allowed::from_settings(&crate::app_settings::AssistantSettings {
+            read_recordings: Some(true),
+            ..Default::default()
+        })
+        .unwrap(),
+        sources: recordings(),
+        intent: Default::default(),
+        vocabulary: Vec::new(),
+        now_ms: 0,
+    }));
+    assert_eq!(net(true, &theirs, &fresh), Net::Off);
+    assert!(!says_held_back(&theirs, false), "it never had the web");
+    let named = question("Why is Zyxwvutsr recognized wrong?");
+    assert_eq!(net(true, &named, &fresh), Net::Off);
+    let mut unsent = named.clone();
+    unsent
+        .changes
+        .as_mut()
+        .unwrap()
+        .settings
+        .assistant
+        .send_settings = false;
+    assert_eq!(net(true, &unsent, &fresh), Net::On, "no entry is looked at");
+    // Said only when the web could have helped.
+    assert!(says_held_back(&plain, true), "it turned off mid-turn");
+    assert!(
+        says_held_back(&after, false),
+        "an earlier answer keeps it off"
+    );
+    assert!(!says_held_back(&declined, false));
 
     // Each kind of the person's own, once read.
     let allowed = Allowed::from_settings(&crate::app_settings::AssistantSettings {

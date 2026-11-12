@@ -599,7 +599,18 @@ pub fn scenarios() -> Vec<Scenario> {
                             let answer = &outcome.turn.answer;
                             let whole = says(
                                 answer,
-                                &["97", "весь", "все ", "всех", "целиком", "whole", "entire"],
+                                // «по всему списку» says the whole list too
+                                // (a live answer worded it so).
+                                &[
+                                    "97",
+                                    "весь",
+                                    "все ",
+                                    "всех",
+                                    "всему",
+                                    "целиком",
+                                    "whole",
+                                    "entire",
+                                ],
                             );
                             ensure(
                                 !answer.contains("64") || (says(answer, CLEANUP_WORDS) && whole),
