@@ -18,6 +18,9 @@
 //! send the same events.
 
 mod preset;
+mod record;
+
+pub use record::BUSY;
 
 use super::past::{self, Setup};
 use super::since::{self, Candidate, Since};
@@ -82,7 +85,8 @@ pub enum Event {
     Change { turn: usize },
     /// Continue, or "Skip to the plan".
     Answered { turn: usize, skip: bool },
-    /// A card was applied or put off.
+    /// A card's decision changed: applied, put off, undone, or its save
+    /// failed.
     Decided { turn: usize, card: usize },
     /// A model's turn for the answers is asked again.
     Again { turn: usize },
@@ -115,6 +119,7 @@ pub enum Effect {
 }
 
 /// What a transition knows of the install and the moment.
+#[derive(Clone, Copy)]
 pub struct Env<'a> {
     /// The settings as being typed and what was read off this install.
     pub context: &'a Context,
@@ -224,7 +229,12 @@ pub fn step(turns: &[Turn], kept: &[Setup]) -> Step {
         return Step::None;
     };
     let last = &turns[turn];
-    let open = |card: Option<&Card>| card.is_some_and(|card| card.decision == Decision::Proposed);
+    // A plan whose save failed is still to decide.
+    let open = |card: Option<&Card>| {
+        card.is_some_and(|card| {
+            matches!(card.decision, Decision::Proposed | Decision::Failed { .. })
+        })
+    };
     match last.preset.as_str() {
         "" => {}
         SETTINGS if open(last.cards.first()) => return Step::PresetPlan { turn },
@@ -313,11 +323,6 @@ impl Flow {
             .count()
     }
 
-    /// Whether the plan made at `plan_ms` is kept as decided.
-    fn decided(&self, plan_ms: u64) -> bool {
-        decided(&self.kept, plan_ms)
-    }
-
     /// What the questions and the plan are checked against: the install as
     /// read, with what the setups kept by now answered and declined.
     fn context(&self, env: &Env) -> Context {
@@ -332,24 +337,7 @@ impl Flow {
         let mut out = Vec::new();
         match event {
             Event::Begin { since } => self.begin(since, env, &mut out),
-            Event::Unasked(stage) => {
-                // Not asked after all: round one at once, as on a built-in
-                // model. A round or a plan that wasn't asked for stays so.
-                if let Stage::Look {
-                    facts, asks, terms, ..
-                } = stage
-                {
-                    let round = Turn {
-                        asks,
-                        facts,
-                        folded: true,
-                        terms,
-                        created_ms: env.now_ms,
-                        ..Turn::default()
-                    };
-                    self.push(round, &mut out);
-                }
-            }
+            Event::Unasked(stage) => self.unasked(stage, env, &mut out),
             Event::Pick { turn, number, id } => self.pick(turn, number, &id, env, &mut out),
             Event::Change { turn } => {
                 if self.turns.get(turn).is_some() {
@@ -359,7 +347,7 @@ impl Flow {
             Event::Answered { turn, skip } => self.answered(turn, skip, env, &mut out),
             Event::Decided { turn, card } => {
                 self.plan_decided(turn, card, env, &mut out);
-                self.preset_decided(turn, env, &mut out);
+                self.preset_decided(turn, card, env, &mut out);
             }
             Event::Again { turn } => self.again(turn, env, &mut out),
             Event::LookAgain { turn } => self.look_again(turn, env, &mut out),
@@ -510,15 +498,46 @@ impl Flow {
                 ask.chosen.clear();
             }
         }
-        self.emit(Effect::Asks { turn, asks }, out);
+        let before = self.clone();
+        let mut moved = Vec::new();
+        self.emit(Effect::Asks { turn, asks }, &mut moved);
         // Kept at once: left half-way, or its plan put off, the answers
         // stay.
-        self.keep(None, env, out);
+        self.keep(None, env, &mut moved);
         if skip {
-            self.plan(env, out);
+            self.plan(env, &mut moved);
         } else {
-            self.next(turn, env, out);
+            self.next(turn, env, &mut moved);
         }
+        // What comes next is a model's, and it is answering elsewhere:
+        // the round stays open, nothing answered or kept, to continue
+        // again once it is free.
+        if env.busy
+            && moved
+                .iter()
+                .any(|effect| matches!(effect, Effect::Ask { .. }))
+        {
+            *self = before;
+            return;
+        }
+        out.extend(moved);
+    }
+
+    /// Whether Continue on round `turn` (or its skip) waits for a model
+    /// answering elsewhere: pressed now, it would do nothing.
+    pub fn waits(&self, turn: usize, skip: bool, env: &Env) -> bool {
+        let free = Env {
+            busy: false,
+            ..*env
+        };
+        let ask = |effect: &Effect| matches!(effect, Effect::Ask { .. });
+        env.busy
+            && self
+                .clone()
+                .on(Event::Answered { turn, skip }, &free)
+                .1
+                .iter()
+                .any(ask)
     }
 
     /// After round `turn`: the next follow-up round, else the plan.
@@ -552,9 +571,6 @@ impl Flow {
         if env.on_device {
             return self.round(candidates, before, env, out);
         }
-        if env.busy {
-            return;
-        }
         let line = super::answers_line(&self.asked(), Ask::label);
         let stage = Stage::Follow {
             answers,
@@ -587,9 +603,6 @@ impl Flow {
         let answers = super::answers(&asked);
         let line = super::answers_line(&asked, Ask::label);
         if !env.on_device {
-            if env.busy {
-                return;
-            }
             let stage = Stage::Plan {
                 answers,
                 line: line.clone(),
@@ -624,52 +637,6 @@ impl Flow {
             // Nothing to decide: the setup is finished as it is.
             self.keep(None, env, out);
         }
-    }
-
-    /// A setup's plan was applied or put off: the setup is finished, and
-    /// kept with what it applied and what the person declined.
-    fn plan_decided(&mut self, turn: usize, card: usize, env: &Env, out: &mut Vec<Effect>) {
-        let Some(plan) = self.turns.get(turn) else {
-            return;
-        };
-        let Some(card) = plan.cards.get(card) else {
-            return;
-        };
-        if plan.answers.is_empty() || plan.follow || card.kind != CardKind::Plan {
-            return;
-        }
-        let plan_ms = plan.created_ms;
-        if self.decided(plan_ms) {
-            return;
-        }
-        let card = card.clone();
-        self.keep(Some((&card, plan_ms)), env, out);
-    }
-
-    /// Keeps the setup with every answer so far, and with how its plan
-    /// went once decided (`plan`: the card and its turn's time); a later
-    /// call updates the same record. The one place a setup's record is
-    /// made.
-    fn keep(&mut self, plan: Option<(&Card, u64)>, env: &Env, out: &mut Vec<Effect>) {
-        let asked = self.asked();
-        let answers = super::answers(&asked);
-        let started_ms = self
-            .setup_turns()
-            .first()
-            .map(|turn| turn.created_ms)
-            .unwrap_or_default();
-        let at_ms = plan.map_or(env.now_ms, |(_, at)| at);
-        let mut setup = past::finished(
-            &asked,
-            &answers,
-            plan.map(|(card, _)| card),
-            env.saved,
-            at_ms,
-        );
-        setup.conversation = self.conversation;
-        setup.started_ms = started_ms;
-        setup.plan_ms = plan.map_or(0, |(_, at)| at);
-        self.emit(Effect::Keep(setup), out);
     }
 
     /// Asks an answers turn again: its follow-ups, or its plan.

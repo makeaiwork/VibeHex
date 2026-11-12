@@ -548,6 +548,20 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   (`Setup::same`: its conversation and when round one was asked), keeping
   when each follow-up was answered and the settings it saw then. Each
   follow-up answered, Yes or No, is kept as asked (`Setup::asked`).
+- A round is answered only once what comes next can be asked for. While
+  a model is answering in another conversation and the next round or the
+  plan is a model's, Continue and "Skip to the plan" are dimmed and the
+  round says "The model is answering in another conversation."
+  (`Flow::waits`); pressed anyway, nothing is answered or kept, and
+  Continue goes on once the model is free. A round the app writes itself
+  never waits. A request the worker turned down all the same becomes a
+  turn that says so, with Try again.
+- The record follows the plan's card (`Flow::plan_decided`, sent on every
+  decision: apply, Not now, Undo, Change anyway). Applied or put off, the
+  plan is decided. A save that failed decides nothing: the setup stays at
+  its plan, and the Try again that goes through is the one recorded. Undo
+  takes what was applied out of the record; "Change anyway" after it, or
+  after Not now, puts it in. An Undo that failed leaves it saying applied.
 - A follow-up answered before isn't asked again while what its Yes
   changes is still as it was then and no release dated after the answer
   names its key (`past::answered_before`, `since::changed_since`; a
@@ -689,8 +703,9 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
     were (`an_older_saved_setup_still_loads`).
   - Its paths are tables of events, effects and steps
     (`setup/flow/tests.rs`: first and returning, on this device and with a
-    model, a busy model, the preset), and the pane's whole paths are
-    pinned turn by turn (`rune_ui/assistant/flow_pins.rs`).
+    model, a busy model, a save that failed, Undo and "Change anyway",
+    the preset), and the pane's whole paths are pinned turn by turn
+    (`rune_ui/assistant/flow_pins.rs`).
 
 ## Set me up like Denis
 
@@ -743,8 +758,10 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
 - Once it is applied or put off: "These are Denis's shortcuts — do they
   suit you?" with the list, Use these (a plan of their own, with Undo),
   Keep mine, or a key typed instead (an ordinary question; the model's
-  change card goes through `check`). Turns carry `preset` (`settings`,
-  `shortcuts`, `shortcuts-plan`, `done`).
+  change card goes through `check`). A save that failed stays at the
+  plan, and the Try again that goes through leads on to the shortcuts.
+  Turns carry `preset` (`settings`, `shortcuts`, `shortcuts-plan`,
+  `done`).
 
 ## What's new
 

@@ -2,6 +2,7 @@
 //! plan, then his shortcuts as a second step of their own.
 
 use super::{DONE, Effect, Env, Flow, SETTINGS, SHORTCUTS, SHORTCUTS_PLAN};
+use crate::assistant::changes::Decision;
 use crate::assistant::setup::preset;
 use crate::assistant::store::Turn;
 use crate::desktop::i18n::{tr, tr_fill, tr_window};
@@ -42,15 +43,22 @@ impl Flow {
         }
     }
 
-    /// The preset's plan was applied or put off: on to its shortcuts.
-    pub(super) fn preset_decided(&mut self, turn: usize, env: &Env, out: &mut Vec<Effect>) {
+    /// The preset's plan was applied or put off: on to its shortcuts. A
+    /// save that failed stays at the plan, to try again.
+    pub(super) fn preset_decided(
+        &mut self,
+        turn: usize,
+        card: usize,
+        env: &Env,
+        out: &mut Vec<Effect>,
+    ) {
         let last = self.turns.len().saturating_sub(1);
-        if turn == last
-            && self
-                .turns
-                .get(turn)
-                .is_some_and(|turn| turn.preset == SETTINGS)
-        {
+        let decided = |turn: &Turn| {
+            let went = turn.cards.get(card).map(|card| &card.decision);
+            turn.preset == SETTINGS
+                && matches!(went, Some(Decision::Applied { .. } | Decision::Declined))
+        };
+        if turn == last && self.turns.get(turn).is_some_and(decided) {
             self.shortcuts(env, out);
         }
     }

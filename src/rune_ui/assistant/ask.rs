@@ -92,17 +92,43 @@ pub(super) fn send(ui: &mut Ui, conversation: u32, event: Event) {
 /// The machine's transition on `event`, with what it may know of this
 /// install now.
 pub(super) fn on(ui: &Ui, flow: Flow, event: Event) -> (Flow, Vec<Effect>) {
+    knowing(ui, flow.conversation, |env| flow.on(event, env))
+}
+
+/// `then` with what the machine may know of this install now.
+fn knowing<T>(ui: &Ui, conversation: u32, then: impl FnOnce(&Env) -> T) -> T {
     let context = super::changes::context(ui);
     let env = Env {
         context: &context,
         saved: &ui.settings,
         now_ms: ui.assistant.now_ms(),
-        on_device: on_device(ui, flow.conversation),
+        on_device: on_device(ui, conversation),
         busy: ui.assistant.answering.is_some(),
         scene: ui.assistant.fixture,
         changed: &since::changed_since,
     };
-    flow.on(event, &env)
+    then(&env)
+}
+
+/// Whether round `at`'s Continue and its "Skip to the plan" wait for a
+/// model that is answering in another conversation.
+fn waits(ui: &Ui, at: At) -> (bool, bool) {
+    let pane = &ui.assistant;
+    let open = pane.store.get(at.conversation);
+    let Some(open) = open.filter(|_| pane.answering.is_some()) else {
+        return (false, false);
+    };
+    let flow = Flow::new(
+        at.conversation,
+        open.turns.clone(),
+        pane.store.setups().to_vec(),
+    );
+    knowing(ui, at.conversation, |env| {
+        (
+            flow.waits(at.turn, false, env),
+            flow.waits(at.turn, true, env),
+        )
+    })
 }
 
 /// Performs a transition's effects in `conversation`, in order: turns and
@@ -160,8 +186,9 @@ pub(super) fn answered(ui: &mut Ui, at: At, skip: bool) {
     send(ui, at.conversation, Event::Answered { turn, skip });
 }
 
-/// A card was applied or put off: a setup's plan finishes the setup, the
-/// preset's leads on to its shortcuts.
+/// A card was applied, put off, or undone: a setup's plan finishes the
+/// setup and its record follows it, the preset's leads on to its
+/// shortcuts.
 pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
     let (turn, card) = (at.turn, at.card);
     send(ui, at.conversation, Event::Decided { turn, card });
@@ -233,10 +260,10 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
         Some(Step::Basics { turn: here, folded }) if here == index => shown.push(if folded {
             super::returning::folded(p, at, &turn.asks)
         } else {
-            open(p, at, &turn.asks, unfolded)
+            open(p, at, &turn.asks, unfolded, waits(ui, at))
         }),
         Some(Step::Follow { turn: here, .. }) if here == index => {
-            shown.push(open(p, at, &turn.asks, unfolded));
+            shown.push(open(p, at, &turn.asks, unfolded, waits(ui, at)));
         }
         _ => {}
     }
@@ -346,8 +373,10 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
 }
 
 /// A round to answer: each question that shows with its chips, then
-/// Continue, and "Skip to the plan" after round one.
-fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool) -> El {
+/// Continue, and "Skip to the plan" after round one. Either `waits` (Continue,
+/// the skip) while the model it would ask is answering in another
+/// conversation, and the round says so.
+fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool, waits: (bool, bool)) -> El {
     let c = &p.k.c;
     let mut card = col()
         .key(format!("round{}", at.turn))
@@ -366,22 +395,26 @@ fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool) -> El {
         card = card.child(question(p, at, number, ask));
     }
     card = card.children(before(p, at, asks, unfolded, true));
+    let small = super::super::controls::PushSize::build_small_push;
     let go = rune_kit::Button::new(tr("Continue"))
         .variant(rune_kit::ButtonVariant::Neutral)
+        .disabled(waits.0)
         .on_press(move |ui: &mut Ui| answered(ui, at, false));
     let mut foot = row().key("continue").gap(8.0).center_y();
     if !first(asks) {
-        foot = foot.child(super::card::push(
-            p,
-            "skip",
-            tr("Skip to the plan"),
-            super::card::Look::Ghost,
-            move |ui, _| answered(ui, at, true),
-        ));
+        let skip = rune_kit::Button::new(tr("Skip to the plan"))
+            .variant(rune_kit::ButtonVariant::Ghost)
+            .disabled(waits.1)
+            .on_press(move |ui: &mut Ui| answered(ui, at, true));
+        foot = foot.child(small(skip, p.k).key("skip"));
+    }
+    if waits.0 || waits.1 {
+        let why = text(tr(flow::BUSY)).key("waits").font(p.k.ty.small);
+        card = card.child(why.color(p.muted()).wrap_anywhere().w_full());
     }
     card.child(
         foot.child(el().key("space").grow(1.0))
-            .child(super::super::controls::PushSize::build_small_push(go, p.k).key("go")),
+            .child(small(go, p.k).key("go")),
     )
 }
 
@@ -630,6 +663,71 @@ mod tests {
             let line = card.items.iter().find(|item| item.key == key).unwrap();
             assert!(line.included, "a yes starts checked");
         }
+    }
+
+    /// The setup's record follows its plan's card in the window too: a
+    /// save that failed decides nothing, the one that goes through is
+    /// recorded, and Undo takes what it applied out of the record.
+    #[test]
+    fn the_kept_setup_follows_its_plans_card() {
+        use super::super::changes as act;
+        use crate::assistant::changes::Decision;
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.assistant.fixture = true;
+        begin(&mut ui);
+        let here = at(&ui, 0);
+        let language_at = number(&turns(&ui)[0].asks, "language");
+        pick(&mut ui, here, language_at, "ru_tech");
+        answered(&mut ui, here, false);
+        while turns(&ui).last().unwrap().cards.is_empty() {
+            let here = at(&ui, turns(&ui).len() - 1);
+            pick(&mut ui, here, 0, "yes");
+            answered(&mut ui, here, true);
+        }
+        let plan = act::At {
+            conversation: here.conversation,
+            turn: turns(&ui).len() - 1,
+            card: 0,
+        };
+        let kept = |ui: &Ui| {
+            let setup = ui.assistant.store.setups().last().unwrap();
+            (setup.plan_ms != 0, setup.applied.len())
+        };
+        let ticked: Vec<bool> = act::card(&ui, plan)
+            .unwrap()
+            .items
+            .iter()
+            .map(|item| item.included)
+            .collect();
+        // Nothing ticked: the save is refused.
+        act::set(&mut ui, plan, |card| {
+            card.items.iter_mut().for_each(|item| item.included = false)
+        });
+        act::apply(&mut ui, plan);
+        assert!(matches!(
+            act::card(&ui, plan).unwrap().decision,
+            Decision::Failed { .. }
+        ));
+        assert_eq!(kept(&ui), (false, 0), "a failed save decides nothing");
+        act::set(&mut ui, plan, |card| {
+            for (item, on) in card.items.iter_mut().zip(&ticked) {
+                item.included = *on;
+            }
+        });
+        act::apply(&mut ui, plan);
+        assert!(matches!(
+            act::card(&ui, plan).unwrap().decision,
+            Decision::Applied { .. }
+        ));
+        let (decided, applied) = kept(&ui);
+        assert!(
+            decided && applied > 0,
+            "the save that went through is recorded"
+        );
+        act::undo(&mut ui, plan);
+        assert_eq!(act::card(&ui, plan).unwrap().decision, Decision::Undone);
+        assert_eq!(kept(&ui), (true, 0), "undone, it no longer says applied");
+        assert_eq!(ui.assistant.store.setups().len(), 1);
     }
 
     /// What the model reads of the answers: ids and the words the person

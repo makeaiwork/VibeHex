@@ -38,6 +38,9 @@ fn kind(effect: &Effect) -> String {
             } else if !turn.answer.is_empty() {
                 parts.push("words");
             }
+            if turn.error.is_some() {
+                parts.push("unasked");
+            }
             format!("push {}", parts.join(" "))
         }
         Effect::Asks { .. } => "answers".into(),
@@ -134,6 +137,21 @@ impl Run {
         effects
     }
 
+    /// Whether Continue on round `turn` (or its `skip`) would wait.
+    fn waits(&self, turn: usize, skip: bool) -> bool {
+        let context = self.context();
+        let env = Env {
+            context: &context,
+            saved: &self.settings,
+            now_ms: self.now,
+            on_device: !self.remote,
+            busy: self.busy,
+            scene: false,
+            changed: &|_, _| false,
+        };
+        self.flow.waits(turn, skip, &env)
+    }
+
     fn wrote(&mut self, line: String) {
         if self.trace.last() != Some(&line) {
             self.trace.push(line);
@@ -207,7 +225,7 @@ impl Run {
                 "more rounds than {}",
                 follow::ROUNDS
             );
-            let (number, id) = (0, follow::YES.to_owned());
+            let (number, id) = (0, "yes".to_owned());
             self.send("pick", Event::Pick { turn, number, id });
             self.send("continue", Event::Answered { turn, skip: false });
         }
@@ -261,7 +279,7 @@ fn a_first_setup_on_this_device() {
             "pick: answers -> Follow",
             "continue: answers, keep, push plan -> Plan",
             "apply: keep decided -> Done",
-            "apply again:  -> Done",
+            "apply again: keep decided -> Done",
         ]
     );
 }
@@ -400,11 +418,13 @@ fn a_returning_setup_with_a_model() {
     );
 }
 
-/// While a model is answering, nothing more is asked of it: a setup
-/// doesn't begin, and a round answered then stays answered with nothing
-/// after it (today's behaviour, pinned).
+/// A model answering elsewhere is not asked, and nothing is taken as
+/// answered for it: the round stays open, unkept, and Continue pressed
+/// again once the model is free goes on. A round the app makes itself
+/// doesn't wait. A request the worker turned down is a turn to try again
+/// from, never a dead end.
 #[test]
-fn a_busy_model_is_not_asked() {
+fn a_busy_model_keeps_the_round_open() {
     let trace = english(|| {
         let mut run = Run::new(true);
         run.busy = true;
@@ -413,8 +433,43 @@ fn a_busy_model_is_not_asked() {
         run.send("begin", Event::Begin { since: None });
         run.busy = true;
         let turn = run.last();
+        let open = run.flow.clone();
+        assert!(run.waits(turn, false));
         run.send("continue", Event::Answered { turn, skip: false });
+        assert_eq!(run.flow, open, "nothing answered, nothing kept");
+        assert!(run.flow.kept.is_empty());
+        run.busy = false;
+        assert!(!run.waits(turn, false));
+        let asked = run.send("continue", Event::Answered { turn, skip: false });
+        assert_eq!(run.flow.kept.len(), 1);
+        run.reply(&asked, false);
+        run.busy = true;
+        let turn = run.last();
+        let open = run.flow.clone();
+        assert!(run.waits(turn, true));
+        run.send("skip", Event::Answered { turn, skip: true });
+        assert_eq!(run.flow, open);
+        run.busy = false;
+        let asked = run.send("skip", Event::Answered { turn, skip: true });
+        // The worker turned it down all the same.
+        let Some(Effect::Ask { stage, .. }) = asked.last() else {
+            panic!("the plan is a model's");
+        };
+        run.send("unasked", Event::Unasked(stage.clone()));
+        let turn = run.last();
+        run.busy = true;
         run.send("again", Event::Again { turn });
+        run.busy = false;
+        run.send("again", Event::Again { turn });
+        // With no model to ask, the app's own round never waits.
+        let mut own = Run::new(false);
+        own.send("begin", Event::Begin { since: None });
+        own.busy = true;
+        let turn = own.last();
+        assert!(!own.waits(turn, false));
+        own.trace.clear();
+        own.send("own continue", Event::Answered { turn, skip: false });
+        run.trace.extend(own.trace);
         run.trace
     });
     assert_eq!(
@@ -422,8 +477,120 @@ fn a_busy_model_is_not_asked() {
         [
             "begin:  -> None",
             "begin: push now round -> Basics",
-            "continue: answers, keep -> Answered",
-            "again:  -> Answered",
+            "continue:  -> Basics",
+            "continue: answers, keep, ask follow -> Answered",
+            "reply:  -> Follow",
+            "skip:  -> Follow",
+            "skip: answers, keep, ask plan -> Answered",
+            "unasked: push unasked -> Stalled",
+            "again:  -> Stalled",
+            "again: ask plan -> Stalled",
+            "own continue: answers, keep, push round -> Follow",
+        ]
+    );
+}
+
+/// A plan whose save failed decides nothing: the setup stays at its plan
+/// and its record says no plan was decided; the "Try again" that goes
+/// through is the one recorded.
+#[test]
+fn a_failed_save_decides_nothing() {
+    let trace = english(|| {
+        let mut run = Run::new(false);
+        run.send("begin", Event::Begin { since: None });
+        run.choose("language", "ru_tech");
+        let turn = run.last();
+        run.send("continue", Event::Answered { turn, skip: false });
+        run.follow_ups();
+        run.trace.clear();
+        let failed = || Decision::Failed {
+            why: "the file is locked".into(),
+        };
+        run.decide("apply fails", failed());
+        let kept = run.flow.kept.last().unwrap();
+        assert_eq!((kept.plan_ms, kept.applied.len()), (0, 0));
+        run.decide("try again", applied());
+        let kept = run.flow.kept.last().unwrap();
+        assert_ne!(kept.plan_ms, 0);
+        assert!(!kept.applied.is_empty(), "what went through is recorded");
+        assert_eq!(run.flow.kept.len(), 1);
+        run.trace
+    });
+    assert_eq!(
+        trace,
+        ["apply fails:  -> Plan", "try again: keep decided -> Done",]
+    );
+}
+
+/// The record follows the plan's card: Undo takes what was applied out of
+/// it, "Change anyway" after that or after "Not now" puts it in, and an
+/// Undo that failed leaves it saying applied.
+#[test]
+fn the_record_follows_undo_and_change_anyway() {
+    let trace = english(|| {
+        let mut run = Run::new(false);
+        run.send("begin", Event::Begin { since: None });
+        run.choose("language", "ru_tech");
+        let turn = run.last();
+        run.send("continue", Event::Answered { turn, skip: false });
+        run.follow_ups();
+        run.trace.clear();
+        let applied_lines = |run: &Run| run.flow.kept.last().unwrap().applied.len();
+        run.decide("apply", applied());
+        let whole = applied_lines(&run);
+        assert_ne!(whole, 0);
+        run.decide("undo", Decision::Undone);
+        assert_eq!(applied_lines(&run), 0, "undone, it no longer says applied");
+        run.decide("change anyway", applied());
+        assert_eq!(applied_lines(&run), whole);
+        let why = "changed by hand since".into();
+        run.decide("undo fails", Decision::Failed { why });
+        assert_eq!(applied_lines(&run), whole);
+        run.decide("not now", Decision::Declined);
+        assert_eq!(applied_lines(&run), 0);
+        run.decide("change anyway", applied());
+        assert_eq!(applied_lines(&run), whole);
+        assert_eq!(run.flow.kept.len(), 1, "one setup, one record throughout");
+        run.trace
+    });
+    assert_eq!(
+        trace,
+        [
+            "apply: keep decided -> Done",
+            "undo: keep decided -> Done",
+            "change anyway: keep decided -> Done",
+            "undo fails:  -> Done",
+            "not now: keep decided -> Done",
+            "change anyway: keep decided -> Done",
+        ]
+    );
+}
+
+/// The preset's shortcuts come once its plan was applied or put off: a
+/// save that failed stays at the plan, and its "Try again" leads on. Undo
+/// after that asks nothing twice.
+#[test]
+fn the_preset_stays_at_a_plan_that_failed() {
+    let trace = english(|| {
+        let mut run = Run::new(false);
+        run.settings = AppSettings::default();
+        run.settings.transcription.language = "ru".into();
+        let question = String::new();
+        run.send("preset", Event::Preset { question });
+        let why = "the file is locked".into();
+        run.decide("apply fails", Decision::Failed { why });
+        run.decide("try again", applied());
+        run.flow.turns[0].cards[0].decision = Decision::Undone;
+        run.send("undo", Event::Decided { turn: 0, card: 0 });
+        run.trace
+    });
+    assert_eq!(
+        trace,
+        [
+            "preset: push preset settings -> PresetPlan",
+            "apply fails:  -> PresetPlan",
+            "try again: push preset shortcuts -> Shortcuts",
+            "undo:  -> Shortcuts",
         ]
     );
 }

@@ -419,6 +419,8 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
             Err(why) => Decision::Failed { why },
         };
     });
+    // A setup's record follows its plan: undone, it no longer says applied.
+    super::ask::decided(ui, at);
 }
 
 /// Picks a choice's option.

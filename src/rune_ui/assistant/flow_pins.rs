@@ -336,7 +336,9 @@ const FIRST: [&[&str]; 10] = [
         "asks(paste_with_shift=! labs.playback=! labs.keep_on_clipboard=! labs.keep_recordings=!)",
         "answer answers(use language cleanup notes labs.caps_lock_dictation labs.failure_notices) plan(1/1 declined)",
         "kept: answers(use language cleanup labs.caps_lock_dictation labs.failure_notices labs.filler_words) asked(3) applied(1) declined(2) decided",
-        "kept: answers(use language cleanup notes labs.caps_lock_dictation labs.failure_notices) asked(2) applied(0) declined(1)",
+        // Put off, and kept as decided: a scene's clock stands still, and this plan
+        // once passed for the first setup's, made at the same moment.
+        "kept: answers(use language cleanup notes labs.caps_lock_dictation labs.failure_notices) asked(2) applied(0) declined(1) decided",
     ],
 ];
 
