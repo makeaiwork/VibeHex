@@ -1175,6 +1175,8 @@ Selected mode                            // replaces Global's rewrite and transf
   -> Its vocabulary, then the shared one   // features/vocabulary.md (vocabulary.modes)
   -> Global's corrections, then the mode's  // every OS
   -> OpenCode transformation             // optional provider-backed rewrite
+     ├── Before it: the vocabulary's exact spellings written as their terms, in code
+     └── After it: a term the heard words don't support is undone  // vocabulary.md (vocabulary.guard)
   -> Transformations                     // ordered text chain
   -> Paste or Send
 

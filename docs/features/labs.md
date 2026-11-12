@@ -1981,7 +1981,9 @@ request with the full prompt and the mode's deadline, so a dictation of any
 length is cleaned and there is no limit on the whole; a short dictation is
 one piece, as before. A failed piece keeps its transcribed text and the
 others are still cleaned ("1 of 3 pieces kept as transcribed: …" in History);
-when every piece fails the reason is the first one's. Measured with Gemma 4
+when every piece fails the reason is the first one's. Each piece's answer
+then passes the vocabulary guard, which undoes a Vocabulary term the piece's
+heard words don't support ([vocabulary.md](vocabulary.md), `vocabulary.guard`). Measured with Gemma 4
 E2B built in, 2,462 words of the owner's own dictations (about 24 minutes)
 took 7 pieces of 4–10 s each, 48 s in all, and kept 2,444 words
 (`cleans_a_long_dictation_in_pieces_on_a_live_server`, ignored: it needs a

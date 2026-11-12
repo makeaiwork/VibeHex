@@ -138,13 +138,65 @@ OpenCode rewriting (Modes)               // vocabulary.prompt
 ├── Labs › Clean up on your own server -> the same lines go to OpenRouter or
 │   the person's server in the system message; Russian presets and their
 │   eval in docs/vocabulary/ (labs.md)
-└── Prompt gains "Vocabulary: the speaker's names and terms, spelled exactly as
-    they must be written. Where the transcript has a form on the left of "→" and
-    the speaker means the term, write the term on the right instead:" and one
-    line per term ("- a, b → term", or "- term" without spellings) before the
-    foreground application. Replayed over 25 History dictations with 44
-    misheard forms, the arrow took Gemma 4 E2B from 23 terms written to 36
-    (Qwen3 4B 31 -> 37; Gemma 4 E4B 41 -> 40)
+├── Prompt gains "Vocabulary: the speaker's names and terms, spelled exactly as
+│   they must be written. Where the transcript has a form on the left of "→" and
+│   the speaker means the term, write the term on the right instead:" and one
+│   line per term ("- a, b → term", or "- term" without spellings) before the
+│   foreground application. Replayed over 25 History dictations with 44
+│   misheard forms, the arrow took Gemma 4 E2B from 23 terms written to 36
+│   (Qwen3 4B 31 -> 37; Gemma 4 E4B 41 -> 40)
+└── The lines close with "Write a vocabulary term only where the transcript has
+    that term or one of its forms listed above, never in place of other words,
+    and keep the words around it." (processor::VOCABULARY_LIMIT; Files' and
+    meetings' cleanup prompts carry it too, as they share the lines)
+
+AI cleanup, in code (every OS, every engine)  // vocabulary.guard; dictation::vocabulary_guard
+├── Runs whenever a mode's Clean up with AI rewrites a dictation: OpenCode,
+│   built in, Codex, OpenRouter, or your server. No setting: a mode without
+│   the rewrite, a numbers-only transcript, and an empty list are untouched.
+│   Files' cleanup and a meeting transcript's cleanup are not guarded yet
+├── Before the model -> every exact "sounds like" spelling in the transcript
+│   becomes its term (heard speech only, not Labs › Transform typed text)
+│   ├── The whole list, not the first 64, and whatever the speech model
+│   ├── The rules of Parakeet's own pass (Transcription, above), so a
+│   │   transcript it already spelled is left as it is: whole words, up to 4,
+│   │   matched by letters and digits alone ("найт оул" also matches
+│   │   "найтоул"); longest match, then earliest; spellings under 2
+│   │   characters ignored; a word with ./@:\_ in it never matches; only the
+│   │   last word may carry punctuation; one word that differs from its term
+│   │   only in case is left alone
+│   ├── Differs from that pass in one way: case is ignored in every alphabet
+│   │   ("Клод Код" matches "клод код"), not only in ASCII
+│   └── Two terms listing one spelling -> the first in the list
+├── After each piece's answer -> the transcript the model was given and its
+│   answer are lined up word by word (longest common subsequence); each
+│   stretch the model changed that has a term in it is judged
+│   ├── Supported -> the term stays: the heard words it replaced sound like the
+│   │   term or one of its spellings, every word of both ("barn owl" is not
+│   │   "Night owl", and "Auto" must be heard for "Auto sync"). Sounds are
+│   │   compared across alphabets (Cyrillic by letter, Latin by a few English
+│   │   spelling habits), vowels cheap, voiced and voiceless consonants near, a
+│   │   Russian case ending on the heard word nearly free ("кодексом",
+│   │   "в докере"), punctuation inside ignored ("клод, код")
+│   ├── Not supported -> the stretch gets its heard words back and the rest of
+│   │   the answer stays: "night shift" stays, not NightOwl
+│   │   ├── Only a shorter term inside it was heard -> that term stays
+│   │   │   ("синка" written as Auto sync becomes sync)
+│   │   ├── Nothing was heard there -> the term is removed
+│   │   └── Its heard words were dropped up to 40 words away -> the model
+│   │       moved it ("докер образ" as "образ Docker"): it stays
+│   ├── A heard word dropped beside a term, three letters or longer, not a
+│   │   filler, a repeat, or a piece of the term -> put back ("barn NightOwl",
+│   │   not "NightOwl"; "Claude Code" where the model kept only "Claude")
+│   └── Left as the model wrote it: a stretch of more than 24 words with no
+│       word kept, a stretch where the model added more than 2 words of its
+│       own (a mode that translates or rewrites freely), and a term written
+│       as half of a hyphenated word ("MCP-сервер")
+├── Log -> one line of counts when it changed an answer ("vocabulary guard
+│   changed the cleanup": terms undone, words restored, kept, unjudged),
+│   never a word of the dictation
+└── Cost -> no model call; 0.05 ms for a 47-word dictation on average, under
+    1.5 ms for the longest in a 1,100-dictation History (M-series Mac)
 
 Live meeting chapters (experiment live-chapters)  // vocabulary.chapters
 └── Chapter passes and the boundary pass start with "Names and terms that may
@@ -190,11 +242,39 @@ finds candidates, classifies spans, and runs the exact-spelling pass,
 `force_vocabulary_spellings`); measurements are in
 [vocabulary-boost-results.md](../research/vocabulary-boost-results.md).
 
+What the guard cannot know: a hearing too garbled to sound like the term
+(two ordinary words where a two-letter abbreviation was said) is undone even when the model guessed right from the
+sentence, and the heard words come back; add that hearing as a "sounds like"
+spelling and it is written in code from then on. A word the model dropped
+beside a term comes back even when dropping it was right (a stray garbled
+word). The guard judges cleanup, not transcription: what the speech model
+itself wrote wrongly stays.
+
+Replayed over one person's History (1,109 dictations, 599 changed by
+cleanup; built-in Gemma 4 E4B for most): cleanup had written 304 terms the
+transcript lacked. 120 were exact listed spellings, now written in code. Of
+the other 184 the guard keeps 123 (3 of them moved), undoes 60, and leaves 1
+unjudged; it also puts a dropped word back in 9 stretches. Read one by one,
+the 60 undone include about 4 the model had right (three garbled hearings of one
+abbreviation, one reordered list); none of the kept ones read as wrong
+(`replays_a_history`, ignored: it reads a History and settings named by
+`HEX_USAGE_HISTORY` and `HEX_USAGE_SETTINGS`, and nothing it reads is
+committed).
+
+The prompt's closing sentence changed nothing that could be measured: 60 of
+those dictations, spelled in code and sent again to Gemma 4 E4B (LM Studio,
+once each), came back with 40 supported terms and 4 unsupported with the
+sentence, and 39 and 3 without it (`vocabulary_terms_on_a_live_server`,
+ignored). The guard is what holds, not the wording.
+
 Provisional defaults, each changed in one place:
 
 ```ts
 hex vocabulary listed in --help          // control/cli.rs: add #[command(hide = true)] to hide it
-Prompt wording                           // dictation/processor.rs: vocabulary_lines
+Prompt wording                           // dictation/processor.rs: vocabulary_lines, VOCABULARY_LIMIT
+How alike a heard run and a term must sound  // dictation/vocabulary_guard/stretch.rs: SUPPORT, WORD_MISS
+What a sound costs to change             // dictation/vocabulary_guard/sound.rs
+Words cleanup may drop beside a term     // dictation/vocabulary_guard/plain_words.rs
 Chapter prompt wording                   // meeting/chapters.rs: vocabulary_line
 Short-name rule                          // meeting/query.rs: SOUND_ALIKE_MIN_CONSONANTS
 Suggested terms                          // dictation/vocabulary.rs: SUGGESTED
@@ -205,8 +285,9 @@ Sources: [dictation/vocabulary.rs](../../src/dictation/vocabulary.rs),
 [rune_ui/vocabulary.rs](../../src/rune_ui/vocabulary.rs),
 [meeting/query.rs](../../src/meeting/query.rs) (`vocabulary_aliases`,
 `sounds_alike`), [dictation/processor.rs](../../src/dictation/processor.rs)
-(`vocabulary_lines`), and [control.rs](../../src/control.rs)
-(`edit_vocabulary`).
+(`vocabulary_lines`), [dictation/vocabulary_guard.rs](../../src/dictation/vocabulary_guard.rs)
+(`spell`, `check`, and its `spelling`, `align`, `stretch`, `sound`, and `mend`
+parts), and [control.rs](../../src/control.rs) (`edit_vocabulary`).
 
 Checks: `dictation::vocabulary::tests` (dedupe and merge, clamping, case-insensitive removal,
 comma splitting, reading the saved list without settings, the
@@ -228,6 +309,16 @@ folding hints, boost names);
 `sound_alikes_need_two_consonant_sounds_and_few_changes` in
 [meeting/query_tests.rs](../../src/meeting/query_tests.rs);
 `prompt_names_vocabulary_terms_and_their_mistranscriptions`;
+`dictation::vocabulary_guard::tests` (`unsupported_terms_are_undone_and_the_rest_of_cleanup_stays`,
+`supported_terms_stay_as_cleanup_wrote_them`,
+`a_word_swallowed_beside_a_supported_term_is_put_back`,
+`a_freely_rewritten_answer_is_left_alone`,
+`the_cleaned_texts_own_layout_survives_a_repair`,
+`exact_spellings_become_their_term_before_cleanup`,
+`an_ordinary_dictation_is_checked_in_well_under_a_millisecond`) and the
+`sound`, `align`, and `plain_words` tests beside them; the guard has not been
+observed in a running Hex, and `vocabulary_terms_on_a_live_server` (ignored)
+measures a live model with and without the prompt's closing sentence;
 `vocabulary_edits_report_whether_they_changed_the_list` and the request round
 trip in control.rs; `vocabulary_lists_terms_with_their_spellings` in
 [control/cli.rs](../../src/control/cli.rs);
