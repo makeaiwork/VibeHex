@@ -531,6 +531,35 @@ mod tests {
         );
     }
 
+    /// A setup round's own controls (Continue, Skip to the plan, Change
+    /// answers, a plan's buttons) speak every language Assistant speaks.
+    #[test]
+    fn setup_controls_speak_every_language() {
+        const CONTROLS: &[&str] = &[
+            "Continue",
+            "Skip to the plan",
+            "Change answers",
+            "Setup questions",
+            "Suggested changes",
+            "Not now",
+            "Apply 1 change",
+            "Already set: 1 thing",
+            "Also turns on",
+            "Needs a download",
+            "Undo",
+            "Try again",
+            "Left as it was",
+        ];
+        for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
+            let english: Vec<&str> = CONTROLS
+                .iter()
+                .copied()
+                .filter(|control| speaking(Some(code), || tr(control)) == *control)
+                .collect();
+            assert!(english.is_empty(), "{code} shows {english:?} in English");
+        }
+    }
+
     /// Recognition on Auto follows the window; a language without a table
     /// (Italian) shows English.
     #[test]

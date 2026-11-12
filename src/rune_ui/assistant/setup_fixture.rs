@@ -354,7 +354,7 @@ pub(in super::super) fn setup_result(ui: &mut Ui) {
     let _speaking = crate::assistant::language::speak(&ui.settings);
     let first = answered(ui, &state, "codex");
     let mut items = fresh_rows(ui);
-    items[3].failed = Some("Codex isn't installed on this Mac".into());
+    items[3].failed = Some(crate::desktop::i18n::tr("Codex isn't installed on this Mac").into());
     let settings = &mut ui.settings;
     settings.labs.russian_vibe_coding = true;
     settings.labs.spoken_symbols = true;

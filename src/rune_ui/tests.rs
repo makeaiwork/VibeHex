@@ -3063,3 +3063,37 @@ fn output_fixes_show_only_with_their_lab_and_fix_this_copies_for_the_sentence() 
     tap(&mut on, "output-vocabulary");
     assert!(on.state.vocabulary.open);
 }
+
+/// A Russian setup round speaks Russian throughout: its controls (Continue,
+/// Skip to the plan, Change answers, a plan's buttons) and the plan's
+/// reasons. Settings' and Labs' names stay in the window's English.
+#[test]
+fn a_russian_setup_round_has_no_english_controls() {
+    const ENGLISH: &[&str] = &[
+        "Continue",
+        "Skip to the plan",
+        "Change answers",
+        "Not now",
+        "Suggested changes",
+        "Undo",
+        "Try again",
+        "Hold to talk suits short commands to an agent",
+        "You said yes to this",
+    ];
+    for scene in [
+        "assistant-setup-ask",
+        "assistant-setup-follow",
+        "assistant-setup-plan",
+        "assistant-setup-kept",
+        "assistant-setup-result",
+        "assistant-setup-returning",
+    ] {
+        let rt = runtime(scene, false, PANE_SIZE);
+        let shown = texts(&rt);
+        let english: Vec<&String> = shown
+            .iter()
+            .filter(|text| ENGLISH.contains(&text.as_str()) || text.contains("isn't installed"))
+            .collect();
+        assert!(english.is_empty(), "{scene} shows {english:?}");
+    }
+}
