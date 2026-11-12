@@ -174,7 +174,13 @@ Opened from a place link                         // rune_ui::assistant::places
 - The snapshot says who writes meeting notes (`catalog::notes_line`):
   with `meetings.notes.writer` in use, `meetings.summaries` reads as the
   fallback, not used now; engine ids and Codex efforts go in the now
-  column as stored.
+  column as stored. `<state>` names the speech models downloaded as the
+  window does, the one in use marked (`Parakeet v3 (parakeet_v3, in
+  use)`), read from disk when a question is sent (a scene's list in
+  scenes); "unknown" when it couldn't be told, never "none".
+- No card stands in for what the model doesn't know, or only lets the
+  person look something up (Labs › Downloaded models only "to see the
+  list"): where it can't tell, it names the place to look, no card.
 - A line the app refuses (no such key, a value it doesn't take, a key
   never changed from a card) shows as a muted row, never an action. Codex,
   OpenCode, OpenRouter, and your own server get one silent round to fix

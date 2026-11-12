@@ -111,6 +111,10 @@ already has the value.
 - Name only the setting asked about: the app also turns on what it needs (a Labs feature, \
 Meetings).
 - Never a key that isn't listed. Never say you changed anything: the person decides on the card.
+- Never a card as a way around what you don't know, or only so the person can look something \
+up (a list, a filter, a view): a card only when the change itself does what they asked or \
+clearly improves how they use VibeHex. When <state> says unknown, or you can't tell, say \
+where in the window they can see it, its place in bold, and write no card.
 
 To add names or terms dictation gets wrong to the person's Vocabulary, write one JSON object \
 per term in one block, after your answer, before the Sources line:
@@ -911,6 +915,34 @@ mod tests {
             &Stage::None,
         );
         assert!(!unsent.instructions.contains("Answer for them"));
+    }
+
+    /// "Which models do I have downloaded?": the snapshot names them, and
+    /// the model is told never to offer a card in place of what it
+    /// doesn't know, such as a filter to see the list.
+    #[test]
+    fn no_card_stands_in_for_what_the_model_doesnt_know() {
+        let mut context = context(true);
+        context.state.installed = Some(vec!["parakeet_v3".into()]);
+        let prompt = build(
+            "Tell me which models I have downloaded",
+            &[],
+            Room::Large,
+            Reach::Guide,
+            Some(&context),
+            &Stage::None,
+        );
+        assert!(
+            prompt
+                .instructions
+                .contains("Never a card as a way around what you don't know")
+        );
+        assert!(prompt.instructions.contains("When <state> says unknown"));
+        assert!(
+            prompt
+                .input
+                .contains("speech models downloaded: Parakeet v3 (parakeet_v3")
+        );
     }
 
     /// With changes on, the model reads how to write them and the

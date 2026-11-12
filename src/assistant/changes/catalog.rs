@@ -194,8 +194,9 @@ const CORE: [&str; 16] = [
 #[derive(Clone, Debug, Default)]
 pub struct State {
     pub os: &'static str,
-    /// Speech model ids downloaded.
-    pub installed: Vec<String>,
+    /// Speech model ids downloaded; `None` when it couldn't be told, so
+    /// the model reads "unknown", never that none are.
+    pub installed: Option<Vec<String>>,
     pub codex_signed_in: Option<bool>,
     pub opencode_running: Option<bool>,
     /// Whether an OpenRouter key is saved; `None` while unknown. Only the
@@ -317,7 +318,7 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
     );
     if reading.send {
         out.push_str(&notes_line(settings));
-        out.push_str(&state_line(state));
+        out.push_str(&state_line(state, settings));
         if reading.instructions {
             out.push_str(&format!(
                 "<global_instructions>\n{}\n</global_instructions>\n",
@@ -457,7 +458,35 @@ fn notes_line(settings: &AppSettings) -> String {
     }
 }
 
-fn state_line(state: &State) -> String {
+/// The speech models downloaded, by the names the window shows, each
+/// with its id, the one in use marked: `Orukeet (orukeet, in use),
+/// Parakeet v3 (parakeet_v3)`.
+fn downloaded(state: &State, settings: &AppSettings) -> String {
+    let Some(installed) = &state.installed else {
+        return "unknown".into();
+    };
+    if installed.is_empty() {
+        return "none".into();
+    }
+    let models = crate::transcription::models::all_models();
+    let in_use = settings.transcription.model.as_str();
+    installed
+        .iter()
+        .map(|id| {
+            let name = models
+                .iter()
+                .find(|model| model.id.as_str() == id.as_str())
+                .map_or(id.as_str(), |model| model.name);
+            match id.as_str() == in_use {
+                true => format!("{name} ({id}, in use)"),
+                false => format!("{name} ({id})"),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn state_line(state: &State, settings: &AppSettings) -> String {
     let known = |known: Option<bool>| match known {
         Some(true) => "yes",
         Some(false) => "no",
@@ -466,11 +495,7 @@ fn state_line(state: &State) -> String {
     format!(
         "<state>OS: {}; speech models downloaded: {}; Codex signed in: {}; OpenCode running: {}</state>\n",
         state.os,
-        if state.installed.is_empty() {
-            "none".to_owned()
-        } else {
-            state.installed.join(", ")
-        },
+        downloaded(state, settings),
         known(state.codex_signed_in),
         known(state.opencode_running),
     )
