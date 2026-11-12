@@ -285,21 +285,49 @@ Opened from a place link                         // rune_ui::assistant::places
   a setup kept, 50+ dictations in History, or any meeting, round one is
   folded to "Has anything changed in how you use VibeHex?" with the last
   answers preselected (else the settings'), Continue and "Change
-  answers". Above it, after "Now:", "**Since your last setup (date):**"
-  (or "What your use shows:"): releases since
-  (`since::releases_after`: the notes dated after the last setup's day, or
-  every one without a setup, up to the version running, each as its title
-  and the keys it names; Next only on a development build), and,
-  only while `assistant.read_recordings` is on, the use
-  (`recordings::usage`, computed by the app: dictations kept and in 30
-  days, top apps, terminal or editor share (30%+ adds code to `use`),
-  long dictations (60+ words, 20%+ names the Codex trade-off), what
-  cleanup keeps fixing, Latin terms said in Russian or shaped like terms
-  and missing from Vocabulary (as one "Add N terms" card, each with how
-  it was heard), meetings and their language); without leave it says
-  the use could show more. The model reads the same as aggregates in
-  `<since_last_setup>` (last setup's answers, applied, declined;
-  releases; use), never a recording's text.
+  answers". The opening is short Markdown, in the window's language:
+  - "**Now:** …", then the updates since in one line: "5 updates since
+    your last setup (date): Assistant, Files, Listen to the recording, …
+    Ask “What's new?” to hear more." (`since::releases_after`: the notes
+    dated after the last setup's day or, without one, after the day the
+    first version in `assistant/versions.json` ran ("since 3.3.0-vibe.4"),
+    else every one, up to the version running; Next only on a development
+    build). A few headlines, split from the releases' titles, newest
+    first, no versions; "Nothing new in VibeHex since your last setup"
+    when there are none.
+  - Only while `assistant.read_recordings` is on, "What your use shows:"
+    and at most five bullets (`recordings::usage`, computed by the app):
+    dictations in the last 30 days, where most go with the terminal or
+    editor share (30%+ adds code to `use`), long dictations (60+ words,
+    20%+ names the Codex trade-off), what cleanup keeps fixing, meetings
+    and their language. Without leave it says the use could show more.
+  - On a remote model (Codex, OpenCode, OpenRouter, your own server) with
+    the use read, the model then looks (`Stage::Look`, `SETUP_LOOK`): the
+    step "Read your settings, 972 dictations and 5 meetings" shows while
+    it writes and folds to one grey line with its seconds, then 2 to 4
+    concrete suggestions, each tied to a fact (what is new and fits, a
+    term cleanup keeps fixing), and round one folded after them, even if
+    the model fails. Try again looks again. It reads `<since_last_setup>`
+    (the last setup's answers, applied, declined; releases; the use's
+    aggregates), the settings now, and what was shown (`<shown>`), never a
+    recording's text, and writes no change lines. A built-in model, no
+    engine, or a scene: the app's facts only, round one at once.
+- Terms Vocabulary lacks (`recordings::terms`) never show at the opening;
+  they wait for the plan. A term is a Latin word said beside a Russian
+  one, said twice or more, that isn't an ordinary English word (a list of
+  common words, `recordings/english.txt`, with plurals and -ed/-ing
+  forms), unless it is shaped like a name (`GitHub`, `API`, `gpt5`) or
+  cleanup turned one heard word into exactly it 3+ times; never a small
+  word ("to"). A word that is a Vocabulary term, one of a term's words
+  ("Code" of "Claude Code"), or a sounds-like is known. A phrase cleanup
+  writes twice or more for Russian it heard ("pull request") is one term,
+  as a whole. How it was heard comes only from fixes into exactly it,
+  word for word or phrase for phrase. In the plan they are rows of their
+  own: the sure ones (one heard word fixed into exactly it 3+ times)
+  checked, "Cleanup keeps fixing how these are heard"; the rest unchecked,
+  "You say these, and Vocabulary doesn't have them" (`plan::with_terms`).
+  A term left unticked on an applied plan, or a follow-up's No to terms,
+  isn't offered again.
 
 ## Set me up like Denis
 
