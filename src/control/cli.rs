@@ -397,6 +397,17 @@ pub enum VocabularyCommand {
         #[command(flatten)]
         output: Output,
     },
+    /// Rewrite a term's entry where it stands: rename it, and set exactly its
+    /// spellings (`--sounds-like ""` clears them; left out, they stay).
+    Edit {
+        term: String,
+        #[arg(long, value_name = "TERM")]
+        rename: Option<String>,
+        #[arg(long, value_name = "SPELLINGS")]
+        sounds_like: Option<String>,
+        #[command(flatten)]
+        output: Output,
+    },
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -552,6 +563,19 @@ pub fn run(command: ControlCli) -> u8 {
             VocabularyCommand::Remove { term, output } => {
                 send(ControlCommand::VocabularyRemove { term }, output)
             }
+            VocabularyCommand::Edit {
+                term,
+                rename,
+                sounds_like,
+                output,
+            } => send(
+                ControlCommand::VocabularyEdit {
+                    term,
+                    rename,
+                    sounds_like: sounds_like.map(|spellings| vec![spellings]),
+                },
+                output,
+            ),
         },
         ControlCli::Logs {
             process,

@@ -170,6 +170,15 @@ pub enum ControlCommand {
     VocabularyRemove {
         term: String,
     },
+    /// A term's entry rewritten where it stands: renamed, and with exactly
+    /// these spellings; without them, its own stay.
+    VocabularyEdit {
+        term: String,
+        #[serde(default)]
+        rename: Option<String>,
+        #[serde(default)]
+        sounds_like: Option<Vec<String>>,
+    },
     /// A Scrawl capture (the `capture` experiment).
     ScrawlCapture {
         action: ScrawlCaptureAction,
@@ -949,6 +958,30 @@ pub fn edit_vocabulary(
         } else {
             ControlReply::unchanged(format!("“{}” isn't in the vocabulary", term.trim()))
         }),
+        ControlCommand::VocabularyEdit {
+            term,
+            rename,
+            sounds_like,
+        } => {
+            let sounds_like: Vec<String> = match sounds_like {
+                Some(spellings) => spellings
+                    .iter()
+                    .flat_map(|spellings| vocabulary::parse_sounds_like(spellings))
+                    .collect(),
+                None => list
+                    .iter()
+                    .find(|entry| entry.term.to_lowercase() == term.trim().to_lowercase())
+                    .map(|entry| entry.sounds_like.clone())
+                    .unwrap_or_default(),
+            };
+            let changed =
+                vocabulary::edit(list, term, rename.as_deref(), &sounds_like).map_err(invalid)?;
+            Ok(if changed {
+                ControlReply::done(format!("Changed “{}”", term.trim()))
+            } else {
+                ControlReply::unchanged(format!("“{}” is already so", term.trim()))
+            })
+        }
         _ => Err(ControlError::new("internal", "not a vocabulary edit")),
     }
 }

@@ -253,6 +253,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Cards/Vocabulary added, and a term in Edit",
     ),
     (
+        "assistant-vocab-edit",
+        "Window/Assistant/Cards/Vocabulary entries changed",
+    ),
+    (
         "assistant-change-both",
         "Window/Assistant/Cards/Change both",
     ),

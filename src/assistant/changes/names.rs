@@ -199,6 +199,12 @@ pub const WHERE: &[(&str, &str, &str, Home)] = &[
     ),
     (super::vocab::KEY, "General", "Vocabulary", Home::General),
     (
+        super::vocab_edit::KEY,
+        "General",
+        "Vocabulary",
+        Home::General,
+    ),
+    (
         "dictation_processing.server.runs_on",
         "Output › AI cleanup",
         "Runs on",
@@ -568,6 +574,9 @@ pub fn label(key: &str, value: &Value) -> String {
     if key == super::vocab::KEY {
         return super::vocab::label(value);
     }
+    if key == super::vocab_edit::KEY {
+        return super::vocab_edit::entry(value).unwrap_or_default().term;
+    }
     match value {
         Value::Bool(true) => "On".into(),
         Value::Bool(false) => "Off".into(),
@@ -794,7 +803,13 @@ mod tests {
                 keys.iter().any(|known| known.starts_with(key))
             } else {
                 keys.iter().any(|known| known == key)
-                    || [parts::PROMPT, parts::CLEANUP, super::super::vocab::KEY].contains(key)
+                    || [
+                        parts::PROMPT,
+                        parts::CLEANUP,
+                        super::super::vocab::KEY,
+                        super::super::vocab_edit::KEY,
+                    ]
+                    .contains(key)
             };
             // Annotate's keys exist only in capture builds.
             assert!(real || key.starts_with("capture."), "{key} is no setting");

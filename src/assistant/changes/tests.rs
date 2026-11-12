@@ -237,3 +237,30 @@ fn a_value_already_set_makes_no_card() {
         &json!(false)
     ));
 }
+
+/// A `hex-vocab` line naming an entry with what changes makes an edit
+/// card; one naming an entry that isn't there is refused, for the repair
+/// round to tell the model.
+#[test]
+fn a_vocabulary_edit_line_makes_an_edit_card_or_is_refused() {
+    let reply = "Уберу «ай».\n\n```hex-vocab\n{\"term\":\"AI cleanup\",\"remove_sounds_like\":[\"ай\"],\"why\":\"ловит простое AI\"}\n{\"term\":\"Grafana\",\"remove_sounds_like\":[\"графана\"]}\n{\"term\":\"Docker\",\"sounds_like\":[\"докер\"]}\n```\n\nSources: none";
+    let parsed = parse(reply);
+    assert_eq!(parsed.proposals.len(), 3);
+    let settings = AppSettings {
+        vocabulary: vec![crate::dictation::vocabulary::VocabularyEntry {
+            term: "AI cleanup".into(),
+            sounds_like: vec!["эй ай клинап".into(), "ай".into()],
+        }],
+        ..AppSettings::default()
+    };
+    let (cards, refused) = resolve(&parsed.proposals, &settings, &rules());
+    let kinds: Vec<&CardKind> = cards.iter().map(|card| &card.kind).collect();
+    assert_eq!(kinds, [&CardKind::VocabularyEdit, &CardKind::Vocabulary]);
+    assert_eq!(
+        cards[0].items[0].to,
+        json!({"term":"AI cleanup","sounds_like":["эй ай клинап"]})
+    );
+    assert_eq!(cards[0].items[0].why, "ловит простое AI");
+    assert_eq!(refused.len(), 1);
+    assert!(refused[0].line.contains("Grafana"));
+}

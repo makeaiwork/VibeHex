@@ -144,7 +144,12 @@ per term in one block, after your answer, before the Sources line:
 - `term` spelled as it should be written; `sounds_like`: up to 5 ways a transcript gets it \
 wrong, in the language they speak. At most 8 terms, only ones the question is about.
 - You see only the Vocabulary entries this question names, in <vocabulary> when it is there \
-(with how many there are); the app leaves out a term it has.";
+(with how many there are); the app leaves out a term it has.
+- To change an entry <vocabulary> lists, write a line in the same block with its `term` as \
+listed and what changes: `remove_sounds_like` (spellings it has), `add_sounds_like`, \
+`rename` (the term spelled anew): \
+{\"term\":\"AI cleanup\",\"remove_sounds_like\":[\"ай\"],\"why\":\"a short reason\"}. \
+Only entries listed there; the card shows each before and after.";
 
 /// A question about what cleanup or recognition did to their words, with
 /// their instructions and Vocabulary entries to go by.
@@ -156,10 +161,10 @@ Vocabulary entries the conversation names. Find the cause from them: an entry wh
 sounds-like spellings catch the word (\"AI\" listed as a spelling of \"AI cleanup\" writes \
 AI cleanup whenever they say AI), a replacement, a line of the instructions, or else the \
 speech model. Name it and how to fix it; when it is the instructions, offer the fix as a card \
-for the instructions key.";
+for the instructions key; when it is a Vocabulary entry, as a line changing that entry.";
 
 const HEARD_WROTE: &str = "
-- A dictation that cleanup changed shows two lines: Heard, what the speech model wrote down (after Vocabulary's own corrections), and Wrote, what was typed into the app. When the question asks why a word came out as it did, compare them, quoting both: a word already wrong in Heard is the speech model hearing it so, or a Vocabulary entry whose sounds-like spellings catch it; one right in Heard and changed in Wrote is cleanup: a replacement, a line of their instructions, or a Vocabulary entry the cleanup model was told to write. Name the cause. When it is a setting you can see, offer the fix as a card; for a Vocabulary entry, say which spelling to remove in **General › Vocabulary**.";
+- A dictation that cleanup changed shows two lines: Heard, what the speech model wrote down (after Vocabulary's own corrections), and Wrote, what was typed into the app. When the question asks why a word came out as it did, compare them, quoting both: a word already wrong in Heard is the speech model hearing it so, or a Vocabulary entry whose sounds-like spellings catch it; one right in Heard and changed in Wrote is cleanup: a replacement, a line of their instructions, or a Vocabulary entry the cleanup model was told to write. Name the cause. When it is a setting you can see, offer the fix as a card; for a Vocabulary entry, a line changing that entry.";
 
 /// With the person's settings sent: answers for them, not for anyone.
 const PERSONAL: &str = "

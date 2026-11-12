@@ -604,6 +604,12 @@ fn settle(
                         .find(|known| known.kind == CardKind::Vocabulary)
                 {
                     changes::vocab::merge(terms, card);
+                } else if card.kind == CardKind::VocabularyEdit
+                    && let Some(edits) = cards
+                        .iter_mut()
+                        .find(|known| known.kind == CardKind::VocabularyEdit)
+                {
+                    changes::vocab_edit::merge(edits, card);
                 } else if !cards.iter().any(|known| same_keys(known, &card)) {
                     cards.push(card);
                 }

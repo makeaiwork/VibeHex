@@ -112,6 +112,9 @@ hex vocabulary                           // vocabulary.cli
 ├── add <term> [--sounds-like a,b] -> New term, or new spellings merged into it
 │   └── Already there, nothing new -> changed: false
 ├── remove <term> -> Any case
+├── edit <term> [--rename T] [--sounds-like a,b] -> The entry rewritten where it
+│   stands, its spellings exactly these (left out, they stay); not listed, or
+│   renamed onto another entry -> refused (Assistant's edit card saves so)
 └── Running Hex saves and reloads settings; an open window adopts the change
 
 A mode's own vocabulary                  // vocabulary.modes; DictationMode::vocabulary

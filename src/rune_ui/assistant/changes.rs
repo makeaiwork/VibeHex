@@ -179,6 +179,9 @@ pub(super) fn apply(ui: &mut Ui, at: At) {
         let card = self::card(ui, at).cloned().unwrap_or(card);
         return super::vocab::apply(ui, at, card);
     }
+    if card.kind == CardKind::VocabularyEdit {
+        return super::vocab_edit::apply(ui, at, card);
+    }
     let decision = match card.items.first() {
         Some(item) if is_download(item) => {
             let to = chosen(&card).cloned().unwrap_or(Value::Null);
@@ -409,6 +412,7 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
             prepare(ui, &item.key, &item.from)
         }
         _ if card.kind == CardKind::Vocabulary => super::vocab::take_back(ui, after),
+        _ if card.kind == CardKind::VocabularyEdit => super::vocab_edit::take_back(ui, after),
         _ if card.kind == CardKind::Plan => {
             let saved = if before.is_empty() {
                 Ok(())

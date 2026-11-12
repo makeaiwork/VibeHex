@@ -2911,6 +2911,7 @@ fn goldens() {
         "assistant-applied",
         "assistant-vocab-card",
         "assistant-vocab-applied",
+        "assistant-vocab-edit",
         "assistant-change-both",
         "assistant-change-coming",
         "assistant-setup-ask",

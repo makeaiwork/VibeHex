@@ -326,6 +326,7 @@ fn reply(
         words = words.children(match turn.cards[card].kind {
             CardKind::Plan => super::plan::view(ui, p, at, primary),
             CardKind::Vocabulary => super::vocab::view(ui, p, at, primary),
+            CardKind::VocabularyEdit => super::vocab_edit::view(ui, p, at, primary),
             _ => super::card::view(ui, p, at, primary),
         });
     }

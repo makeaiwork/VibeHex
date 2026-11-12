@@ -33,6 +33,7 @@ pub(super) mod strong;
 mod tick;
 mod verbs;
 mod vocab;
+mod vocab_edit;
 mod web;
 mod whats_new;
 

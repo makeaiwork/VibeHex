@@ -192,7 +192,7 @@ fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El
     line
 }
 
-fn mark(glyph: &'static Icon, color: rune::Color) -> El {
+pub(super) fn mark(glyph: &'static Icon, color: rune::Color) -> El {
     el().key("mark")
         .size(16.0, 16.0)
         .center()
@@ -279,7 +279,7 @@ fn foot(p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) -> Vec<El> 
     }
 }
 
-fn status(words: String, color: rune::Color) -> El {
+pub(super) fn status(words: String, color: rune::Color) -> El {
     text(words)
         .key("status")
         .font(DESCRIPTION)
@@ -404,7 +404,7 @@ pub(super) fn take_back(ui: &mut Ui, after: &Map<String, Value>) -> Result<(), S
 }
 
 /// Show in Vocabulary: General, with the Vocabulary sheet open.
-fn show(ui: &mut Ui, tx: &mut rune::Tx) {
+pub(super) fn show(ui: &mut Ui, tx: &mut rune::Tx) {
     ui.select_pane(super::super::sidebar::Pane::General, tx);
     super::super::vocabulary::open(ui);
 }

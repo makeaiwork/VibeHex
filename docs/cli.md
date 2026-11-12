@@ -180,7 +180,11 @@ overrides only the language, and must be one the model supports.
 `vocabulary` edits the [shared vocabulary](features/vocabulary.md) through the
 running Hex, which saves settings and reloads them as a window edit would.
 Terms match in any case; `add` of a term already listed only merges new
-spellings, and replies `changed: false` when there are none. Assistant's vocabulary card adds its terms through this same code
+spellings, and replies `changed: false` when there are none. `edit` rewrites a
+term's entry where it stands (`--rename`, and `--sounds-like` as its whole new
+list of spellings; left out, they stay), refusing a term not listed or a new
+name another entry has. Assistant's vocabulary edit card saves through it, and
+its Undo writes the entry back as it was. Assistant's vocabulary card adds its terms through this same code
 (`control::edit_vocabulary`), but leaves out a term already listed instead of
 merging into it, so its Undo removes exactly what it added; its setting cards
 save through `hex settings set`'s check.
@@ -310,6 +314,7 @@ window-show {pane?} | window-hide | window-story {story, variant?, play}
 onboarding-reset
 history-clear | check-for-updates | launch-at-login {enabled?}
 vocabulary-list | vocabulary-add {term, sounds_like} | vocabulary-remove {term}
+vocabulary-edit {term, rename?, sounds_like?}
 scrawl-capture {action}                          action: start | stop | cancel | status; `capture` experiment
 scrawl-capture-list {limit?} | scrawl-capture-show {capture}
 scrawl-capture-send {capture, to?, always?} | scrawl-capture-route {capture, ask_jev}

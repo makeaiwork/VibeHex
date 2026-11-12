@@ -275,9 +275,20 @@ Opened from a place link                         // rune_ui::assistant::places
   both and name the cause: wrong in Heard is the speech model or a
   Vocabulary spelling, changed only in Wrote is cleanup (a replacement, the
   instructions, or a Vocabulary entry the cleanup model was told to write),
-  with a card when it is a setting it sees, and the spelling to remove in
-  **General › Vocabulary** when it is an entry (no card edits an entry's
-  spellings yet). The Vocabulary entries the dictations name come too.
+  with a card when it is a setting it sees, and a line changing the entry
+  when it is one. The Vocabulary entries the dictations name come too.
+- An entry already in Vocabulary changes through a `hex-vocab` line naming
+  it with what changes: `{"term":"AI cleanup","remove_sounds_like":["ай"]}`,
+  `add_sounds_like`, `rename` (`changes::vocab_edit`). Only an entry the
+  vocabulary has, and a spelling it has, make a card; anything else is
+  refused for the repair round. The card ("General › Vocabulary, Change 2
+  entries") shows each entry with a checkbox, its term (old → new when
+  renamed), and its spellings: kept plain, removed struck, added on the
+  accent tint. Change saves through `hex vocabulary edit`'s path
+  (`control::edit_vocabulary`, `VocabularyEdit`), each entry rewritten where
+  it stands; one changed since the card is left out with why. Undo writes
+  each back exactly as it was, unless it changed since. Scene:
+  `assistant-vocab-edit`.
 - A prompt carrying Vocabulary entries never searches the web
   (`worker::offline`, like recordings), and the recordings search never
   reads more of it than before.
