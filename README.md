@@ -7,7 +7,7 @@ it pastes.
 
 - hold the shortcut, speak, then let go
 - Hex transcribes on your device and pastes into whatever app you're in
-- the first run downloads a speech model; after that nothing leaves your machine
+- the first run asks which speech model to download; after that nothing leaves your machine
 - experimental features live in Labs, at the bottom of the sidebar
 
 ## Downloads
