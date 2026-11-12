@@ -53,7 +53,8 @@ Assistant                                        // rune_ui::assistant
 │   │           No, at most four a round) with a quiet "Skip to the plan".
 │   │           Answered rounds stay as small chosen chips. Then
 │   │           "Suggested changes, 6 changes, 5 selected": rows grouped
-│   │           by area (Dictation, Code, Meetings, Files, Models), each a
+│   │           by area (Dictation, Code, Vocabulary, Meetings, Files,
+│   │           Models), each a
 │   │           checkbox (accent fill and a check, or an empty box with a
 │   │           grey border), name, where, why, from → to, "You chose …"
 │   │           over the person's own value, a warning where setup isn't
@@ -328,6 +329,23 @@ Opened from a place link                         // rune_ui::assistant::places
   "You say these, and Vocabulary doesn't have them" (`plan::with_terms`).
   A term left unticked on an applied plan, or a follow-up's No to terms,
   isn't offered again.
+- A term that is a near miss of a name VibeHex knows (`plan::app_names`:
+  speech models, engines, the guide's articles and Labs, panes and
+  settings) or of a Vocabulary term isn't a new term (`terms::named`): the
+  same first and last letters and consonant skeletons (the first letter,
+  then the rest without vowels or repeats) one letter apart, or the same
+  for a short word; a name that is ordinary English (Output) is never
+  matched. A near miss of a known name comes as that name with how it was
+  heard ("Outkit", heard «ауткит», is offered as Orukeet); one of a
+  Vocabulary term is left out, since `hex vocabulary add` can't give a
+  term another spelling.
+- Every term in a plan, the use's, a model's, a follow-up's or the
+  preset's, is a row of its own under Vocabulary, drawn as the Vocabulary
+  card draws it (checkbox, term, "sounds like: …", Edit), under its why
+  as a small caption where the why changes. Edit renames the term and
+  changes its spellings in the row; Apply keeps an edit still open and adds
+  what the rows say through `hex vocabulary add`'s path. Each term counts
+  as one change in "N changes, M selected" and in Apply.
 
 ## Set me up like Denis
 
@@ -352,7 +370,7 @@ Opened from a place link                         // rune_ui::assistant::places
   is left out and named under "Not available here"; an engine not ready
   starts unchecked with where to finish; a value already the same folds
   into "Already set" (Labs off on both sides are left out); the prompt is
-  a row, the terms one "Add N terms" row less those the person has. All
+  a row, each term a row of its own less those the person has. All
   checked but `meetings.retention`, which moves older meetings to the
   Trash.
 - Once it is applied or put off: "These are Denis's shortcuts — do they
