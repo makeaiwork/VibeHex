@@ -257,7 +257,6 @@ pub(super) fn decide(ui: &mut Ui, at: At, mut card: Card, decision: Result<Decis
         ui.assistant.undo.push(at);
     }
     super::ask::decided(ui, at);
-    super::preset::decided(ui, at);
 }
 
 /// Checks or unchecks row `index` of a plan.
@@ -376,7 +375,6 @@ pub(super) fn decline(ui: &mut Ui, at: At) {
     }
     set(ui, at, |card| card.decision = Decision::Declined);
     super::ask::decided(ui, at);
-    super::preset::decided(ui, at);
 }
 
 /// Puts back what the card's save changed, unless something changed it

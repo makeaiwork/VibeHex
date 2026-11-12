@@ -201,17 +201,7 @@ impl Store {
     /// Keeps `setup`: in place of the same setup kept before (a later
     /// round, or its plan decided), else as the newest.
     pub fn finish(&mut self, setup: Setup) {
-        if let Some(at) = self.setups.iter().position(|known| known.same(&setup)) {
-            let old = self.setups.remove(at);
-            self.setups.push(past::merge(&old, setup));
-            self.save();
-            return;
-        }
-        self.setups.push(setup);
-        if self.setups.len() > past::MAX {
-            let extra = self.setups.len() - past::MAX;
-            self.setups.drain(..extra);
-        }
+        past::keep(&mut self.setups, setup);
         self.save();
     }
 

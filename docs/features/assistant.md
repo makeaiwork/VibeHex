@@ -657,6 +657,36 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   separate rows in all nine languages. The save, a term's own failure and
   Undo stay term by term.
 
+- Guided setup, first and returning, and the preset are one state machine
+  (`assistant::setup::flow`). `Flow` is the setup in one conversation:
+  where it stands (`Step`: looking at what came since, round one, a
+  follow-up round, answered and waiting, stalled, the plan, the preset's
+  plan, its shortcuts, done) and everything gathered, which is the
+  conversation's own turns (what was looked at, asked, answered, the plan)
+  and the setups kept (answered, declined, applied). `Flow::on` is the one
+  transition: a state and an `Event` (begin, a chip picked, Continue or
+  Skip, "Change answers", a card decided, ask again, look again, the
+  preset and its two shortcut buttons, a model that couldn't be asked)
+  give the next state and the `Effect`s to perform (a turn to add, a
+  round's answers, the setup's record to keep, a model to ask at a
+  `Stage`). It reads no file and asks no one; `Env` carries what it may
+  know (the settings, the facts, the time, whether the app writes the
+  rounds itself, whether a model is busy).
+  - The pane sends events and performs effects in one place
+    (`rune_ui::assistant::ask::send`, `on`, `perform`), and draws a round
+    or the shortcut buttons only where `flow::step` says the setup stands.
+  - The worker shapes a model's reply to a stage with `flow::replied`
+    (one round of follow-ups with the rest waiting, a returning setup's
+    look with round one folded after it).
+  - A setup's record is made in one place (`Flow::keep`, the
+    `Effect::Keep`) and merged into the kept ones by `past::keep`, which
+    the store uses too; records saved before the machine load as they
+    were (`an_older_saved_setup_still_loads`).
+  - Its paths are tables of events, effects and steps
+    (`setup/flow/tests.rs`: first and returning, on this device and with a
+    model, a busy model, the preset), and the pane's whole paths are
+    pinned turn by turn (`rune_ui/assistant/flow_pins.rs`).
+
 ## Set me up like Denis
 
 - "Set me up like Denis", "like the developer", «сделай настройки как у
@@ -976,9 +1006,12 @@ path, from the route to the parsed turn.
   no card that changes a value to itself, nothing this computer can't use
   offered. A step goes the way the pane sends it (`intent::route`,
   `intent::reads`, the same `Question`, the worker with its parse, gates,
-  and repair round); which setup stage follows which is still the pane's
-  (`rune_ui::assistant::ask`), so a setup step builds its stage with the
-  same core calls. The catalog a prompt carries is this OS's, so played
+  and repair round). A setup step is what the setup machine
+  (`setup::flow`) asks a model when sent the events a person's presses
+  send (`eval/stages.rs`: begin, round one answered, the follow-ups
+  skipped), so a returning setup's follow-ups and plan carry what came
+  since and what was answered before, and a first setup's plan carries no
+  terms from use, as in the app. The catalog a prompt carries is this OS's, so played
   replies name features every OS has, and a scenario about a Mac-only
   feature (`scenarios::MAC_ONLY`) runs on a Mac alone. The worker is one
   per process: the scenarios and its tests share one lock

@@ -90,6 +90,7 @@ pub fn owner() -> Fixture {
         },
         recordings: Some(folder("scenarios")),
         now_ms: now(),
+        setups: Vec::new(),
     }
 }
 
@@ -140,6 +141,7 @@ pub fn newcomer() -> Fixture {
         settings,
         recordings: None,
         now_ms: now(),
+        setups: Vec::new(),
     }
 }
 
@@ -165,17 +167,6 @@ pub fn answers() -> Vec<Answer> {
         answer("cleanup", &["codex"]),
         answer("notes", &["codex"]),
     ]
-}
-
-/// The answers as the pane sends them to a model, in the app's words.
-pub fn answers_line(answers: &[Answer], os: &str) -> String {
-    let mut asks = setup::questions(os);
-    for ask in &mut asks {
-        if let Some(answer) = answers.iter().find(|answer| answer.id == ask.id) {
-            ask.chosen = answer.chosen.clone();
-        }
-    }
-    setup::answers_line(&asks, |_, option| option.label.clone())
 }
 
 /// What the fixture's use shows (`usage::read`), as a returning setup

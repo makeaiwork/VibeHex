@@ -547,8 +547,6 @@ fn finish(
         seconds: started.elapsed().as_secs_f32(),
         created_ms: now_ms(),
         steps: found.map(|found| found.steps.clone()).unwrap_or_default(),
-        answers: question.setup.answers().to_vec(),
-        follow: matches!(question.setup, Stage::Follow { .. }),
         knew: read.knew.to_owned(),
         ..Turn::default()
     };
@@ -566,6 +564,7 @@ fn finish(
         logged.push_str(&super::offer::record(&settings));
     }
     super::facts::text::log(question.conversation, &logged);
+    let read_ok = result.is_ok();
     match result {
         Ok(settled) => {
             let parsed = changes::parse::parse(&settled.reply);
@@ -573,22 +572,6 @@ fn finish(
             turn.cards = settled.cards;
             turn.refused = settled.refused;
             turn.asks = settled.asks;
-            if turn.follow {
-                // One round at a time; the rest wait.
-                let rest = turn
-                    .asks
-                    .split_off(turn.asks.len().min(setup::follow::ROUND));
-                turn.more = rest;
-                // What was answered before joins the round, folded.
-                if let Stage::Follow { before, .. } = &question.setup {
-                    turn.asks.extend(before.iter().cloned());
-                }
-            }
-            if question.setup == Stage::Ask
-                && let Some(context) = &question.changes
-            {
-                turn.now = setup::now::now(&context.facts());
-            }
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
             // An answer from the recordings that drew on the guide too says
@@ -619,22 +602,14 @@ fn finish(
             turn.error = Some(format!("{error:#}"));
         }
     }
-    // A returning setup's opening: what the app read, then round one
-    // folded, however the suggestions went.
-    if let Stage::Look {
-        facts,
-        asks,
-        terms,
-        step,
-        ..
-    } = &question.setup
-    {
-        turn.steps = vec![step.clone()];
-        turn.asks = asks.clone();
-        turn.folded = true;
-        turn.facts = facts.clone();
-        turn.terms = terms.clone();
-    }
+    // What the setup makes of the reply: a round of follow-ups, a plan,
+    // a returning setup's opening.
+    setup::flow::replied(
+        &question.setup,
+        &mut turn,
+        read_ok,
+        question.changes.as_ref(),
+    );
     // The guide it read first, and the pages its answer cites.
     if !web.is_empty() {
         turn.web = web;

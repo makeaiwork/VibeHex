@@ -1,9 +1,10 @@
 //! The scenarios about guided setup: what it asks and plans on this
 //! computer, a returning setup, the preset, and its language.
 //!
-//! Which stage follows which is the pane's (`rune_ui::assistant::ask`);
-//! each step here builds its stage with the same core calls the pane
-//! makes, and the app checks hold those calls themselves, with no model.
+//! Which stage follows which is the setup machine's (`setup::flow`):
+//! each step here is what the machine asks a model when sent the events
+//! the pane sends (`stages`), and the app checks hold the rules it calls,
+//! with no model.
 
 use serde_json::Value;
 

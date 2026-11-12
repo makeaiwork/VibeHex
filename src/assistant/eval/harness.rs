@@ -20,6 +20,7 @@ use crate::assistant::intent::{self, Reads, Route};
 use crate::assistant::prompt::{self, Prompt, Room};
 use crate::assistant::recordings::Sources;
 use crate::assistant::setup::Stage;
+use crate::assistant::setup::past::Setup;
 use crate::assistant::store::Turn;
 use crate::assistant::worker::{self, Earlier, Generate, Question, Recall, Searching};
 use crate::dictation::cleanup_pieces::Streamed;
@@ -34,6 +35,8 @@ pub struct Fixture {
     /// (`tests/fixtures/assistant/…`, synthetic).
     pub recordings: Option<PathBuf>,
     pub now_ms: u64,
+    /// The setups kept on it before, oldest first.
+    pub setups: Vec<Setup>,
 }
 
 impl Fixture {

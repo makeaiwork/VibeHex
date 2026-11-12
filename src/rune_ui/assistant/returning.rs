@@ -11,6 +11,7 @@ use super::super::Ui;
 use super::super::controls::Paint;
 use super::ask::At;
 use crate::assistant::recordings::{self, usage};
+use crate::assistant::setup::flow::Event;
 use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Ask};
 use crate::desktop::i18n::tr;
@@ -64,20 +65,6 @@ pub(super) fn since(ui: &Ui) -> Option<Since> {
         from: first.map(|first| first.version),
         usage,
     })
-}
-
-/// What the open setup's opening knew came since the last one, for the
-/// model.
-pub(super) fn facts(ui: &Ui, conversation: u32) -> String {
-    ui.assistant
-        .store
-        .get(conversation)
-        .and_then(|open| {
-            super::ask::setup_turns(&open.turns)
-                .first()
-                .map(|turn| turn.facts.clone())
-        })
-        .unwrap_or_default()
 }
 
 /// A returning setup's round one as one row: whether anything changed,
@@ -134,7 +121,10 @@ pub(super) fn folded(p: Paint, at: At, asks: &[Ask]) -> El {
                     "change",
                     tr("Change answers"),
                     super::card::Look::Ghost,
-                    move |ui, _| ui.assistant.store.unfold(at.conversation, at.turn),
+                    move |ui, _| {
+                        let turn = at.turn;
+                        super::ask::send(ui, at.conversation, Event::Change { turn });
+                    },
                 ))
                 .child(el().key("space").grow(1.0))
                 .child(super::super::controls::PushSize::build_small_push(go, p.k).key("go")),

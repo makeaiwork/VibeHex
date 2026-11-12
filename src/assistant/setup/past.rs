@@ -146,6 +146,22 @@ pub fn finished(
     setup
 }
 
+/// Keeps `setup` in `setups`, oldest first: in place of the same setup
+/// kept before (a later round, or its plan decided), else as the newest
+/// of at most [`MAX`].
+pub fn keep(setups: &mut Vec<Setup>, setup: Setup) {
+    if let Some(at) = setups.iter().position(|known| known.same(&setup)) {
+        let old = setups.remove(at);
+        setups.push(merge(&old, setup));
+        return;
+    }
+    setups.push(setup);
+    if setups.len() > MAX {
+        let extra = setups.len() - MAX;
+        setups.drain(..extra);
+    }
+}
+
 /// `setup` as it updates `old`, the same setup kept before: a follow-up
 /// answered as it was then keeps when, and the settings it saw then
 /// (before the plan changed them).

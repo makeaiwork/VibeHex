@@ -21,6 +21,7 @@
 //! same rules.
 
 pub mod engines;
+pub mod flow;
 pub mod follow;
 pub mod now;
 pub mod past;
@@ -139,6 +140,28 @@ pub enum Stage {
         terms: Vec<since::Candidate>,
         step: crate::assistant::recordings::Step,
     },
+}
+
+impl Ask {
+    /// The question's words as the person sees them: the app's own in the
+    /// window's language, the model's as written.
+    pub fn words<'a>(&self, words: &'a str) -> &'a str {
+        if self.own {
+            crate::desktop::i18n::tr(words)
+        } else {
+            words
+        }
+    }
+
+    /// An option's label as the person saw it, with the server it names.
+    pub fn label(&self, option: &Choice) -> String {
+        let label = self.words(&option.label);
+        if option.extra.is_empty() {
+            label.to_owned()
+        } else {
+            format!("{label} ({})", option.extra)
+        }
+    }
 }
 
 impl Stage {

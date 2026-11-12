@@ -289,7 +289,7 @@ fn reply(
         ));
     }
     words = words.children(super::ask::view(ui, p, conversation, index, turn));
-    words = words.children(super::preset::view(ui, p, conversation, index, turn));
+    words = words.children(super::preset::view(ui, p, conversation, index));
     if let Some(error) = &turn.error {
         let again = turn.clone();
         words = words.child(
@@ -306,7 +306,7 @@ fn reply(
                         .shrink(),
                 )
                 .child(small_button(p, "retry", tr("Try again"), move |ui, _| {
-                    retry(ui, conversation, &again);
+                    retry(ui, conversation, index, &again);
                 })),
         );
     }
@@ -350,21 +350,19 @@ fn reply(
                 now_ms,
                 stopped: turn.stopped,
             },
-            move |ui: &mut Ui, _| retry(ui, conversation, &again),
+            move |ui: &mut Ui, _| retry(ui, conversation, index, &again),
         ));
     }
     beside_face(p, &format!("answer{index}"), Mood::default(), words)
 }
 
-/// Asks a turn again: a returning setup's look as itself, setup's
-/// answers as its plan, else its question.
-fn retry(ui: &mut Ui, conversation: u32, turn: &Turn) {
-    if super::ask::is_look(turn) {
-        super::ask::look_again(ui, conversation, turn);
-    } else if turn.answers.is_empty() {
+/// Asks turn `index` again: setup's turns as the setup asks them (its
+/// look, its follow-ups, its plan), else its question.
+fn retry(ui: &mut Ui, conversation: u32, index: usize, turn: &Turn) {
+    if turn.answers.is_empty() && !crate::assistant::setup::flow::is_look(turn) {
         ask(ui, turn.question.clone());
     } else {
-        super::ask::again(ui, conversation, turn);
+        super::ask::again(ui, conversation, index);
     }
 }
 
@@ -517,10 +515,7 @@ mod tests {
         );
         let ask = &turn.asks[0];
         let (q, label) = language::within(&ui.settings, || {
-            (
-                tr(&ask.q).to_owned(),
-                super::super::ask::label(ask, &ask.options[0]),
-            )
+            (tr(&ask.q).to_owned(), ask.label(&ask.options[0]))
         });
         assert_eq!(q, russian(&ask.q));
         assert_ne!(q, ask.q);

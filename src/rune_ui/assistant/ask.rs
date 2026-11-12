@@ -7,11 +7,13 @@
 //! from the settings, so the person only changes what's wrong and presses
 //! Continue. The follow-up rounds after it (yes or no about the Labs
 //! features that fit) also offer "Skip to the plan". Answered rounds stay
-//! as their chosen chips, with no bubble; once the last is answered the
-//! answers go as one turn (`Stage::Plan`), never as typed text. On a
-//! built-in model, or in a scene, the app writes the follow-ups and the
-//! plan itself; a remote model rewords the follow-ups first
-//! (`Stage::Follow`) and adds to the plan.
+//! as their chosen chips, with no bubble.
+//!
+//! Which round or plan comes next is the setup machine's
+//! (`assistant::setup::flow`). This file draws where the setup stands
+//! (`flow::step`), sends it what the person pressed ([`send`]), and
+//! performs what it asks for ([`perform`]): turns and answers into the
+//! store, the setup's record kept, a model asked.
 
 use rune::{El, col, el, icon, row, text};
 use rune_theme_opencode::icons as theme;
@@ -19,10 +21,9 @@ use rune_theme_opencode::icons as theme;
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::composer;
-use crate::assistant::changes::{Card, CardKind};
-use crate::assistant::recordings::Step;
+use crate::assistant::setup::flow::{self, Effect, Env, Event, Flow, Step, first};
 use crate::assistant::setup::since::{self, Since};
-use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow, past};
+use crate::assistant::setup::{self, Ask, Choice};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Recall;
 use crate::desktop::i18n::{tr, tr_fill, tr_window};
@@ -47,7 +48,6 @@ pub(super) fn os(ui: &Ui) -> &'static str {
 /// preselected from it, in a new conversation (or the empty one open). A
 /// returning setup says what came since and folds round one to a row.
 pub(super) fn begin(ui: &mut Ui) {
-    let _speaking = crate::assistant::language::speak(&ui.settings);
     if ui.assistant.answering.is_some() {
         return;
     }
@@ -55,20 +55,10 @@ pub(super) fn begin(ui: &mut Ui) {
     start(ui, since);
 }
 
-/// Opens setup: a first one with round one's questions, a returning one
-/// (`since`) with what came since and round one folded. On a remote model
-/// with the use read, the model first looks at what came since and
-/// suggests a few things (`Stage::Look`), and round one comes after.
+/// Opens setup in a conversation of its own: a first one, or a returning
+/// one with what came `since`.
 pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
     let _speaking = crate::assistant::language::speak(&ui.settings);
-    let context = super::changes::context(ui);
-    let mut asks = setup::questions(context.state.os);
-    setup::preselect(&mut asks, &context.settings, &context.state);
-    if let Some(since) = &since {
-        since::preselect(&mut asks, since);
-        setup::preselect(&mut asks, &context.settings, &context.state);
-    }
-    let now = ui.assistant.now_ms();
     let pane = &mut ui.assistant;
     pane.consent = None;
     let id = match pane.conversation() {
@@ -79,124 +69,124 @@ pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
     };
     pane.open = Some(id);
     pane.error = None;
-    let shown = since.as_ref().map(since::paragraph).unwrap_or_default();
-    let facts = since.as_ref().map(since::prompt).unwrap_or_default();
-    let terms = since
-        .as_ref()
-        .and_then(|since| since.usage.as_ref())
-        .map(since::candidates)
-        .unwrap_or_default();
-    let looked = since
-        .as_ref()
-        .and_then(|since| since.usage.as_ref())
-        .map(|usage| Step::Looked {
-            dictations: usage.dictations,
-            meetings: usage.meetings,
-        })
-        .filter(|_| !on_device(ui, id));
-    let opening = Turn {
-        now: setup::now::now(&context.facts()),
-        since: shown.clone(),
-        created_ms: now,
-        ..Turn::default()
-    };
-    let round = Turn {
-        asks,
-        facts,
-        folded: since.is_some(),
-        terms,
-        created_ms: now,
-        ..Turn::default()
-    };
-    if let Some(step) = looked {
-        ui.assistant.store.push(id, opening);
-        let look = Stage::Look {
-            facts: round.facts.clone(),
-            shown,
-            asks: round.asks.clone(),
-            terms: round.terms.clone(),
-            step,
-        };
-        if composer::ask_with(ui, id, String::new(), Recall::Guide, look) {
-            return;
-        }
-        // Not asked after all: round one at once, as on a built-in model.
-        ui.assistant.store.push(id, round);
-        return;
-    }
-    ui.assistant.store.push(
-        id,
-        Turn {
-            now: opening.now,
-            since: opening.since,
-            ..round
-        },
-    );
+    send(ui, id, Event::Begin { since });
 }
 
-/// Looks again at what came since: a returning setup's opening asked
-/// again, from the turn that showed it.
-pub(super) fn look_again(ui: &mut Ui, conversation: u32, turn: &Turn) {
-    if ui.assistant.answering.is_some() || ui.assistant.fixture {
-        return;
-    }
-    let Some(step) = turn.steps.first().cloned() else {
+/// Sends `event` to the setup in `conversation` (`setup::flow`) and does
+/// what it asks for: the one way the pane moves a setup on.
+pub(super) fn send(ui: &mut Ui, conversation: u32, event: Event) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
+    let Some(open) = ui.assistant.store.get(conversation) else {
         return;
     };
-    let shown = ui
+    let kept = ui.assistant.store.setups().to_vec();
+    let mut flow = Flow::new(conversation, open.turns.clone(), kept);
+    let mut events = vec![event];
+    while let Some(event) = events.pop() {
+        let (next, effects) = on(ui, flow, event);
+        flow = next;
+        events.extend(perform(ui, conversation, effects));
+    }
+}
+
+/// The machine's transition on `event`, with what it may know of this
+/// install now.
+pub(super) fn on(ui: &Ui, flow: Flow, event: Event) -> (Flow, Vec<Effect>) {
+    let context = super::changes::context(ui);
+    let env = Env {
+        context: &context,
+        saved: &ui.settings,
+        now_ms: ui.assistant.now_ms(),
+        on_device: on_device(ui, flow.conversation),
+        busy: ui.assistant.answering.is_some(),
+        scene: ui.assistant.fixture,
+        changed: &since::changed_since,
+    };
+    flow.on(event, &env)
+}
+
+/// Performs a transition's effects in `conversation`, in order: turns and
+/// answers into the store, the setup's record kept, a model asked. What
+/// couldn't be asked comes back as an event for the machine.
+pub(super) fn perform(ui: &mut Ui, conversation: u32, effects: Vec<Effect>) -> Vec<Event> {
+    let mut back = Vec::new();
+    for effect in effects {
+        let store = &mut ui.assistant.store;
+        match effect {
+            Effect::Push(turn) => store.push(conversation, *turn),
+            Effect::Asks { turn, asks } => {
+                for (number, ask) in asks.into_iter().enumerate() {
+                    store.set_ask(conversation, turn, number, ask);
+                }
+            }
+            Effect::Join { turn, asks } => store.push_asks(conversation, turn, asks),
+            Effect::Unfold { turn } => store.unfold(conversation, turn),
+            Effect::Keep(setup) => store.finish(setup),
+            Effect::Ask { line, stage } => {
+                let asked = stage.clone();
+                if !composer::ask_with(ui, conversation, line, Recall::Guide, asked) {
+                    back.push(Event::Unasked(stage));
+                }
+            }
+        }
+    }
+    back
+}
+
+/// Whether this conversation asks a built-in model, which never writes
+/// setup's questions or plan: the app does.
+fn on_device(ui: &Ui, conversation: u32) -> bool {
+    if ui.is_fixture() || ui.assistant.fixture {
+        return true;
+    }
+    let open = ui.assistant.store.get(conversation);
+    super::engine(
+        &ui.settings,
+        open.and_then(|open| open.engine.as_deref()),
+        open.and_then(|open| open.effort.as_deref()),
+    )
+    .is_local()
+}
+
+/// A chip pressed.
+pub(super) fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
+    let (turn, id) = (at.turn, id.to_owned());
+    send(ui, at.conversation, Event::Pick { turn, number, id });
+}
+
+/// Continue, or "Skip to the plan" (`skip`).
+pub(super) fn answered(ui: &mut Ui, at: At, skip: bool) {
+    let turn = at.turn;
+    send(ui, at.conversation, Event::Answered { turn, skip });
+}
+
+/// A card was applied or put off: a setup's plan finishes the setup, the
+/// preset's leads on to its shortcuts.
+pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
+    let (turn, card) = (at.turn, at.card);
+    send(ui, at.conversation, Event::Decided { turn, card });
+}
+
+/// Asks turn `turn` again: a returning setup's look as itself, else the
+/// answers' follow-ups or plan.
+pub(super) fn again(ui: &mut Ui, conversation: u32, turn: usize) {
+    let look = ui
         .assistant
         .store
         .get(conversation)
-        .and_then(|open| {
-            open.turns
-                .iter()
-                .rev()
-                .find(|turn| !turn.since.is_empty())
-                .map(|turn| turn.since.clone())
-        })
-        .unwrap_or_default();
-    let mut asks = turn.asks.clone();
-    for ask in &mut asks {
-        ask.done = false;
-    }
-    let look = Stage::Look {
-        facts: turn.facts.clone(),
-        shown,
-        asks,
-        terms: turn.terms.clone(),
-        step,
+        .and_then(|open| open.turns.get(turn))
+        .is_some_and(flow::is_look);
+    let event = if look {
+        Event::LookAgain { turn }
+    } else {
+        Event::Again { turn }
     };
-    composer::ask_with(ui, conversation, String::new(), Recall::Guide, look);
+    send(ui, conversation, event);
 }
 
-/// Whether `turn` is a returning setup's look: what the app read, a model's
-/// suggestions, and round one after them.
-pub(super) fn is_look(turn: &Turn) -> bool {
-    turn.folded
-        && first(&turn.asks)
-        && turn
-            .steps
-            .iter()
-            .any(|step| matches!(step, Step::Looked { .. }))
-}
-
-/// The terms the open setup's use showed, for its plan.
-fn terms(ui: &Ui, conversation: u32) -> Vec<since::Candidate> {
-    ui.assistant
-        .store
-        .get(conversation)
-        .and_then(|open| {
-            setup_turns(&open.turns)
-                .first()
-                .map(|turn| turn.terms.clone())
-        })
-        .unwrap_or_default()
-}
-
-/// A question's words as the person sees them: the app's own in the
-/// window's language, the model's as written.
+/// A question's words as the person sees them.
 fn words<'a>(ask: &Ask, words: &'a str) -> &'a str {
-    if ask.own { tr(words) } else { words }
+    ask.words(words)
 }
 
 /// A question's hint: a follow-up's is its Labs feature's title, a place
@@ -206,16 +196,6 @@ fn hint(ask: &Ask) -> String {
         tr_window(&ask.hint).to_owned()
     } else {
         words(ask, &ask.hint).to_owned()
-    }
-}
-
-/// An option's label as the person saw it, with the server it names.
-pub(super) fn label(ask: &Ask, option: &Choice) -> String {
-    let label = words(ask, &option.label);
-    if option.extra.is_empty() {
-        label.to_owned()
-    } else {
-        format!("{label} ({})", option.extra)
     }
 }
 
@@ -233,11 +213,6 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
     if turn.asks.is_empty() {
         return shown;
     }
-    let last = pane
-        .store
-        .get(conversation)
-        .is_some_and(|open| open.turns.len() == index + 1)
-        && pane.answering_in(Some(conversation)).is_none();
     let at = At {
         conversation,
         turn: index,
@@ -245,10 +220,25 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
     let unfolded = pane.before_open.contains(&at);
     if turn.asks.iter().all(|ask| ask.done) {
         shown.extend(past(p, at, &turn.asks, unfolded));
-    } else if last && turn.folded {
-        shown.push(super::returning::folded(p, at, &turn.asks));
-    } else if last {
-        shown.push(open(p, at, &turn.asks, unfolded));
+        return shown;
+    }
+    // A round to answer shows only where the setup stands, and not while
+    // a model is answering here.
+    let stands = pane
+        .store
+        .get(conversation)
+        .filter(|_| pane.answering_in(Some(conversation)).is_none())
+        .map(|open| flow::step(&open.turns, pane.store.setups()));
+    match stands {
+        Some(Step::Basics { turn: here, folded }) if here == index => shown.push(if folded {
+            super::returning::folded(p, at, &turn.asks)
+        } else {
+            open(p, at, &turn.asks, unfolded)
+        }),
+        Some(Step::Follow { turn: here, .. }) if here == index => {
+            shown.push(open(p, at, &turn.asks, unfolded));
+        }
+        _ => {}
     }
     shown
 }
@@ -320,11 +310,6 @@ fn before(p: Paint, at: At, asks: &[Ask], unfolded: bool, open: bool) -> Option<
         }
     }
     Some(fold)
-}
-
-/// Whether this round is round one, with its fixed questions.
-fn first(asks: &[Ask]) -> bool {
-    asks.iter().any(|ask| ask.id == "use")
 }
 
 /// The question and its hint.
@@ -501,7 +486,7 @@ fn answered_line(p: Paint, number: usize, ask: &Ask) -> El {
 /// chosen, its caption under its label. `small` for an answered round's.
 pub(super) fn chip(p: Paint, key: &str, ask: &Ask, option: &Choice, on: bool, small: bool) -> El {
     let c = &p.k.c;
-    let label = label(ask, option);
+    let label = ask.label(option);
     let font = rune::TextStyle {
         size: if small { 12.0 } else { 12.5 },
         ..p.k.ty.ui
@@ -568,358 +553,10 @@ pub(super) fn chip(p: Paint, key: &str, ask: &Ask, option: &Choice, on: bool, sm
     .child(words)
 }
 
-fn round(ui: &Ui, at: At) -> Option<Vec<Ask>> {
-    Some(
-        ui.assistant
-            .store
-            .get(at.conversation)?
-            .turns
-            .get(at.turn)?
-            .asks
-            .clone(),
-    )
-}
-
-fn set_round(ui: &mut Ui, at: At, asks: Vec<Ask>) {
-    for (number, ask) in asks.into_iter().enumerate() {
-        ui.assistant
-            .store
-            .set_ask(at.conversation, at.turn, number, ask);
-    }
-}
-
-/// A chip pressed: a single choice takes it, a multiple one toggles. What
-/// the person picked is theirs; an untouched question follows it (code
-/// with Russian is Russian with English tech terms).
-pub(super) fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
-    let _speaking = crate::assistant::language::speak(&ui.settings);
-    let Some(mut asks) = round(ui, at) else {
-        return;
-    };
-    let follow_up = !first(&asks);
-    let Some(ask) = asks.get_mut(number) else {
-        return;
-    };
-    ask.touched = true;
-    if ask.multi {
-        match ask.chosen.iter().position(|chosen| chosen == id) {
-            Some(index) => {
-                ask.chosen.remove(index);
-            }
-            None => ask.chosen.push(id.to_owned()),
-        }
-    } else if ask.chosen == [id] && follow_up {
-        // A follow-up pressed again is unanswered again.
-        ask.chosen.clear();
-    } else {
-        ask.chosen = vec![id.to_owned()];
-    }
-    if asks[number].id == "use" {
-        let context = super::changes::context(ui);
-        setup::preselect(&mut asks, &context.settings, &context.state);
-    }
-    set_round(ui, at, asks);
-}
-
-/// The round is answered (or skipped, `skip`): the next round, or the
-/// plan.
-pub(super) fn answered(ui: &mut Ui, at: At, skip: bool) {
-    let _speaking = crate::assistant::language::speak(&ui.settings);
-    let Some(mut asks) = round(ui, at) else {
-        return;
-    };
-    if first(&asks)
-        && asks
-            .iter()
-            .any(|ask| ask.id == "use" && ask.chosen.is_empty())
-    {
-        return;
-    }
-    let shown: Vec<bool> = asks.iter().map(|ask| setup::shows(&asks, ask)).collect();
-    for (ask, shows) in asks.iter_mut().zip(shown) {
-        ask.done = true;
-        // An answer from before stands, skipped or not.
-        if !shows || (skip && !ask.touched && !ask.before) {
-            ask.chosen.clear();
-        }
-    }
-    set_round(ui, at, asks);
-    // Kept at once: left half-way, or its plan put off, the answers stay.
-    keep(ui, at.conversation, None);
-    if skip {
-        plan(ui, at.conversation);
-    } else {
-        next(ui, at);
-    }
-}
-
-/// The turns of the open setup, from its round one.
-pub(super) fn setup_turns(turns: &[Turn]) -> &[Turn] {
-    let from = turns
-        .iter()
-        .rposition(|turn| first(&turn.asks))
-        .unwrap_or(0);
-    &turns[from..]
-}
-
-/// Every question the setup asked, in order.
-fn asked(ui: &Ui, conversation: u32) -> Vec<Ask> {
-    ui.assistant
-        .store
-        .get(conversation)
-        .map(|open| {
-            setup_turns(&open.turns)
-                .iter()
-                .flat_map(|turn| turn.asks.iter().cloned())
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-/// Whether this conversation asks a built-in model, which never writes
-/// setup's questions or plan: the app does.
-fn on_device(ui: &Ui, conversation: u32) -> bool {
-    if ui.is_fixture() || ui.assistant.fixture {
-        return true;
-    }
-    let open = ui.assistant.store.get(conversation);
-    super::engine(
-        &ui.settings,
-        open.and_then(|open| open.engine.as_deref()),
-        open.and_then(|open| open.effort.as_deref()),
-    )
-    .is_local()
-}
-
-/// After round `at`: the next follow-up round, else the plan.
-fn next(ui: &mut Ui, at: At) {
-    let Some(open) = ui.assistant.store.get(at.conversation) else {
-        return;
-    };
-    let Some(turn) = open.turns.get(at.turn) else {
-        return;
-    };
-    let rounds = setup_turns(&open.turns)
-        .iter()
-        .filter(|turn| !turn.asks.is_empty() && !first(&turn.asks))
-        .count();
-    let more = turn.more.clone();
-    let follow_up = !first(&turn.asks);
-    if !more.is_empty() && rounds < follow::ROUNDS {
-        push_round(ui, at.conversation, more, Vec::new(), Vec::new());
-        return;
-    }
-    if follow_up || !more.is_empty() {
-        return plan(ui, at.conversation);
-    }
-    let answers = setup::answers(&asked(ui, at.conversation));
-    let context = super::changes::context(ui);
-    let candidates = follow::candidates(&answers, &context.settings, &context.state);
-    // What was answered in an earlier setup isn't asked again: it joins
-    // the round folded, as answered then, or, with nothing new to ask,
-    // round one's answers.
-    let before = follow::before(&answers, &context.settings, &context.state);
-    if candidates.is_empty() {
-        let done = before
-            .into_iter()
-            .map(|ask| Ask { done: true, ..ask })
-            .collect();
-        ui.assistant.store.push_asks(at.conversation, at.turn, done);
-        return plan(ui, at.conversation);
-    }
-    if on_device(ui, at.conversation) {
-        push_round(ui, at.conversation, candidates, Vec::new(), before);
-        return;
-    }
-    if ui.assistant.answering.is_some() {
-        return;
-    }
-    let line = setup::answers_line(&asked(ui, at.conversation), label);
-    composer::ask_with(
-        ui,
-        at.conversation,
-        line.clone(),
-        Recall::Guide,
-        Stage::Follow {
-            answers,
-            line,
-            candidates,
-            since: super::returning::facts(ui, at.conversation),
-            before,
-        },
-    );
-}
-
-/// A follow-up round of the app's: the first [`follow::ROUND`] of `asks`,
-/// the rest for later, and what was answered `before`, folded.
-fn push_round(
-    ui: &mut Ui,
-    conversation: u32,
-    mut asks: Vec<Ask>,
-    answers: Vec<Answer>,
-    before: Vec<Ask>,
-) {
-    let more = asks.split_off(asks.len().min(follow::ROUND));
-    asks.extend(before);
-    let now = ui.assistant.now_ms();
-    ui.assistant.store.push(
-        conversation,
-        Turn {
-            asks,
-            more,
-            answers,
-            created_ms: now,
-            ..Turn::default()
-        },
-    );
-}
-
-/// Every answer so far, to the plan: the app's own on a built-in model,
-/// else the model's on top of the app's rules.
-fn plan(ui: &mut Ui, conversation: u32) {
-    let asked = asked(ui, conversation);
-    let answers = setup::answers(&asked);
-    let line = setup::answers_line(&asked, label);
-    if on_device(ui, conversation) {
-        let context = super::changes::context(ui);
-        let terms = terms(ui, conversation);
-        let card = setup::plan::with_terms(
-            Vec::new(),
-            &answers,
-            &terms,
-            &context.settings,
-            &context.state,
-        );
-        let now = ui.assistant.now_ms();
-        let answer = if card.as_ref().is_some_and(|card| !card.items.is_empty()) {
-            tr("Here is what fits how you work. Untick what you don't need.")
-        } else {
-            tr("Everything already fits how you work.")
-        };
-        let settled = card.is_none();
-        ui.assistant.store.push(
-            conversation,
-            Turn {
-                answer: answer.to_owned(),
-                answers: answers.clone(),
-                cards: card.into_iter().collect(),
-                created_ms: now,
-                ..Turn::default()
-            },
-        );
-        if settled {
-            // Nothing to decide: the setup is finished as it is.
-            keep(ui, conversation, None);
-        }
-        return;
-    }
-    if ui.assistant.answering.is_some() {
-        return;
-    }
-    composer::ask_with(
-        ui,
-        conversation,
-        line.clone(),
-        Recall::Guide,
-        Stage::Plan {
-            answers,
-            line,
-            since: super::returning::facts(ui, conversation),
-            terms: terms(ui, conversation),
-        },
-    );
-}
-
-/// A setup's plan was applied or put off: the setup is finished, and kept
-/// with what it applied and what the person declined (`setup::past`).
-pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
-    let _speaking = crate::assistant::language::speak(&ui.settings);
-    let Some(open) = ui.assistant.store.get(at.conversation) else {
-        return;
-    };
-    let Some(turn) = open.turns.get(at.turn) else {
-        return;
-    };
-    let Some(card) = turn.cards.get(at.card) else {
-        return;
-    };
-    if turn.answers.is_empty() || turn.follow || card.kind != CardKind::Plan {
-        return;
-    }
-    let plan_ms = turn.created_ms;
-    let done = ui.assistant.store.setups().iter().any(|setup| {
-        // An older record, kept only once decided, has no conversation.
-        plan_ms != 0
-            && (setup.plan_ms == plan_ms || (setup.conversation == 0 && setup.at_ms == plan_ms))
-    });
-    if done {
-        return;
-    }
-    let card = card.clone();
-    keep(ui, at.conversation, Some((&card, plan_ms)));
-}
-
-/// Keeps the setup running in `conversation` with every answer so far
-/// (`setup::past`), and with how its plan went once decided (`plan`: the
-/// card and its turn's time); a later call updates the same record.
-fn keep(ui: &mut Ui, conversation: u32, plan: Option<(&Card, u64)>) {
-    let asked = asked(ui, conversation);
-    let answers = setup::answers(&asked);
-    let started_ms = ui
-        .assistant
-        .store
-        .get(conversation)
-        .and_then(|open| setup_turns(&open.turns).first().map(|turn| turn.created_ms))
-        .unwrap_or_default();
-    let at_ms = plan.map_or_else(|| ui.assistant.now_ms(), |(_, at)| at);
-    let mut setup = past::finished(
-        &asked,
-        &answers,
-        plan.map(|(card, _)| card),
-        &ui.settings,
-        at_ms,
-    );
-    setup.conversation = conversation;
-    setup.started_ms = started_ms;
-    setup.plan_ms = plan.map_or(0, |(_, at)| at);
-    ui.assistant.store.finish(setup);
-}
-
-/// Asks an answers turn again: its follow-ups, or its plan.
-pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
-    let _speaking = crate::assistant::language::speak(&ui.settings);
-    if ui.assistant.answering.is_some() || ui.assistant.fixture {
-        return;
-    }
-    let stage = if turn.follow {
-        let context = super::changes::context(ui);
-        Stage::Follow {
-            candidates: follow::candidates(&turn.answers, &context.settings, &context.state),
-            before: follow::before(&turn.answers, &context.settings, &context.state),
-            answers: turn.answers.clone(),
-            line: turn.question.clone(),
-            since: super::returning::facts(ui, conversation),
-        }
-    } else {
-        Stage::Plan {
-            answers: turn.answers.clone(),
-            line: turn.question.clone(),
-            since: super::returning::facts(ui, conversation),
-            terms: terms(ui, conversation),
-        }
-    };
-    composer::ask_with(
-        ui,
-        conversation,
-        turn.question.clone(),
-        Recall::Guide,
-        stage,
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assistant::setup::follow;
 
     fn at(ui: &Ui, turn: usize) -> At {
         At {
@@ -1002,13 +639,13 @@ mod tests {
         let mut shown = setup::questions("macos");
         shown.truncate(2);
         shown[1].chosen = vec!["mixed".into()];
-        let line = setup::answers_line(&shown, label);
+        let line = setup::answers_line(&shown, Ask::label);
         assert_eq!(line, "language: mixed (Other or mixed)");
         let mut server = setup::questions("macos").remove(2);
         server.chosen = vec!["custom".into()];
         server.options[4].extra = "LM Studio".into();
         assert_eq!(
-            setup::answers_line(&[server], label),
+            setup::answers_line(&[server], Ask::label),
             "cleanup: custom (My own server (LM Studio))"
         );
     }

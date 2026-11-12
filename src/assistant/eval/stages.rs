@@ -1,12 +1,14 @@
 //! What the setup scenarios are built from: the installs they play on,
-//! each stage as the pane's own calls make it (`rune_ui::assistant::ask`),
-//! and the replies a model is played as writing.
+//! each stage as the setup machine (`setup::flow`) asks a model for it
+//! when sent the events a person's presses send, and the replies a model
+//! is played as writing.
 
 use super::fixtures::{self, owner};
 use super::harness::Fixture;
 use crate::assistant::facts::State;
-use crate::assistant::recordings::Step as Read;
-use crate::assistant::setup::{self, Stage, follow, past, since};
+use crate::assistant::setup::flow::{self, Effect, Env, Event, Flow};
+use crate::assistant::setup::{Ask, Stage, follow, past, since};
+use crate::assistant::store::Turn;
 
 /// Twenty days before the fixtures' now.
 pub fn earlier() -> u64 {
@@ -34,10 +36,11 @@ pub fn finished(fixture: &Fixture) -> past::Setup {
 /// The owner's install, set up twenty days ago.
 pub fn returning() -> Fixture {
     let mut fixture = owner();
-    let setups = [finished(&fixture)];
+    let setups = vec![finished(&fixture)];
     // No release is counted as having changed what was answered.
     fixture.state.answered = past::answered_before(&setups, &fixture.settings, |_, _| false);
     fixture.state.declined = past::declined(&setups);
+    fixture.setups = setups;
     fixture
 }
 
@@ -52,17 +55,111 @@ pub fn own_model() -> Fixture {
     fixture
 }
 
+/// The setup on a fixture as the machine (`setup::flow`) runs it for a
+/// remote model: the events a person would send, and the model's turns
+/// as the worker shapes them.
+struct Run<'a> {
+    fixture: &'a Fixture,
+    flow: Flow,
+}
+
+impl<'a> Run<'a> {
+    /// "Set VibeHex up for me" on `fixture`: a returning setup when it
+    /// was set up before or has been used a while.
+    fn begin(fixture: &'a Fixture) -> (Self, Vec<Effect>) {
+        let mut run = Self {
+            fixture,
+            flow: Flow::new(1, Vec::new(), fixture.setups.clone()),
+        };
+        let used = fixtures::used(fixture).unwrap_or_default();
+        let since = since::returning(&fixture.setups, used.dictations, used.meetings)
+            .then(|| fixtures::since(fixture, &fixture.setups));
+        let effects = run.send(Event::Begin { since });
+        (run, effects)
+    }
+
+    fn send(&mut self, event: Event) -> Vec<Effect> {
+        let context = self.fixture.context();
+        let env = Env {
+            context: &context,
+            saved: &self.fixture.settings,
+            now_ms: self.fixture.now_ms,
+            on_device: false,
+            busy: false,
+            scene: false,
+            // No release is counted as having changed what was answered.
+            changed: &|_, _| false,
+        };
+        let (flow, effects) = std::mem::take(&mut self.flow).on(event, &env);
+        self.flow = flow;
+        effects
+    }
+
+    /// A model's turn for `stage`, asking `asks`, joins as the worker
+    /// shapes it.
+    fn reply(&mut self, stage: &Stage, asks: Vec<Ask>) {
+        let mut turn = Turn {
+            asks,
+            created_ms: self.fixture.now_ms,
+            ..Turn::default()
+        };
+        flow::replied(stage, &mut turn, true, Some(&self.fixture.context()));
+        self.flow.turns.push(turn);
+    }
+
+    /// Round one answered as [`fixtures::answers`] and Continue pressed.
+    fn round_one(&mut self) -> Vec<Effect> {
+        let turn = self.flow.turns.len() - 1;
+        for answer in fixtures::answers() {
+            let asks = &self.flow.turns[turn].asks;
+            let Some(number) = asks.iter().position(|ask| ask.id == answer.id) else {
+                continue;
+            };
+            let ask = &asks[number];
+            // A chip pressed for each option that isn't as wanted.
+            let press: Vec<String> = ask
+                .options
+                .iter()
+                .map(|option| option.id.clone())
+                .filter(|id| {
+                    let wanted = answer.chosen.contains(id);
+                    wanted != ask.chosen.contains(id) && (ask.multi || wanted)
+                })
+                .collect();
+            for id in press {
+                self.send(Event::Pick { turn, number, id });
+            }
+        }
+        self.send(Event::Answered { turn, skip: false })
+    }
+}
+
+/// What a transition asked a model, and at which stage.
+fn asked(effects: Vec<Effect>) -> Option<(String, Stage)> {
+    effects.into_iter().find_map(|effect| match effect {
+        Effect::Ask { line, stage } => Some((line, stage)),
+        _ => None,
+    })
+}
+
+/// The setup on `fixture` up to round one answered: what the model is
+/// asked for the follow-ups.
+fn to_follow(fixture: &Fixture) -> (Run<'_>, (String, Stage)) {
+    // The answers go to the model in the app's own words.
+    crate::desktop::i18n::speaking(Some("en"), || {
+        let (mut run, effects) = Run::begin(fixture);
+        // A returning setup's look comes back before round one shows.
+        if let Some((_, look)) = asked(effects) {
+            run.reply(&look, Vec::new());
+        }
+        let follow = asked(run.round_one()).expect("round one leads to the follow-ups");
+        (run, follow)
+    })
+}
+
+/// Round one answered: the follow-ups a model is asked to word.
 pub fn follow_stage(fixture: &Fixture) -> (String, Stage) {
-    let answers = fixtures::answers();
-    let line = fixtures::answers_line(&answers, fixture.state.os);
-    let stage = Stage::Follow {
-        candidates: follow::candidates(&answers, &fixture.settings, &fixture.state),
-        before: follow::before(&answers, &fixture.settings, &fixture.state),
-        since: String::new(),
-        line: line.clone(),
-        answers,
-    };
-    (line, stage)
+    to_follow(fixture).1
 }
 
 /// The terms the fixture's use shows Vocabulary lacks.
@@ -73,36 +170,24 @@ pub fn candidates(fixture: &Fixture) -> Vec<since::Candidate> {
         .unwrap_or_default()
 }
 
+/// The follow-ups skipped ("Skip to the plan"): the plan a model is asked
+/// for, from round one's answers.
 pub fn plan_stage(fixture: &Fixture) -> (String, Stage) {
-    let answers = fixtures::answers();
-    let line = fixtures::answers_line(&answers, fixture.state.os);
-    let stage = Stage::Plan {
-        since: String::new(),
-        terms: candidates(fixture),
-        line: line.clone(),
-        answers,
-    };
-    (line, stage)
+    let (mut run, (_, follow)) = to_follow(fixture);
+    crate::desktop::i18n::speaking(Some("en"), || {
+        let Stage::Follow { candidates, .. } = &follow else {
+            unreachable!("round one asks for follow-ups");
+        };
+        run.reply(&follow, candidates.clone());
+        let turn = run.flow.turns.len() - 1;
+        asked(run.send(Event::Answered { turn, skip: true })).expect("the answers lead to the plan")
+    })
 }
 
-/// A returning setup's opening on a remote model, as `ask::start` makes it.
+/// A returning setup's opening on a remote model: the look.
 pub fn look_stage(fixture: &Fixture) -> (String, Stage) {
-    let since = fixtures::since(fixture, &[finished(fixture)]);
-    let mut asks = setup::questions(fixture.state.os);
-    setup::preselect(&mut asks, &fixture.settings, &fixture.state);
-    since::preselect(&mut asks, &since);
-    let usage = since.usage.clone().unwrap_or_default();
-    let stage = Stage::Look {
-        facts: since::prompt(&since),
-        shown: since::paragraph(&since),
-        asks,
-        terms: since::candidates(&usage),
-        step: Read::Looked {
-            dictations: usage.dictations,
-            meetings: usage.meetings,
-        },
-    };
-    (String::new(), stage)
+    let (_, effects) = Run::begin(fixture);
+    asked(effects).expect("a returning setup looks first")
 }
 
 pub const ROUND_ONE: &str = "Давайте настроим VibeHex под вас.\n\n```hex-ask\n\
