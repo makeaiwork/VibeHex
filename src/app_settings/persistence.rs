@@ -54,7 +54,7 @@ impl AppSettings {
     /// Launch stays available even when the data folder itself cannot be
     /// resolved. Invalid settings are recovered by `load_from` in place.
     pub(crate) fn load_for_launch() -> LaunchLoad {
-        match path().and_then(|path| Self::load_checked_from(&path)) {
+        match path().and_then(|path| Self::launch_from(&path)) {
             Ok((settings, issue)) => {
                 let note = match issue {
                     Some(LoadIssue::Unparseable(reason)) => {
@@ -74,6 +74,17 @@ impl AppSettings {
                 }
             }
         }
+    }
+
+    /// What launch reads from `path`, applied to this process before
+    /// anything starts. The listener reads the speech model, the shortcuts
+    /// and the microphone the moment it starts, ahead of the window's own
+    /// load; unapplied, it started on the default model, which an engine
+    /// unloaded at launch (Labs › Unload model when idle) then kept.
+    fn launch_from(path: &Path) -> Result<(Self, Option<LoadIssue>)> {
+        let loaded = Self::load_checked_from(path)?;
+        loaded.0.apply_runtime();
+        Ok(loaded)
     }
 
     pub(crate) fn load_from(path: &Path) -> Result<Self> {
