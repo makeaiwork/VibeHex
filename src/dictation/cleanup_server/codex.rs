@@ -226,8 +226,26 @@ pub fn model_name(id: &str) -> String {
     match (found, id.trim()) {
         (Some(model), _) => model.name.clone(),
         (None, "") => "Codex".into(),
-        (None, id) => id.into(),
+        (None, id) => named(id),
     }
+}
+
+/// A model Codex hasn't listed yet, named as it names its own: `gpt-6.1-sol`
+/// reads GPT-6.1-Sol, `o4-mini` O4-Mini.
+fn named(id: &str) -> String {
+    id.split('-')
+        .map(|part| match part {
+            "gpt" => "GPT".to_owned(),
+            part => {
+                let mut chars = part.chars();
+                chars
+                    .next()
+                    .map(|first| first.to_uppercase().chain(chars).collect())
+                    .unwrap_or_default()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("-")
 }
 
 /// Account, models, and plan usage, starting Codex if it isn't running.
@@ -1232,6 +1250,12 @@ mod tests {
             }
         }
         assert_eq!((started, done, words, ended), (3, 3, 1, 1));
+    }
+
+    #[test]
+    fn a_model_not_listed_yet_is_named_as_codex_names_its_own() {
+        assert_eq!(named("gpt-6.1-sol"), "GPT-6.1-Sol");
+        assert_eq!(named("o4-mini"), "O4-Mini");
     }
 
     #[test]
