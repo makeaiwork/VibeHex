@@ -2,18 +2,17 @@
 //! A new install (or an upgrade whose setup isn't ready) opens it at
 //! launch, and Run setup again and `hex onboarding reset` replay it. The
 //! window's tour ([`onboarding`](super::super::onboarding)) is the state
-//! machine underneath: it starts the model download, asks for the
+//! machine underneath: it asks for the model the person chose and for the
 //! permissions, relaunches when macOS needs it, watches the practice
 //! dictation, and records completion. This module shows the story's pages
 //! over the window and feeds them that real state each frame.
 //!
-//! When the Hugging Face cache holds a compatible model, the download page
-//! becomes the model step (`found_choice`): one list, Hex's recommended
-//! model first and selected, then the models found. Picking ours downloads
-//! it; picking a found one uses it in place, and the story moves on without
-//! a download. Back on the next pages returns to the list. Nothing found
-//! leaves the download page as it is, with the recommended model
-//! downloading by itself.
+//! A run with no model starts on the model step ([`choice`](super::choice)):
+//! nothing downloads until the person presses Download there. From then the
+//! story goes on (the demo, the permissions) while the model downloads
+//! under the pill at the top; only the practice waits for it. Back on those
+//! pages returns to the list, where the download can be cancelled and
+//! another model picked. "Continue without a model" is there from the start.
 
 use crate::desktop::i18n::tr;
 use std::sync::OnceLock;
@@ -22,18 +21,15 @@ use std::time::Instant;
 use rune::{El, TextEdit, Transition, Tx, text};
 
 use super::super::controls::Paint;
-use super::super::found_choice::{self, ChoiceRow};
 use super::super::paste_access::{self, PasteAccess};
 use super::super::platform::Os;
-use super::super::{Request, Ui, onboarding};
+use super::super::{Ui, onboarding};
+use super::choice::{self, Shown};
 use super::fixture::{Language, Speech};
-use super::pill::set_other_label;
 use super::stories::{FRAME, Flow, Onboard, Step, advance_to};
 use crate::desktop::onboarding::{
-    Input, ItemStatus, Practice, SetupItem, SetupStatus, Step as TourStep,
-};
-use crate::transcription::models::{
-    self as transcription_models, TranscriptionModelId, TranscriptionSelection,
+    Decision, Input, ItemStatus, Pick, Practice, Remembered, SetupItem, SetupStatus,
+    Step as TourStep, model_choice,
 };
 
 /// How long both permission checks show before the page moves on.
@@ -80,53 +76,40 @@ pub(crate) struct Live {
     /// The desktop's paste permission on GNOME and KDE Wayland: the
     /// permissions page explains it and asks before the practice pastes.
     pub(crate) paste: Option<PasteAccess>,
-    /// The model step: the models found on this computer, while it shows.
-    pub(crate) models: Vec<ChoiceRow>,
+    /// The model step as it shows, while the tour is open.
+    pub(crate) choice: Option<Shown>,
     /// Where the model step stands.
     pub(crate) model_step: ModelStep,
-    /// The pick is under way: ours downloading, or a found model ready.
-    pick_started: bool,
-    /// The scan for models on this computer hasn't answered yet.
-    scanning: bool,
+    /// The model step's language menu is open.
+    pub(crate) language_open: bool,
+    /// What the person started, by name, for the download pill.
+    pub(crate) download_name: Option<String>,
+    /// The picks already on this computer, as of the last look at the disk.
+    here: Vec<Pick>,
     pub(crate) practice: Practice,
-    /// The model and language this run downloads.
-    choice: TranscriptionSelection,
-    /// The other selection the language capsule switches to; `None` when
-    /// the system language recommends English.
-    alternate: Option<TranscriptionSelection>,
     granted_at: Option<f64>,
     checked: Option<Checked>,
     /// Dictation streams send their live words to the practice field.
     _live_words: crate::dictation::live_text::Demand,
 }
 
-/// The model step, shown only when the scan found a compatible model.
+/// The model step of a run that opened with no model.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum ModelStep {
-    /// Nothing found (or not looked yet): the download page as always.
+    /// A model was here when the run opened: there is nothing to choose.
     #[default]
     None,
-    /// The list shows and holds the story until Continue.
+    /// The list shows and holds the story until the person decides.
     Choosing,
-    /// Continued from the list; Back returns to it.
+    /// Decided: a model started, or the run goes on without one. Back
+    /// returns to the list.
     Chosen,
 }
 
 impl Live {
-    /// The story waits on the download page for the model step.
+    /// The story waits on the model step until the person decides.
     pub(crate) fn holds(&self) -> bool {
-        self.scanning
-            || match self.model_step {
-                ModelStep::None => false,
-                ModelStep::Choosing => true,
-                ModelStep::Chosen => !self.pick_started,
-            }
-    }
-
-    /// The language capsule switches languages only when the system
-    /// language recommends a model other than English.
-    pub(crate) fn switches_language(&self) -> bool {
-        self.alternate.is_some()
+        self.model_step == ModelStep::Choosing
     }
 }
 
@@ -134,7 +117,6 @@ impl Live {
 #[derive(Clone, Copy)]
 struct Checked {
     at: f64,
-    installed: bool,
     status: SetupStatus,
 }
 
@@ -172,70 +154,45 @@ fn granted(status: SetupStatus, paste: Option<PasteAccess>) -> bool {
         && paste.is_none_or(PasteAccess::settled)
 }
 
-fn english_language(selection: &TranscriptionSelection) -> bool {
-    selection.language == "en"
-}
-
-fn english_selection() -> TranscriptionSelection {
-    TranscriptionSelection {
-        model: TranscriptionModelId::ParakeetUnifiedEnglish,
-        language: "en".into(),
-    }
-}
-
-/// The other selection the language capsule offers: the model recommended
-/// for the person's language while English is selected, English otherwise.
-/// `None` when that recommendation is English too, so an English system has
-/// nothing to switch to.
-fn alternate_selection(
-    current: &TranscriptionSelection,
-    preferred: &str,
-) -> Option<TranscriptionSelection> {
-    if english_language(current) {
-        let recommended = transcription_models::recommended_selection(preferred);
-        (!english_language(&recommended)).then_some(recommended)
-    } else {
-        Some(english_selection())
-    }
-}
-
-fn installed(ui: &Ui, selection: &TranscriptionSelection) -> bool {
-    transcription_models::validate(selection)
-        .is_ok_and(|model| ui.picker.installed(model, &selection.language))
-}
-
 /// Opens the first run over the tour, at the tour's step: at launch when
 /// this run needs onboarding, and from Run setup again.
 pub(in crate::rune_ui) fn open(ui: &mut Ui) {
-    let Some(tour_step) = ui.tour.as_ref().map(|tour| tour.flow.step()) else {
+    let Some((tour_step, choice)) = ui
+        .tour
+        .as_ref()
+        .map(|tour| (tour.flow.step(), tour.flow.choice().clone()))
+    else {
         return;
     };
     if ui.first_run.is_some() {
         return;
     }
-    let choice = ui.settings.transcription.clone();
-    let wants = if english_language(&choice) {
+    let had_model = ui.picker.selected_installed(&ui.settings);
+    let status = ui.platform.setup_status(had_model);
+    let granted = granted(status, ui.platform.paste);
+    // A run that goes on without a model, with nothing left to allow, is
+    // over: the launch after macOS's own restart lands here.
+    if !had_model && choice.without() && granted {
+        return finish_without_model(ui);
+    }
+    // Until the person decides, the run starts on the model step, whatever
+    // step an earlier launch reached.
+    let model_step = match choice.decision() {
+        _ if had_model => ModelStep::None,
+        Decision::Undecided => ModelStep::Choosing,
+        Decision::Started(_) | Decision::Without => ModelStep::Chosen,
+    };
+
+    let mut s = Onboard::new(Flow::FirstRun);
+    s.speech = Speech::AfterDownload;
+    s.wants = if choice.language() == "en" {
         Language::English
     } else {
         Language::Other
     };
-    let alternate = alternate_selection(&choice, &ui.preferred_language());
-    let other = if english_language(&choice) {
-        alternate.as_ref()
-    } else {
-        Some(&choice)
-    };
-    // Replaces the previous run's label; an English-only run clears it.
-    set_other_label(other.map(|other| transcription_models::language_name(&other.language)));
-    let had_model = installed(ui, &choice);
-    let status = ui.platform.setup_status(had_model);
-    let granted = granted(status, ui.platform.paste);
-
-    let mut s = Onboard::new(Flow::FirstRun);
-    s.speech = Speech::AfterDownload;
-    s.wants = wants;
     s.caps = ui.settings.dictation_hotkey.keycaps();
-    s.had_model = had_model;
+    // Without a model there is no download to show either.
+    s.had_model = had_model || choice.without();
     s.granted = granted;
     s.home = match ui.platform.caps.os {
         Os::Macos => super::landing::Home::MenuBar,
@@ -259,13 +216,12 @@ pub(in crate::rune_ui) fn open(ui: &mut Ui) {
         reopen: false,
         relaunch_failed: false,
         paste: ui.platform.paste,
-        models: Vec::new(),
-        model_step: ModelStep::None,
-        pick_started: false,
-        scanning: false,
+        choice: None,
+        model_step,
+        language_open: false,
+        download_name: None,
+        here: Vec::new(),
         practice: Practice::Waiting,
-        choice,
-        alternate,
         granted_at: None,
         checked: None,
         _live_words: crate::dictation::live_text::demand(),
@@ -273,6 +229,7 @@ pub(in crate::rune_ui) fn open(ui: &mut Ui) {
     let now = clock(ui);
     s.now = now;
     match tour_step {
+        _ if model_step == ModelStep::Choosing => s.begin_live(now),
         TourStep::Welcome => s.begin_live(now),
         TourStep::Setup => s.jump_to_permissions(),
         TourStep::TryIt if had_model => s.jump_to_try(),
@@ -290,7 +247,7 @@ pub(in crate::rune_ui) fn open(ui: &mut Ui) {
 /// A page of the first run, for scenes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::rune_ui) enum Page {
-    /// `"Setting up Hex"`, or the model step when models were found.
+    /// The model step: `"Choose a speech model"`.
     Download,
     /// The demo, finished: `"Twice as fast"` and Continue.
     Demo,
@@ -389,6 +346,20 @@ pub(crate) fn restart(ui: &mut Ui, tx: &mut Tx) -> Result<(), String> {
     Ok(())
 }
 
+/// The model step's rows and what is on this computer, as of now: a press
+/// on the step shows at once, without waiting for the next look at the disk.
+pub(in crate::rune_ui) fn refresh_choice(ui: &mut Ui) {
+    let Some(view) = ui.tour.as_ref().map(|tour| tour.flow.view()) else {
+        return;
+    };
+    let here = choice::here(ui, &view.choice);
+    let shown = choice::shown(ui, &view, &here);
+    if let Some(live) = ui.first_run.as_mut().and_then(|s| s.live.as_mut()) {
+        live.here = here;
+        live.choice = Some(shown);
+    }
+}
+
 /// Feeds the first run fresh state and moves it on; true while it shows.
 pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     if ui.first_run.is_none() {
@@ -397,34 +368,26 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     let now = clock(ui);
     let view = ui.tour.as_ref().map(|tour| tour.flow.view());
     let tour_model = view.as_ref().map_or(ItemStatus::Todo, |view| view.model);
-    let offered = found_choice::offered(ui, tour_model);
-    let models = if offered {
-        found_choice::rows(ui, tour_model)
-    } else {
-        Vec::new()
-    };
-    let started = found_choice::started(ui, tour_model);
-    let scanning = ui.found.scanning();
-    let caps = ui.settings.dictation_hotkey.keycaps();
-    let Some(choice) = ui
-        .first_run
+    let decision = view
         .as_ref()
-        .and_then(|s| s.live.as_ref())
-        .map(|live| live.choice.clone())
-    else {
-        return false;
-    };
-    let model = transcription_models::validate(&choice).ok();
+        .map_or(Decision::Undecided, |view| view.choice.decision());
+    let started = matches!(decision, Decision::Started(_));
+    // What the person started: its name on the pill, its bytes in it.
+    let model = view
+        .as_ref()
+        .and_then(|view| choice::started_model(ui, &view.choice));
+    let download_name = view
+        .as_ref()
+        .and_then(|view| choice::started_name(ui, &view.choice));
+    let caps = ui.settings.dictation_hotkey.keycaps();
     let warming = ui.view.as_ref().is_some_and(|view| view.listener.warming);
-    let (preparing, downloaded_bytes, errored) =
-        ui.view.as_ref().map_or((false, 0, false), |view| {
-            let t = &view.transcription;
-            (
-                model.is_some_and(|m| t.preparing == Some(m.id)),
-                t.downloaded_bytes,
-                t.error.is_some(),
-            )
-        });
+    let (preparing, downloaded_bytes) = ui.view.as_ref().map_or((false, 0), |view| {
+        let t = &view.transcription;
+        (
+            started && model.is_some_and(|m| t.preparing == Some(m.id)),
+            t.downloaded_bytes,
+        )
+    });
     let failure = super::super::model_import::download_failure(ui);
     let using_file = super::super::model_import::using_file(ui);
     // The disk and macOS checks run a few times a second, not every frame.
@@ -435,23 +398,30 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         .and_then(|live| live.checked)
         // A fixture's clock stands still, so it looks every time.
         .filter(|checked| !ui.is_fixture() && now - checked.at < CHECK_EVERY);
-    let checked = match checked {
-        Some(checked) => checked,
+    let (checked, here) = match checked {
+        Some(checked) => (checked, None),
         None => {
-            let installed = installed(ui, &choice);
-            Checked {
-                at: now,
-                installed,
-                status: ui.platform.setup_status(installed),
-            }
+            let installed = ui.picker.selected_installed(&ui.settings);
+            (
+                Checked {
+                    at: now,
+                    status: ui.platform.setup_status(installed),
+                },
+                view.as_ref().map(|view| choice::here(ui, &view.choice)),
+            )
         }
     };
-    // A model picked from the list is the one Hex uses, whatever the
-    // language capsule last chose.
-    let (choice_installed, status) = (
-        checked.installed || tour_model == ItemStatus::Ready,
-        checked.status,
-    );
+    let here = here.or_else(|| {
+        ui.first_run
+            .as_ref()
+            .and_then(|s| s.live.as_ref())
+            .map(|live| live.here.clone())
+    });
+    let shown = view
+        .as_ref()
+        .map(|view| choice::shown(ui, view, here.as_deref().unwrap_or_default()));
+    let ready = tour_model == ItemStatus::Ready;
+    let status = checked.status;
     // Setup that is already ready never moves the tour past it by itself,
     // and the tour watches the practice dictation only once it has.
     if status.ready()
@@ -499,24 +469,10 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         live.practice = view.practice;
     }
 
-    // The model step: shown on the download page once the scan found
-    // something, and held there until Continue.
-    live.models = models;
-    live.pick_started = started;
-    live.scanning = scanning;
-    let downloading_page = matches!(s.step, Step::Pick | Step::Started);
-    match live.model_step {
-        ModelStep::None if offered && downloading_page => live.model_step = ModelStep::Choosing,
-        ModelStep::Choosing if !offered => live.model_step = ModelStep::None,
-        // A pick that failed asks again.
-        ModelStep::Chosen if downloading_page && tour_model == ItemStatus::Failed => {
-            live.model_step = ModelStep::Choosing;
-        }
-        _ => {}
-    }
-    if live.model_step == ModelStep::Chosen && downloading_page {
-        // A model already on this computer needs no download pill.
-        s.had_model = tour_model == ItemStatus::Ready;
+    live.choice = shown;
+    live.download_name = download_name;
+    if let Some(here) = here {
+        live.here = here;
     }
     let granted = granted(status, paste);
     if granted {
@@ -525,10 +481,17 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         live.granted_at = None;
     }
     live.listening = live.practice == Practice::Listening;
+    // A run without a model is over once nothing is left to allow.
+    if decision == Decision::Without && live.granted_for(now) {
+        finish_without_model(ui);
+        return false;
+    }
 
-    // The model download.
-    live.failed = !choice_installed && !preparing && (errored || failure.is_some());
-    live.progress = (preparing && !choice_installed).then_some(match live.progress {
+    // The download the person started; until they start one there is none
+    // to fail or stall.
+    live.failed =
+        started && !ready && !preparing && (tour_model == ItemStatus::Failed || failure.is_some());
+    live.progress = (preparing && !ready).then_some(match live.progress {
         Some((bytes, since)) if bytes == downloaded_bytes => (bytes, since),
         _ => (downloaded_bytes, now),
     });
@@ -543,10 +506,12 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         if let Some(total) = model.and_then(|m| m.download_bytes()) {
             download.total = total;
         }
-        if choice_installed {
+        if ready {
             download.downloaded = download.total;
         } else if preparing {
             download.downloaded = downloaded_bytes.min(download.total.saturating_sub(1));
+        } else if !started {
+            download.downloaded = 0;
         }
     }
 
@@ -559,18 +524,30 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     true
 }
 
-/// The first run over the whole window, while it shows.
-pub(in crate::rune_ui) fn overlay(ui: &Ui, p: Paint, reduced: bool) -> Option<El> {
-    let s = ui.first_run.as_ref()?;
+/// The first run over the whole window, while it shows, and the model
+/// step's open language menu above it.
+pub(in crate::rune_ui) fn overlay(ui: &Ui, p: Paint, reduced: bool, layer: &mut Vec<El>) {
+    let Some(s) = ui.first_run.as_ref() else {
+        return;
+    };
     s.reduced.set(reduced);
-    Some(
+    layer.push(
         super::flows::view(p, s)
             .key("first-run")
             .role("dialog")
             .label(tr("Setting up VibeHex"))
             .absolute(0.0, 0.0)
             .on_press(|_: &mut Ui| {}),
-    )
+    );
+    if matches!(s.step, Step::Pick | Step::Started) {
+        choice::language_menu(p, s, layer);
+    }
+    // "All models…" opens the picker above the model step.
+    layer.extend(
+        super::super::picker::over_first_run(ui, p)
+            .into_iter()
+            .flatten(),
+    );
 }
 
 /// A story handler run on the window's first run.
@@ -590,108 +567,131 @@ pub(super) fn press_continue(ui: &mut Ui) {
 
 /// Skip on the demo or the practice: passes over that part to the next
 /// step setup still needs. It never records completion; only Hex is ready
-/// (or Continue without a model) does.
+/// (or Continue without a model) does. On `"Almost ready"` it passes over
+/// the practice that waits for the model: the run ends, and the model goes
+/// on downloading behind Settings.
 pub(in crate::rune_ui) fn skip(ui: &mut Ui) {
+    if ui
+        .first_run
+        .as_ref()
+        .is_some_and(|s| s.step == Step::Waiting)
+    {
+        return finish(ui);
+    }
     if let Some(s) = ui.first_run.as_mut() {
         s.skip_optional();
     }
 }
 
-/// "Continue without a model", once the download failed or stalled (#894):
-/// onboarding finishes with no model, and Settings says so with Download
-/// and Add model file…. Only offered once every permission is ready.
+/// "Continue without a model": on the model step from the start, and where
+/// a download failed or stalled (#894). Whatever was downloading stops, the
+/// dictation language chosen here is saved, the permissions are still asked
+/// for, and onboarding finishes with no model; Settings says so with
+/// Download and Add model file….
 pub(in crate::rune_ui) fn continue_without_model(ui: &mut Ui) {
-    let offered = ui
-        .first_run
-        .as_ref()
-        .is_some_and(|s| s.granted && s.live.as_ref().is_some_and(Live::model_blocked));
+    let Some(s) = ui.first_run.as_ref() else {
+        return;
+    };
+    let offered = s.live.as_ref().is_some_and(|live| {
+        live.model_blocked()
+            || (live.model_step != ModelStep::None && matches!(s.step, Step::Pick | Step::Started))
+    });
     if !offered {
         return;
     }
-    if ui.live()
-        && !crate::desktop::onboarding::completion_recorded()
-        && let Err(error) = crate::desktop::onboarding::record_completion()
-    {
-        tracing::warn!(%error, "could not record onboarding completion");
+    let granted = s.granted;
+    // The language chosen here is kept for Settings and the picker.
+    onboarding::keep_language(ui);
+    onboarding::input(ui, Input::WithoutModel);
+    if granted {
+        return finish_without_model(ui);
     }
-    ui.first_run = None;
-    ui.tour = None;
-}
-
-/// "Start using Hex": closes the first run and the tour under it.
-pub(super) fn finish(ui: &mut Ui) {
-    let installed = ui.picker.selected_installed(&ui.settings);
-    if ui.live()
-        && ui.platform.setup_status(installed).ready()
-        && !crate::desktop::onboarding::completion_recorded()
-        && let Err(error) = crate::desktop::onboarding::record_completion()
-    {
-        tracing::warn!(%error, "could not record onboarding completion");
-    }
-    ui.first_run = None;
-    ui.tour = None;
-}
-
-fn choose(ui: &mut Ui, selection: &TranscriptionSelection) {
-    if transcription_models::validate(selection).is_ok() {
-        ui.send(Request::ChooseModel {
-            model: selection.model,
-            language: selection.language.clone(),
-        });
-    }
-}
-
-pub(super) fn cycle_language(ui: &mut Ui) {
-    let Some(s) = ui.first_run.as_mut() else {
-        return;
-    };
-    let Some(next) = s.live.as_ref().and_then(|live| live.alternate.clone()) else {
-        return;
-    };
-    s.cycle_language();
-    let Some(live) = s.live.as_mut() else {
-        return;
-    };
-    live.alternate = Some(std::mem::replace(&mut live.choice, next));
-    live.failed = false;
-    live.stalled = false;
-    live.progress = None;
-    live.checked = None;
-    let choice = live.choice.clone();
-    choose(ui, &choice);
-}
-
-/// Picks row `index` of the model step's list and starts it.
-pub(super) fn pick_model(index: usize) -> impl Fn(&mut Ui) + 'static {
-    move |ui: &mut Ui| found_choice::pick(ui, index)
-}
-
-/// Continue on the model step: starts the selected row if none was picked,
-/// and the story moves on once the pick is under way.
-pub(in crate::rune_ui) fn continue_model(ui: &mut Ui) {
-    let model = ui
-        .tour
-        .as_ref()
-        .map_or(ItemStatus::Todo, |tour| tour.flow.view().model);
-    if found_choice::pending(ui, model) {
-        found_choice::start_selected(ui);
-    }
-    if let Some(live) = ui.first_run.as_mut().and_then(|s| s.live.as_mut()) {
-        live.model_step = ModelStep::Chosen;
+    // macOS may restart Hex for a permission: the next launch goes on
+    // without a model too.
+    if ui.live() {
+        model_choice::remember(&Remembered::Without);
     }
     if let Some(s) = ui.first_run.as_mut() {
+        s.had_model = true;
+        if let Some(live) = s.live.as_mut() {
+            live.model_step = ModelStep::Chosen;
+            live.language_open = false;
+        }
+        s.jump_to_permissions();
+    }
+}
+
+/// Onboarding is over with no model, by the person's choice.
+fn finish_without_model(ui: &mut Ui) {
+    if ui.live() {
+        model_choice::forget();
+        if !crate::desktop::onboarding::completion_recorded()
+            && let Err(error) = crate::desktop::onboarding::record_completion()
+        {
+            tracing::warn!(%error, "could not record onboarding completion");
+        }
+    }
+    ui.first_run = None;
+    ui.tour = None;
+}
+
+/// "Start using Hex" (and Skip on `"Almost ready"`): closes the first run
+/// and the tour under it. Setup counts as finished with the permissions
+/// ready and the model here or on its way; a download still running goes
+/// on, and a launch that interrupts it resumes it.
+pub(super) fn finish(ui: &mut Ui) {
+    let installed = ui.picker.selected_installed(&ui.settings);
+    let on_its_way = ui.tour.as_ref().is_some_and(|tour| {
+        tour.flow.choice().started().is_some() && tour.flow.view().model != ItemStatus::Failed
+    });
+    if ui.live()
+        && ui.platform.setup_status(installed || on_its_way).ready()
+        && !crate::desktop::onboarding::completion_recorded()
+        && let Err(error) = crate::desktop::onboarding::record_completion()
+    {
+        tracing::warn!(%error, "could not record onboarding completion");
+    }
+    ui.first_run = None;
+    ui.tour = None;
+}
+
+/// The person decided on the model step: the story goes on, with the
+/// download pill unless the model was already `here`.
+pub(super) fn model_chosen(ui: &mut Ui, here: bool) {
+    if let Some(s) = ui.first_run.as_mut() {
+        s.had_model = here;
+        if let Some(live) = s.live.as_mut() {
+            live.model_step = ModelStep::Chosen;
+            live.language_open = false;
+            live.failed = false;
+            live.stalled = false;
+            live.progress = None;
+        }
         s.move_on();
     }
 }
 
-/// Back to the model step, to change the pick.
-pub(super) fn back_to_models(ui: &mut Ui) {
+/// Back to the model step, to change the pick. What was started goes on
+/// until it is cancelled or replaced there; a run without a model is
+/// undecided again.
+pub(in crate::rune_ui) fn back_to_models(ui: &mut Ui) {
+    let without = ui
+        .tour
+        .as_ref()
+        .is_some_and(|tour| tour.flow.choice().without());
+    if without {
+        onboarding::input(ui, Input::CancelModel);
+        if ui.live() {
+            model_choice::forget();
+        }
+    }
     if let Some(s) = ui.first_run.as_mut() {
         s.back_to_download();
         if let Some(live) = s.live.as_mut() {
             live.model_step = ModelStep::Choosing;
         }
     }
+    refresh_choice(ui);
 }
 
 /// "Reopen Hex" once the listener failed and Hex won't relaunch itself.
@@ -705,6 +705,7 @@ pub(super) fn use_file(ui: &mut Ui) {
     super::super::model_import::use_file(ui);
 }
 
+/// "Try again" where the download failed: the person's pick starts again.
 pub(super) fn retry_download(ui: &mut Ui) {
     let Some(live) = ui.first_run.as_mut().and_then(|s| s.live.as_mut()) else {
         return;
@@ -712,8 +713,7 @@ pub(super) fn retry_download(ui: &mut Ui) {
     live.failed = false;
     live.stalled = false;
     live.progress = None;
-    let choice = live.choice.clone();
-    choose(ui, &choice);
+    onboarding::input(ui, Input::Grant(SetupItem::Model));
 }
 
 /// Allow on a permission row.
@@ -781,71 +781,4 @@ pub(super) fn hint(p: Paint, live: &Live) -> Option<El> {
             .color(p.muted())
             .transition(Transition::opacity()),
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn selection(model: TranscriptionModelId, language: &str) -> TranscriptionSelection {
-        TranscriptionSelection {
-            model,
-            language: language.into(),
-        }
-    }
-
-    #[test]
-    fn the_language_switch_follows_the_system_language() {
-        let english = english_selection();
-        assert_eq!(
-            alternate_selection(&english, "en"),
-            None,
-            "an English system has no other language"
-        );
-
-        for model in [
-            TranscriptionModelId::CohereTranscribe,
-            TranscriptionModelId::WhisperLargeV3Turbo,
-            TranscriptionModelId::ParakeetV3,
-        ] {
-            let current = selection(model, "en");
-            assert_eq!(
-                alternate_selection(&current, "en"),
-                None,
-                "{model:?} is English on an English system"
-            );
-            assert_eq!(
-                alternate_selection(&current, "fr"),
-                Some(transcription_models::recommended_selection("fr")),
-                "{model:?} still switches to the system's French recommendation"
-            );
-        }
-
-        for language in ["fr", "de"] {
-            let alternate =
-                alternate_selection(&english, language).expect("a v3-supported alternate");
-            assert_eq!(
-                alternate,
-                transcription_models::recommended_selection(language),
-                "{language} gets its own recommendation"
-            );
-            assert_eq!(alternate.model, TranscriptionModelId::ParakeetV3);
-            assert_eq!(alternate.language, language);
-        }
-
-        let japanese = alternate_selection(&english, "ja").expect("a Japanese alternate");
-        assert_eq!(
-            japanese,
-            transcription_models::recommended_selection("ja"),
-            "Japanese gets its own recommendation, not French"
-        );
-        assert_eq!(japanese.language, "ja");
-        assert_eq!(japanese.model, TranscriptionModelId::WhisperLargeV3Turbo);
-
-        assert_eq!(
-            alternate_selection(&japanese, "ja"),
-            Some(english),
-            "a non-English selection switches back to English"
-        );
-    }
 }

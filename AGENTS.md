@@ -126,6 +126,9 @@ runtime settings persist in Application Support.
 Every build shows General, Output, History, and Labs. Labs holds features
 we're unsure about, especially ones people asked for that we built: **new or
 user-requested features land in Labs, off by default, not on by default.**
+Named exception: the first run's model choice (onboarding's model step) is
+the default on every OS, not a lab, because it replaces a download that
+started without asking, and a Labs switch would keep that fault as the default.
 Labs has no master switch; Settings › Labs lists every lab this OS has as a
 card (name, description, toggle), each off by default, under one collapsible
 header per group (Dictation, Output, History, Meetings, Annotate, Shortcuts,
@@ -961,25 +964,46 @@ CoreAudio formats, AppleScript details, or event serialization.
   (resumed at its saved step), or an upgrader from 2.3.1 or earlier whose
   setup isn't ready (#475). Run setup again (Labs) and `hex onboarding reset`
   replay it from the start on every build. Start using Hex records completion
-  only once setup is ready. A quiet Skip shows only on the optional pages,
-  the demo and the practice: it passes over that part to the next step setup
-  still needs (permissions, then the model), else Hex is ready, and never
-  records completion. Permissions, the model step and download, and the paste
-  permission have no Skip. The one way past a model that can't be had (#894)
-  is Continue without a model, shown on the download step only once every
-  permission is ready and the download failed or stalled (30 s without
-  bytes); it records completion, and Settings › General then says no model
-  is installed, with Download and Add model file….
-- Onboarding shows its model step only when the scan found a compatible
-  model; otherwise Setting up Hex is unchanged and the recommended model
-  downloads by itself. The step is one card of radio rows with no buttons or
-  file details: Hex's recommended model first and selected (its exact copy on
-  this computer is that same row), then the found files. Picking a row starts
-  it, and Continue starts the selected row and moves on once the pick is
-  under way; a found pick shows no download page or pill. The tour's own
-  download is held while the scan runs and until a pick, and only through
-  setup. Back on the pages after the step returns to it. A found model is
-  never picked for the person.
+  only once the permissions are ready and the model is here or on its way.
+  A quiet Skip shows only on the pages setup doesn't need, the demo, the
+  practice, and Almost ready: it passes over that part to the next step setup
+  still needs (permissions, then the model), else Hex is ready, and on the
+  demo and the practice never records completion; on Almost ready, which
+  only the practice needs, it ends onboarding with the download going on.
+  Permissions, the model step, a failed download, and the paste permission
+  have no Skip.
+- The first run never downloads a speech model by itself. A run that opens
+  with no model starts on the model step (`rune_ui/onboarding_kit/choice.rs`
+  over `desktop::onboarding::ModelChoice`): the dictation language,
+  preselected from the system's and changeable there; the first three models
+  the picker lists for it (`onboarding::model_choice::offers`), the
+  recommended one first and selected, each with the picker's badge, line, and
+  size; for Russian, Orukeet after them with no badge (`ALSO_OFFERED`: the
+  owner's choice for Russian with English terms, not a measurement, so
+  Orukeet stays never recommended and its line claims no accuracy); the
+  compatible files found on this computer that speak it; All models… (the
+  picker, where a model is only chosen for the step and Download there
+  starts it); one main button for the selected row; and Continue without a
+  model, from the start. A preselection (`default_transcription`)
+  is neither a download nor the person's choice: until Download (or Use this
+  model) is pressed, nothing asks the service for a model and nothing in the
+  first run behaves as if one were chosen. Its lines say only what the
+  catalog knows; never add a claim about a model that the catalog can't back.
+- Once a model is started the story goes on (the demo, the permissions) with
+  the download's pill on top, and only the practice waits for it. Back
+  returns to the list, where × on the downloading row cancels it and Download
+  on another row replaces it; a stopped download is only a `.partial`, never
+  an installed model. The decision is remembered in `onboarding-model` until
+  its model is installed, so an interrupted run goes on with it, and the
+  saved selection changes only when the service has the model ready.
+  Continue without a model stops any download, keeps the dictation language
+  chosen on the step (with no model here the saved preselection becomes that
+  language's recommended model, so the pair stays valid; settings.json only,
+  no download), still asks for the permissions, records completion, and
+  Settings › General then says no model is installed, with Download and Add
+  model file…; it also shows on Almost
+  ready once the download failed or stalled (30 s without bytes) with every
+  permission ready (#894). A found model is never picked for the person.
 - The menu-bar model picker lists only downloaded, available models and remembers
   each model's last selected language. It works without a
   Settings window. Settings and the menu bar share one preparation owner; a newer
@@ -1793,13 +1817,16 @@ hooks or persist a second launch-at-login flag.
 Onboarding gates every stable release. Before any stable release, run
 `scripts/check-onboarding.sh` on the release candidate commit and include its
 result, with the scene images it writes, in the go/no-go given to Dax. It
-renders every onboarding scene (Setting up Hex with nothing found, a stopped
-download, the model step with found models, with the recommended model already
-present, ours downloading, and Back to it, the demo, the macOS permissions and
+renders every onboarding scene (the model step as it opens, with Russian
+chosen, in Russian and German, downloading, and failed, a stopped download,
+Settings after Continue without a model, the model step with found models,
+with the recommended model already present, ours downloading, and Back to it,
+the demo, the macOS permissions and
 Windows' microphone switch, Almost ready, the practice game, Hex is ready) in
 both appearances against the approved goldens, and walks a first run through
-the real onboarding in a clean temporary data folder until a model is
-downloaded and it reaches Hex is ready. Any unexpected
+the real onboarding in a clean temporary data folder: nothing downloads until
+Download is pressed, then the model picked is downloaded and it reaches Hex
+is ready. Any unexpected
 visual or flow change blocks the release; an intentional change refreshes the
 goldens in its own PR. It runs on Linux, like every golden; the macOS and
 Windows scenes are fixtures of the same window and render there too, but

@@ -4,10 +4,13 @@
 # golden: the macOS and Windows scenes are the same window drawn from
 # fixtures, so they render here too.
 #
-#   1. Renders every onboarding scene (Setting up Hex with nothing found, a
-#      stopped download, Settings after Continue without a model, the model step with found models, with the
-#      recommended model already present, ours downloading, Back to it, the
-#      demo, permissions, Windows' microphone switch, the paste permission on
+#   1. Renders every onboarding scene (the model step as it opens with
+#      nothing downloading, with Russian chosen, in Russian and in German,
+#      with the pick downloading and failed, a stopped download where the
+#      practice waits, Settings after Continue without a model, the model
+#      step with found models, with the recommended model already present,
+#      ours downloading, Back to it, the demo while the model downloads,
+#      permissions, Windows' microphone switch, the paste permission on
 #      GNOME and KDE Wayland, Almost ready, the
 #      practice game, Hex is ready) in both
 #      appearances and compares each with its approved golden in
@@ -16,15 +19,19 @@
 #      (HEX_UPDATE_GOLDENS=1 cargo test --bin hex onboarding_goldens). A GPU
 #      adapter is required (Mesa's lavapipe will do), so the check never
 #      passes by skipping.
-#   2. Checks Skip: it shows only on the optional pages (the demo and the
-#      practice) and lands on the next step setup still needs (permissions,
-#      then Almost ready while the model downloads, else Hex is ready),
-#      never closing onboarding. Then Continue without a model: it shows only
-#      on the download step once the download failed or stalled, finishes
-#      onboarding, and Settings says no model is installed.
+#   2. Checks Skip: it shows only on the pages setup doesn't need (the demo,
+#      the practice, and Almost ready while the model downloads) and lands
+#      on the next step setup still needs (permissions, then Almost ready
+#      while the model downloads, else Hex is ready); only on Almost ready
+#      does it close onboarding, with the download going on. Then Continue
+#      without a model: it shows on the model step from the start and where
+#      a download failed or stalled, downloads nothing (stopping what was
+#      downloading), still asks for the permissions, finishes onboarding,
+#      and Settings says no model is installed.
 #   3. Walks a first run through the real onboarding in a clean temporary
 #      data folder (fresh settings, no models, an empty Hugging Face cache, an
-#      English locale): it downloads and verifies the model onboarding picks,
+#      English locale): nothing downloads until Download is pressed on the
+#      model step, then it downloads and verifies the model picked there,
 #      plays the practice game, and reaches Hex is ready.
 #
 #   scripts/check-onboarding.sh [<out-dir>]   (default target/onboarding-check)
@@ -73,7 +80,7 @@ if [ "$rendered" != "$expected" ]; then
 fi
 changed=$(grep -oE '^[a-z0-9-]+: [0-9]+ pixels differ|rune-[a-z0-9-]+\.png is missing' "$work/goldens.log" || true)
 
-echo "== Skip only on the optional pages"
+echo "== Skip only on the pages setup doesn't need"
 if ! run_one "$work/skip.log" rune_ui::tests::onboarding_check::onboarding_skip; then
   skip=fail status=1
 fi
@@ -100,8 +107,8 @@ fi
     echo "- Changed scenes:"
     printf '%s\n' "$changed" | sed 's/^/  - /'
   fi
-  echo "- Skip only on the demo and practice, to the next required step: $skip"
-  echo "- Continue without a model, only after a failed or stalled download: $without_model"
+  echo "- Skip only on the demo, the practice and the wait for the model, to the next required step: $skip"
+  echo "- Continue without a model, from the start and after a failed or stalled download: $without_model"
   echo "- First run in a clean data folder: $walkthrough"
   grep -h '^onboarding walkthrough:' "$work/walkthrough.log" | sed 's/^/  - /' || true
 } > "$out/summary.md"

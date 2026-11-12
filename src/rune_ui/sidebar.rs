@@ -108,6 +108,28 @@ pub(super) enum Pane {
     Assistant,
 }
 
+/// The open pane's actions for its title bar, and its body.
+pub(super) fn body(ui: &Ui, p: Paint, reduced: bool, layer: &mut Vec<El>) -> (Vec<El>, El) {
+    match ui.pane {
+        _ if ui.labs_open => (vec![labs::tabs(ui, p)], labs::page(ui, p)),
+        Pane::General => (Vec::new(), general::pane(ui, p, layer)),
+        Pane::Output => (Vec::new(), output::pane(ui, p, reduced, layer)),
+        Pane::Modes => modes::pane(ui, p, layer),
+        Pane::History => history::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Captures => (Vec::new(), captures::pane(ui, p)),
+        Pane::Meetings => meetings::pane(ui, p, layer),
+        Pane::Files => files::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, layer)),
+        Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
+        Pane::HudLab => hud_lab::pane(ui, p),
+        Pane::Activity => activity::pane(ui, p),
+        Pane::About => (Vec::new(), about::pane(ui, p)),
+        Pane::Assistant => assistant::pane(ui, p, reduced, layer),
+    }
+}
+
 impl Pane {
     #[cfg(all(test, target_os = "linux"))]
     pub(super) const ALL: &[Pane] = &[

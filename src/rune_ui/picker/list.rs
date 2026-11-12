@@ -394,6 +394,7 @@ mod tests {
                 recommendation,
                 supports: def.supports_language(language),
                 state: State::NotDownloaded,
+                picks: false,
             })
             .collect()
     }

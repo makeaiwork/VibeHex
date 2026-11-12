@@ -21,8 +21,9 @@ in languages, speed, size, and accuracy, so you choose.
 The language is the **Language** row below. A model that doesn't speak it says
 that choosing it switches the language to one it does speak (English, or its
 own, such as Russian for GigaAM v3 and Norwegian for NB-Whisper Medium).
-A new install starts with the model recommended for your system's language
-(Parakeet Unified English for English, GigaAM v3 for Russian).
+A new install asks first: setup's first page lists the models for your
+language, the recommended one selected (Parakeet Unified English for English,
+GigaAM v3 for Russian), and downloads nothing until you press Download.
 
 ## Models you can pick
 

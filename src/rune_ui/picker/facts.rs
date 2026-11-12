@@ -51,6 +51,9 @@ pub(super) struct Entry {
     pub(super) recommendation: Option<Recommendation>,
     pub(super) supports: bool,
     pub(super) state: State,
+    /// Opened from the first run's model step: choosing only selects the
+    /// model there, so its action says Choose.
+    pub(super) picks: bool,
 }
 
 impl Entry {
@@ -72,6 +75,7 @@ pub(super) fn entries(ui: &Ui, language: &str, models: &[PickerModel]) -> Vec<En
             recommendation: picker::shown_recommendation(recommendation, def, language, details),
             supports: def.supports_language(language),
             state: state(ui, def, language),
+            picks: ui.picker.setup_language.is_some(),
         })
         .collect()
 }
@@ -198,7 +202,7 @@ pub(super) fn reads_vocabulary(ui: &Ui, def: &ModelDefinition) -> bool {
 }
 
 /// The download's size, or who keeps the model when Hex downloads none.
-pub(super) fn size_text(def: &ModelDefinition) -> String {
+pub(in crate::rune_ui) fn size_text(def: &ModelDefinition) -> String {
     match def.runtime {
         ModelRuntime::AppleSpeech => tr("Managed by macOS").into(),
         ModelRuntime::Gguf(_) => def.size_label(),
@@ -211,7 +215,7 @@ fn downloads(entry: &Entry) -> bool {
 }
 
 /// One plain line on why you'd pick it.
-pub(super) fn blurb(def: &ModelDefinition) -> &'static str {
+pub(in crate::rune_ui) fn blurb(def: &ModelDefinition) -> &'static str {
     use TranscriptionModelId as M;
     match def.id {
         M::ParakeetUnifiedEnglish => {
@@ -240,12 +244,21 @@ pub(super) fn blurb(def: &ModelDefinition) -> &'static str {
 
 /// A list row's recommendation, and whether it is the one to read first.
 pub(super) fn list_role(entry: &Entry) -> Option<(&'static str, bool)> {
-    Some(match entry.recommendation? {
-        Recommendation::Recommended => (tr("Recommended"), true),
-        Recommendation::MostAccurate => (tr("Fewest wrong words"), false),
-        Recommendation::Fastest => (tr("Fastest"), false),
-        Recommendation::Vocabulary => (tr("Reads your vocabulary"), false),
-    })
+    let recommendation = entry.recommendation?;
+    Some((
+        recommendation_label(recommendation),
+        recommendation == Recommendation::Recommended,
+    ))
+}
+
+/// The badge a recommendation shows, here and on the first run's model step.
+pub(in crate::rune_ui) fn recommendation_label(recommendation: Recommendation) -> &'static str {
+    match recommendation {
+        Recommendation::Recommended => tr("Recommended"),
+        Recommendation::MostAccurate => tr("Fewest wrong words"),
+        Recommendation::Fastest => tr("Fastest"),
+        Recommendation::Vocabulary => tr("Reads your vocabulary"),
+    }
 }
 
 /// What a model is best at among `others`, for its eyebrow, with the key
@@ -411,7 +424,9 @@ pub(super) fn progress_line(p: Paint, entry: &Entry) -> El {
 /// the compare columns.
 pub(super) fn choose_button(p: Paint, entry: &Entry, primary: bool) -> El {
     let def = entry.def;
-    let label = if downloads(entry) {
+    let label = if entry.picks {
+        tr("Choose").into()
+    } else if downloads(entry) {
         tr_fill("Download {}", &def.size_label())
     } else {
         tr("Use").into()
@@ -432,8 +447,8 @@ pub(super) fn choose_button(p: Paint, entry: &Entry, primary: bool) -> El {
 /// The list's quieter Use or download action, at row size.
 pub(super) fn row_choose_button(p: Paint, entry: &Entry) -> El {
     let def = entry.def;
-    if !downloads(entry) {
-        return Button::new(tr("Use"))
+    if entry.picks || !downloads(entry) {
+        return Button::new(if entry.picks { tr("Choose") } else { tr("Use") })
             .variant(ButtonVariant::Neutral)
             .on_press_tx(move |ui: &mut Ui, _| choose(ui, def))
             .build_small_push(p.k)
