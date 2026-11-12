@@ -63,25 +63,35 @@ impl Sent {
     }
 }
 
-static SENT: Mutex<Option<Sent>> = Mutex::new(None);
+impl Outcome<'_> {
+    /// Everything the model read over the turn's requests.
+    pub fn read(&self) -> String {
+        let all: Vec<String> = self.sent.iter().map(Sent::all).collect();
+        all.join("\n")
+    }
+}
+
+/// Every request of the turn being answered, in the order sent.
+static SENT: Mutex<Vec<Sent>> = Mutex::new(Vec::new());
 
 /// The worker is one per process: its tests and the scenarios take turns
 /// when a run keeps them in one (`cargo test`; nextest gives each its own).
 pub static SERIAL: Mutex<()> = Mutex::new(());
 
-/// The worker's word of what it sends, as it sends it.
+/// The worker's word of what it sends, as it sends it: one for each
+/// request of a turn (its repair and rewrite rounds aside).
 pub fn sent(prompt: &Prompt, web: bool) {
-    *SENT.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Sent {
-        instructions: prompt.instructions.clone(),
-        input: prompt.input.clone(),
-        web,
-    });
-}
-
-fn take_sent() -> Option<Sent> {
     SENT.lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .take()
+        .push(Sent {
+            instructions: prompt.instructions.clone(),
+            input: prompt.input.clone(),
+            web,
+        });
+}
+
+fn take_sent() -> Vec<Sent> {
+    std::mem::take(&mut *SENT.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
 }
 
 /// What a step says.
@@ -144,8 +154,9 @@ pub struct Outcome<'a> {
     pub route: Option<Route>,
     /// It waits for the consent card: nothing was asked.
     pub consent: bool,
-    /// What the model read; none when no model was asked.
-    pub sent: Option<Sent>,
+    /// What the model read, a request each, in order; none when no model
+    /// was asked.
+    pub sent: Vec<Sent>,
     pub turn: Turn,
 }
 
@@ -350,19 +361,27 @@ fn wait(patience: Duration) -> Option<(Turn, Option<f32>, f32)> {
 /// With `HEX_ASSISTANT_EVAL_DUMP` naming a folder, what each step sent is
 /// written there, one file a step in the order asked: to read what a model
 /// was told when a scenario fails.
-fn dump(said: &str, sent: Option<&Sent>) {
+fn dump(said: &str, sent: &[Sent]) {
     static STEP: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
-    let (Some(folder), Some(sent)) = (std::env::var_os("HEX_ASSISTANT_EVAL_DUMP"), sent) else {
+    let Some(folder) = std::env::var_os("HEX_ASSISTANT_EVAL_DUMP").filter(|_| !sent.is_empty())
+    else {
         return;
     };
     let step = STEP.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let folder = std::path::PathBuf::from(folder);
     let _ = std::fs::create_dir_all(&folder);
-    let text = format!(
-        "said: {said}\nweb: {}\n\n== instructions\n{}\n\n== input\n{}\n",
-        sent.web, sent.instructions, sent.input
-    );
-    let _ = std::fs::write(folder.join(format!("{step:02}.txt")), text);
+    for (request, sent) in sent.iter().enumerate() {
+        let text = format!(
+            "said: {said}\nweb: {}\n\n== instructions\n{}\n\n== input\n{}\n",
+            sent.web, sent.instructions, sent.input
+        );
+        // A turn's first request keeps the name it always had.
+        let name = match request {
+            0 => format!("{step:02}.txt"),
+            request => format!("{step:02}-{}.txt", request + 1),
+        };
+        let _ = std::fs::write(folder.join(name), text);
+    }
 }
 
 fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> StepRan {
@@ -384,7 +403,7 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
         fixture,
         route: None,
         consent: false,
-        sent: None,
+        sent: Vec::new(),
         turn: Turn::default(),
     };
     match asks(fixture, turns, step) {
@@ -417,7 +436,7 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
                 None => outcome.turn.error = Some("no answer in time".into()),
             }
             outcome.sent = take_sent();
-            dump(&ran.said, outcome.sent.as_ref());
+            dump(&ran.said, &outcome.sent);
         }
     }
     ran.route = match &outcome.route {
@@ -429,7 +448,7 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
         Some(Route::Guide) => "guide".into(),
         None => "setup step".into(),
     };
-    ran.prompt_chars = outcome.sent.as_ref().map_or(0, |sent| sent.all().len());
+    ran.prompt_chars = outcome.sent.iter().map(|sent| sent.all().len()).sum();
     let layer = mode.layer();
     for check in super::checks::always()
         .iter()

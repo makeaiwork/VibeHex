@@ -501,7 +501,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 ],
                 vec![
                     offline("it was allowed to search", |outcome| {
-                        ensure(outcome.sent.as_ref().is_some_and(|sent| sent.web), || {
+                        ensure(outcome.sent.iter().any(|sent| sent.web), || {
                             "the web was off".into()
                         })
                     }),

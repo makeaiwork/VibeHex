@@ -766,7 +766,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 vec![
                     routed(|route| *route == Route::Preset, "the preset"),
                     check("no model is asked", |outcome| {
-                        ensure(outcome.sent.is_none(), || "a prompt was sent".into())
+                        ensure(outcome.sent.is_empty(), || "a prompt was sent".into())
                     }),
                     live("nothing was asked live either", |outcome| {
                         ensure(outcome.turn.answer.is_empty(), || {

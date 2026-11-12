@@ -263,10 +263,10 @@ pub fn asks_in_russian(asks: &[Ask]) -> Verdict {
 /// What the model was sent holds every one of `parts`.
 pub fn sent_has(what: &'static str, parts: &'static [&'static str]) -> Check {
     offline(format!("the prompt has {what}"), move |outcome| {
-        let Some(sent) = &outcome.sent else {
+        if outcome.sent.is_empty() {
             return Err("no model was asked".into());
-        };
-        let all = sent.all();
+        }
+        let all = outcome.read();
         let missing: Vec<&str> = parts
             .iter()
             .copied()
@@ -279,11 +279,7 @@ pub fn sent_has(what: &'static str, parts: &'static [&'static str]) -> Check {
 /// What the model was sent holds none of `parts`.
 pub fn sent_lacks(what: &'static str, parts: &'static [&'static str]) -> Check {
     offline(format!("the prompt has no {what}"), move |outcome| {
-        let all = outcome
-            .sent
-            .as_ref()
-            .map(|sent| sent.all())
-            .unwrap_or_default();
+        let all = outcome.read();
         let found: Vec<&str> = parts
             .iter()
             .copied()
@@ -297,7 +293,7 @@ pub fn sent_lacks(what: &'static str, parts: &'static [&'static str]) -> Check {
 /// no web source.
 pub fn web_off() -> Check {
     check("the web stayed off", |outcome| {
-        let allowed = outcome.sent.as_ref().is_some_and(|sent| sent.web);
+        let allowed = outcome.sent.iter().any(|sent| sent.web);
         let web = &outcome.turn.web;
         ensure(
             !allowed && !web.went_online() && web.sources.is_empty(),
