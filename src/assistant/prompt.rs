@@ -664,7 +664,7 @@ pub(super) fn contents() -> String {
     contents
 }
 
-fn excerpt(article: &Article) -> String {
+pub(super) fn excerpt(article: &Article) -> String {
     format!(
         "\n<guide_article id=\"{}\">\n{}\n</guide_article>\n",
         article.id, article.body

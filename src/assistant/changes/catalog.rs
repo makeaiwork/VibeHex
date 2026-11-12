@@ -241,7 +241,6 @@ impl<'a> Lines<'a> {
     /// `key`'s line. None for a key no card changes, one this VibeHex
     /// doesn't have here, one with no place in the window, or no setting
     /// at all.
-    #[allow(dead_code)]
     pub fn line(&self, key: &str) -> Option<String> {
         if key == parts::CLEANUP {
             return Some(self.cleanup());
@@ -316,7 +315,7 @@ impl<'a> Lines<'a> {
 }
 
 /// `key`'s line of the catalog (see [`Lines::line`]).
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn line(settings: &AppSettings, facts: &Facts, key: &str) -> Option<String> {
     Lines::new(settings, facts).line(key)
 }

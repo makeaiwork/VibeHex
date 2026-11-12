@@ -6,9 +6,6 @@
 //! same place, the same text) keeps the number it had. What the turn keeps
 //! is the one [`Found`] the answer's citations are read against.
 
-// Read through by the agent's tools, which come next.
-#![allow(dead_code)]
-
 use super::{Excerpt, Found, Step};
 
 /// The excerpts a turn has read so far, in the order read.

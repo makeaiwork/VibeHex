@@ -5,9 +5,6 @@
 //! word cut to its stem, a Latin name's spoken forms), so the search
 //! matches as it does for a typed question.
 
-// Called by the agent's `recordings_search` tool, which comes next.
-#![allow(dead_code)]
-
 use super::{Intent, Kinds, latin_forms, terms, words};
 
 /// The most "the last few" one search asks for.
