@@ -999,7 +999,7 @@ setup, vocabulary terms, and the reply corpus
 `tests/fixtures/assistant/replies`: replies strong and weak models write,
 each with the parse it must make); scenes `assistant`,
 `assistant-answering`, `assistant-start`, `assistant-start-russian`, `assistant-connect`,
-`assistant-settings`, `assistant-consent`, `assistant-steps`,
+`assistant-settings`, `assistant-consent`, `assistant-steps`, `assistant-agent-consent`,
 `assistant-recordings`, `assistant-steps-open`, `assistant-knew`, `meetings-cited`,
 `meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`,
 `assistant-places`, `assistant-place-opened`, the cards'
@@ -1124,6 +1124,7 @@ gone.
 | Follow-up round | `assistant-setup-follow`, `assistant-setup-follow-ru` | `follow_up_round` |
 | Returning opener | `assistant-setup-returning` | `returning_opener` |
 | Consent card | `assistant-consent` | `consent_card` |
+| Consent card mid-answer | `assistant-agent-consent` | `consent_card_mid_answer` |
 | No model page | `assistant-connect` | `no_model_page` |
 
 The other scenes, each through `every_scene_is_laid_out_whole`:

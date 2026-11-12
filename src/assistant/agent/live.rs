@@ -39,8 +39,6 @@ fn declined_list() -> std::sync::MutexGuard<'static, Vec<u32>> {
 
 /// The person's answer to the card a parked turn shows: leave to read
 /// (the pane saves `assistant.read_recordings` first), or none.
-// The pane's card calls it, once the pane draws agent turns.
-#[cfg_attr(not(test), allow(dead_code))]
 pub fn decide(allowed: Option<Allowed>) {
     *decided() = Some(allowed);
 }

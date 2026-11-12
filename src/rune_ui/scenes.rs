@@ -749,6 +749,7 @@ pub(super) const SCENES: &[Scene] = &[
     ("assistant-settings", assistant::fixture::settings),
     ("assistant-consent", assistant::fixture::consent),
     ("assistant-steps", assistant::fixture::steps),
+    ("assistant-agent-consent", assistant::fixture::agent_consent),
     ("assistant-recordings", assistant::fixture::recordings),
     ("assistant-steps-open", assistant::fixture::steps_open),
     ("assistant-knew", assistant::fixture::knew),

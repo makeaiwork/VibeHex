@@ -10,6 +10,7 @@ use super::super::files::FilesPane;
 use super::super::scenes::mac_fixture;
 use super::super::sidebar::Pane;
 use super::View;
+use crate::assistant::agent::trace::{Did, Doing};
 use crate::assistant::recordings::{Kind, Lines, Ref, Step};
 use crate::assistant::store::Turn;
 use crate::assistant::web::Web;
@@ -262,8 +263,19 @@ pub(in super::super) fn consent(ui: &mut Ui) {
     });
 }
 
-/// The search's steps as they land: meetings found and read, files being
-/// searched.
+/// The articles the app laid out for an answer, as its trace starts.
+fn laid_out() -> Did {
+    Did::Articles {
+        ids: ["labs/meetings", "labs/live-chapters", "labs/meeting-import"]
+            .map(str::to_owned)
+            .to_vec(),
+        app: true,
+    }
+}
+
+/// An answer on its way, as an agent: what it read so far (the articles
+/// laid out, a search of the meetings, one meeting's notes), each with a
+/// check, and it thinks.
 pub(in super::super) fn steps(ui: &mut Ui) {
     open(ui);
     let question = "Что мы решили по бюджету на встречах в марте?";
@@ -271,27 +283,59 @@ pub(in super::super) fn steps(ui: &mut Ui) {
     ui.assistant.store.date(id, AT + MINUTE);
     ui.assistant.open = Some(id);
     ui.assistant.answering = Some(Answering {
-        conversation: id,
+        trace: vec![
+            laid_out(),
+            Did::Recordings {
+                steps: vec![
+                    Step::Meetings {
+                        searched: 12,
+                        found: 4,
+                    },
+                    Step::Read {
+                        notes: 4,
+                        passages: 6,
+                    },
+                ],
+            },
+            Did::Notes {
+                title: "Бюджет Q1".into(),
+            },
+        ],
+        doing: Some(Doing::Thinking),
+        ..coming(id, question)
+    });
+}
+
+/// An answer on its way that has shown nothing yet.
+fn coming(conversation: u32, question: &str) -> Answering {
+    Answering {
+        conversation,
         question: question.into(),
         draft: String::new(),
         started: Instant::now(),
-        steps: vec![
-            Step::Meetings {
-                searched: 12,
-                found: 4,
-            },
-            Step::Read {
-                notes: 4,
-                passages: 6,
-            },
-        ],
-        searching: true,
+        steps: Vec::new(),
+        searching: false,
         cards_coming: false,
         web: Default::default(),
         retrying: false,
         trace: Vec::new(),
         doing: None,
         asking: false,
+    }
+}
+
+/// An answer on its way asked to read the recordings, which the person
+/// hasn't allowed yet: the card under its steps, and it waits.
+pub(in super::super) fn agent_consent(ui: &mut Ui) {
+    open(ui);
+    let question = "Что мы решили по бюджету на встречах в марте?";
+    let id = ui.assistant.store.start(question, None, None);
+    ui.assistant.store.date(id, AT + MINUTE);
+    ui.assistant.open = Some(id);
+    ui.assistant.answering = Some(Answering {
+        trace: vec![laid_out()],
+        asking: true,
+        ..coming(id, question)
     });
 }
 
@@ -314,9 +358,33 @@ fn place(n: u32, kind: Kind, id: &str, title: &str, at_ms: u64, offset: Option<u
     }
 }
 
+/// What the search of that answer found.
+fn found() -> [Step; 3] {
+    [
+        Step::Meetings {
+            searched: 12,
+            found: 4,
+        },
+        Step::Read {
+            notes: 4,
+            passages: 6,
+        },
+        Step::Files {
+            searched: 3,
+            found: 1,
+        },
+    ]
+}
+
 /// An answer from four meetings and a file: the steps folded into one
 /// line, `[n]` marks, and the places cited.
 pub(in super::super) fn recordings(ui: &mut Ui) {
+    recorded(ui, found().to_vec(), Vec::new());
+}
+
+/// That answer with the search's `steps` (a router's turn) or the
+/// `trace` an agent kept.
+fn recorded(ui: &mut Ui, steps: Vec<Step>, trace: Vec<Did>) {
     open(ui);
     let question = "Что мы решили по бюджету на встречах в марте?";
     let id = ui.assistant.store.start(question, None, None);
@@ -325,20 +393,8 @@ pub(in super::super) fn recordings(ui: &mut Ui) {
     ui.assistant.store.push(
         id,
         Turn {
-            steps: vec![
-                Step::Meetings {
-                    searched: 12,
-                    found: 4,
-                },
-                Step::Read {
-                    notes: 4,
-                    passages: 6,
-                },
-                Step::Files {
-                    searched: 3,
-                    found: 1,
-                },
-            ],
+            steps,
+            trace,
             refs: vec![
                 place(1, meeting, "planerka", "Планёрка", AT - 10 * DAY, Some(60_000)),
                 place(2, meeting, "hiring", "Найм бэкенда", AT - 7 * DAY, Some(720_000)),
@@ -357,15 +413,41 @@ pub(in super::super) fn recordings(ui: &mut Ui) {
     ui.assistant.open = Some(id);
 }
 
-/// The same answer with its steps open.
+/// The same answer as an agent gave it, its steps open: the articles laid
+/// out, the person's yes on the card, the search, the notes and a
+/// transcript read whole, a setting, and a call that was refused.
 pub(in super::super) fn steps_open(ui: &mut Ui) {
-    recordings(ui);
+    recorded(
+        ui,
+        Vec::new(),
+        vec![
+            laid_out(),
+            Did::Consent { allowed: true },
+            Did::Recordings {
+                steps: found().to_vec(),
+            },
+            Did::Notes {
+                title: "Бюджет Q1".into(),
+            },
+            Did::Transcript {
+                title: "Найм бэкенда".into(),
+            },
+            Did::Settings {
+                keys: vec!["labs.meetings".into()],
+            },
+            Did::refused(
+                "cleanup_instructions",
+                crate::assistant::agent::trace::Why::NotSent,
+            ),
+        ],
+    );
     let id = ui.assistant.open.unwrap_or_default();
     ui.assistant.unfolded.push((id, 0));
 }
 
-/// A guide answer of this session with its fold open and, under it, "What
-/// Assistant knew" open too: the facts its model read of the owner's
+/// An agent's guide answer of this session with its fold open (the
+/// articles the app laid out, none counted as read by a tool) and, under
+/// it, "What Assistant knew" open too: the facts its model read of the owner's
 /// setup on a Mac mini with a Magic Mouse, and what else went along.
 pub(in super::super) fn knew(ui: &mut Ui) {
     use crate::assistant::facts::{self, Fact, Facts, State};
@@ -391,7 +473,7 @@ pub(in super::super) fn knew(ui: &mut Ui) {
         ..State::default()
     };
     let sent = facts::text::Sent {
-        articles: 6,
+        articles: 3,
         ..facts::text::Sent::default()
     };
     let question = "Какие модели распознавания у меня скачаны?";
@@ -399,6 +481,12 @@ pub(in super::super) fn knew(ui: &mut Ui) {
     ui.assistant.store.push(
         id,
         Turn {
+            trace: vec![Did::Articles {
+                ids: ["topics/speech-models", "topics/getting-started", "labs/parakeet-ultra"]
+                    .map(str::to_owned)
+                    .to_vec(),
+                app: true,
+            }],
             knew: facts::text::knew(&Facts::of(&ui.settings, &state), &sent),
             ..turn(
                 question,

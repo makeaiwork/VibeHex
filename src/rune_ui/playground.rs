@@ -194,7 +194,11 @@ const PATHS: &[(&str, &str)] = &[
         "assistant-consent",
         "Window/Assistant/Asks to read recordings",
     ),
-    ("assistant-steps", "Window/Assistant/Searching recordings"),
+    ("assistant-steps", "Window/Assistant/Reading step by step"),
+    (
+        "assistant-agent-consent",
+        "Window/Assistant/Asks to read recordings mid-answer",
+    ),
     (
         "assistant-recordings",
         "Window/Assistant/Answer from recordings",

@@ -140,7 +140,6 @@ impl Did {
     }
 
     /// The tool it names when it was refused for `why`.
-    #[cfg(test)]
     pub fn refused_for(&self, why: Why) -> Option<&str> {
         match self {
             Self::Refused { tool, why: known } if known == why.name() => Some(tool),

@@ -28,11 +28,13 @@ use super::super::sidebar::Pane;
 use super::face::Mood;
 use super::places::Known;
 use super::strong;
+use crate::assistant::agent::trace::Did;
+use crate::assistant::agent::{live as agent_live, words};
 use crate::assistant::intent;
-use crate::assistant::recordings::{Kind, Ref, Sources, Step, cite};
+use crate::assistant::recordings::{Allowed, Kind, Ref, Sources, Step, cite};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::{Answering, Recall};
-use crate::desktop::i18n::{tr, tr_fill, tr_named};
+use crate::desktop::i18n::{tr, tr_fill};
 
 /// A question waiting for the person to say whether recordings may be read.
 #[derive(Clone, Debug)]
@@ -82,20 +84,34 @@ pub(super) fn allowed(
     }
 }
 
-/// The question waiting, the face saying why, and the card.
-pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
-    let engine = super::engine(&ui.settings, None, None);
-    let engine = match ui.assistant.store.get(pending.conversation) {
+/// The model the open conversation `id` runs on, which the card names.
+fn engine_of(ui: &Ui, id: u32) -> crate::files::rewrite::Engine {
+    match ui.assistant.store.get(id) {
         Some(conversation) => super::engine(
             &ui.settings,
             conversation.engine.as_deref(),
             conversation.effort.as_deref(),
         ),
-        None => engine,
-    };
+        None => super::engine(&ui.settings, None, None),
+    }
+}
+
+/// Why the card is there, over it.
+fn why(p: Paint) -> El {
+    text(tr(
+        "This is a question about your recordings. To answer, I need to read them.",
+    ))
+    .key("why")
+    .font(p.k.ty.ui)
+    .color(p.reading())
+    .wrap_anywhere()
+}
+
+/// The question waiting, the face saying why, and the card.
+pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
     let card = consent_card(
         p,
-        &engine,
+        &engine_of(ui, pending.conversation),
         tr("Answer without recordings"),
         |ui: &mut Ui, allow| decide(ui, allow),
     );
@@ -105,20 +121,37 @@ pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
         .shrink()
         .min_w(0.0)
         .gap(10.0)
-        .child(
-            text(tr(
-                "This is a question about your recordings. To answer, I need to read them.",
-            ))
-            .key("why")
-            .font(p.k.ty.ui)
-            .color(p.reading())
-            .wrap_anywhere(),
-        )
+        .child(why(p))
         .child(card);
     vec![
         session::bubble(p, "waiting", &pending.question),
         super::feed::beside_face(p, "consent-face", Mood::default(), words),
     ]
+}
+
+/// An answer on its way asked to read the recordings and waits for the
+/// person: the same card, under the steps so far. Allow is remembered and
+/// the answer goes on with them; without, it goes on from the guide, and
+/// this conversation isn't asked again.
+pub(super) fn asking(ui: &Ui, p: Paint, answering: &Answering) -> Option<El> {
+    answering.asking.then(|| {
+        col()
+            .key("asking")
+            .gap(10.0)
+            .child(why(p))
+            .child(consent_card(
+                p,
+                &engine_of(ui, answering.conversation),
+                tr("Answer without recordings"),
+                |ui: &mut Ui, allow| {
+                    if ui.is_fixture() || ui.assistant.fixture {
+                        return;
+                    }
+                    ui.update(|settings| settings.assistant.read_recordings = Some(allow));
+                    agent_live::decide(Allowed::from_settings(&ui.settings.assistant));
+                },
+            ))
+    })
 }
 
 /// The card asking to read the person's recordings: what goes to the
@@ -231,10 +264,66 @@ fn decide(ui: &mut Ui, allow: bool) {
     );
 }
 
-/// While it works: each step with a check, then the current one.
+/// While it works: each step with a check, then the current one. An
+/// agent turn lists what it read so far (the articles the app laid out
+/// only once it read past them), then what it is doing now.
 pub(super) fn live(p: Paint, answering: &Answering, dots: Option<u8>) -> Option<El> {
     let drafted = !answering.draft.trim().is_empty();
-    live_steps(p, &answering.steps, answering.searching, drafted, dots)
+    if !agent(answering) {
+        return live_steps(p, &answering.steps, answering.searching, drafted, dots);
+    }
+    if !reads(answering) {
+        return None;
+    }
+    let mut list = col()
+        .key("steps")
+        .gap(6.0)
+        .children(trace_lines(p, &answering.trace));
+    // A search under way: its steps as they land.
+    for (index, step) in answering.steps.iter().enumerate() {
+        list = list.child(step_line(
+            p,
+            &format!("found{index}"),
+            true,
+            &words::step(step),
+            None,
+        ));
+    }
+    // The web's own line says it while it searches, the card while it asks.
+    let doing = answering
+        .doing
+        .filter(|_| !drafted && !answering.asking && !answering.web.went_online())
+        .map(|doing| words::doing(doing, true));
+    Some(match doing {
+        Some(doing) => list.child(step_line(p, "doing", false, doing, dots)),
+        None => list,
+    })
+}
+
+/// The answer is an agent's: it keeps a trace.
+fn agent(answering: &Answering) -> bool {
+    !answering.trace.is_empty() || answering.doing.is_some() || answering.asking
+}
+
+/// An agent's answer has steps of its own to show: it read past the
+/// articles the app laid out, is reading, or asks.
+pub(super) fn reads(answering: &Answering) -> bool {
+    agent(answering)
+        && (words::read_more(&answering.trace)
+            || matches!(
+                answering.doing,
+                Some(crate::assistant::agent::trace::Doing::Reading(_))
+            )
+            || answering.asking)
+}
+
+/// `lines`, each with a check.
+fn done_lines(p: Paint, lines: &[String]) -> El {
+    let mut list = col().key("steps").gap(6.0);
+    for (index, line) in lines.iter().enumerate() {
+        list = list.child(step_line(p, &format!("step{index}"), true, line, None));
+    }
+    list
 }
 
 /// The search's `steps` so far, each with a check, then what goes on: the
@@ -250,16 +339,8 @@ pub(in super::super) fn live_steps(
     if steps.is_empty() && !searching {
         return None;
     }
-    let mut list = col().key("steps").gap(6.0);
-    for (index, step) in steps.iter().enumerate() {
-        list = list.child(step_line(
-            p,
-            &format!("step{index}"),
-            true,
-            &say(step),
-            None,
-        ));
-    }
+    let lines: Vec<String> = steps.iter().map(words::step).collect();
+    let list = done_lines(p, &lines);
     let doing = if searching {
         tr("Searching your recordings")
     } else if !drafted {
@@ -295,6 +376,12 @@ pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str, dots: Opti
             .child(dot("b", b))
             .child(dot("c", c))
     };
+    let ink = if done { p.faint() } else { p.muted() };
+    marked_line(p, key, mark, (words, ink))
+}
+
+/// A step's `mark` and its words in `ink`.
+fn marked_line(p: Paint, key: &str, mark: El, (words, ink): (&str, Color)) -> El {
     row()
         .key(key.to_owned())
         .gap(8.0)
@@ -304,100 +391,10 @@ pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str, dots: Opti
             text(words.to_owned())
                 .key("words")
                 .font(p.k.ty.small)
-                .color(if done { p.faint() } else { p.muted() })
+                .color(ink)
                 .wrap_anywhere()
                 .shrink(),
         )
-}
-
-/// A step in words.
-fn say(step: &Step) -> String {
-    let searched = |what: String, found: usize| {
-        if found == 0 {
-            tr_fill("Searched {}: none match", &what)
-        } else {
-            tr_named(
-                "Searched {what}: {found} match",
-                &[("what", &what), ("found", &found.to_string())],
-            )
-        }
-    };
-    if let Step::Guide { articles } = step {
-        // Titles as the guide's sources show them.
-        let names: Vec<&str> = articles
-            .iter()
-            .filter_map(|id| crate::assistant::guide::article(id))
-            .map(|article| article.title.as_str())
-            .collect();
-        return match names.len() {
-            0 => String::new(),
-            1 => tr_fill("Read 1 guide article: {}", names[0]),
-            count => tr_named(
-                "Read {count} guide articles: {names}",
-                &[("count", &count.to_string()), ("names", &names.join(", "))],
-            ),
-        };
-    }
-    match *step {
-        Step::Meetings {
-            searched: count,
-            found,
-        } => searched(meetings(count), found),
-        Step::Files {
-            searched: count,
-            found,
-        } => searched(files(count), found),
-        Step::Dictations {
-            searched: count,
-            found,
-        } => searched(dictations(count), found),
-        Step::Read { notes, passages } if notes > 0 => {
-            tr_fill("Read their notes and {} passages", &passages.to_string())
-        }
-        Step::Read { passages, .. } => tr_fill("Read {} passages", &passages.to_string()),
-        Step::Looked {
-            dictations,
-            meetings,
-        } => tr_fill("Read {}", &looked(dictations, meetings)),
-        Step::Guide { .. } => String::new(),
-    }
-}
-
-/// What a returning setup read: "your settings, 972 dictations and 5
-/// meetings".
-fn looked(dictations: usize, meetings: usize) -> String {
-    let dictations = self::dictations(dictations);
-    if meetings == 0 {
-        tr_fill("your settings and {}", &dictations)
-    } else {
-        tr_named(
-            "your settings, {dictations} and {meetings}",
-            &[
-                ("dictations", &dictations),
-                ("meetings", &self::meetings(meetings)),
-            ],
-        )
-    }
-}
-
-fn counted(count: usize, one: &str, many: &str) -> String {
-    if count == 1 {
-        tr(one).to_owned()
-    } else {
-        tr_fill(many, &count.to_string())
-    }
-}
-
-fn meetings(count: usize) -> String {
-    counted(count, "1 meeting", "{} meetings")
-}
-
-fn files(count: usize) -> String {
-    counted(count, "1 file", "{} files")
-}
-
-fn dictations(count: usize) -> String {
-    counted(count, "1 dictation", "{} dictations")
 }
 
 /// `steps` folded into one line, "Read 4 meetings and 1 file in 9 s ›"
@@ -415,18 +412,33 @@ pub(in super::super) fn steps_folded(
     if steps.is_empty() && web.is_none_or(|turn| turn.web.is_empty()) {
         return None;
     }
-    let line = summary((steps, other), web, seconds);
-    let mut list = step_lines(p, steps);
+    let trace = words::of(steps, &[]);
+    let line = summary((&trace, other), web, seconds);
+    let mut list = trace_lines(p, &trace);
     list.extend(web.into_iter().flat_map(|turn| super::web::steps(p, turn)));
     Some(fold(p, line, open, toggle, list))
 }
 
-/// Each of `steps` as a done line.
-pub(super) fn step_lines(p: Paint, steps: &[Step]) -> Vec<El> {
-    steps
+/// Each line of `trace`: a check beside what was read, a small cross
+/// beside what was not (a no on the card, a call refused).
+pub(super) fn trace_lines(p: Paint, trace: &[Did]) -> Vec<El> {
+    words::lines(trace)
         .iter()
         .enumerate()
-        .map(|(index, step)| step_line(p, &format!("step{index}"), true, &say(step), None))
+        .map(|(index, line)| {
+            let key = format!("step{index}");
+            match line.not {
+                true => marked_line(
+                    p,
+                    &key,
+                    icon(&rune_theme_opencode::icons::CLOSE, 14.0)
+                        .key("mark")
+                        .color(p.k.c.icon_muted),
+                    (&line.words, p.faint()),
+                ),
+                false => step_line(p, &key, true, &line.words, None),
+            }
+        })
         .collect()
 }
 
@@ -732,100 +744,36 @@ pub(in super::super) fn chips_with(
     Some(line)
 }
 
-/// The folded line: what the steps read, and in how long.
-pub(super) fn summary((steps, other): (&[Step], bool), web: Option<&Turn>, seconds: f32) -> String {
-    let mut read = Vec::new();
-    for step in steps {
-        if let Step::Guide { articles } = step {
-            read.push(counted(
-                articles.len(),
-                "1 guide article",
-                "{} guide articles",
-            ));
-            continue;
-        }
-        match *step {
-            Step::Meetings { found, .. } if found > 0 && other => {
-                read.push(counted(found, "1 other meeting", "{} other meetings"));
-            }
-            Step::Files { found, .. } if found > 0 && other => {
-                read.push(counted(found, "1 other file", "{} other files"));
-            }
-            Step::Meetings { found, .. } if found > 0 => read.push(meetings(found)),
-            Step::Files { found, .. } if found > 0 => read.push(files(found)),
-            Step::Dictations { found, .. } if found > 0 => read.push(dictations(found)),
-            Step::Looked {
-                dictations,
-                meetings,
-            } => read.push(looked(dictations, meetings)),
-            _ => {}
-        }
-    }
+/// The folded line: what the steps read, and in how long. Nothing a tool
+/// read: that a search of the recordings found nothing, else the guide,
+/// with the web when the answer went there.
+pub(super) fn summary((trace, other): (&[Did], bool), web: Option<&Turn>, seconds: f32) -> String {
     let seconds = format!("{:.0}", seconds.max(1.0));
-    match (read.as_slice(), web) {
-        // An answer from the guide and the web.
-        ([], Some(turn)) if steps.is_empty() => super::web::folded(turn, &seconds),
-        ([], _) => tr_fill("Found nothing in your recordings in {} s", &seconds),
-        ([one], _) => tr_named(
-            "Read {what} in {seconds} s",
-            &[("what", one), ("seconds", &seconds)],
-        ),
-        ([first, second], _) => tr_named(
-            "Read {first} and {second} in {seconds} s",
-            &[("first", first), ("second", second), ("seconds", &seconds)],
-        ),
-        ([first, second, third, ..], _) => tr_named(
-            "Read {first}, {second}, and {third} in {seconds} s",
-            &[
-                ("first", first),
-                ("second", second),
-                ("third", third),
-                ("seconds", &seconds),
-            ],
-        ),
+    let web = web.filter(|turn| !turn.web.is_empty());
+    let mut read = words::read(trace, other);
+    if !read.is_empty()
+        && let Some(turn) = web
+        && turn.web.read() > 0
+    {
+        read.push(words::counted(
+            turn.web.read(),
+            "1 web page",
+            "{} web pages",
+        ));
+    }
+    match (words::folded(&read, &seconds), web) {
+        (Some(line), _) => line,
+        (None, _) if words::searched(trace) => {
+            tr_fill("Found nothing in your recordings in {} s", &seconds)
+        }
+        (None, Some(turn)) => super::web::folded(turn, &seconds),
+        (None, None) => tr_fill("Read the guide in {} s", &seconds),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{GAP, marked, say, summary};
-    use crate::assistant::recordings::Step;
-
-    /// A recordings answer that drew on the guide too names both.
-    #[test]
-    fn the_steps_name_the_guide_articles_read() {
-        let steps = [
-            Step::Dictations {
-                searched: 40,
-                found: 8,
-            },
-            Step::Guide {
-                articles: vec![
-                    "topics/vocabulary".into(),
-                    "topics/output-and-instructions".into(),
-                ],
-            },
-        ];
-        {
-            assert_eq!(
-                summary((&steps, false), None, 29.2),
-                "Read 8 dictations and 2 guide articles in 29 s"
-            );
-            let guide = say(&steps[1]);
-            assert!(guide.starts_with("Read 2 guide articles: "), "{guide}");
-            let titles: Vec<String> = ["topics/vocabulary", "topics/output-and-instructions"]
-                .iter()
-                .map(|id| crate::assistant::guide::article(id).unwrap().title.clone())
-                .collect();
-            assert!(guide.ends_with(&titles.join(", ")), "{guide}");
-            assert_eq!(
-                say(&Step::Guide {
-                    articles: vec!["topics/vocabulary".into()]
-                }),
-                format!("Read 1 guide article: {}", titles[0])
-            );
-        }
-    }
+    use super::{GAP, marked};
 
     #[test]
     fn citations_become_links_and_the_rest_stays() {

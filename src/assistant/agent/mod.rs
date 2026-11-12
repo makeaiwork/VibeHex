@@ -31,6 +31,7 @@ pub mod protocol;
 pub mod table;
 pub mod tools;
 pub mod trace;
+pub mod words;
 
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};

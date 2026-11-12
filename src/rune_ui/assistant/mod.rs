@@ -363,6 +363,7 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
                 answering.cards_coming,
                 answering.steps.len(),
                 answering.web.progress(),
+                (answering.trace.len(), answering.doing, answering.asking),
             )
         })
     };
@@ -379,12 +380,14 @@ pub(super) fn steps_live(ui: &Ui) -> bool {
     // Before the first words come, a line always goes on ("Looking in the
     // guide", a search, "No reply yet, asking again"); so does "Preparing a
     // change" while a card is read.
+    // Nothing moves while it waits on the card that asks to read recordings.
     let answering = ui.assistant.answering.as_ref().is_some_and(|answering| {
-        answering.draft.trim().is_empty()
-            || !answering.steps.is_empty()
-            || answering.searching
-            || answering.web.went_online()
-            || answering.cards_coming
+        !answering.asking
+            && (answering.draft.trim().is_empty()
+                || !answering.steps.is_empty()
+                || answering.searching
+                || answering.web.went_online()
+                || answering.cards_coming)
     });
     let task = |task: &crate::files::worker::Task| !task.steps.is_empty() || task.searching;
     answering || ui.files.tasks.iter().any(task) || ui.meetings.requests.tasks.iter().any(task)

@@ -68,7 +68,7 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
-        feed = feed.children(coming(p, answering, mood, pane.dots.phase()));
+        feed = feed.children(coming(ui, p, answering, mood, pane.dots.phase()));
     } else if let Some(pending) = pane
         .consent
         .as_ref()
@@ -428,9 +428,13 @@ fn sources(p: Paint, ids: &[String], web: &[String]) -> Option<El> {
 }
 
 /// The question being answered and what came so far, the face reading.
-fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<El> {
+/// "Looking in the guide" is said only while that is all it does: before
+/// its first words, with nothing read past the guide.
+fn coming(ui: &Ui, p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<El> {
     let steps = super::recall::live(p, answering, dots);
     let web = super::web::live(p, answering, dots);
+    // It asked to read the recordings and waits for the person.
+    let asking = super::recall::asking(ui, p, answering);
     // The model said nothing in time and is asked again.
     let retry = (answering.retrying && answering.draft.trim().is_empty()).then(|| {
         super::recall::step_line(p, "retry", false, tr("No reply yet, asking again"), dots)
@@ -467,6 +471,7 @@ fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<
                 .gap(10.0)
                 .children(steps)
                 .children(web)
+                .children(asking)
                 .children(retry)
                 .children(words)
                 .children(preparing),
@@ -597,6 +602,93 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// What the window shows of `ui`, as its texts.
+    fn shown(apply: impl FnOnce(&mut Ui)) -> Vec<String> {
+        crate::desktop::i18n::apply(Some("en"));
+        let rt = super::super::layout::window(apply, super::super::super::WINDOW_SIZE);
+        rt.elements().into_iter().filter_map(|e| e.text).collect()
+    }
+
+    /// An agent's answer on its way says only what goes on: it looks in
+    /// the guide while the articles laid out are all it has; past them it
+    /// lists what it read and thinks; and while it asks to read the
+    /// recordings the card stands there and nothing else moves.
+    #[test]
+    fn an_agents_answer_says_only_what_it_does() {
+        fn answering(ui: &mut Ui) -> &mut Answering {
+            ui.assistant.answering.as_mut().expect("answering")
+        }
+        let has = |texts: &[String], words: &str| texts.iter().any(|text| text.contains(words));
+
+        // Only the articles the app laid out: it is in the guide.
+        let first = shown(|ui| {
+            super::super::fixture::steps(ui);
+            answering(ui).trace.truncate(1);
+        });
+        assert!(has(&first, "Looking in the guide"), "{first:?}");
+        assert!(!has(&first, "guide articles") && !has(&first, "Thinking it over"));
+
+        // Past them: each thing read, then that it thinks.
+        let read = shown(super::super::fixture::steps);
+        for line in [
+            "Read 3 guide articles: ",
+            "Searched 12 meetings: 4 match",
+            "Read the notes of “Бюджет Q1”",
+            "Thinking it over",
+        ] {
+            assert!(has(&read, line), "{line}: {read:?}");
+        }
+        assert!(!has(&read, "Looking in the guide"));
+        assert!(!has(&read, "Searching your recordings"));
+
+        // Its words come: the steps stay, nothing goes on beside them.
+        let drafted = shown(|ui| {
+            super::super::fixture::steps(ui);
+            answering(ui).draft = "In March".into();
+        });
+        assert!(has(&drafted, "Searched 12 meetings: 4 match"));
+        assert!(!has(&drafted, "Thinking it over"));
+
+        // It asks: the card, under what it read, and no step going on.
+        let asking = shown(super::super::fixture::agent_consent);
+        assert!(has(&asking, "Read your meetings, files, and dictations?"));
+        assert!(has(&asking, "Answer without recordings"));
+        assert!(has(&asking, "Read 3 guide articles: "), "{asking:?}");
+        assert!(!has(&asking, "Thinking it over") && !has(&asking, "Looking in the guide"));
+        let mut ui = dictating("auto");
+        super::super::fixture::agent_consent(&mut ui);
+        assert!(
+            !super::super::steps_live(&ui),
+            "nothing moves while it asks"
+        );
+    }
+
+    /// A finished agent answer's fold counts what its tools read; the
+    /// articles the app laid out are listed under it, never counted, and
+    /// a call that was refused has no check.
+    #[test]
+    fn an_agents_fold_counts_what_its_tools_read() {
+        let has = |texts: &[String], words: &str| texts.iter().any(|text| text.contains(words));
+        let guide = shown(super::super::fixture::knew);
+        // The scene dictates Russian: its answer's lines speak it.
+        let russian = |english: &str| speaking(Some("ru"), || tr(english).to_owned());
+        assert!(
+            has(
+                &guide,
+                &russian("Read the guide in {} s").replace("{}", "7")
+            ),
+            "{guide:?}"
+        );
+        let read = shown(super::super::fixture::steps_open);
+        assert!(has(
+            &read,
+            "Read 4 meetings, 1 file, and your settings in 9 s"
+        ));
+        assert!(has(&read, "Read 3 guide articles: "), "{read:?}");
+        assert!(has(&read, "You allowed reading your recordings"));
+        assert!(has(&read, "Didn't read your settings: sending them is off"));
     }
 
     /// Recognition on Auto follows the window; a language without a table

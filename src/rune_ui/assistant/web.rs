@@ -118,9 +118,18 @@ pub(super) fn live(p: Paint, answering: &Answering, dots: Option<u8>) -> Option<
             None,
         ));
     }
+    let drafted = !answering.draft.trim().is_empty();
     let doing = if web.busy() {
         tr("Searching the web")
-    } else if answering.draft.trim().is_empty() && answering.steps.is_empty() {
+    } else if drafted {
+        return Some(list);
+    } else if super::recall::reads(answering) {
+        // An agent that read past the guide: what it does now goes last.
+        match answering.doing.filter(|_| !answering.asking) {
+            Some(doing) => crate::assistant::agent::words::doing(doing, true),
+            None => return Some(list),
+        }
+    } else if answering.steps.is_empty() {
         tr("Writing the answer")
     } else {
         return Some(list);
@@ -164,7 +173,8 @@ pub(super) fn steps(p: Paint, turn: &Turn) -> Vec<El> {
         .map(|article| article.title.as_str())
         .take(GUIDE_TITLES)
         .collect();
-    if !titles.is_empty() {
+    // An agent's answer lists the articles it read among its own steps.
+    if !titles.is_empty() && turn.trace.is_empty() {
         lines.push(line(
             p,
             "guide",
