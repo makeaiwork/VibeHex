@@ -246,6 +246,26 @@ fn user_config_dir_in(home: &std::path::Path, test_build: bool) -> PathBuf {
 mod tests {
     use super::*;
 
+    /// `scripts/check` names a support folder of the run's own before it
+    /// runs a test, so none reads this user's settings, history, meetings,
+    /// or models; and the folder named is the one every path comes from.
+    #[test]
+    fn the_check_loop_gives_tests_a_support_folder_of_their_own() {
+        let script = include_str!("../scripts/check");
+        let named = script
+            .find("export HEX_APPLICATION_SUPPORT_DIR=")
+            .expect("scripts/check names a support folder");
+        for run in ["cargo nextest run", "cargo test --locked"] {
+            let at = script.find(run).unwrap_or_else(|| panic!("no `{run}`"));
+            assert!(named < at, "`{run}` comes before the folder is named");
+        }
+        if let Some(named) = std::env::var_os("HEX_APPLICATION_SUPPORT_DIR") {
+            let own = dirs::data_dir().map(|data| data.join("hex"));
+            assert_eq!(support_dir().unwrap(), PathBuf::from(&named));
+            assert_ne!(Some(PathBuf::from(named)), own, "the user's own folder");
+        }
+    }
+
     #[test]
     fn an_older_roaming_folder_moves_to_the_local_one_once() {
         let root = std::env::temp_dir().join(format!("hex-local-move-{}", std::process::id()));

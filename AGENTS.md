@@ -1638,7 +1638,10 @@ Use `scripts/check [filter]` for the local loop, not raw `cargo test`. It runs
 tests through cargo-nextest (`brew install cargo-nextest`) with
 `.config/nextest.toml`, which kills a hung test and reports it by name; CI uses
 the same config's `ci` profile. Read its output whole rather than piping it
-through `grep | head`; failures are summarized at the end.
+through `grep | head`; failures are summarized at the end. It gives the tests
+an empty support folder of their own (`HEX_APPLICATION_SUPPORT_DIR`, unless
+one is set), so no test reads your settings, history, meetings, or models; a
+test that needs data builds its own.
 
 Benchmark with strobe (`docs/perf.md`): `strobe.json` builds `--release`
 with `CARGO_PROFILE_RELEASE_*` env for line tables in `hex.pdb` (no profile
