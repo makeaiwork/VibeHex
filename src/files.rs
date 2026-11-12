@@ -8,6 +8,7 @@ mod linked;
 pub mod playback;
 pub mod requests;
 pub mod rewrite;
+mod speaker_echo;
 pub mod store;
 mod stretch;
 pub mod text;

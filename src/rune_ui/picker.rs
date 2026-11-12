@@ -12,6 +12,8 @@
 
 mod compare;
 mod facts;
+
+pub(super) use facts::{blurb, recommendation_label, size_text};
 mod list;
 
 use rune::{El, col, el, row, text};
@@ -100,6 +102,10 @@ pub(super) struct Picker {
     /// The model whose Delete (an import's Remove) is armed.
     pub(super) deletion: Option<TranscriptionModelId>,
     deletion_error: Option<String>,
+    /// Opened from the first run's model step ("All models…"), for the
+    /// dictation language chosen there: a model chosen here goes back to
+    /// that step as its selected row, and nothing is prepared or saved.
+    pub(super) setup_language: Option<&'static str>,
     /// Installed models for fixtures; live windows ask the filesystem.
     pub(super) installed: Option<Vec<TranscriptionModelId>>,
     pub(super) fallback: Option<LanguageFallback>,
@@ -149,6 +155,20 @@ pub(super) fn open(ui: &mut Ui) {
     ui.picker.others_open = false;
     ui.picker.in_use_first = (active_first_on(ui) && ui.picker.selected_installed(&ui.settings))
         .then_some(ui.settings.transcription.model);
+}
+
+/// "All models…" on the first run's model step: the picker for `language`.
+pub(super) fn open_for_setup(ui: &mut Ui, language: &'static str) {
+    open(ui);
+    ui.picker.setup_language = Some(language);
+}
+
+/// The language the picker shows models for: the saved one, or the first
+/// run's while it opened the picker.
+pub(super) fn shown_language(ui: &Ui) -> String {
+    ui.picker
+        .setup_language
+        .map_or_else(|| ui.settings.transcription.language.clone(), str::to_owned)
 }
 
 /// Switches between the comparison and the full list.
@@ -251,10 +271,10 @@ pub(super) fn shown_recommendation(
     })
 }
 
-/// The raw error rate with its direction: `7.57% CER · lower is better`.
+/// The raw error rate with its direction: `7.57% CER (lower is better)`.
 pub(super) fn benchmark_rate(record: &BenchmarkRecord) -> String {
     tr_named(
-        "{rate} · lower is better",
+        "{rate} (lower is better)",
         &[("rate", record.rate_label().as_str())],
     )
 }
@@ -307,7 +327,7 @@ pub(super) fn benchmark_detail(record: &BenchmarkRecord) -> String {
         );
     }
     parts.push(tr("Speed: upstream figure; hardware and method unknown").to_owned());
-    parts.join(" · ")
+    super::lists::apart(&parts)
 }
 
 pub(super) type PickerModel = (
@@ -364,6 +384,7 @@ fn hidden_model(
 
 pub(super) fn close(ui: &mut Ui) {
     ui.picker.open = false;
+    ui.picker.setup_language = None;
     ui.picker.in_use_first = None;
     ui.picker.clear_deletion();
 }
@@ -378,6 +399,12 @@ pub(super) fn cancel(ui: &mut Ui) {
 /// its default language, which Settings then names.
 pub(super) fn choose(ui: &mut Ui, model: &'static ModelDefinition) {
     ui.picker.clear_deletion();
+    // The first run's model step takes it as the selected row; Download
+    // there starts it.
+    if ui.picker.setup_language.is_some() && ui.tour.is_some() {
+        close(ui);
+        return super::onboarding::select(ui, model.id);
+    }
     let current = &ui.settings.transcription;
     let installed = ui.picker.installed(model, &current.language);
     if transcription_selection_is_active(current, model, installed) {
@@ -445,14 +472,23 @@ pub(super) fn delete(ui: &mut Ui, model: &'static ModelDefinition) {
     }
 }
 
+/// The picker among the window's modals; the first run shows the one its
+/// model step opened above itself ([`over_first_run`]).
+pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
+    if ui.first_run.is_some() {
+        return None;
+    }
+    over_first_run(ui, p)
+}
+
 /// The picker's scrim and panel over the window, when open: the scrim fades
 /// and the panel scales in as one surface ([`modal_transition`]).
-pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
+pub(super) fn over_first_run(ui: &Ui, p: Paint) -> Option<[El; 2]> {
     if !ui.picker.open {
         return None;
     }
     let c = &p.k.c;
-    let language = ui.settings.transcription.language.clone();
+    let language = shown_language(ui);
     let view = ui.picker.view;
     let inset = match view {
         View::Compare => 24.0,
@@ -622,7 +658,7 @@ pub(super) fn preparation(ui: &Ui, model: &ModelDefinition) -> Option<(String, O
             let elapsed = ui
                 .preparing
                 .map_or(0, |(_, since)| since.elapsed().as_secs());
-            (tr_fill("Loading model · {}s", &elapsed.to_string()), None)
+            (tr_fill("Loading model ({}s)", &elapsed.to_string()), None)
         }
         _ => {
             let fraction = model.download_bytes().map_or(0.0, |bytes| {
@@ -925,7 +961,7 @@ mod tests {
     fn benchmark_details_show_raw_rates_and_mark_unknowns() {
         let qwen = transcription_models::definition(TranscriptionModelId::Qwen3Asr06B);
         let record = transcription_models::benchmark(qwen).unwrap();
-        assert_eq!(benchmark_rate(&record), "7.57% CER · lower is better");
+        assert_eq!(benchmark_rate(&record), "7.57% CER (lower is better)");
         let detail = benchmark_detail(&record);
         for part in [
             "Mandarin Chinese",

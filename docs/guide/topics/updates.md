@@ -20,7 +20,7 @@ the bottom of the sidebar; it then says "VibeHex is up to date" or "Couldn't
 check for updates".
 
 When there is a newer version, VibeHex downloads it in the background and
-checks that the file is intact and properly signed. A window then says "Hex
+checks that the file is intact and properly signed. A window then says "VibeHex
 <version> is ready". It lists what changed in that release and in every one
 you skipped since yours, and offers **Restart to update** or **Not now**. Not
 now closes it; the sidebar keeps a Restart to update button, with a "What's

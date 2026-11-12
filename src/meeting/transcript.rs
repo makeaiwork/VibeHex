@@ -733,7 +733,7 @@ impl ChunkModel {
         // Quitting drops the dictation engine; a model loaded now would
         // outlast the drain.
         if crate::desktop::process_exit::quitting() {
-            return Ok(Chunked::Unavailable(eyre!("Hex is quitting")));
+            return Ok(Chunked::Unavailable(eyre!("VibeHex is quitting")));
         }
         if speechless(samples) {
             return Ok(Chunked::Done(Transcript::default()));
@@ -767,7 +767,7 @@ impl ChunkModel {
             )));
         }
         if crate::desktop::process_exit::quitting() {
-            return Ok(Chunked::Unavailable(eyre!("Hex is quitting")));
+            return Ok(Chunked::Unavailable(eyre!("VibeHex is quitting")));
         }
         let model = match load_model(&mut self.owned, &selection) {
             Ok(model) => model,

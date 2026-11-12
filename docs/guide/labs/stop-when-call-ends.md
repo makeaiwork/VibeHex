@@ -13,7 +13,7 @@ vibehex: false
 
 **What it does.** A recording VibeHex started by itself used to keep running
 after you hung up. With this on, once the call app stops using the microphone
-and goes quiet, a notice says "Hex stops recording in 30 s unless you keep
+and goes quiet, a notice says "VibeHex stops recording in 30 s unless you keep
 recording." After 30 seconds the recording stops and is transcribed, as with
 Stop & Transcribe.
 

@@ -227,8 +227,11 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
             Ok(id) => {
                 tracing::info!(id = id.as_str(), "an imported speech model is ready");
                 let selected = ui.settings.transcription.model == TranscriptionModelId::Custom(id);
-                if use_it || (reselect && selected) {
-                    let model = TranscriptionModelId::Custom(id);
+                let model = TranscriptionModelId::Custom(id);
+                if use_it && ui.tour.is_some() {
+                    // The first run takes the file as the person's pick.
+                    super::onboarding::choose(ui, model);
+                } else if use_it || (reselect && selected) {
                     let language = crate::transcription::models::definition(model)
                         .language_for(&ui.settings.transcription.language)
                         .to_owned();
@@ -262,7 +265,7 @@ pub(super) fn selection_notice(ui: &Ui) -> Option<String> {
     let fallback = crate::transcription::models::definition(custom_models::fallback().model).name;
     if model.id == TranscriptionModelId::ParakeetUltra && !model.available() {
         return Some(tr_named(
-            "{model} needs Labs › Parakeet Ultra, so Hex uses {fallback} until you turn it on or choose another model",
+            "{model} needs Labs › Parakeet Ultra, so VibeHex uses {fallback} until you turn it on or choose another model",
             &[("model", model.name), ("fallback", fallback)],
         ));
     }
@@ -277,10 +280,10 @@ pub(super) fn selection_notice(ui: &Ui) -> Option<String> {
     let notice = match custom_models::status(id) {
         Status::Ready => return None,
         Status::Missing => {
-            "{model} is missing, so Hex uses {fallback} until you import it again or choose another model"
+            "{model} is missing, so VibeHex uses {fallback} until you import it again or choose another model"
         }
         Status::Changed => {
-            "{model} changed since it was added, so Hex uses {fallback} until you check it again in the speech model picker or choose another model"
+            "{model} changed since it was added, so VibeHex uses {fallback} until you check it again in the speech model picker or choose another model"
         }
     };
     Some(tr_named(notice, &[("model", name), ("fallback", fallback)]))
@@ -315,7 +318,7 @@ pub(super) fn metadata(model: &ModelDefinition) -> String {
         }
         parts.push(format!("SHA-256 {}…", &import.sha256[..12]));
     }
-    parts.join(" · ")
+    super::lists::apart(&parts)
 }
 
 /// Whether `id` is a file used where it is (found, or added in place),

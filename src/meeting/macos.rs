@@ -85,7 +85,7 @@ pub(super) fn ensure_system_audio() -> Result<()> {
         request_screen_recording();
     }
     Err(eyre!(
-        "Allow Hex in System Settings › Privacy & Security › Screen & System Audio Recording, then try again"
+        "Allow VibeHex in System Settings › Privacy & Security › Screen & System Audio Recording, then try again"
     ))
 }
 
@@ -135,7 +135,7 @@ pub(super) fn open_system_audio(sink: &PacketSink) -> Result<Box<dyn LiveSource>
     }
     if !screen_permitted {
         return Err(eyre!(
-            "Allow Hex under System Settings › Privacy & Security › Screen & System Audio Recording"
+            "Allow VibeHex under System Settings › Privacy & Security › Screen & System Audio Recording"
         ));
     }
     ScreenCaptureSource::start(sink).map(|source| Box::new(source) as Box<dyn LiveSource>)

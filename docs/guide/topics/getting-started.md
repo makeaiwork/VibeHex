@@ -14,17 +14,35 @@ on your own computer.
 
 ## What the first launch does
 
-A short setup opens by itself: a demo, the permissions your system needs, the
-speech model download (it starts at once, with the model recommended for your
-system's first language), and a practice game, "Your turn". Skip exists only
-on the demo and the practice. If you quit part-way, setup resumes. At the end,
-"Hex is ready" says where VibeHex lives: the menu bar, system tray, or app
-launcher.
+A short setup opens by itself. Its first page is **Choose a speech model**,
+and nothing downloads until you press **Download** there:
+
+- **Dictation language** starts on your system's first language (Auto is
+  there too); change it and the list follows.
+- Up to three models for that language, the recommended one first and
+  selected, each with its badge, one line about it, and the download's size.
+  English offers Parakeet Unified English, Cohere Transcribe, and Whisper
+  large-v3-turbo; Russian offers GigaAM v3, Whisper large-v3-turbo, Parakeet
+  v3, and Orukeet fourth, without a badge. Model files already on this
+  computer follow as "On this computer", with **Use this model**.
+- **All models…** opens the full picker; **Choose** there only selects a row,
+  and Download on the page starts it.
+- **Continue without a model** asks for the permissions and lets you in with
+  the language you chose kept. Dictation then waits until General › Speech
+  model offers Download or Add model file….
+
+After Download the setup goes on while the model arrives (its name and
+percent show on top): a demo, the permissions your system needs, and a
+practice game, "Your turn". Only the practice waits for the model, on
+"Almost ready". Back returns to the list with the download still running; ×
+on its row cancels it, and Download on another row replaces it. Skip exists
+on the demo, the practice, and Almost ready (the download goes on, and
+Settings › General shows it). If you quit part-way, setup resumes. At the
+end, "VibeHex is ready" says where VibeHex lives: the menu bar, system tray,
+or app launcher.
 
 To see it again, use Labs › Run setup again; settings, models, and
-permissions stay. If the download fails, Continue without a model lets you in,
-and dictation waits until General › Speech model offers Download or Add model
-file….
+permissions stay.
 
 ## Permissions
 
@@ -32,13 +50,13 @@ file….
   VibeHex notices the shortcut and pastes into other apps (macOS 27 calls it
   "Device Control and Data Access"). It never asks for Input Monitoring. If a
   row stays grey after you switched it on, press "Still grey? Fix it"; if it
-  says "Needs a restart", press Restart Hex. A permission that goes missing
+  says "Needs a restart", press Restart VibeHex. A permission that goes missing
   later shows under General › Permissions needed.
 - **Windows** asks nothing, unless the microphone switch for desktop apps is
-  off in Windows Settings; then the "Let Hex hear you" page has an Open
+  off in Windows Settings; then the "Let VibeHex hear you" page has an Open
   Settings button that opens that page.
 - **Linux** asks nothing from VibeHex itself. On GNOME or KDE with Wayland, a
-  page "Let Hex paste for you" has your desktop ask once to allow the paste
+  page "Let VibeHex paste for you" has your desktop ask once to allow the paste
   keystroke (it may call it remote desktop). VibeHex never sees your screen.
   If you refuse, it copies your words and you press Ctrl+V.
 

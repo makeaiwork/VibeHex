@@ -44,8 +44,8 @@ updating itself from the Dev channel; afterwards, the stable release.
 [anoma.ly/hex](https://anoma.ly/hex/) picks the right one. The
 installer needs no administrator rights: it installs for the current user,
 adds Hex to the Start menu, to **Settings › Apps** for uninstalling, and
-`hex` to PATH for terminals, and opens Hex, whose first run downloads a speech
-model. Releases built once
+`hex` to PATH for terminals, and opens Hex, whose first run asks which speech
+model to download. Releases built once
 Anomaly's Azure Artifact Signing is configured are Authenticode-signed
 ([windows-signing.md](windows-signing.md)). Until then, and while a new
 publisher builds SmartScreen reputation, SmartScreen may say it protected your

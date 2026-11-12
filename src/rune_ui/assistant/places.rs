@@ -330,7 +330,10 @@ fn probe(ui: &Ui) -> Option<usize> {
     let titles = ui.place.as_ref()?.titles.clone();
     let mut layer = Vec::new();
     let p = Paint::new(false, 1.0);
-    lighting(&titles, || super::super::pane_body(ui, p, true, &mut layer)).1
+    lighting(&titles, || {
+        super::super::sidebar::body(ui, p, true, &mut layer)
+    })
+    .1
 }
 
 /// Scrolls the place's titles in, outermost first, so the deepest one

@@ -19,15 +19,16 @@ pub fn is_enabled() -> Result<bool> {
     match key.get_value::<String, _>(VALUE_NAME) {
         Ok(_) => Ok(true),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error).wrap_err("could not read the Hex startup registration"),
+        Err(error) => Err(error).wrap_err("could not read the VibeHex startup registration"),
     }
 }
 
 /// Register or unregister the current executable for the current Windows user.
 pub fn set_enabled(enabled: bool) -> Result<()> {
     if enabled {
-        let executable = std::env::current_exe().wrap_err("could not locate the Hex executable")?;
-        write_startup_command(&executable, "could not register Hex to launch at login")?;
+        let executable =
+            std::env::current_exe().wrap_err("could not locate the VibeHex executable")?;
+        write_startup_command(&executable, "could not register VibeHex to launch at login")?;
     } else {
         let current_user = RegKey::predef(HKEY_CURRENT_USER);
         let key = match current_user.open_subkey_with_flags(RUN_KEY, KEY_WRITE) {
@@ -40,7 +41,7 @@ pub fn set_enabled(enabled: bool) -> Result<()> {
         if let Err(error) = key.delete_value(VALUE_NAME)
             && error.kind() != ErrorKind::NotFound
         {
-            return Err(error).wrap_err("could not unregister Hex from Windows startup");
+            return Err(error).wrap_err("could not unregister VibeHex from Windows startup");
         }
     }
     Ok(())
@@ -53,7 +54,10 @@ pub fn repoint(executable: &Path) -> Result<()> {
     if !is_enabled()? {
         return Ok(());
     }
-    write_startup_command(executable, "could not repoint the Hex startup registration")
+    write_startup_command(
+        executable,
+        "could not repoint the VibeHex startup registration",
+    )
 }
 
 fn write_startup_command(executable: &Path, context: &'static str) -> Result<()> {

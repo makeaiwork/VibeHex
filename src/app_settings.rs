@@ -522,7 +522,8 @@ impl KeyboardModelChoice {
 }
 
 /// A new install starts with the model recommended for the person's
-/// language, so first-run setup can download it without asking.
+/// language. First-run setup only preselects it: nothing downloads until
+/// the person picks a model there (`desktop::onboarding::ModelChoice`).
 fn default_transcription() -> TranscriptionSelection {
     crate::transcription::models::recommended_selection(&crate::desktop::i18n::preferred_language())
 }

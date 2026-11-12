@@ -18,13 +18,18 @@ pub fn is_macos_test_build() -> bool {
     cfg!(target_os = "macos") && option_env!("HEX_TEST_BUILD") == Some("1")
 }
 
-/// The name menus show, so a test build running beside Hex reads as itself.
+/// The fork's name as people see it: the window's title and sidebar, the
+/// menus, and the tray. The command, the data folder, and the settings keys
+/// stay `hex`.
+pub const PRODUCT_NAME: &str = "VibeHex";
+
+/// The name menus show, so a test build running beside VibeHex reads as itself.
 #[cfg(target_os = "macos")]
 pub fn app_name() -> &'static str {
     if is_macos_test_build() {
         "Hex Test"
     } else {
-        "Hex"
+        PRODUCT_NAME
     }
 }
 

@@ -76,7 +76,7 @@ struct Architecture {
 
 fn parse(name: &str, body: &[u8]) -> Result<Vec<ServerModel>> {
     let listing: Listing = serde_json::from_slice(body)
-        .map_err(|error| eyre!("{name} sent a model list Hex can't read: {error}"))?;
+        .map_err(|error| eyre!("{name} sent a model list VibeHex can't read: {error}"))?;
     let mut seen = std::collections::HashSet::new();
     Ok(listing
         .data

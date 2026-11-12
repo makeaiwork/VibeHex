@@ -49,7 +49,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Failure notices no    labs.failure_notices                   when a dictation fails, its explanation sits beside the HUD for about 6 s, or until the next capture starts
 ├── Live typing     no    labs.live_typing                       (Linux Wayland) provisional words as an underlined input-method preedit in the focused field; the final text is committed there instead of pasted
 ├── Settings search no    labs.settings_search                  a search field atop General filters its rows, Advanced's included
-├── Release notes link no labs.release_notes_link               the sidebar footer links this build's release notes: the dev changelog on a dev build, GitHub's release on a stable version
+├── Release notes link no labs.release_notes_link               the sidebar footer links this build's release notes: the fork's GitHub release for a VibeHex (`X.Y.Z-vibe.N`) or plain `X.Y.Z` version, nothing for any other
 ├── Live chapters   no    labs.live_chapters           (macOS)   chapters a meeting while it records, boundary pass after Stop
 ├── Vocabulary biasing no labs.vocabulary_biasing                Parakeet transcription biased toward the vocabulary (#452/#457)
 ├── Switch model with keyboard language  no  keyboard_model_switching.enabled  (macOS, Windows, X11)
@@ -119,7 +119,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Lower every app no   labs.lower_every_app         (macOS 14.2+) Mute and Lower audio on an output without a volume (a monitor's) play every other app back lower through a system audio tap
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
-├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there (files.md, meetings.md)
+├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there; a meeting's microphone plays with the speakers' echo taken out, cleaned right after the meeting is transcribed (files.md, meetings.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes the Russian preset into settings (the owner's 90 Vocabulary terms from presets/deniskey.json, docs/vocabulary's Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
@@ -188,7 +188,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General);
 │                                         Java games (javaw/java, e.g. Minecraft) still get Ctrl+V (#1362)
 │                                         // check: terminal_paste_sends_plain_control_v_to_java_games (windows/paste.rs)
-└── OpenCode in WSL no    labs.opencode_in_wsl          (Windows) Modes rewriting, the Modes model picker, and Annotate's capture sends
+└── OpenCode in WSL no    labs.opencode_in_wsl          (Windows) AI cleanup, meeting summaries and their model list, and Annotate's Send to
                                          use an OpenCode service running in the default WSL distribution
                                          when no Windows registration answers; looking for it can start WSL
                                          // checks: the_passwd_line_for_the_uid_names_its_home, both_wsl_prefixes_name_the_distribution,
@@ -238,7 +238,8 @@ Settings › Labs                          // labs.page, a store (labs/store.rs)
 │   Links over 2048 bytes are ignored; a test build's scheme is hex-test://
 ├── Annotate is listed as a lab (Annotate group) wherever Hex has the Annotate pane; its switch flips capture.enabled
 └── Footer -> "Unfinished features. They may change or break.", Run setup again (replays the onboarding,
-    below), Send feedback -> https://github.com/anomalyco/hex/issues/new
+    below), Send feedback -> a new email to the developer (`labs::feedback_mailto`: zelenpro@gmail.com,
+    subject "VibeHex feedback (version <version>)"), as About's Email the developer
 
 hex labs                                 // labs.cli; edits settings.json, no running Hex
 ├── (list) -> every feature this build has: name, on/off, audience, description, its hex settings key
@@ -375,16 +376,16 @@ footer shows a small Release notes link under the version and update status.
 Only a release build shows it, and that exclusion is by build kind, not
 version string: local and test builds (`HEX_LOCAL_BUILD=1`,
 `HEX_TEST_BUILD=1`) get no link even when their version is plain. Then
-`updater::notes::release_notes_url` chooses from `crate::VERSION`: a dev
-version (`0.0.0-dev-N`) opens `https://anoma.ly/hex/dev#<version>`, a plain
-`major.minor.patch` opens
-`https://github.com/anomalyco/hex/releases/tag/v<version>`, and an odd
-version shows no link. The gate is the footer row
+`updater::notes::release_notes_url` chooses from `crate::VERSION`: a VibeHex
+version (`major.minor.patch-vibe.N`) or a plain `major.minor.patch` opens the
+fork's own GitHub release, `<RELEASES>/v<version>` (`RELEASES` in
+[notes.rs](../../src/updater/notes.rs), the fork repository's
+`/releases/tag`), and any other version, a dev one (`0.0.0-dev-N`) included,
+shows no link. The gate is the footer row
 ([sidebar.rs](../../src/rune_ui/sidebar.rs) reads
 `labs::Feature::ReleaseNotesLink`), so off, the footer is exactly as before
 and What's new keeps its place under a staged update. Checks:
-`a_dev_build_opens_the_changelog_at_itself`,
-`a_stable_build_opens_its_github_release`, and
+`a_vibehex_release_opens_its_github_release` and
 `an_odd_version_has_no_release_notes` in
 [notes.rs](../../src/updater/notes.rs), and
 `release_notes_link_shows_only_with_its_lab` in
@@ -914,7 +915,7 @@ Picker row -> "Parakeet Ultra" + Labs tag; 25 languages, offline, Token     // l
 │   Ultra by Moondream, based on NVIDIA Parakeet TDT 0.6B v3. GGUF conversion and
 │   quantization by handy-computer. Creative Commons Attribution 4.0 International
 │   (CC BY 4.0)."); the publisher's NOTICE; Source and License links
-├── "Published conversion benchmarks; not measured in Hex" (folded) -> conditions
+├── "Published conversion benchmarks; not measured in VibeHex" (folded) -> conditions
 │   (FLEURS test, Q8_0, CUDA, batch 8, each language's hint, no timestamps,
 │   transcribe.cpp 021aa17d; file digest, dataset revision, scorer unknown), then
 │   25 FLEURS WERs from transcribe.cpp 7045d1c's catalog/parakeet-ultra.json
@@ -1268,7 +1269,7 @@ Labs › Keep recordings on                     // labs.keep-recordings
 ├── History card, entry with audio -> "Saved recording" + "Transcribe again" menu
 │   ├── Lists every available model installed for the language it would use
 │   ├── A model that takes a language hint (not Parakeet v3/Ultra, GigaAM,
-│   │   Granite, Bark) -> "<model> · Language: <saved language>" menu (Auto when it
+│   │   Granite, Bark) -> "<model>   Language: <saved language>" menu (Auto when it
 │   │   detects, then its languages) + Transcribe; the language applies to
 │   │   that run only, never to settings (#1068)
 │   ├── Choose one -> "Transcribing with <model>…" on a worker: its own
@@ -1394,7 +1395,7 @@ shortcut uses) opens a second copy of Annotate's capture picker
 │                 a drag draws the area with its W × H beside the pointer, outside the area
 ├── Space      -> window mode: a camera replaces the pointer and the window under it highlights;
 │                 Space again -> area
-├── Click      -> the whole display ("Full screen · Click to capture")
+├── Click      -> the whole display ("Full screen. Click to capture")
 ├── Escape     -> closes it, nothing shot; Escape reaches no other app or Hex shortcut
 └── Release    -> shot at the display's own pixels (ScreenCaptureKit), Hex's overlays,
                   the picker, and the pointer left out
@@ -1447,7 +1448,7 @@ Captures
 ├── search      -> every word in what was said over it, its file name, or its kind
 ├── rows        -> newest first, the last 30 days, only files still where they were saved:
 │                  thumbnail · the words said over it (else the file's name) ·
-│                  "Screenshot · 2880 × 1800" or "Screen recording · 0:42" · its age
+│                  "Screenshot   2880 × 1800" or "Screen recording   0:42" · its age
 ├── click       -> the editor (a shot with its words; a recording to trim)
 ├── drag        -> the file
 ├── hover       -> Copy, Show in Finder, Move to Trash in the age's place
@@ -1538,7 +1539,7 @@ until the drawer's Record screen row sets one (a key is required; the
 trash button clears it); without Annotate the row says "Needs Annotate".
 
 ```ts
-record shortcut  -> the same picker, "Full screen · Click to record"; area, window (Space), or display
+record shortcut  -> the same picker, "Full screen. Click to record"; area, window (Space), or display
 │                   while an Annotate capture records -> nothing
 ├── recording    -> Annotate's capsule shows it recording, as any capture; talk to narrate
 ├── record shortcut again (or the capsule's stop) -> stops; the capsule folds unless it failed
@@ -1939,7 +1940,7 @@ Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 │           (≈93 tok/s; 36 of 44 misheard vocabulary forms written as terms), Qwen3
 │           4B 4 · 4 (≈61 tok/s; 37), E4B 3 · 5 (≈47 tok/s; 40), measured on an
 │           M-series Mac
-├── <server name> -> "Not tested · host" | "Testing…" | "Connected · 0.8 s" | the error; Test
+├── <server name> -> "Not tested   host" | "Testing…" | "Connected (0.8 s)" | the error; Test
 │   sends one short request on its own thread (30 s), a changed server forgets the result
 ├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama
 │   (http://127.0.0.1:11434/v1); anything but http(s) is refused
@@ -2545,10 +2546,11 @@ vocabulary list itself (rewriting and search), and Linux's Terminal paste.
 - Terminal paste shortcut (Windows, Linux): another dictation shortcut whose
   paste is always Ctrl+Shift+V, whatever Terminal paste says. Its own switch
   is `labs.terminal_paste_shortcut`, and General shows its recorder while on.
-- OpenCode in WSL (Windows): Modes rewriting, the Modes model picker, and
-  Annotate's capture sends use an OpenCode service running inside the default
-  WSL distribution. WSL2 forwards
-  loopback, so Hex dials the registered URL as usual; what it cannot see
+- OpenCode in WSL (Windows): everything that asks the running OpenCode
+  service uses one running inside the default WSL distribution when no Windows
+  one answers: AI cleanup on OpenCode, meeting summaries and notes, the
+  summary model list in Meetings › Settings, and Annotate's Send to. WSL2
+  forwards loopback, so Hex dials the registered URL as usual; what it cannot see
   without this lab is the registration, which lives in the distribution's
   home.
 

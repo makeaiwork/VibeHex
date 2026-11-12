@@ -212,7 +212,7 @@ curl -fsSL https://anoma.ly/hex/files/install-linux.sh | sh
 
 If a runtime library is missing, the installer names the packages to install
 (with Arch names). Then open Hex from your application launcher, or run
-`~/.local/bin/hex`; its first run downloads a speech model.
+`~/.local/bin/hex`; its first run asks which speech model to download.
 
 To install the dependencies up front, or to inspect the installer before
 running it:

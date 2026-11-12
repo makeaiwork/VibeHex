@@ -10,12 +10,9 @@
 //! - Auditionable typing key-sound candidates and `#292` `feedback` tones (`sfx`).
 
 use rune::{Anim, El, TextStyle, Transition, col, el, row, text};
-use rune_kit::{Badge, Button, ButtonVariant, RadioItem, TextArea, glyphs};
+use rune_kit::{Button, ButtonVariant, TextArea};
 
-use super::super::controls::{
-    CardRow, DESCRIPTION, KeySize, METRICS, Paint, PushSize, card, keycap,
-};
-use super::super::found_choice::ChoiceRow;
+use super::super::controls::{DESCRIPTION, KeySize, Paint, PushSize, keycap};
 use super::super::lists::allowed;
 use super::dictated::Stage;
 use super::field_text::Field;
@@ -27,15 +24,13 @@ use super::hud_stage::{flow_box, frame_slot, voice_or_idle_slot};
 use super::landing::{LEAD, arrives, keys, ready, title_font};
 use super::live::{Live, ModelStep};
 use super::mic_line::mic_capsule;
-use super::pill::{CAPSULE, FLY, PILL, language_capsule, pill, slot};
+use super::pill::{CAPSULE, FLY, PILL, language_capsule, pill_named, slot};
 use super::sparks::impacts;
 use super::stories::{Onboard, Step, is_live_window};
-use super::{live, permissions, versus};
+use super::{choice, live, permissions, versus};
 use crate::desktop::i18n::{tr, tr_fill};
 
 const TOP_BAR: f32 = 48.0;
-/// The model step's list, as wide as the tour's column.
-const MODELS_W: f32 = 520.0;
 const ACTION_H: f32 = 32.0;
 
 const TRY_W: f32 = 468.0;
@@ -67,7 +62,15 @@ pub(super) fn view(p: Paint, s: &Onboard) -> Vec<El> {
         .center_y()
         .justify_center()
         .child(match s.download {
-            Some(d) if !s.had_model && !centred && s.step != Step::Ready => pill(p, d, s.closed),
+            // The real first run names the model the person started.
+            Some(d) if !s.had_model && !centred && s.step != Step::Ready => pill_named(
+                p,
+                d,
+                s.closed,
+                s.live
+                    .as_ref()
+                    .and_then(|live| live.download_name.as_deref()),
+            ),
             _ => slot(),
         });
     let top = top
@@ -103,11 +106,15 @@ pub(super) fn view(p: Paint, s: &Onboard) -> Vec<El> {
     ]
 }
 
-/// Skip, quiet in the top-right corner of the optional pages only: the
-/// demo and the practice. It passes over that part to the next step setup
-/// still needs, and never past permissions or the model.
+/// Skip, quiet in the top-right corner of the pages setup doesn't need:
+/// the demo, the practice, and the wait for a model still downloading
+/// (`"Almost ready"`, which only the practice needs). It passes over that
+/// part to the next step setup still needs, and never past permissions. A
+/// download that failed shows its own ways on instead.
 fn skip(p: Paint, s: &Onboard) -> Option<El> {
-    s.live.as_ref().filter(|_| s.step.optional()).map(|_| {
+    let skips =
+        |live: &&Live| s.step.optional() || (s.step == Step::Waiting && !live.model_blocked());
+    s.live.as_ref().filter(skips).map(|_| {
         let label = tr("Skip");
         let quiet = p.muted();
         row()
@@ -139,13 +146,13 @@ fn reopen(p: Paint, s: &Onboard) -> Option<El> {
             .center()
             .transition(arrives())
             .child(
-                text(tr("Hex's shortcut didn't start."))
+                text(tr("The VibeHex shortcut didn't start."))
                     .key("why")
                     .font(LEAD)
                     .color(p.muted()),
             )
             .child(
-                Button::new(tr("Reopen Hex"))
+                Button::new(tr("Reopen VibeHex"))
                     .variant(ButtonVariant::Neutral)
                     .on_press(live::reopen)
                     .build_push(p.k)
@@ -182,87 +189,6 @@ fn back(p: Paint, s: &Onboard) -> Option<El> {
     })
 }
 
-/// The model step: the models found on this computer, Hex's recommended
-/// one first and selected. A pick starts at once; Continue moves on once it
-/// is under way.
-fn models_page(p: Paint, s: &Onboard, live: &Live) -> El {
-    let rows: Vec<CardRow> = live
-        .models
-        .iter()
-        .enumerate()
-        .map(|(index, model)| model_row(p, index, model).into())
-        .collect();
-    let list = card(p, "model-list", rows).w(MODELS_W);
-    col()
-        .key("models")
-        .gap(22.0)
-        .items_center()
-        .child(heading(
-            p,
-            s,
-            "models-head",
-            tr("Choose a speech model"),
-            lead(p, tr("Hex found speech models already on this computer.")),
-        ))
-        .child(s.motion.staggered(list, 1.0, 8.0))
-        .child(action(continue_model_button(p)))
-}
-
-fn model_row(p: Paint, index: usize, model: &ChoiceRow) -> El {
-    let radio = RadioItem::new(&model.name, model.selected)
-        .description(&model.line)
-        .on_select_tx(move |ui: &mut super::super::Ui, tx: &mut rune::Tx| {
-            tx.instant();
-            live::pick_model(index)(ui);
-        })
-        .build(p.k)
-        .key("radio")
-        .grow(1.0);
-    let tag = model
-        .recommended
-        .then(|| Badge::new(tr("Recommended")).build(p.k).key("recommended"));
-    // The radio inside is the choice assistive technology reads; the row
-    // only widens where a press lands.
-    row()
-        .key(format!("model{index}"))
-        .role("none")
-        .min_h(METRICS.row_h_described)
-        .px(METRICS.row_px)
-        .py(10.0)
-        .gap(12.0)
-        .center_y()
-        .radius(p.k.radius.md)
-        .hover(p.k.c.hover)
-        .on_press_tx(move |ui: &mut super::super::Ui, tx: &mut rune::Tx| {
-            tx.instant();
-            live::pick_model(index)(ui);
-        })
-        .child(radio)
-        .children(tag)
-}
-
-fn continue_model_button(p: Paint) -> El {
-    let label = tr("Continue");
-    Button::new(label)
-        .variant(ButtonVariant::Contrast)
-        .label_with(move |font, ink| {
-            row()
-                .gap(6.0)
-                .center_y()
-                .child(text(label).key("label").font(font).color(ink))
-                .child(
-                    rune::icon(&glyphs::ARROW_RIGHT, 15.0)
-                        .key("arrow")
-                        .color(ink),
-                )
-        })
-        .on_press(live::continue_model)
-        .build_push(p.k)
-        .key("continue")
-        .default_button()
-        .transition(arrives())
-}
-
 fn ready_page(p: Paint, s: &Onboard) -> El {
     let core = ready(
         p,
@@ -293,7 +219,7 @@ fn ready_page(p: Paint, s: &Onboard) -> El {
                             .key("try-again"),
                     )
                     .child(
-                        Button::new(tr("Start using Hex"))
+                        Button::new(tr("Start using VibeHex"))
                             .variant(ButtonVariant::Contrast)
                             .on_press(live::finish)
                             .build_push(p.k)
@@ -345,7 +271,7 @@ fn lead(p: Paint, copy: impl Into<String>) -> El {
         .transition(Transition::opacity())
 }
 
-fn heading(p: Paint, s: &Onboard, key: &str, title: &str, under: El) -> El {
+pub(super) fn heading(p: Paint, s: &Onboard, key: &str, title: &str, under: El) -> El {
     s.motion.heading(
         col()
             .key(key.to_string())
@@ -373,7 +299,7 @@ fn download_page(p: Paint, s: &Onboard, waiting: bool) -> El {
         .as_ref()
         .filter(|live| !waiting && live.model_step != ModelStep::None)
     {
-        return models_page(p, s, live);
+        return choice::page(p, s, live);
     }
     let d = download(s);
 
@@ -383,7 +309,7 @@ fn download_page(p: Paint, s: &Onboard, waiting: bool) -> El {
             s,
             "waiting-head",
             tr("Almost ready"),
-            lead(p, tr("Finishing the speech model so Hex can hear you.")),
+            lead(p, tr("Finishing the speech model so VibeHex can hear you.")),
         )
     } else {
         let subtitle = row()
@@ -399,8 +325,6 @@ fn download_page(p: Paint, s: &Onboard, waiting: bool) -> El {
             .child(if s.live.is_none() {
                 // The story's prototype has its other language by design.
                 language_capsule(p, d.language, Some(Onboard::cycle_language))
-            } else if s.live.as_ref().is_some_and(Live::switches_language) {
-                language_capsule(p, d.language, Some(live::cycle_language))
             } else {
                 language_capsule::<Onboard>(p, d.language, None)
             })
@@ -410,7 +334,7 @@ fn download_page(p: Paint, s: &Onboard, waiting: bool) -> El {
                     .font(LEAD)
                     .color(p.muted()),
             );
-        heading(p, s, "download-head", tr("Setting up Hex"), subtitle)
+        heading(p, s, "download-head", tr("Setting up VibeHex"), subtitle)
     };
 
     let pct = (d.fraction() * 100.0).round() as u32;
@@ -510,9 +434,10 @@ fn download_page(p: Paint, s: &Onboard, waiting: bool) -> El {
         .children(without_model(p, s))
 }
 
-/// The one way past a model that can't be had (#894): once its download
-/// failed or stalled, and every permission is ready, onboarding can finish
-/// without one.
+/// The way past a model that can't be had (#894), on `"Almost ready"`:
+/// once its download failed or stalled, and every permission is ready,
+/// onboarding can finish without one. The model step offers the same from
+/// the start ([`choice`]).
 fn without_model(p: Paint, s: &Onboard) -> Option<El> {
     s.live
         .as_ref()
@@ -615,7 +540,7 @@ fn try_page(p: Paint, s: &Onboard) -> El {
             p,
             s,
             "try-heard",
-            tr("That's Hex"),
+            tr("That's VibeHex"),
             lead(p, tr("It types wherever your cursor is, in any app.")),
         ),
         _ if warming => heading(p, s, "try", tr("Your turn"), lead(p, live::warming_copy())),

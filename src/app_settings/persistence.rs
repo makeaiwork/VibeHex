@@ -69,7 +69,7 @@ impl AppSettings {
                 LaunchLoad {
                     settings: Self::default(),
                     note: Some(LaunchNote::Failed(format!(
-                        "Hex couldn't read its settings and started with defaults. ({error:#})"
+                        "VibeHex couldn't read its settings and started with defaults. ({error:#})"
                     ))),
                 }
             }
@@ -216,7 +216,7 @@ impl AppSettings {
         // They may be stale defaults, so a fixed file must be loaded instead.
         if load_found_unparseable(path) {
             return Err(eyre!(
-                "settings.json couldn't be read when Hex loaded it. Restart Hex to load the fixed file. Nothing was saved."
+                "settings.json couldn't be read when VibeHex loaded it. Restart VibeHex to load the fixed file. Nothing was saved."
             ));
         }
         match &original {
@@ -283,7 +283,7 @@ impl LoadIssue {
         match self {
             Self::Unparseable(reason) => reason.reload_error(),
             Self::Unreadable => {
-                "Hex couldn't read settings.json; keeping the settings it already has.".into()
+                "VibeHex couldn't read settings.json; keeping the settings it already has.".into()
             }
         }
     }
@@ -315,7 +315,7 @@ impl Unparseable {
 
     fn launch_note(&self) -> String {
         format!(
-            "Hex couldn't read settings.json and started with defaults. Your file wasn't changed; fix or remove it, then restart Hex. ({})",
+            "VibeHex couldn't read settings.json and started with defaults. Your file wasn't changed; fix or remove it, then restart VibeHex. ({})",
             self.reason()
         )
     }
@@ -323,7 +323,7 @@ impl Unparseable {
     /// The error a save returns; nothing is written.
     fn save_error(&self) -> String {
         format!(
-            "settings.json {}. Fix or remove it, then restart Hex. Nothing was saved.",
+            "settings.json {}. Fix or remove it, then restart VibeHex. Nothing was saved.",
             self.sentence()
         )
     }
@@ -332,7 +332,7 @@ impl Unparseable {
     #[cfg(target_os = "linux")]
     fn reload_error(&self) -> String {
         format!(
-            "settings.json {}. Fix or remove it, then restart Hex.",
+            "settings.json {}. Fix or remove it, then restart VibeHex.",
             self.sentence()
         )
     }

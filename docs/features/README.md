@@ -104,7 +104,7 @@ Install on Windows                        // setup.windows-installer
 ├── Setup.exe, per user, no admin -> managed versions\<version>\hex.exe
 │   ├── x64 without a Vulkan 1.2 driver -> installs; speech on the CPU + Settings note (#1240)
 │   ├── another version installed (e.g. self-updated) -> install this one over it
-│   └── finish -> Open Hex -> the first run downloads a model
+│   └── finish -> Open Hex -> the first run asks which model to download
 └── Settings › Apps -> uninstall every version, shortcut, Launch at login; keep data
 
 Install on Linux                          // setup.linux-installer
@@ -158,14 +158,16 @@ with 2.1.17; the initial 2.1.16 mirror preserves that release's original bytes.
 Launch Hex, setup incomplete              // setup.tour; every build and OS, full window
 ├── One onboarding: the first-run story (rune_ui/onboarding_kit/live.rs) over
 │   the tour state machine (desktop::onboarding::Flow); no flag, no other tour
-├── Skip (quiet, top-right, only on the demo and the practice)    // setup.skip
+├── Skip (quiet, top-right: the demo, the practice, Almost ready)   // setup.skip
 │   ├── Passes over that part to the next step setup still needs: permissions,
-│   │   then Almost ready while the model downloads, else Hex is ready
-│   ├── Never closes onboarding or records it done
-│   └── No Skip on permissions, the model step or download, or the paste
+│   │   then Almost ready while the model downloads, else VibeHex is ready
+│   ├── On the demo and the practice it never closes onboarding or records it
+│   │   done; on Almost ready, which only the practice needs, it closes
+│   │   onboarding with the download going on (Settings › General shows it)
+│   └── No Skip on permissions, the model step, a failed download, or the paste
 │       permission. Check: `onboarding_skip` (scripts/check-onboarding.sh)
 ├── GNOME/KDE Wayland (pastes through the RemoteDesktop portal, no wtype)
-│   and no saved grant -> before Your turn, "Let Hex paste for you"     // setup.paste-access
+│   and no saved grant -> before Your turn, "Let VibeHex paste for you"     // setup.paste-access
 │   ├── Says why: Hex only sends the paste keystroke, never sees the screen;
 │   │   the desktop asks once and may call it remote desktop (#932)
 │   ├── Allow -> opens the desktop's dialog; the grant's restore token is saved,
@@ -204,40 +206,86 @@ Launch Hex, setup incomplete              // setup.tour; every build and OS, ful
 │   └── Setup ready, listener starting -> a running 2.3.1 or Swift Hex   // setup.quit-legacy
 │       (retired bundle IDs) is asked to quit, so both never answer Option;
 │       it stays installed. No check; `macos_rune::quit_legacy_hex`
-├── Setting up Hex -> speech model download starts at once  // setup.background-download
-│   ├── Model -> the selection recommended for the system's first preferred
-│   │            language (English -> Parakeet Unified English; e.g. French ->
-│   │            Parakeet v3, Japanese -> Whisper large-v3-turbo); when that
-│   │            language isn't English, the language capsule switches between
-│   │            English and its recommended model with one press, with no
-│   │            dropdown chevron; with English as the system language there is
-│   │            nothing to switch to, so the capsule just shows English,
-│   │            whatever English model is selected
-│   ├── The download is held while the Hugging Face scan runs (headers only)
-│   ├── Models found here -> the model step instead      // setup.found-choice
-│   │   ├── "Choose a speech model": one list, ours first and selected, then the
-│   │   │   found files; a pick starts at once (ours downloads, a found one is
-│   │   │   checked and used in place); Continue starts the selected row
-│   │   ├── A found pick moves on with no download page or pill
-│   │   └── Back on the pages after it returns to the list to change the pick
-│   ├── Nothing found -> this page as always, the recommended model downloading
-│   ├── Progress moves to the top pill once the story moves on; failure ->
-│   │   why, in one line (a proxy or certificate, #894), + Use a model
+├── Choose a speech model -> the first page of a run with no model   // setup.model-choice
+│   ├── Nothing downloads until Download is pressed: opening onboarding,
+│   │   choosing a language, and selecting a row ask the service for nothing
+│   ├── Dictation language -> a field with the app's recognition languages
+│   │   (Auto included), preselected from the system's first preferred
+│   │   language and changeable here; the pick's language is saved with it
+│   ├── The models for that language -> the first three the picker lists for
+│   │   it (`models::picker_models`), the recommended one first, selected,
+│   │   each with the picker's badge (Recommended, Fewest wrong words,
+│   │   Reads your vocabulary, Fastest), the picker's one line on it, and
+│   │   the download's size. English -> Parakeet Unified English, Cohere
+│   │   Transcribe, Whisper large-v3-turbo; Russian -> GigaAM v3, Whisper
+│   │   large-v3-turbo, Parakeet v3; Auto -> only models that detect it
+│   ├── Russian also offers Orukeet, fourth and with no badge (`ALSO_OFFERED`
+│   │   in `model_choice.rs`): Russian's recommendation writes Russian only,
+│   │   and Orukeet is what this fork's owner dictates Russian with English
+│   │   terms on. That is his choice, not a measurement: the catalog never
+│   │   recommends Orukeet, and Hex has not measured it. Its line here is
+│   │   "A Parakeet v3 fine-tune, trained on many languages and accents"
+│   │   (what its model card says), not the picker's count of the languages
+│   │   its published figures are better in
+│   ├── The lines say only what the catalog knows (Russian only, or how many
+│   │   languages; reads your vocabulary). Nothing there says how a model
+│   │   handles English terms inside other speech: Hex has not measured it
+│   ├── Models found on this computer that speak the language follow as rows
+│   │   ("On this computer"); five rows at most      // setup.found-choice
+│   ├── One main button for the selected row: Download, Use this model (a
+│   │   model already here), Continue (already started), Try again (failed)
+│   │   └── Pressed -> the service prepares that model for that language, and
+│   │       the story goes on at once: the demo, the permissions, with the
+│   │       download's pill (model name, percent) on top. Only the practice
+│   │       waits for the model (Almost ready, with Skip)
+│   ├── All models… -> the full picker for the chosen language, above the
+│   │   page. Its buttons say Choose: a model chosen there only becomes the
+│   │   step's selected row, shown with its size, and Download on the step
+│   │   starts it. Nothing downloads or is saved by choosing. A model that
+│   │   does not speak the step's language brings its own, as its card says
+│   ├── Back on the demo, permissions, and Almost ready returns to the list
+│   │   with the download still running: × on its row cancels it (nothing is
+│   │   chosen again), and Download on another row replaces it. A stopped
+│   │   download is only ever `<file>.gguf.partial`, which no check counts as
+│   │   installed; it is promoted only after its SHA-256 matches
+│   ├── Continue without a model (quiet, from the start) // setup.without-model
+│   │   ├── Stops whatever was downloading; the permissions are still asked
+│   │   │   for; then records completion and closes onboarding
+│   │   ├── Keeps the dictation language chosen on the step, so Settings and
+│   │   │   the picker open on it: with no model here, the saved preselection
+│   │   │   becomes that language's recommended model (English system,
+│   │   │   Russian chosen -> GigaAM v3 for Russian, as a new install on a
+│   │   │   Russian system starts), because the language alone could name a
+│   │   │   model that does not speak it. A model already here stays and takes
+│   │   │   the language only where it speaks it; a saved model file is never
+│   │   │   rewritten. Only settings.json is written: no download starts, and
+│   │   │   nothing is saved when the language was not changed. Check:
+│   │   │   `continue_without_a_model_keeps_the_language_chosen_on_the_step`
+│   │   ├── Settings › General's Speech model row says no model is installed
+│   │   │   (with the download's error, if one failed), + Download + Add
+│   │   │   model file…. Check: golden `onboarding-no-model`,
+│   │   │   `onboarding_continue_without_model`
+│   │   └── Also on Almost ready once the download failed, or stalled 30 s
+│   │       without bytes, with every permission ready (#894)
+│   ├── Failure -> the row says so and the button tries again; on Almost
+│   │   ready, why in one line (a proxy or certificate, #894) + Use a model
 │   │   file… + Try again
-│   ├── Failed, or stalled 30 s without bytes, with every permission ready
-│   │   -> Continue without a model (quiet), saying dictation won't work
-│   │   until a model is added with Add model file…      // setup.without-model
-│   │   └── Records completion and closes onboarding; Settings › General's
-│   │       Speech model row says no model is installed (with the download's
-│   │       error), + Download + Add model file…. Check: golden
-│   │       `onboarding-no-model`, `onboarding_continue_without_model`
+│   ├── The choice is remembered (`onboarding-model` beside the other
+│   │   markers) until its model is installed: a launch that interrupts the
+│   │   download (macOS's Quit & Reopen, a quit after onboarding closed)
+│   │   goes on with it, and a run without a model stays without one. The
+│   │   saved selection changes only when the service has the model ready,
+│   │   or for the language kept by Continue without a model
+│   ├── A run that opens with a model installed has no model step
+│   ├── Default behaviour on every OS, not a Labs switch (AGENTS.md names the
+│   │   exception): the old page downloaded a guessed model without asking
 │   └── Change or delete the model later in Settings      // setup.delete-model
-├── The demo: Without Hex (typed, with typos) -> With Hex (spoken) -> Continue
+├── The demo: Without VibeHex (typed, with typos) -> With VibeHex (spoken) -> Continue
 ├── Quit part-way -> next launch resumes at the saved step  // setup.resume
 │   └── Permissions are read again at launch: a setup they now finish (macOS's
 │       Quit & Reopen after a grant) is passed; past setup, it waits until they do
 ├── Permissions                           // setup.checklist; skipped when granted
-│   ├── macOS: "Let Hex hear you and type for you", Microphone and Accessibility
+│   ├── macOS: "Let VibeHex hear you and type for you", Microphone and Accessibility
 │   │   ├── No Input Monitoring row: Accessibility also lets the shortcut taps listen
 │   │   ├── Microphone -> macOS prompt; refused -> "Open System Settings" + guide
 │   │   ├── Accessibility -> Privacy pane + drag guide
@@ -245,38 +293,40 @@ Launch Hex, setup incomplete              // setup.tour; every build and OS, ful
 │   │   │   │   `com.kitlangton.Hex.debug`) cleared once in the background (`tccutil reset`,
 │   │   │   │   ignoring `OSStatus -10814` when no bundle is on disk)
 │   │   │   ├── Returned from System Settings still untrusted (2 s, or 6 s side-by-side) ->
-│   │   │   │   "An older Hex entry can keep this off" + "Still grey? Fix it"
+│   │   │   │   "An older VibeHex entry can keep this off" + "Still grey? Fix it"
 │   │   │   │   -> resets the running bundle ID + retired IDs, prompts, and reopens the guide
 │   │   │   └── macOS 27 names the list "Device Control and Data Access"; the row follows
 │   │   ├── On in System Settings, unusable until relaunch -> "Needs a restart"
-│   │   │   └── Every permission on -> "Restart Hex" -> relaunch at setup  // setup.restart
+│   │   │   └── Every permission on -> "Restart VibeHex" -> relaunch at setup  // setup.restart
 │   │   └── Last grant -> 0.7 s beat -> the story moves on
 │   ├── Windows: only while the microphone privacy switch is off: "Let Hex hear
 │   │   you", one Microphone row -> Open Settings (ms-settings:privacy-microphone)
 │   └── Linux: no page
-├── Almost ready: the model still downloads -> waits, then Your turn
+├── Almost ready: the model still downloads -> waits, then Your turn; Skip
+│   ends onboarding and leaves the download running
 ├── Your turn: the practice game          // setup.practice; every OS
 │   ├── "Clear your messages": hold the saved shortcut and answer the lit card;
 │   │   Hex's own dictation (macOS listener, Linux and Windows event log) holds
 │   │   the keys, flies the live words, and lightning burns the answered card
 │   ├── A short, silent, or failed try -> a hint under the field
 │   ├── Listener running but still loading its model, microphone, or shortcuts
-│   │   -> "Getting Hex ready to listen…" in place of the hold prompt until its
+│   │   -> "Getting VibeHex ready to listen…" in place of the hold prompt until its
 │   │   first session starts (desktop/host.rs `warming`)
 │   │   // setup.warming; Check: `the_practice_page_waits_for_the_listener`
-│   └── Done at any time -> Hex is ready  // practice is never required
+│   └── Done at any time -> VibeHex is ready  // practice is never required
 ├── Listener cannot start after setup     // setup.relaunch; event tap refused
 │   ├── First time -> Hex records a marker, reopens itself, resumes at the practice
-│   └── Within 2 min of that relaunch -> "Hex's shortcut didn't start." + Reopen Hex
-└── Hex is ready -> where Hex lives (menu bar, system tray, or app launcher)
+│   └── Within 2 min of that relaunch -> "The VibeHex shortcut didn't start." + Reopen VibeHex
+└── VibeHex is ready -> where Hex lives (menu bar, system tray, or app launcher)
     ├── Try again -> back to the practice game
-    └── Start using Hex -> records completion once setup is ready; closes onboarding
+    └── Start using VibeHex -> records completion once the permissions are ready and
+        the model is here or on its way; closes onboarding
 Run setup again (Labs) or `hex onboarding reset` -> the same story from the start,
 on every build; settings, models, and permissions stay, so their pages pass
 ```
 
 General > Speech model, selected model not downloaded     // settings.model-missing (#676)
-├── Muted "Hex can't listen until the speech model has downloaded"
+├── Muted "VibeHex can't listen until the speech model has downloaded"
 ├── Downloading -> progress bar beside the model
 └── No download running -> Download (the same ChooseModel); a failure shows its error
 
@@ -288,7 +338,7 @@ General > Speech model or Language
 Permissions revoked later
   -> General > Permissions needed: Allow rows like onboarding's
      ├── Returned from System Settings still untrusted -> "Still grey? Fix it"
-     └── On, waiting for a relaunch -> "Restart Hex"
+     └── On, waiting for a relaunch -> "Restart VibeHex"
 ```
 
 Observed on macOS 26.6.2 and macOS 27.0 VMs (2026-10-31, SIP enabled): unprivileged
@@ -409,7 +459,7 @@ Settings picker > Compare                 // setup.model-card; shared by every d
 └── "{n} more models" -> Every model
 
 Settings picker > Every model row          // fixed height; scrolls
-├── Name, role, blurb, then "No wait · 1 in 50 words wrong · 25 languages · 2.5 GB"
+├── Name, role, blurb, then "No wait   1 in 50 words wrong   25 languages   2.5 GB" (facts set apart, no dot)
 ├── Saved language unsupported -> Warning line naming the language it switches to
 ├── Trailing edge -> In use dot; progress with Cancel; else Use/Download; Delete when downloaded
 ├── Labs > Benchmark details (off) -> raw error rate "7.57% CER", a wrapping line:
@@ -428,7 +478,7 @@ Settings picker > Every model row          // fixed height; scrolls
 │   prefix; Rename, Remove (not the active
 │   model); missing or changed -> warning line and no Use (own-models.md)
 └── Found on this computer -> a scan of the Hugging Face cache when the picker  // setup.found-models
-    opens: other compatible files at the top (Not tested by Hex, Use); a catalog
+    opens: other compatible files at the top (Not tested by VibeHex, Use); a catalog
     model already downloaded there says so and offers Use; a found file's
     Delete is Forget (own-models.md)
 ```
@@ -495,12 +545,19 @@ Checks start in [desktop/onboarding.rs](../../src/desktop/onboarding.rs),
 [transcription/models.rs](../../src/transcription/models.rs). Setup/picker previews
 prove rendering, not clean-account permission grants or model preparation.
 
-The model step's list and its rules are in
+The model step's rows for files found on this computer are in
 [own-models.md](own-models.md#onboarding-choice) (scenes
-`onboarding-model-found`, `-downloading`, `-recommended`, `-back`).
+`onboarding-model-found`, `-downloading`, `-recommended`, `-back`); the step
+itself is [rune_ui/onboarding_kit/choice.rs](../../src/rune_ui/onboarding_kit/choice.rs)
+over `desktop::onboarding::ModelChoice`
+([model_choice.rs](../../src/desktop/onboarding/model_choice.rs)), with the
+scenes `onboarding`, `mac-onboarding`, `onboarding-choice-russian`,
+`-russian-found` (the most rows the step shows), `-in-russian`, `-in-german`,
+`-downloading`, and `-failed`, and `picker-first-run` for All models….
 
 The tour state is the pure `desktop::onboarding::Flow` (steps, row states,
-background download, practice outcomes, one-relaunch guard), fed by
+the person's model choice and its download, practice outcomes, one-relaunch
+guard), fed by
 [rune_ui/onboarding.rs](../../src/rune_ui/onboarding.rs); what the person sees
 is the story in [rune_ui/onboarding_kit](../../src/rune_ui/onboarding_kit.rs),
 opened at launch by `Ui::new` and replayed by Run setup again. The guide
@@ -511,8 +568,15 @@ Settings › Privacy & security is off (device, user, or desktop apps;
 finishes once it is on (`a_switched_off_windows_microphone_adds_its_row_until_setup_ends`,
 `windows_onboarding_asks_only_for_the_microphone_switch`; the registry read is
 cross-compiled only, not run on a Windows PC).
-Unit tests (`desktop::onboarding::tests`) cover step order, the download starting on the
-welcome screen and retrying from any step, the auto-advance beat, live row
+Unit tests (`desktop::onboarding::tests`) cover step order, the model step
+(`nothing_downloads_before_the_person_presses_download`,
+`the_preselection_opens_the_choice_and_a_language_changes_the_models`,
+`selecting_a_row_starts_nothing_and_download_starts_that_row`,
+`a_download_is_cancelled_and_another_model_picked`,
+`the_tour_goes_on_while_the_model_downloads`,
+`continuing_without_a_model_waits_for_no_model`,
+`a_remembered_choice_goes_on_at_the_next_launch`), a failed download
+retrying from any step, the auto-advance beat, live row
 flips, a refused microphone, practice outcomes, resume, the relaunch guard and
 resume marker, resuming past a setup the relaunch finished
 (`resuming_at_setup_after_a_relaunch_passes_grants_that_are_now_real`),
@@ -531,16 +595,26 @@ first run (`a_new_install_opens_the_first_run`,
 `a_listener_that_will_not_start_relaunches_once_then_asks_to_reopen`,
 `a_refused_microphone_points_to_system_settings`,
 `a_grant_waiting_for_a_restart_makes_setup_restart_hex`,
-`onboarding_downloads_the_model_through_the_service`,
-`a_found_model_moves_on_without_a_download_and_back_returns_to_it`), and every
+`onboarding_downloads_nothing_until_download_is_pressed`,
+`the_model_step_offers_the_chosen_language_and_starts_only_the_row_pressed`,
+`a_download_is_cancelled_on_the_list_and_another_model_started`,
+`the_story_goes_on_while_the_model_downloads_and_back_returns_to_the_list`,
+`all_models_opens_the_picker_for_the_chosen_language_and_its_pick_is_only_selected`,
+`continue_without_a_model_keeps_the_language_chosen_on_the_step`,
+`a_found_model_is_used_without_a_download_and_back_returns_to_the_list`), and every
 page is a scene whose goldens `scripts/check-onboarding.sh` checks (its
 `SCENES` list in `rune_ui/tests/onboarding_check.rs`). Scenes are fixtures
 played on the story's own clock to one settled moment, not native proof.
-The default model comes from `desktop::i18n::preferred_language` (macOS:
-`NSLocale.preferredLanguages`) through `recommended_selection`; existing
-settings keep their saved model.
-Observed on Linux (apollo, 2026-11-01): a clean first run in a nested
-session, from Setting up Hex through the real download to Hex is ready. Not
+The preselected language and model come from `desktop::i18n::preferred_language`
+(macOS: `NSLocale.preferredLanguages`) through `recommended_selection`; a
+preselection is neither a download nor the person's choice, and existing
+settings keep their saved model. `a_stopped_download_leaves_a_partial_that_never_counts_as_installed`
+(`transcription::models::tests`) covers what a cancelled or replaced download
+leaves behind.
+Observed on Linux (apollo, 2026-11-01), before the model step: a clean first
+run in a nested session, from Setting up VibeHex through the real download to
+VibeHex is ready. The model step itself is proven by the tests and scenes above only:
+no real first launch with it has been observed on any OS. Not
 yet observed: a clean-account Mac run with real grants, a real practice
 answer on macOS or Windows, or a real self-relaunch after an event-tap
 refusal. The story's demo cards and the game's messages stay in English in
@@ -832,7 +906,7 @@ General                                  // settings
 │   └── A row that hides or shows (Advanced, a microphone error)
 │       -> Folds under a clip as the rows below slide over it; no fade in place
 ├── Microphone -> Value names the input in use, with live level bars // settings.microphone
-│   ├── "System default · Kit Pods", or a saved device
+│   ├── "System default, Kit Pods", or a saved device
 │   ├── Level bars -> peak of the audio Hex receives, ~30 fps while General shows them above rest // input_level
 │   │   ├── Peak measured around each chunk's mean, so a microphone's DC offset never lights them
 │   │   ├── Read from one atomic the audio owner stores per chunk; never opens or blocks the mic
@@ -1284,7 +1358,7 @@ document's `DocURL` (Firefox) or `URI` (Chromium, only with
 (ignored, manual) printed `google-chrome-stable` with `https://example.com/path`
 under headless Sway and `chrome` with the page under its XWayland, and `hex`
 on niri (Oct 30); the macOS adapters are compiled on CI only and not run.
-With Hex's own window frontmost, its application name still matches but no
+With VibeHex's own window frontmost, its application name still matches but no
 Accessibility tree of its own process is read, so its main thread owns that
 tree alone (#1402); `hex_never_reads_its_own_accessibility_tree` in
 [accessibility.rs](../../src/accessibility.rs) covers the skip (macOS only),
@@ -1409,12 +1483,12 @@ Cancellation / interruption / failure    // recovery
 
 Menu bar and Settings                    // maintenance
 ├── Menu (macOS), top to bottom: now, things to do, the app
-│   ├── Meetings on or a meeting under way: Recording · <title> · 12:34 (opens
+│   ├── Meetings on or a meeting under way: Recording: <title> (12:34) (opens
 │   │   the Meetings pane), Stop & Transcribe, Copy Section ▸; idle: Record Meeting
 │   ├── Paste Last Dictation ⌥⇧V (saved binding), Copy Recent Dictation ▸ (Labs),
 │   │   Copy Last Meeting Transcript (Meetings on), Restore Last Capture (Labs ›
 │   │   Screenshots on; dimmed until a capture card was closed), Speech Model ▸
-│   ├── Settings… ⌘, · Check for Updates… · Quit Hex ⌘Q
+│   ├── Settings… ⌘, · Check for Updates… · Quit VibeHex ⌘Q (the name: features/about.md)
 │   │   └── Labs > ⌘Q closes Settings (off, #1473) -> ⌘Q closes the Settings
 │   │       window instead; dictation keeps running, the menu bar icon quits (labs.md)
 │   ├── No Meetings… (Settings… opens the same window) and no Show Hex in
@@ -1596,7 +1670,8 @@ Hex checks the release service            // maintain.updates
 │       │   └── A release published after the relaunch -> the next launch's check
 │       ├── macOS -> renamex_np swap (also at quit) -> relaunch -> old bundle removed at launch
 │       └── Labs › Release notes link -> a release build's footer carries this build's notes:
-│           anoma.ly/hex/dev#<version> for a dev build, github.com/anomalyco/hex/releases/tag/v<version> for a stable one;
+│           the fork's GitHub release (…/releases/tag/v<version>) for a VibeHex (X.Y.Z-vibe.N) or plain X.Y.Z
+│           version, no link for any other (a dev version included);
 │           local and test builds show no link (by build kind, not version string)
 ├── macOS location not replaceable (read-only, translocated, root-owned) -> Download update (DMG)
 ├── Package manager (pacman, Nix) -> its command, once it serves another version
@@ -1727,11 +1802,11 @@ Linux beta                               // not macOS feature parity
 │   │   later loads go straight to the CPU (#484: UHD 620, Iris Plus 655)
 │   ├── GPU -> tries the GPU anyway; working, it clears that GPU's record
 │   └── CPU -> CPU only; launched on CPU, Hex loads no GPU driver for speech
-│       and switching to Auto or GPU says it turns on when Hex restarts (#1253)
+│       and switching to Auto or GPU says it turns on when VibeHex restarts (#1253)
 │   // checked on apollo with a planted record (RADV); a real i915 hang not reproduced
 │   └── CPU or a model that cannot stream -> Transcribe the whole clip after release
 ├── hex / hex app -> Window in the same process; closing it leaves Hex running
-│   └── Ctrl+Q in the window or Quit Hex in the sidebar -> quits Hex (#808)
+│   └── Ctrl+Q in the window or Quit VibeHex in the sidebar -> quits Hex (#808)
 │       // check: ctrl_q_quits_hex (fixture; not run on a GNOME session)
 ├── Recording sounds -> Shortcut press / capture stop
 ├── Shortcuts -> One state machine, three sources        // linux.shortcuts
@@ -2032,9 +2107,9 @@ Windows beta                             // x64 (Vulkan GPU) and ARM64 (CPU)
 │   └── Theme read when the tray is created; a later switch applies at the next launch
 ├── Tray menu (tray_menu, shared with Linux)    // maintain.tray
 │   ├── Recording / Transcribing… status line and tooltip while the listener works
-│   ├── Show Hex · Paste last dictation (refocuses the app the menu covered)
+│   ├── Show VibeHex · Paste last dictation (refocuses the app the menu covered)
 │   ├── Speech model: downloaded models, ✓ on the selected one; none while one prepares
-│   └── Update item · Enable / Disable Hex · Quit Hex
+│   └── Update item · Enable / Disable VibeHex · Quit VibeHex
 ├── Single-modifier shortcut -> Left / Either / Right side picker, as macOS
 ├── Recordable keys -> letters, digits, F1–F24, named keys, mouse buttons (#794)
 │   ├── Punctuation -> saved by virtual key (`oem 1`…`oem 102`), so a layout
@@ -2093,7 +2168,7 @@ smoke tests on Windows 10 and on ARM64 hardware have not been run.
 Linux updates                            // maintain.linux-updates
 ├── Direct install (versions/ + install.json receipt) -> release service -> staged -> sidebar footer: Restart to update
 ├── Source install (source-build marker) -> Sidebar footer: Updated from your source checkout
-├── Local build (HEX_LOCAL_BUILD=1) -> Sidebar footer: Local build · updates off; Version 2.3.1 (local <commit>); no checks, no channel row
+├── Local build (HEX_LOCAL_BUILD=1) -> Sidebar footer: Local build, updates off; Version 2.3.1 (local <commit>); no checks, no channel row
 ├── pacman (AUR hex-bin: /usr/bin, root-owned) or Nix store -> Sidebar footer: Updated by your package manager
 └── Anything else (a downloaded executable) -> Sidebar footer: Download update
 ```

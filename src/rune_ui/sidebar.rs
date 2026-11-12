@@ -108,6 +108,28 @@ pub(super) enum Pane {
     Assistant,
 }
 
+/// The open pane's actions for its title bar, and its body.
+pub(super) fn body(ui: &Ui, p: Paint, reduced: bool, layer: &mut Vec<El>) -> (Vec<El>, El) {
+    match ui.pane {
+        _ if ui.labs_open => (vec![labs::tabs(ui, p)], labs::page(ui, p)),
+        Pane::General => (Vec::new(), general::pane(ui, p, layer)),
+        Pane::Output => (Vec::new(), output::pane(ui, p, reduced, layer)),
+        Pane::Modes => modes::pane(ui, p, layer),
+        Pane::History => history::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Captures => (Vec::new(), captures::pane(ui, p)),
+        Pane::Meetings => meetings::pane(ui, p, layer),
+        Pane::Files => files::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, layer)),
+        Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
+        Pane::HudLab => hud_lab::pane(ui, p),
+        Pane::Activity => activity::pane(ui, p),
+        Pane::About => (Vec::new(), about::pane(ui, p)),
+        Pane::Assistant => assistant::pane(ui, p, reduced, layer),
+    }
+}
+
 impl Pane {
     #[cfg(all(test, target_os = "linux"))]
     pub(super) const ALL: &[Pane] = &[
@@ -518,7 +540,7 @@ fn update_item(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
         (None, Some(S::SourceBuild))
             if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local =>
         {
-            (tr("Local build · updates off").into(), None, false)
+            (tr("Local build, updates off").into(), None, false)
         }
         (None, Some(S::SourceBuild)) => {
             (tr("Updated from your source checkout").into(), None, false)
@@ -619,7 +641,7 @@ fn footer(ui: &Ui, p: Paint) -> El {
         Some(DesktopUpdateStatus::SourceBuild) => Some(line(
             "update-status",
             if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local {
-                tr("Local build · updates off")
+                tr("Local build, updates off")
             } else {
                 tr("Updated from your source checkout")
             },
@@ -865,7 +887,7 @@ fn quit_item(p: Paint) -> El {
     row()
         .key("quit")
         .role("button")
-        .label(tr("Quit Hex"))
+        .label(tr("Quit VibeHex"))
         .h(NAV_ROW_HEIGHT)
         .px(6.0)
         // Apart from Assistant's row above, so the bottom isn't one block.
@@ -878,7 +900,7 @@ fn quit_item(p: Paint) -> El {
         .focusable(true)
         .focus_ring(2.0, -2.0, c.border_focus)
         .child(
-            text(tr("Quit Hex"))
+            text(tr("Quit VibeHex"))
                 .key("label")
                 .font(p.k.ty.ui)
                 .color(c.text_muted)

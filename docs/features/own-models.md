@@ -102,7 +102,7 @@ Picker opens, or onboarding starts -> one scan (found_models::scan)   // setup.f
 │   -> that catalog model counts as downloaded; its card says "Found on this
 │   computer" and offers Use, never Download
 ├── Other compatible files -> "Found on this computer" at the top of the picker:
-│   name · Not tested by Hex · Q8_0/F16/F32 · owner/name@revision · languages,
+│   name · Not tested by VibeHex · Q8_0/F16/F32 · owner/name@revision · languages,
 │   "It may be too big for this computer's GPU memory." when the tensor data
 │   plus a quarter exceeds the largest GPU transcribe.cpp reports, and
 │   "Compatible doesn't mean accurate: …"
@@ -127,28 +127,31 @@ API's `/models` and the SDK's `ModelInfo.source` carry the same field.
 ## Onboarding Choice
 
 ```ts
-Onboarding opens -> scan; its own download waits until it answers  // setup.found-choice
-├── Nothing compatible found -> Setting up Hex, unchanged: the recommended
-│   model downloads by itself, and the model step never shows
-└── Something found -> the first run's model step in place of Setting up Hex:
-    "Choose a speech model", one card of radio rows, no buttons inside
-    ├── Hex's recommended model first, selected, [Recommended] -> "731 MB
-    │   download", or "On this computer" when its exact file (same SHA-256) is
-    │   in the cache (one row, never two)
-    ├── Then each found file -> its name, "On this computer" (a catalog model)
-    │   or "On this computer · not tested by Hex"; no hashes, repositories,
-    │   revisions, or compression
-    ├── Picking a row starts it: ours downloads ("Downloading… 42%" on the row)
-    │   or, already here, is checked in place; a found file is used where it
-    │   is ("Checking…"). A later pick supersedes one still preparing
-    ├── Continue starts the selected row if none was picked, then the story
-    │   moves on once the pick is under way: ours with its download pill on
-    │   top, a found one with no download page or pill at all
-    ├── A pick that fails asks again on the list
+Onboarding opens with no model -> the model step, and a scan  // setup.found-choice
+├── The step never waits for the scan and downloads nothing by itself
+│   (features/README.md, setup.model-choice): the language, the picker's
+│   first three models for it (four for Russian, with Orukeet), one main
+│   button, All models…, Continue without a model
+└── Something compatible found -> rows after the offers, for the files that
+    speak the chosen language (a catalog model by its languages, another
+    file by its header's; Auto keeps every such file)
+    ├── An offered model whose exact file (same SHA-256) is in the cache ->
+    │   its own row says "On this computer" in place of its size (one row,
+    │   never two), and the button says Use this model
+    ├── Then each other found file -> its name and "On this computer"; a file
+    │   that is no catalog model says "Not tested by VibeHex" under its name; no
+    │   hashes, repositories, revisions, or compression
+    ├── Selecting a row starts nothing. Use this model checks the file in
+    │   place ("Checking…" on its row) and the story goes on with no download
+    │   pill; Download on one of ours shows "Downloading… 42%" on its row and
+    │   the pill on top. A later press on another row supersedes one still
+    │   preparing
+    ├── A pick that fails says so on its row, and the button tries again
     ├── Back on the pages after it returns to the list to change the pick,
     │   even with the model ready
-    └── The held download is released once the tour passes setup, so a run
-        that skips the step still gets the recommended model
+    └── Five rows at most (Russian's four offers leave room for one found
+        file; scene `onboarding-choice-russian-found`); the rest are in All
+        models… › Found on this computer
 ```
 
 Observed on apollo (Linux, Radeon 8060S over Vulkan, 2026-11-01) with an
@@ -169,9 +172,8 @@ downloaded, the full check refusing a mismatched file),
 `transcription::gguf_header::tests`, `transcription::custom_models::tests`
 (including `a_relinked_copy_reads_as_changed_and_check_again_accepts_only_the_same_contents`,
 `a_receipt_survives_a_renumbered_volume_but_not_another_file`, and `a_file_added_in_place_is_recorded_by_path_copied_nowhere_and_forgetting_leaves_it`),
-`desktop::onboarding::tests::a_held_download_waits_for_the_person`,
-`a_found_model_moves_on_without_a_download_and_back_returns_to_it`,
-`the_onboarding_model_list_starts_the_row_picked_or_the_recommended_one`,
+`desktop::onboarding::tests::selecting_a_row_starts_nothing_and_download_starts_that_row`,
+`a_found_model_is_used_without_a_download_and_back_returns_to_the_list`,
 `labs::tests::graduated_features_answer_by_name`, and the goldens
 `rune-picker-custom-models-light`, `rune-picker-found-light`, and
 `rune-onboarding-model-found-light`,

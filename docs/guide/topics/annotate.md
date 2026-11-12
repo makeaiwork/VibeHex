@@ -36,7 +36,7 @@ Paste the result anywhere, or click **Send to…** on the capsule to choose an O
 
 ## Limits
 
-Windows has no `hex annotate` command. On Linux, Wayland gives no area selection, and Shift does not draw. On a Mac, if the Scrawl app is running, it keeps the shortcut until you press **Use Hex for annotations**.
+Windows has no `hex annotate` command. On Linux, Wayland gives no area selection, and Shift does not draw. On a Mac, if the Scrawl app is running, it keeps the shortcut until you press **Use VibeHex for annotations**.
 
 **Asked as.** "How do I draw on my screen and send it?"; "What is the F9 key for?"; «Как записать экран с комментариями?»; «Какой хоткей у Annotate?»
 

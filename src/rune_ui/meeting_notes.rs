@@ -415,7 +415,7 @@ pub(super) fn prompt_page(ui: &Ui, p: Paint, edit: &TextEdit) -> El {
             model,
         ),
         Basis::Interface => tr_fill(
-            "Your speech model, {}, isn't set to one language Hex writes prompts in, so they follow the app's language",
+            "Your speech model, {}, isn't set to one language VibeHex writes prompts in, so they follow the app's language",
             model,
         ),
     };

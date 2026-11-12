@@ -205,7 +205,7 @@ pub(crate) type Place = fn() -> Spot;
 /// when either is on at launch.
 pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: Place) {
     let spec = OverlaySpec {
-        name: "Hex live text",
+        name: "VibeHex live text",
         size: SIZE,
         // Placed for real each time it appears.
         edge: ScreenEdge::Top,

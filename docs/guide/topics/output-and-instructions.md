@@ -29,7 +29,7 @@ want ("delete every um", "spell it Kubernetes"). **Open file** opens the setting
 - A **word fix** swaps a heard phrase for fixed text, ignoring case. An empty
   replacement deletes the phrase.
 - For names and products, use Vocabulary instead; it also helps transcription.
-- **Try** (type a sentence, see "What Hex pastes") previews fixes and the
+- **Try** (type a sentence, see "What VibeHex pastes") previews fixes and the
   built-in text steps; scripts and the AI rewrite run only when you dictate.
   **Labs › Fix results in Output** adds **Vocabulary** and **Fix this**, which
   copies an agent prompt naming the wrong result.

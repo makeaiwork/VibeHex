@@ -23,7 +23,6 @@ pub(crate) mod deep_link;
 mod explainer;
 mod files;
 mod found;
-mod found_choice;
 mod fun;
 mod general;
 mod history;
@@ -551,7 +550,7 @@ pub(crate) fn fixed_window() -> rune::WindowOptions {
 
 fn spec() -> AppSpec<Ui> {
     AppSpec {
-        title: "Hex",
+        title: brand::NAME,
         size: WINDOW_SIZE,
         min_size: Some(MIN_WINDOW_SIZE),
         init: Ui::fixture_base,
@@ -628,9 +627,6 @@ enum Menu {
 
 pub(crate) struct Ui {
     settings: AppSettings,
-    /// A test's preferred system language, instead of the host locale.
-    #[cfg(test)]
-    preferred_language: Option<String>,
     service: Service,
     /// This window's app, to know whether it shows (`app` sets it).
     window: Option<rune::AppHandle<Ui>>,
@@ -775,8 +771,6 @@ impl Ui {
         let vocabulary = vocabulary::VocabularyEditor::new(&settings.vocabulary);
         Self {
             settings,
-            #[cfg(test)]
-            preferred_language: None,
             service,
             view: None,
             error: None,
@@ -841,16 +835,6 @@ impl Ui {
     /// A scene or test: nothing here runs on real time.
     fn is_fixture(&self) -> bool {
         matches!(self.service, Service::Fixture(_))
-    }
-
-    /// The person's first preferred system language: a test's when it sets
-    /// one, else the host locale.
-    fn preferred_language(&self) -> String {
-        #[cfg(test)]
-        if let Some(language) = &self.preferred_language {
-            return language.clone();
-        }
-        crate::desktop::i18n::preferred_language()
     }
 
     fn send(&mut self, request: Request) {
@@ -1421,8 +1405,9 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .as_ref()
         .map(|lit| lit.titles.as_slice())
         .unwrap_or_default();
-    let ((actions, body), _) =
-        assistant::places::lighting(lit, || pane_body(ui, p, cx.is_reduced_motion(), &mut layer));
+    let ((actions, body), _) = assistant::places::lighting(lit, || {
+        sidebar::body(ui, p, cx.is_reduced_motion(), &mut layer)
+    });
     let panel = col()
         .key("panel")
         .role("main")
@@ -1473,32 +1458,8 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         update_sheet::modal(ui, p),
     ];
     layer.extend(modals.into_iter().flatten().flatten());
-    if let Some(first_run) = onboarding_kit::live::overlay(ui, p, cx.is_reduced_motion()) {
-        layer.push(first_run);
-    }
+    onboarding_kit::live::overlay(ui, p, cx.is_reduced_motion(), &mut layer);
     rune_kit::root(window, layer).on_window_focus(window_focused)
-}
-
-/// The pane's actions for its title bar, and its body.
-fn pane_body(ui: &Ui, p: Paint, reduced: bool, layer: &mut Vec<El>) -> (Vec<El>, El) {
-    match ui.pane {
-        _ if ui.labs_open => (vec![labs::tabs(ui, p)], labs::page(ui, p)),
-        Pane::General => (Vec::new(), general::pane(ui, p, layer)),
-        Pane::Output => (Vec::new(), output::pane(ui, p, reduced, layer)),
-        Pane::Modes => modes::pane(ui, p, layer),
-        Pane::History => history::pane(ui, p, layer),
-        #[cfg(hex_capture)]
-        Pane::Captures => (Vec::new(), captures::pane(ui, p)),
-        Pane::Meetings => meetings::pane(ui, p, layer),
-        Pane::Files => files::pane(ui, p, layer),
-        #[cfg(hex_capture)]
-        Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, layer)),
-        Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
-        Pane::HudLab => hud_lab::pane(ui, p),
-        Pane::Activity => activity::pane(ui, p),
-        Pane::About => (Vec::new(), about::pane(ui, p)),
-        Pane::Assistant => assistant::pane(ui, p, reduced, layer),
-    }
 }
 
 fn window_focused(ui: &mut Ui, focused: bool, tx: &mut Tx) {

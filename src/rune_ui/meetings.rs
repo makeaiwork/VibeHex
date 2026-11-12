@@ -618,7 +618,7 @@ fn row_meta(pane: &MeetingsPane, meeting: &Meeting, p: Paint) -> (String, Option
     if !meeting.status.is_active() {
         parts.push(length(meeting.duration_ms));
     }
-    (parts.join(" · "), ink)
+    (super::lists::apart(&parts), ink)
 }
 
 /// The icon before a row's title: the call service's when its app names
@@ -911,7 +911,7 @@ fn detail(ui: &Ui, p: Paint, meeting: &Meeting, layer: &mut Vec<El>) -> El {
     let mut meta: Vec<El> = status_tag(p, meeting.status, pane.stop_pending)
         .into_iter()
         .collect();
-    meta.push(ld::meta_text(p, &meta_line.join(" · ")));
+    meta.push(ld::meta_text(p, &super::lists::apart(&meta_line)));
 
     let errors = [
         pane.action_error

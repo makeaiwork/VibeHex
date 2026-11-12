@@ -1009,6 +1009,9 @@ pub(super) fn advance_to(s: &mut Onboard, now: f64, tx: &mut Tx) -> bool {
         if download.done() {
             s.closed_from.get_or_insert(now);
         } else {
+            // Another model picked after one finished opens the meter again.
+            s.closed_from = None;
+            s.closed = 0.0;
             moving = true;
         }
     } else if let (Some(from), Some(download)) = (from, s.download.as_mut()) {

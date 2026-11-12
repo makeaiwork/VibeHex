@@ -188,7 +188,7 @@ fn meta(entry: &CaptureEntry) -> String {
         }
         CaptureKind::Shot => format!("{} × {}", entry.size[0], entry.size[1]),
     };
-    format!("{} · {detail}", tr(entry.kind.label()))
+    super::lists::apart(&[tr(entry.kind.label()), detail.as_str()])
 }
 
 /// Opens entry `id` in the editor: a shot with the words said over it, a
@@ -393,7 +393,7 @@ fn item(ui: &Ui, p: Paint, entry: &CaptureEntry) -> El {
         .key(format!("capture{id}"))
         .role("listitem")
         .label(title.clone())
-        .description(format!("{meta} · {time}"))
+        .description(format!("{meta}, {time}"))
         .px(METRICS.row_px)
         .py(8.0)
         .gap(12.0)

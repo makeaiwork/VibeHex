@@ -217,7 +217,7 @@ fn facts_line(entry: &Entry, language: &str) -> String {
         count => tr_fill("{} languages", &count.to_string()),
     });
     parts.push(facts::size_text(def));
-    parts.join(" · ")
+    crate::rune_ui::lists::apart(&parts)
 }
 
 fn model_row(ui: &Ui, p: Paint, entry: &Entry, language: &str) -> El {
@@ -284,11 +284,10 @@ fn model_row(ui: &Ui, p: Paint, entry: &Entry, language: &str) -> El {
     {
         copy = copy.child(line(
             "benchmark",
-            format!(
-                "{} · {}",
+            crate::rune_ui::lists::apart(&[
                 picker::benchmark_rate(&record),
-                picker::benchmark_detail(&record)
-            ),
+                picker::benchmark_detail(&record),
+            ]),
             p.muted(),
         ));
     }
@@ -395,6 +394,7 @@ mod tests {
                 recommendation,
                 supports: def.supports_language(language),
                 state: State::NotDownloaded,
+                picks: false,
             })
             .collect()
     }

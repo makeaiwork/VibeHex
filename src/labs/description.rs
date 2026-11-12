@@ -166,7 +166,7 @@ impl Feature {
                 "Press Caps Lock to start and stop dictation; its light shows when Hex records and transcribes"
             }
             Self::OpenCodeInWsl => {
-                "Use an OpenCode service running in your default WSL distribution for Modes rewriting and the Modes model picker; looking for it can start WSL"
+                "Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to; looking for it can start WSL"
             }
             Self::TranscribeFiles => {
                 "Turn a WAV recording into text with hex transcribe <file> and your dictation model"

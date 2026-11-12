@@ -21,7 +21,7 @@ impl MouseCapture {
         let mut ancestor = window;
         loop {
             if ancestor == root || ancestor <= 1 {
-                return Err(eyre!("Hex must be focused to record a mouse shortcut"));
+                return Err(eyre!("VibeHex must be focused to record a mouse shortcut"));
             }
             let property = connection
                 .get_property(
@@ -35,7 +35,7 @@ impl MouseCapture {
                 .reply()?;
             if let Some(pid) = property.value32().and_then(|mut values| values.next()) {
                 if pid != std::process::id() {
-                    return Err(eyre!("Hex must be focused to record a mouse shortcut"));
+                    return Err(eyre!("VibeHex must be focused to record a mouse shortcut"));
                 }
                 break;
             }
@@ -98,7 +98,7 @@ impl MouseCapture {
                     || event.event_x as u16 >= size.width
                     || event.event_y as u16 >= size.height
                 {
-                    return Err(eyre!("Shortcut recording clicked outside Hex"));
+                    return Err(eyre!("Shortcut recording clicked outside VibeHex"));
                 }
                 let Some(key) = mouse_name(event.detail) else {
                     continue;

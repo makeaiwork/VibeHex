@@ -69,7 +69,9 @@ impl Backend {
             }
             request => match &self.runtime {
                 Some(runtime) => runtime.send(request),
-                None => Err(color_eyre::eyre::eyre!("Hex's runtime is not running")),
+                None => Err(color_eyre::eyre::eyre!(
+                    "the VibeHex runtime is not running"
+                )),
             },
         }
     }
@@ -98,7 +100,7 @@ impl Backend {
     pub(super) fn error(&self) -> Option<String> {
         self.runtime
             .is_none()
-            .then(|| "Hex's runtime is not running".into())
+            .then(|| "the VibeHex runtime is not running".into())
     }
 
     pub(super) fn state(&self) -> Option<HostState> {

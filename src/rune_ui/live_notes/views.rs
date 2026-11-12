@@ -555,7 +555,7 @@ fn counts(s: &LiveNotes) -> String {
             n => parts.push(format!("{n} {many}")),
         }
     }
-    parts.join(" · ")
+    parts.join(", ")
 }
 
 /// The clock, the speed, what's playing, and what each pass did.
