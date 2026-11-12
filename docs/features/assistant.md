@@ -35,7 +35,10 @@ Assistant                                        // rune_ui::assistant
 │   │           for “…”", "Read lmstudio.ai", "Searching the web".
 │   │           A failed answer says why and offers Try again.
 │   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
-│   │           the answer (a click lists the steps), [n] marks inline, and
+│   │           the answer (a click lists the steps), and with the guide
+│   │           cited too "Read 8 dictations and 2 guide articles in 29 s",
+│   │           its step "Read 2 guide articles: Vocabulary, AI cleanup";
+│   │           [n] marks inline, and
 │   │           "From your recordings" chips (title, date, time).
 │   │           A place in the window named in bold (General › Vocabulary,
 │   │           Labs › Smart spacing, Output) reads in the link colour and
@@ -254,6 +257,23 @@ Opened from a place link                         // rune_ui::assistant::places
   the entries. The prompt (`DIAGNOSE`) asks for the cause: an entry whose
   spelling catches the word, a replacement, a line of the instructions, or
   the speech model, with a card for the instructions when they are it.
+- "Why does it write X instead of Y" (`intent::cleanup::written`: «пишет X
+  вместо Y», «вместо Y пишет X», "X rather than Y", statt, au lieu de, a
+  quoted form first) is also a question the dictations may answer, once
+  the person has let them be read (`intent.written`, never sure, so it
+  brings no consent card): the History search looks for X in what was
+  written, the ones that wrote the whole form first.
+- A dictation sent to the model reads "Heard: …" (the History entry's
+  `raw_text`) and "Wrote: …" (`final_text`) when cleanup changed it, each
+  cut to 450 characters around the words searched (what was heard at the
+  same place as in what was written); otherwise its text, 900 at most.
+  With such a dictation the prompt (`HEARD_WROTE`) asks the model to quote
+  both and name the cause: wrong in Heard is the speech model or a
+  Vocabulary spelling, changed only in Wrote is cleanup (a replacement, the
+  instructions, or a Vocabulary entry the cleanup model was told to write),
+  with a card when it is a setting it sees, and the spelling to remove in
+  **General › Vocabulary** when it is an entry (no card edits an entry's
+  spellings yet). The Vocabulary entries the dictations name come too.
 - A prompt carrying Vocabulary entries never searches the web
   (`worker::offline`, like recordings), and the recordings search never
   reads more of it than before.

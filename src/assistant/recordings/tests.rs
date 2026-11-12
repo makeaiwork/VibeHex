@@ -744,3 +744,53 @@ fn the_previous_meetings_are_those_before_this_one() {
             && !excerpt.id.ends_with("design")
     }));
 }
+
+/// "Why does it write X instead of Y": the dictations that wrote X, each
+/// with what was heard beside what was written, cut around the words.
+#[test]
+fn a_word_written_wrong_is_found_with_what_was_heard() {
+    let dir = std::env::temp_dir().join(format!("hex-heard-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let padding = "and then some more words to fill the dictation ".repeat(30);
+    let entries = serde_json::json!({
+        "version": 1,
+        "next_id": 4,
+        "entries": [
+            {"id": 1, "timestamp_ms": now() - 3_600_000, "kind": "dictation",
+             "raw_text": format!("{padding}turn on AI for the notes"),
+             "final_text": format!("{padding}turn on AI cleanup for the notes"),
+             "application": "Notes"},
+            {"id": 2, "timestamp_ms": now() - 7_200_000, "kind": "dictation",
+             "raw_text": "AI cleanup is on", "final_text": "AI cleanup is on"},
+            {"id": 3, "timestamp_ms": now() - 9_000_000, "kind": "dictation",
+             "raw_text": "the AI said hello", "final_text": "the AI said hello"},
+        ]
+    });
+    std::fs::write(dir.join("history.json"), entries.to_string()).unwrap();
+    let intent = intent::read("Почему пишет AI cleanup вместо AI?", now()).unwrap();
+    assert_eq!(intent.written.as_deref(), Some("ai cleanup"));
+    assert!(intent.kinds.dictations && !intent.kinds.meetings && !intent.sure);
+    let found = search(
+        &allowed(),
+        &Sources::at(&dir),
+        &intent,
+        &[],
+        Budget::LARGE,
+        now(),
+        &mut |_| {},
+    );
+    std::fs::remove_dir_all(&dir).ok();
+    let ids: Vec<&str> = found.excerpts.iter().map(|e| e.id.as_str()).collect();
+    assert!(ids.contains(&"1") && ids.contains(&"2"), "{ids:?}");
+    assert!(!ids.contains(&"3"), "it never wrote AI cleanup: {ids:?}");
+    let changed = found.excerpts.iter().find(|e| e.id == "1").unwrap();
+    let (heard, wrote) = changed.text.split_once('\n').unwrap();
+    assert!(heard.starts_with("Heard: …") && heard.ends_with("turn on AI for the notes"));
+    assert!(wrote.starts_with("Wrote: …") && wrote.ends_with("AI cleanup for the notes"));
+    assert!(changed.text.chars().count() < 1_000, "bounded");
+    let same = found.excerpts.iter().find(|e| e.id == "2").unwrap();
+    assert_eq!(
+        same.text, "AI cleanup is on",
+        "one text when nothing changed"
+    );
+}

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::super::intent::Intent;
 use super::spoken::Query;
-use super::{Budget, Excerpt, Kind, Line, clip, newest, within};
+use super::{Budget, Excerpt, HEARD, Kind, Line, clip, newest, within};
 use crate::files::store::{FileRecord, VersionKind};
 use crate::meeting::query::{TextHit, search_texts};
 
@@ -158,6 +158,20 @@ pub(super) fn dictations(
         } else {
             Vec::new()
         }
+    } else if let Some(written) = &intent.written {
+        // "Why does it write X": the dictations that wrote X.
+        let documents: Vec<Vec<&str>> = entries
+            .iter()
+            .map(|entry| vec![entry.final_text.as_str()])
+            .collect();
+        let found = hits(search_texts(&documents, written, &[]));
+        // Those that wrote the whole form, when any did.
+        let whole: Vec<(usize, f32)> = found
+            .iter()
+            .copied()
+            .filter(|(index, _)| entries[*index].final_text.to_lowercase().contains(written))
+            .collect();
+        if whole.is_empty() { found } else { whole }
     } else {
         let documents: Vec<Vec<&str>> = entries
             .iter()
@@ -165,6 +179,7 @@ pub(super) fn dictations(
             .collect();
         hits(search_texts(&documents, &query.text, &query.aliases))
     };
+    let words = matching(intent, query);
     let order = newest(order, intent, |index| entries[index].timestamp_ms);
     let excerpts = order
         .into_iter()
@@ -179,12 +194,89 @@ pub(super) fn dictations(
                 at_ms: entry.timestamp_ms,
                 offset_ms: None,
                 label: String::new(),
-                text: clip(&entry.final_text, TEXT_CHARS),
+                text: heard_and_wrote(&entry.raw_text, &entry.final_text, &words),
                 lines: Vec::new(),
             }
         })
         .collect();
     (searched, excerpts)
+}
+
+/// The words a dictation's excerpt is cut around: the form written, the
+/// terms, and their spoken forms, lowercase.
+fn matching(intent: &Intent, query: &Query) -> Vec<String> {
+    let mut words: Vec<String> = intent.written.iter().cloned().collect();
+    words.extend(query.text.split_whitespace().map(str::to_lowercase));
+    for alias in &query.aliases {
+        words.push(alias.term.to_lowercase());
+        words.extend(alias.sounds_like.iter().map(|form| form.to_lowercase()));
+    }
+    words.retain(|word| word.chars().count() >= 2);
+    words
+}
+
+/// A dictation as the model reads it: what the speech model heard and what
+/// was written, labelled, when cleanup changed it; else the text. Each cut
+/// to its share of `TEXT_CHARS` around the first of `words` it holds, or,
+/// in what was heard, where they stand in what was written.
+fn heard_and_wrote(raw: &str, written: &str, words: &[String]) -> String {
+    let same = |a: &str, b: &str| a.split_whitespace().eq(b.split_whitespace());
+    if raw.trim().is_empty() || same(raw, written) {
+        return around(written, words, TEXT_CHARS, 0.0);
+    }
+    let share = TEXT_CHARS / 2;
+    let written = flat(written);
+    let at = first(&written, words).unwrap_or(0);
+    let fraction = at as f32 / written.len().max(1) as f32;
+    format!(
+        "{HEARD}{}\nWrote: {}",
+        around(raw, words, share, fraction),
+        around(&written, words, share, 0.0)
+    )
+}
+
+fn flat(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Where the first of `words` stands in `text`, in bytes.
+fn first(text: &str, words: &[String]) -> Option<usize> {
+    let lower = text.to_lowercase();
+    // Lowercasing keeps byte offsets only when it keeps lengths.
+    (lower.len() == text.len())
+        .then(|| {
+            words
+                .iter()
+                .filter_map(|word| lower.find(word.as_str()))
+                .min()
+        })
+        .flatten()
+}
+
+/// `text` cut to `chars` around the first of `words` in it, with "…" where
+/// it was cut; around `fraction` of the way through it when it holds none.
+fn around(text: &str, words: &[String], chars: usize, fraction: f32) -> String {
+    let text = flat(text);
+    if text.chars().count() <= chars {
+        return text;
+    }
+    let at = first(&text, words).unwrap_or_else(|| {
+        let at = (text.len() as f32 * fraction) as usize;
+        (0..=at)
+            .rev()
+            .find(|at| text.is_char_boundary(*at))
+            .unwrap_or(0)
+    });
+    // A third of the room before the word.
+    let before = text[..at].chars().count().saturating_sub(chars / 3);
+    if before == 0 {
+        return clip(&text, chars);
+    }
+    let start = text.char_indices().nth(before).map_or(0, |(at, _)| at);
+    let start = text[start..]
+        .find(' ')
+        .map_or(start, |space| start + space + 1);
+    format!("…{}", clip(&text[start..], chars))
 }
 
 /// The documents a search found, best first, with their scores.

@@ -158,6 +158,9 @@ AI cleanup whenever they say AI), a replacement, a line of the instructions, or 
 speech model. Name it and how to fix it; when it is the instructions, offer the fix as a card \
 for the instructions key.";
 
+const HEARD_WROTE: &str = "
+- A dictation that cleanup changed shows two lines: Heard, what the speech model wrote down (after Vocabulary's own corrections), and Wrote, what was typed into the app. When the question asks why a word came out as it did, compare them, quoting both: a word already wrong in Heard is the speech model hearing it so, or a Vocabulary entry whose sounds-like spellings catch it; one right in Heard and changed in Wrote is cleanup: a replacement, a line of their instructions, or a Vocabulary entry the cleanup model was told to write. Name the cause. When it is a setting you can see, offer the fix as a card; for a Vocabulary entry, say which spelling to remove in **General › Vocabulary**.";
+
 /// With the person's settings sent: answers for them, not for anyone.
 const PERSONAL: &str = "
 
@@ -415,6 +418,10 @@ pub fn build(
             for turn in earlier.iter().rev().take(2) {
                 texts.extend([turn.question, turn.answer]);
             }
+            // The entries the dictations found name, too.
+            if let Reach::Recordings(found, _) = &reach {
+                texts.extend(found.excerpts.iter().map(|excerpt| excerpt.text.as_str()));
+            }
             input.push_str(&super::personal::vocabulary(&context.settings, &texts));
             vocabulary = true;
             instructions.push_str(DIAGNOSE);
@@ -425,6 +432,13 @@ pub fn build(
         Reach::Declined => instructions.push_str(DECLINED),
         Reach::Recordings(recordings, now_ms) => {
             instructions.push_str(RECORDINGS);
+            if recordings
+                .excerpts
+                .iter()
+                .any(|excerpt| excerpt.text.starts_with(super::recordings::HEARD))
+            {
+                instructions.push_str(HEARD_WROTE);
+            }
             input.push_str(&recordings_block(recordings, now_ms));
         }
         Reach::Releases(selection) => {
@@ -983,6 +997,65 @@ mod tests {
     /// for "AI": the prompt carries their instructions, every mode's, and
     /// the Vocabulary entries the words name, and says how to find the
     /// cause. With settings not sent, none of it, and where to allow it.
+    /// "Why does it write X instead of Y" with the dictations that wrote
+    /// X: the model compares what was heard with what was written, and
+    /// sees the Vocabulary entries the dictations name.
+    #[test]
+    fn a_word_written_wrong_is_compared_heard_against_wrote() {
+        use crate::assistant::recordings::Excerpt;
+        let mut sent = context(true);
+        sent.settings.vocabulary = vec![crate::dictation::vocabulary::VocabularyEntry {
+            term: "AI cleanup".into(),
+            sounds_like: vec!["AI".into()],
+        }];
+        let found = Found {
+            excerpts: vec![Excerpt {
+                n: 1,
+                kind: Kind::Dictation,
+                id: "7".into(),
+                title: "Notes".into(),
+                at_ms: 0,
+                offset_ms: None,
+                label: String::new(),
+                text: "Heard: turn on AI for notes\nWrote: turn on AI cleanup for notes".into(),
+                lines: Vec::new(),
+            }],
+            steps: Vec::new(),
+        };
+        let prompt = build(
+            "Почему пишет AI cleanup вместо AI?",
+            &[],
+            Room::Large,
+            Reach::Recordings(&found, 0),
+            Some(&sent),
+            &Stage::None,
+        );
+        assert!(prompt.instructions.contains("compare them, quoting both"));
+        assert!(
+            prompt
+                .input
+                .contains("Heard: turn on AI for notes\nWrote: turn on AI cleanup")
+        );
+        assert!(prompt.input.contains("AI cleanup (sounds like: AI)"));
+        // A dictation cleanup left alone needs no comparing.
+        let plain = Found {
+            excerpts: vec![Excerpt {
+                text: "turn on AI cleanup".into(),
+                ..found.excerpts[0].clone()
+            }],
+            steps: Vec::new(),
+        };
+        let prompt = build(
+            "Почему пишет AI cleanup вместо AI?",
+            &[],
+            Room::Large,
+            Reach::Recordings(&plain, 0),
+            Some(&sent),
+            &Stage::None,
+        );
+        assert!(!prompt.instructions.contains("compare them, quoting both"));
+    }
+
     #[test]
     fn a_question_about_cleanup_reads_the_instructions_and_named_terms() {
         let mut sent = context(true);

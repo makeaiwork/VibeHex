@@ -103,6 +103,7 @@ impl Turn {
                 | Step::Files { found, .. }
                 | Step::Dictations { found, .. } => found > 0,
                 Step::Read { passages, .. } => passages > 0,
+                Step::Guide { .. } => false,
             })
     }
 }

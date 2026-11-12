@@ -155,9 +155,164 @@ pub fn wants(question: &str) -> Wants {
     }
 }
 
+/// "X instead of Y": the words that follow the form written.
+const INSTEAD: &[&str] = &[
+    "instead of",
+    "rather than",
+    "вместо",
+    "а не ",
+    "замість",
+    "statt",
+    "anstatt",
+    "en lugar de",
+    "en vez de",
+    "au lieu de",
+    "em vez de",
+    "zamiast",
+];
+
+/// Writing, the verb before the form written ("it writes X").
+const WRITES: &[&str] = &[
+    "write",
+    "wrote",
+    "writing",
+    "types",
+    "puts",
+    "inserts",
+    "gives",
+    "turns into",
+    "comes out as",
+    "пишет",
+    "написал",
+    "напечатал",
+    "вставля",
+    "выда",
+    "получает",
+    "получил",
+    "превраща",
+    "пише",
+    "schreibt",
+    "geschrieben",
+    "escribe",
+    "écrit",
+    "escreve",
+    "pisze",
+];
+
+/// The most words a form written is read as, without quotes.
+const FORM_WORDS: usize = 3;
+
+/// The form dictation wrote, when `question` asks why it wrote one thing
+/// instead of another («почему пишет AI cleanup вместо AI», "why does it
+/// write Cuba Nettie instead of Kubernetes"), in lowercase: what the
+/// History search then looks for in what was written. A quoted form
+/// counts first; otherwise the words after the writing verb, up to the
+/// "instead of".
+pub fn written(question: &str) -> Option<String> {
+    let text = question.to_lowercase();
+    let (at, marker) = INSTEAD
+        .iter()
+        .filter_map(|marker| text.find(marker).map(|at| (at, *marker)))
+        .min_by_key(|(at, _)| *at)?;
+    let (before, after) = (&text[..at], &text[at + marker.len()..]);
+    let form = quoted(before)
+        .last()
+        .cloned()
+        .or_else(|| after_verb(before).map(|words| last_words(&words, FORM_WORDS)))
+        // «вместо AI пишет AI cleanup»: the form after the verb.
+        .or_else(|| after_verb(after).map(|words| first_words(&words, FORM_WORDS)))
+        .or_else(|| Some(last_words(before, 2)))?;
+    let form = form.trim().to_owned();
+    (form.chars().filter(|c| c.is_alphanumeric()).count() >= 2).then_some(form)
+}
+
+/// The quoted parts of `text`, in order.
+fn quoted(text: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    for (open, close) in [('«', '»'), ('"', '"'), ('“', '”'), ('„', '“')] {
+        let mut rest = text;
+        while let Some(start) = rest.find(open) {
+            let tail = &rest[start + open.len_utf8()..];
+            let Some(end) = tail.find(close) else {
+                break;
+            };
+            parts.push((text.len() - rest.len() + start, tail[..end].to_owned()));
+            rest = &tail[end + close.len_utf8()..];
+        }
+    }
+    parts.sort_by_key(|(at, _)| *at);
+    parts.into_iter().map(|(_, part)| part).collect()
+}
+
+/// What follows the last writing verb in `text`, to its clause's end.
+fn after_verb(text: &str) -> Option<String> {
+    let (at, verb) = WRITES
+        .iter()
+        .filter_map(|verb| text.rfind(verb).map(|at| (at, *verb)))
+        .max_by_key(|(at, _)| *at)?;
+    // The rest of the verb's word ("writes", "пишется").
+    let rest = &text[at + verb.len()..];
+    let rest = rest.trim_start_matches(|c: char| c.is_alphanumeric());
+    let clause = rest
+        .split(['.', ',', ';', '?', '!', '\n'])
+        .next()
+        .unwrap_or_default();
+    let words: Vec<&str> = clause
+        .split_whitespace()
+        .filter(|word| !FILLER.contains(word))
+        .collect();
+    (!words.is_empty()).then(|| words.join(" "))
+}
+
+/// Words between a verb and its form: "it writes it as X".
+const FILLER: &[&str] = &[
+    "it", "as", "me", "out", "мне", "у", "меня", "es", "il", "le",
+];
+
+fn last_words(text: &str, count: usize) -> String {
+    let clause = text
+        .rsplit(['.', ',', ';', '?', '!', '\n'])
+        .next()
+        .unwrap_or(text);
+    let words: Vec<&str> = clause.split_whitespace().collect();
+    words[words.len().saturating_sub(count)..].join(" ")
+}
+
+fn first_words(text: &str, count: usize) -> String {
+    text.split_whitespace()
+        .take(count)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_form_written_is_read_from_instead_of() {
+        assert_eq!(
+            written("Why does it write Cuba Nettie instead of Kubernetes?").as_deref(),
+            Some("cuba nettie")
+        );
+        assert_eq!(
+            written("Почему пишет AI cleanup вместо AI?").as_deref(),
+            Some("ai cleanup")
+        );
+        assert_eq!(
+            written("Почему вместо AI пишет AI cleanup").as_deref(),
+            Some("ai cleanup")
+        );
+        assert_eq!(
+            written("Why do I get \"Hex labs\" instead of \"VibeHex\"?").as_deref(),
+            Some("hex labs")
+        );
+        assert_eq!(
+            written("Warum schreibt es Kuba statt Kubernetes?").as_deref(),
+            Some("kuba")
+        );
+        assert_eq!(written("How do I turn on meetings?"), None);
+    }
 
     #[test]
     fn cleanup_questions_want_the_instructions_and_vocabulary() {

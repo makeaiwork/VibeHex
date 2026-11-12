@@ -637,6 +637,17 @@ fn finish(
             }
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
+            // An answer from the recordings that drew on the guide too says
+            // so in its steps.
+            let articles: Vec<String> = turn
+                .sources
+                .iter()
+                .filter(|id| super::guide::article(id).is_some())
+                .cloned()
+                .collect();
+            if !turn.steps.is_empty() && !articles.is_empty() {
+                turn.steps.push(Step::Guide { articles });
+            }
             // The lines cited are kept with the places; the answer shows
             // their excerpts' `[n]`.
             if let Some(found) = found {
