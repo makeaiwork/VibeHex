@@ -206,6 +206,9 @@ pub struct State {
     /// What earlier setups offered and the person declined: not offered
     /// again while the setting is as it was (`setup::past`).
     pub declined: Vec<crate::assistant::setup::past::Line>,
+    /// The follow-ups answered in an earlier setup and not asked again
+    /// (`setup::past::answered_before`), as answered then.
+    pub answered: Vec<crate::assistant::setup::Ask>,
 }
 
 /// How much of the catalog a model reads.

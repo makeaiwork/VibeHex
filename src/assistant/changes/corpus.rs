@@ -139,7 +139,7 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
                 }
                 "follow_ups" => {
                     let asks =
-                        setup::follow::follow_ups(&parsed.asks, &[], &AppSettings::default());
+                        setup::follow::follow_ups(&parsed.asks, &[], &AppSettings::default(), &[]);
                     let got: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
                     assert_eq!(got, list(&want, ','), "{name}: follow_ups");
                 }

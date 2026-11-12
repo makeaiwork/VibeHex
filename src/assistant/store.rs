@@ -192,8 +192,15 @@ impl Store {
         &self.setups
     }
 
-    /// Keeps a finished setup.
+    /// Keeps `setup`: in place of the same setup kept before (a later
+    /// round, or its plan decided), else as the newest.
     pub fn finish(&mut self, setup: Setup) {
+        if let Some(at) = self.setups.iter().position(|known| known.same(&setup)) {
+            let old = self.setups.remove(at);
+            self.setups.push(past::merge(&old, setup));
+            self.save();
+            return;
+        }
         self.setups.push(setup);
         if self.setups.len() > past::MAX {
             let extra = self.setups.len() - past::MAX;
@@ -284,6 +291,19 @@ impl Store {
             .and_then(|turn| turn.asks.get_mut(ask));
         if let Some(slot) = slot {
             *slot = value;
+            self.save();
+        }
+    }
+
+    /// Adds `asks` to turn `turn` of conversation `id`.
+    pub fn push_asks(&mut self, id: u32, turn: usize, asks: Vec<Ask>) {
+        let slot = self
+            .conversations
+            .iter_mut()
+            .find(|c| c.id == id)
+            .and_then(|conversation| conversation.turns.get_mut(turn));
+        if let Some(slot) = slot {
+            slot.asks.extend(asks);
             self.save();
         }
     }

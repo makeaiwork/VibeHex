@@ -100,6 +100,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) undo: Vec<changes::At>,
     /// Setup plans whose "Already set" is unfolded.
     pub(super) kept_open: Vec<changes::At>,
+    /// Setup rounds whose "Answered before" is unfolded.
+    before_open: Vec<ask::At>,
     /// The conversation `undo` belongs to.
     pub(super) undo_for: Option<u32>,
     /// The instructions card being edited before it saves, and its text.

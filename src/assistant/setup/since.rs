@@ -38,6 +38,16 @@ pub struct Release {
     pub keys: Vec<String>,
 }
 
+/// Whether a release dated after `after_ms` brings or changes `key`: what
+/// was answered about it before may be asked again. Work not released yet
+/// (a development build's "next") never counts: it isn't a release since.
+pub fn changed_since(key: &str, after_ms: u64) -> bool {
+    let after = date(after_ms);
+    releases::notes()
+        .iter()
+        .any(|note| !note.is_next() && note.date > after && note.settings_keys().contains(&key))
+}
+
 /// The releases after `after_ms`, oldest first: VibeHex's own notes
 /// (`releases::notes`) dated after that day, up to the version running
 /// (a newer one isn't here yet). Next, the work not released yet, only on

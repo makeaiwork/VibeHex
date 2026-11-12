@@ -30,6 +30,11 @@ pub(in super::super) struct At {
 /// What a question's suggestions are offered and checked against: the
 /// settings now and what the pane knows of this computer.
 pub(super) fn context(ui: &Ui) -> Context {
+    let settings = ui.drafted();
+    let setups = ui.assistant.store.setups();
+    let answered = crate::assistant::setup::past::answered_before(setups, &settings, |key, at| {
+        crate::assistant::setup::since::changed_since(key, at)
+    });
     let installed = ui
         .picker
         .installed
@@ -38,7 +43,7 @@ pub(super) fn context(ui: &Ui) -> Context {
         .map(|id| id.as_str().to_owned())
         .collect();
     Context {
-        settings: ui.drafted(),
+        settings,
         send: ui.settings.assistant.send_settings,
         state: catalog::State {
             os: super::ask::os(ui),
@@ -56,7 +61,8 @@ pub(super) fn context(ui: &Ui) -> Context {
             } else {
                 crate::assistant::setup::engines::installed_servers()
             },
-            declined: crate::assistant::setup::past::declined(ui.assistant.store.setups()),
+            declined: crate::assistant::setup::past::declined(setups),
+            answered,
         },
     }
 }

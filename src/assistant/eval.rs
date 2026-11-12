@@ -101,6 +101,7 @@ fn cases() -> Vec<Case> {
                 answers: answers.clone(),
                 candidates,
                 since: String::new(),
+                before: Vec::new(),
             },
             keys: Vec::new(),
             terms: Vec::new(),

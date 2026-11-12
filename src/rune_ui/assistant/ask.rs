@@ -19,13 +19,13 @@ use rune_theme_opencode::icons as theme;
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::composer;
-use crate::assistant::changes::CardKind;
+use crate::assistant::changes::{Card, CardKind};
 use crate::assistant::recordings::Step;
 use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow, past};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Recall;
-use crate::desktop::i18n::tr;
+use crate::desktop::i18n::{tr, tr_fill};
 
 /// Where a round is: its conversation and turn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -230,14 +230,84 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
         conversation,
         turn: index,
     };
+    let unfolded = pane.before_open.contains(&at);
     if turn.asks.iter().all(|ask| ask.done) {
-        shown.extend(past(p, index, &turn.asks));
+        shown.extend(past(p, at, &turn.asks, unfolded));
     } else if last && turn.folded {
         shown.push(super::returning::folded(p, at, &turn.asks));
     } else if last {
-        shown.push(open(p, at, &turn.asks));
+        shown.push(open(p, at, &turn.asks, unfolded));
     }
     shown
+}
+
+/// Unfolds round `at`'s "Answered before", for a scene.
+pub(super) fn unfold_before(ui: &mut Ui, at: At) {
+    ui.assistant.before_open.push(at);
+}
+
+/// "Answered before: 4 ›": the follow-ups an earlier setup answered,
+/// not asked again; unfolded, each with its answer, changeable while the
+/// round is `open`.
+fn before(p: Paint, at: At, asks: &[Ask], unfolded: bool, open: bool) -> Option<El> {
+    let earlier: Vec<(usize, &Ask)> = asks
+        .iter()
+        .enumerate()
+        .filter(|(_, ask)| ask.before)
+        .collect();
+    if earlier.is_empty() {
+        return None;
+    }
+    let c = &p.k.c;
+    let words = tr_fill("Answered before: {}", &earlier.len().to_string());
+    let toggle = row()
+        .key("before-toggle")
+        .role("button")
+        .label(words.clone())
+        .checked(unfolded)
+        .focusable(true)
+        .focus_ring(2.0, 0.0, c.border_focus)
+        .gap(6.0)
+        .h(24.0)
+        .center_y()
+        .radius(p.k.radius.sm)
+        .hover(c.hover)
+        .child(text(words).key("words").font(p.k.ty.small).color(p.muted()))
+        .child(
+            icon(
+                if unfolded {
+                    &theme::CHEVRON_DOWN
+                } else {
+                    &theme::CHEVRON_RIGHT
+                },
+                12.0,
+            )
+            .key("chevron")
+            .color(c.icon_faint),
+        )
+        .on_press(move |ui: &mut Ui| {
+            let shown = &mut ui.assistant.before_open;
+            match shown.iter().position(|known| *known == at) {
+                Some(index) => {
+                    shown.remove(index);
+                }
+                None => shown.push(at),
+            }
+        });
+    let mut fold = col()
+        .key("before")
+        .gap(10.0)
+        .child(row().key("head").child(toggle));
+    if unfolded {
+        for (number, ask) in earlier {
+            fold = fold.child(if open {
+                question(p, at, number, ask)
+            } else {
+                answered_line(p, number, ask)
+            });
+        }
+    }
+    Some(fold)
 }
 
 /// Whether this round is round one, with its fixed questions.
@@ -280,7 +350,7 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
 
 /// A round to answer: each question that shows with its chips, then
 /// Continue, and "Skip to the plan" after round one.
-fn open(p: Paint, at: At, asks: &[Ask]) -> El {
+fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool) -> El {
     let c = &p.k.c;
     let mut card = col()
         .key(format!("round{}", at.turn))
@@ -293,11 +363,12 @@ fn open(p: Paint, at: At, asks: &[Ask]) -> El {
         .fill(c.layer_01)
         .border(p.hair, c.border_base);
     for (number, ask) in asks.iter().enumerate() {
-        if !setup::shows(asks, ask) {
+        if !setup::shows(asks, ask) || ask.before {
             continue;
         }
         card = card.child(question(p, at, number, ask));
     }
+    card = card.children(before(p, at, asks, unfolded, true));
     let go = rune_kit::Button::new(tr("Continue"))
         .variant(rune_kit::ButtonVariant::Neutral)
         .on_press(move |ui: &mut Ui| answered(ui, at, false));
@@ -367,10 +438,11 @@ fn question(p: Paint, at: At, number: usize, ask: &Ask) -> El {
         .child(chips)
 }
 
-/// A round answered: each question with an answer, and its chosen chips.
-fn past(p: Paint, index: usize, asks: &[Ask]) -> Option<El> {
+/// A round answered: each question with an answer, and its chosen chips;
+/// what was answered before, folded.
+fn past(p: Paint, at: At, asks: &[Ask], unfolded: bool) -> Option<El> {
     let mut lines = col()
-        .key(format!("asked{index}"))
+        .key(format!("asked{}", at.turn))
         .role("group")
         .label(tr("Setup questions"))
         .gap(8.0)
@@ -380,32 +452,37 @@ fn past(p: Paint, index: usize, asks: &[Ask]) -> Option<El> {
         .border(p.hair, p.k.c.border_weak);
     let mut any = false;
     for (number, ask) in asks.iter().enumerate() {
-        if ask.chosen.is_empty() {
+        if ask.chosen.is_empty() || ask.before {
             continue;
         }
         any = true;
-        let mut chips = row().key("chips").gap(6.0).flex_wrap();
-        for (option_index, option) in ask
-            .options
-            .iter()
-            .enumerate()
-            .filter(|(_, option)| ask.chosen.contains(&option.id))
-        {
-            chips = chips.child(
-                chip(p, &format!("option{option_index}"), ask, option, true, true)
-                    .role("note")
-                    .checked(true),
-            );
-        }
-        lines = lines.child(
-            col()
-                .key(format!("q{number}"))
-                .gap(6.0)
-                .child(title(p, ask, true))
-                .child(chips),
+        lines = lines.child(answered_line(p, number, ask));
+    }
+    let earlier = before(p, at, asks, unfolded, false);
+    any |= earlier.is_some();
+    any.then(|| lines.children(earlier))
+}
+
+/// An answered question: its title and the chips chosen.
+fn answered_line(p: Paint, number: usize, ask: &Ask) -> El {
+    let mut chips = row().key("chips").gap(6.0).flex_wrap();
+    for (option_index, option) in ask
+        .options
+        .iter()
+        .enumerate()
+        .filter(|(_, option)| ask.chosen.contains(&option.id))
+    {
+        chips = chips.child(
+            chip(p, &format!("option{option_index}"), ask, option, true, true)
+                .role("note")
+                .checked(true),
         );
     }
-    any.then_some(lines)
+    col()
+        .key(format!("q{number}"))
+        .gap(6.0)
+        .child(title(p, ask, true))
+        .child(chips)
 }
 
 /// One option: outlined, or on a soft accent tint with a check when
@@ -536,11 +613,14 @@ pub(super) fn answered(ui: &mut Ui, at: At, skip: bool) {
     let shown: Vec<bool> = asks.iter().map(|ask| setup::shows(&asks, ask)).collect();
     for (ask, shows) in asks.iter_mut().zip(shown) {
         ask.done = true;
-        if !shows || (skip && !ask.touched) {
+        // An answer from before stands, skipped or not.
+        if !shows || (skip && !ask.touched && !ask.before) {
             ask.chosen.clear();
         }
     }
     set_round(ui, at, asks);
+    // Kept at once: left half-way, or its plan put off, the answers stay.
+    keep(ui, at.conversation, None);
     if skip {
         plan(ui, at.conversation);
     } else {
@@ -601,7 +681,7 @@ fn next(ui: &mut Ui, at: At) {
     let more = turn.more.clone();
     let follow_up = !first(&turn.asks);
     if !more.is_empty() && rounds < follow::ROUNDS {
-        push_round(ui, at.conversation, more, Vec::new());
+        push_round(ui, at.conversation, more, Vec::new(), Vec::new());
         return;
     }
     if follow_up || !more.is_empty() {
@@ -610,11 +690,20 @@ fn next(ui: &mut Ui, at: At) {
     let answers = setup::answers(&asked(ui, at.conversation));
     let context = super::changes::context(ui);
     let candidates = follow::candidates(&answers, &context.settings, &context.state);
+    // What was answered in an earlier setup isn't asked again: it joins
+    // the round folded, as answered then, or, with nothing new to ask,
+    // round one's answers.
+    let before = follow::before(&answers, &context.settings, &context.state);
     if candidates.is_empty() {
+        let done = before
+            .into_iter()
+            .map(|ask| Ask { done: true, ..ask })
+            .collect();
+        ui.assistant.store.push_asks(at.conversation, at.turn, done);
         return plan(ui, at.conversation);
     }
     if on_device(ui, at.conversation) {
-        push_round(ui, at.conversation, candidates, Vec::new());
+        push_round(ui, at.conversation, candidates, Vec::new(), before);
         return;
     }
     if ui.assistant.answering.is_some() {
@@ -631,14 +720,22 @@ fn next(ui: &mut Ui, at: At) {
             line,
             candidates,
             since: super::returning::facts(ui, at.conversation),
+            before,
         },
     );
 }
 
 /// A follow-up round of the app's: the first [`follow::ROUND`] of `asks`,
-/// the rest for later.
-fn push_round(ui: &mut Ui, conversation: u32, mut asks: Vec<Ask>, answers: Vec<Answer>) {
+/// the rest for later, and what was answered `before`, folded.
+fn push_round(
+    ui: &mut Ui,
+    conversation: u32,
+    mut asks: Vec<Ask>,
+    answers: Vec<Answer>,
+    before: Vec<Ask>,
+) {
     let more = asks.split_off(asks.len().min(follow::ROUND));
+    asks.extend(before);
     let now = ui.assistant.now_ms();
     ui.assistant.store.push(
         conversation,
@@ -687,8 +784,7 @@ fn plan(ui: &mut Ui, conversation: u32) {
         );
         if settled {
             // Nothing to decide: the setup is finished as it is.
-            let setup = past::finished(&asked, &answers, None, &ui.settings, now);
-            ui.assistant.store.finish(setup);
+            keep(ui, conversation, None);
         }
         return;
     }
@@ -724,23 +820,42 @@ pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
     if turn.answers.is_empty() || turn.follow || card.kind != CardKind::Plan {
         return;
     }
-    let done = ui
-        .assistant
-        .store
-        .setups()
-        .iter()
-        .any(|setup| setup.at_ms == turn.created_ms);
+    let plan_ms = turn.created_ms;
+    let done = ui.assistant.store.setups().iter().any(|setup| {
+        // An older record, kept only once decided, has no conversation.
+        plan_ms != 0
+            && (setup.plan_ms == plan_ms || (setup.conversation == 0 && setup.at_ms == plan_ms))
+    });
     if done {
         return;
     }
-    let asked = asked(ui, at.conversation);
-    let setup = past::finished(
+    let card = card.clone();
+    keep(ui, at.conversation, Some((&card, plan_ms)));
+}
+
+/// Keeps the setup running in `conversation` with every answer so far
+/// (`setup::past`), and with how its plan went once decided (`plan`: the
+/// card and its turn's time); a later call updates the same record.
+fn keep(ui: &mut Ui, conversation: u32, plan: Option<(&Card, u64)>) {
+    let asked = asked(ui, conversation);
+    let answers = setup::answers(&asked);
+    let started_ms = ui
+        .assistant
+        .store
+        .get(conversation)
+        .and_then(|open| setup_turns(&open.turns).first().map(|turn| turn.created_ms))
+        .unwrap_or_default();
+    let at_ms = plan.map_or_else(|| ui.assistant.now_ms(), |(_, at)| at);
+    let mut setup = past::finished(
         &asked,
-        &turn.answers,
-        Some(card),
+        &answers,
+        plan.map(|(card, _)| card),
         &ui.settings,
-        turn.created_ms,
+        at_ms,
     );
+    setup.conversation = conversation;
+    setup.started_ms = started_ms;
+    setup.plan_ms = plan.map_or(0, |(_, at)| at);
     ui.assistant.store.finish(setup);
 }
 
@@ -753,6 +868,7 @@ pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
         let context = super::changes::context(ui);
         Stage::Follow {
             candidates: follow::candidates(&turn.answers, &context.settings, &context.state),
+            before: follow::before(&turn.answers, &context.settings, &context.state),
             answers: turn.answers.clone(),
             line: turn.question.clone(),
             since: super::returning::facts(ui, conversation),
@@ -867,6 +983,79 @@ mod tests {
         assert_eq!(
             setup::answers_line(&[server], label),
             "cleanup: custom (My own server (LM Studio))"
+        );
+    }
+
+    /// Round one answered as preselected, with code and calls.
+    fn round_one(ui: &mut Ui) {
+        let index = turns(ui).iter().position(|turn| first(&turn.asks)).unwrap();
+        let here = at(ui, index);
+        let asks = turns(ui)[index].asks.clone();
+        let use_at = number(&asks, "use");
+        for id in ["dictation_code", "meetings"] {
+            if !turns(ui)[index].asks[use_at]
+                .chosen
+                .iter()
+                .any(|on| on == id)
+            {
+                pick(ui, here, use_at, id);
+            }
+        }
+        answered(ui, here, false);
+    }
+
+    /// A follow-up round answered and the conversation left: the answers
+    /// are kept at once, and the next setup doesn't ask them again but
+    /// shows them folded, as answered, changeable; Continue keeps them.
+    #[test]
+    fn answered_follow_ups_are_kept_and_not_asked_again() {
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.assistant.fixture = true;
+        begin(&mut ui);
+        round_one(&mut ui);
+        let last = turns(&ui).len() - 1;
+        let round = turns(&ui)[last].asks.clone();
+        assert!(round.len() >= 2, "{round:?}");
+        let here = at(&ui, last);
+        pick(&mut ui, here, 0, "no");
+        pick(&mut ui, here, 1, "yes");
+        answered(&mut ui, here, false);
+        let kept = ui.assistant.store.setups().to_vec();
+        assert_eq!(kept.len(), 1, "one record, updated round by round");
+        let ids: Vec<&str> = kept[0]
+            .asked
+            .iter()
+            .map(|answered| answered.ask.id.as_str())
+            .collect();
+        assert_eq!(ids, [round[0].id.as_str(), round[1].id.as_str()]);
+        // Left half-way: a new setup.
+        ui.assistant.open = None;
+        begin(&mut ui);
+        round_one(&mut ui);
+        let next = turns(&ui).last().unwrap().clone();
+        let asked_again: Vec<&Ask> = next.asks.iter().filter(|ask| !ask.before).collect();
+        assert!(
+            asked_again
+                .iter()
+                .all(|ask| ask.id != round[0].id && ask.id != round[1].id),
+            "{asked_again:?}"
+        );
+        let before: Vec<(&str, &[String])> = next
+            .asks
+            .iter()
+            .filter(|ask| ask.before)
+            .map(|ask| (ask.id.as_str(), ask.chosen.as_slice()))
+            .collect();
+        assert!(before.contains(&(round[0].id.as_str(), &["no".to_owned()][..])));
+        assert!(before.contains(&(round[1].id.as_str(), &["yes".to_owned()][..])));
+        // Skipped to the plan, the earlier Yes still stands.
+        let here = at(&ui, turns(&ui).len() - 1);
+        answered(&mut ui, here, true);
+        let plan = turns(&ui).last().unwrap().clone();
+        assert!(
+            plan.answers
+                .iter()
+                .any(|answer| answer.id == round[1].id && answer.chosen == ["yes"])
         );
     }
 }

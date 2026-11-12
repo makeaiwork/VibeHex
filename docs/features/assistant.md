@@ -282,6 +282,22 @@ Opened from a place link                         // rune_ui::assistant::places
   (key and value) isn't offered again, by the rules, a model, or a
   follow-up, while the setting is still what it was then
   (`catalog::State::declined`, `past::held`).
+- A setup is kept from its first answered round on (each Continue or
+  Skip), so one left half-way, or whose plan is put off, keeps its
+  answers; a later round or the plan's decision updates the same record
+  (`Setup::same`: its conversation and when round one was asked), keeping
+  when each follow-up was answered and the settings it saw then. Each
+  follow-up answered, Yes or No, is kept as asked (`Setup::asked`).
+- A follow-up answered before isn't asked again while what its Yes
+  changes is still as it was then and no release dated after the answer
+  names its key (`past::answered_before`, `since::changed_since`; a
+  development build's unreleased "next" doesn't count). The app leaves it
+  out of its candidates, a model reads it under `<answered_before>` and
+  may not ask it (`follow::settled`: answered or declined keys, dropped
+  from what it writes), and the round shows it folded as "Answered
+  before: 2 ›", unfolding to each question with its earlier answer,
+  changeable there (`Ask::before`). Those answers count as the round's:
+  a Skip keeps them, and with nothing new to ask they join round one's.
 - Returning setup (`setup::since`, `rune_ui::assistant::returning`): with
   a setup kept, 50+ dictations in History, or any meeting, round one is
   folded to "Has anything changed in how you use VibeHex?" with the last

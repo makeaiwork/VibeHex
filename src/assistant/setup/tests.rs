@@ -443,7 +443,7 @@ fn a_models_follow_ups_are_checked() {
     .iter()
     .map(|line| serde_json::from_str(line).unwrap())
     .collect();
-    let asks = follow::follow_ups(&written, &candidates, &settings);
+    let asks = follow::follow_ups(&written, &candidates, &settings, &[]);
     let ids: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
     assert_eq!(ids, ["labs.filler_words", "history_retention"]);
     assert_eq!(asks[0].q, "Убирать «эээ»?");
@@ -457,7 +457,45 @@ fn a_models_follow_ups_are_checked() {
         asks[1].options[0].changes,
         [("history_retention".to_owned(), json!("forever"))]
     );
-    assert_eq!(follow::follow_ups(&[], &candidates, &settings), candidates);
+    assert_eq!(
+        follow::follow_ups(&[], &candidates, &settings, &[]),
+        candidates
+    );
+    // A setting answered or declined before is never asked again, unless
+    // the app picked it itself.
+    let settled = [
+        "history_retention".to_owned(),
+        "labs.filler_words".to_owned(),
+    ];
+    let asks = follow::follow_ups(&written, &candidates, &settings, &settled);
+    let ids: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
+    assert_eq!(ids, ["labs.filler_words"]);
+}
+
+/// A follow-up answered in an earlier setup is left out of the app's
+/// candidates, out of what a model may add, and named to it as answered.
+#[test]
+fn a_follow_up_answered_before_is_not_a_candidate() {
+    let settings = owners();
+    let answers = owners_answers();
+    let candidates = follow::candidates(&answers, &settings, &mac());
+    let first = candidates[0].clone();
+    let state = State {
+        answered: vec![crate::assistant::setup::Ask {
+            chosen: vec!["no".into()],
+            before: true,
+            ..first.clone()
+        }],
+        ..mac()
+    };
+    let again = follow::candidates(&answers, &settings, &state);
+    assert!(again.iter().all(|ask| ask.id != first.id));
+    let before = follow::before(&answers, &settings, &state);
+    assert_eq!(before.len(), 1);
+    assert_eq!(before[0].chosen, ["no"]);
+    let (_, others, answered) = follow::prompt_lines(&again, &settings, &state);
+    assert!(!others.contains(&first.id));
+    assert!(answered.contains(&first.id), "{answered}");
 }
 
 #[test]

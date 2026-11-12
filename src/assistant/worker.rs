@@ -417,7 +417,9 @@ fn settle(
         }
         // Follow-up questions only: any change lines are dropped.
         (Stage::Follow { candidates, .. }, Some(context)) => {
-            let asks = setup::follow::follow_ups(&parsed.asks, candidates, &context.settings);
+            let settled = setup::follow::settled(&context.settings, &context.state);
+            let asks =
+                setup::follow::follow_ups(&parsed.asks, candidates, &context.settings, &settled);
             return Settled {
                 reply,
                 cards: Vec::new(),
@@ -603,6 +605,10 @@ fn finish(
                     .asks
                     .split_off(turn.asks.len().min(setup::follow::ROUND));
                 turn.more = rest;
+                // What was answered before joins the round, folded.
+                if let Stage::Follow { before, .. } = &question.setup {
+                    turn.asks.extend(before.iter().cloned());
+                }
             }
             if question.setup == Stage::Ask
                 && let Some(context) = &question.changes

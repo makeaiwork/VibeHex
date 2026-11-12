@@ -86,7 +86,7 @@ pub(super) fn folded(p: Paint, at: At, asks: &[Ask]) -> El {
     let c = &p.k.c;
     let mut chips = row().key("chips").gap(6.0).flex_wrap();
     for (number, ask) in asks.iter().enumerate() {
-        if !setup::shows(asks, ask) {
+        if !setup::shows(asks, ask) || ask.before {
             continue;
         }
         let chosen = ask

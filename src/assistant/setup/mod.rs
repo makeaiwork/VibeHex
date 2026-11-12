@@ -63,6 +63,10 @@ pub struct Ask {
     /// Answered: it shows as chosen chips.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub done: bool,
+    /// Answered in an earlier setup and not asked again: it shows folded
+    /// under "Answered before", its answer changeable there.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub before: bool,
 }
 
 /// One option of a question.
@@ -110,6 +114,9 @@ pub enum Stage {
         line: String,
         candidates: Vec<Ask>,
         since: String,
+        /// The follow-ups answered in an earlier setup (`past`), joining
+        /// the round folded, as answered then.
+        before: Vec<Ask>,
     },
     /// Every round is answered: the model writes the plan. `line` is the
     /// answers as the model reads them, with the labels the person saw;

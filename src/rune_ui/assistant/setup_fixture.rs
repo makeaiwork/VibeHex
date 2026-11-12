@@ -142,19 +142,54 @@ pub(in super::super) fn setup_ask(ui: &mut Ui) {
     conversation(ui, "Set up for me", vec![turn], &[]);
 }
 
-/// Round one answered, and the first follow-up round open, one answered.
+/// Round one answered, and the first follow-up round open, one answered;
+/// two answered in an earlier setup, unfolded under "Answered before".
 pub(in super::super) fn setup_follow(ui: &mut Ui) {
     open(ui);
     let state = sample(ui);
+    let mut asks = round(false);
+    asks.truncate(2);
+    let mut before = round(true);
+    for (ask, (key, q, hint, chosen)) in before.iter_mut().zip([
+        (
+            "labs.screenshots",
+            "Take screenshots you can mark up and talk over?",
+            "Screenshots",
+            "no",
+        ),
+        (
+            "labs.smart_spacing",
+            "Add a space automatically when you dictate right after a word?",
+            "Smart spacing",
+            "yes",
+        ),
+    ]) {
+        ask.id = key.into();
+        ask.q = q.into();
+        ask.hint = hint.into();
+        ask.options[0].changes = vec![(key.into(), Value::Bool(true))];
+        ask.chosen = vec![chosen.into()];
+        ask.done = false;
+        ask.before = true;
+    }
+    before.truncate(2);
+    asks.extend(before);
     let turns = vec![
         opening(ui, answered(ui, &state, "codex")),
         Turn {
-            asks: round(false),
+            asks,
             created_ms: AT + MINUTE,
             ..Turn::default()
         },
     ];
-    conversation(ui, "Set up for me", turns, &[]);
+    let id = conversation(ui, "Set up for me", turns, &[]);
+    super::ask::unfold_before(
+        ui,
+        super::ask::At {
+            conversation: id,
+            turn: 1,
+        },
+    );
 }
 
 /// A follow-up round in Russian, as a model asks it: a long question

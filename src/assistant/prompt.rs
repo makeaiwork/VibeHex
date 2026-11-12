@@ -156,7 +156,7 @@ End with `Sources: none`.",
 
 /// Guided setup after round one: the follow-up questions the app picked,
 /// for a remote model to reword, drop, or add to.
-fn setup_follow(candidates: &str, others: &str) -> String {
+fn setup_follow(candidates: &str, others: &str, before: &str) -> String {
     format!(
         "
 
@@ -177,11 +177,17 @@ and every `id` exactly as written. Leave out one that doesn't fit them.
 question`) that clearly fits, as {{\"id\":\"<key>\",\"q\":\"...\",\"options\":[{{\"id\":\"yes\",\"label\":\"...\"}},{{\"id\":\"no\",\"label\":\"...\"}}]}}, or about a \
 setting from <changeable_settings> with each option's `value` as the list writes it (an \
 option without one changes nothing).
+- Never ask about a feature or setting in <answered_before> (`key | title`): the person \
+answered it in an earlier setup, and the app keeps that answer.
 - Questions only: no changes, no plan. End with `Sources: none`.
 
 <labs_catalog>
 {others}
-</labs_catalog>"
+</labs_catalog>
+
+<answered_before>
+{before}
+</answered_before>"
     )
 }
 
@@ -342,8 +348,9 @@ pub fn build(
         );
         match stage {
             Stage::Follow { candidates, .. } => {
-                let (asks, others) = setup::follow::prompt_lines(candidates, &context.settings);
-                instructions.push_str(&setup_follow(&asks, &others));
+                let (asks, others, before) =
+                    setup::follow::prompt_lines(candidates, &context.settings, &context.state);
+                instructions.push_str(&setup_follow(&asks, &others, &before));
             }
             Stage::Plan { .. } => instructions.push_str(SETUP_PLAN),
             Stage::Look { .. } => instructions.push_str(SETUP_LOOK),

@@ -4,6 +4,13 @@
 //! once declined (a row left unticked, a follow-up's "No") isn't offered
 //! again while the setting is still as it was then; once it changed, by
 //! hand or by another plan, it may be.
+//!
+//! A setup is kept from its first answered round on, so a conversation
+//! left half-way, or a plan put off, still keeps its answers; a later
+//! round or the plan's decision updates the same record. A follow-up
+//! answered there, Yes or No, isn't asked again while what its Yes would
+//! change is still as it was then and no release since names it
+//! (`answered_before`).
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -25,6 +32,41 @@ pub struct Setup {
     pub applied: Vec<Line>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub declined: Vec<Line>,
+    /// The follow-ups answered, as asked, with their settings then.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub asked: Vec<Answered>,
+    /// The conversation it ran in and when its round one was asked: the
+    /// record a later round or the plan updates (0 in an older record).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub conversation: u32,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub started_ms: u64,
+    /// The plan turn it was decided on; 0 until a plan is.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub plan_ms: u64,
+}
+
+fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
+    *value == T::default()
+}
+
+impl Setup {
+    /// Whether `other` is the same setup, kept again.
+    pub fn same(&self, other: &Setup) -> bool {
+        self.conversation != 0
+            && self.conversation == other.conversation
+            && self.started_ms == other.started_ms
+    }
+}
+
+/// A follow-up answered: the question as asked with its answer, when, and
+/// what each setting its Yes changes was set to then.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Answered {
+    pub ask: Ask,
+    pub at_ms: u64,
+    pub then: Vec<Line>,
 }
 
 /// One setting a setup changed or was offered: from what, to what.
@@ -51,6 +93,28 @@ pub fn finished(
         answers: answers.to_vec(),
         ..Setup::default()
     };
+    for ask in asks.iter().filter(|ask| ask.done && !ask.chosen.is_empty()) {
+        if !ask.options.iter().any(|option| option.id == "no") {
+            continue;
+        }
+        let yes = ask.options.iter().filter(|option| option.id != "no");
+        setup.asked.push(Answered {
+            ask: Ask {
+                before: false,
+                touched: false,
+                ..ask.clone()
+            },
+            at_ms,
+            then: yes
+                .flat_map(|option| option.changes.iter())
+                .map(|(key, to)| Line {
+                    key: key.clone(),
+                    to: to.clone(),
+                    from: now(settings, key),
+                })
+                .collect(),
+        });
+    }
     for ask in asks.iter().filter(|ask| ask.done) {
         if ask.chosen != ["no"] {
             continue;
@@ -80,6 +144,104 @@ pub fn finished(
         }
     }
     setup
+}
+
+/// `setup` as it updates `old`, the same setup kept before: a follow-up
+/// answered as it was then keeps when, and the settings it saw then
+/// (before the plan changed them).
+pub fn merge(old: &Setup, mut setup: Setup) -> Setup {
+    for answered in &mut setup.asked {
+        let kept = old.asked.iter().find(|known| {
+            known.ask.id == answered.ask.id && known.ask.chosen == answered.ask.chosen
+        });
+        if let Some(kept) = kept {
+            answered.at_ms = kept.at_ms;
+            answered.then = kept.then.clone();
+        }
+    }
+    // A follow-up's "No" declined then, from the setting it saw then.
+    for line in &mut setup.declined {
+        let then = old
+            .declined
+            .iter()
+            .find(|known| known.key == line.key && known.to == line.to);
+        if let Some(then) = then {
+            line.from = then.from.clone();
+        }
+    }
+    setup
+}
+
+/// The follow-ups answered in `setups`, the newest answer to each, that
+/// aren't asked again: what their Yes changes is as it was then and no
+/// release since changed it (`changed(key, at_ms)`). Each comes as asked,
+/// with its answer, `before`.
+pub fn answered_before(
+    setups: &[Setup],
+    settings: &AppSettings,
+    changed: impl Fn(&str, u64) -> bool,
+) -> Vec<Ask> {
+    let mut newest: Vec<Answered> = Vec::new();
+    for setup in setups {
+        let asked = if setup.asked.is_empty() {
+            older(setup)
+        } else {
+            setup.asked.clone()
+        };
+        for answered in asked {
+            newest.retain(|known| known.ask.id != answered.ask.id);
+            newest.push(answered);
+        }
+    }
+    newest
+        .into_iter()
+        .filter(|answered| {
+            answered.then.iter().all(|line| {
+                now(settings, &line.key) == line.from && !changed(&line.key, answered.at_ms)
+            })
+        })
+        .map(|answered| Ask {
+            before: true,
+            done: false,
+            ..answered.ask
+        })
+        .collect()
+}
+
+/// The follow-ups an older record answered, kept only as its answers and
+/// lines: each Labs switch's Yes or No as setup asks it, seen as it was
+/// before (the line's `from`, else off).
+fn older(setup: &Setup) -> Vec<Answered> {
+    let articles = crate::assistant::guide::articles();
+    setup
+        .answers
+        .iter()
+        .filter(|answer| answer.chosen == ["yes"] || answer.chosen == ["no"])
+        .filter_map(|answer| {
+            let key = answer.id.as_str();
+            let article = articles.iter().find(|article| {
+                article.is_lab() && article.keys.first().is_some_and(|k| k == key)
+            })?;
+            let line = setup
+                .declined
+                .iter()
+                .chain(&setup.applied)
+                .find(|line| line.key == key);
+            let from = line.map_or(Value::Bool(false), |line| line.from.clone());
+            let mut ask = super::follow::yes_no(key, &article.ask, &article.title);
+            ask.chosen = answer.chosen.clone();
+            ask.done = true;
+            Some(Answered {
+                ask,
+                at_ms: setup.at_ms,
+                then: vec![Line {
+                    key: key.to_owned(),
+                    to: Value::Bool(true),
+                    from,
+                }],
+            })
+        })
+        .collect()
 }
 
 /// What `key` is set to now; `null` for one the settings don't name.
@@ -215,5 +377,140 @@ mod tests {
             ..Setup::default()
         };
         assert!(declined(&[first, second]).is_empty());
+    }
+
+    fn yes(key: &str) -> Ask {
+        Ask {
+            chosen: vec!["yes".into()],
+            ..no(key)
+        }
+    }
+
+    /// A follow-up answered, Yes or No, in a setup left half-way or put
+    /// off, isn't asked again; until its setting changes by hand, or a
+    /// release since changes the feature.
+    #[test]
+    fn an_answered_follow_up_holds_until_its_setting_or_a_release_changes() {
+        let mut settings = AppSettings::default();
+        settings.labs.playback = false;
+        settings.labs.files = false;
+        let asks = [no("labs.playback"), yes("labs.files")];
+        // Left after the round: no plan at all.
+        let left = finished(&asks, &[], None, &settings, 100);
+        // Put off: the plan declined, its rows neither applied nor declined.
+        let card = Card {
+            kind: CardKind::Plan,
+            items: vec![row("labs.files", false)],
+            decision: Decision::Declined,
+            ..Card::default()
+        };
+        let put_off = finished(&asks, &[], Some(&card), &settings, 100);
+        assert_eq!(put_off.asked, left.asked);
+        assert!(put_off.applied.is_empty());
+        let ids =
+            |setups: &[Setup], settings: &AppSettings, changed: &dyn Fn(&str, u64) -> bool| {
+                answered_before(setups, settings, changed)
+                    .into_iter()
+                    .map(|ask| (ask.id, ask.chosen, ask.before))
+                    .collect::<Vec<_>>()
+            };
+        let never = |_: &str, _: u64| false;
+        for setups in [vec![left.clone()], vec![put_off]] {
+            assert_eq!(
+                ids(&setups, &settings, &never),
+                [
+                    ("labs.playback".into(), vec!["no".to_owned()], true),
+                    ("labs.files".into(), vec!["yes".to_owned()], true),
+                ]
+            );
+        }
+        // A release after the answer changed Files: asked again.
+        let files = |key: &str, at: u64| key == "labs.files" && at == 100;
+        assert_eq!(ids(std::slice::from_ref(&left), &settings, &files).len(), 1);
+        // Playback turned on and off again by hand is as it was; turned
+        // on, it is asked again (and then isn't, being on).
+        settings.labs.playback = true;
+        assert_eq!(
+            ids(std::slice::from_ref(&left), &settings, &never),
+            [("labs.files".into(), vec!["yes".to_owned()], true)]
+        );
+        // A later setup's answer is the one kept, its settings then too.
+        let later = finished(&[yes("labs.playback")], &[], None, &settings, 200);
+        assert_eq!(
+            ids(&[left.clone(), later], &settings, &never),
+            [
+                ("labs.files".into(), vec!["yes".to_owned()], true),
+                ("labs.playback".into(), vec!["yes".to_owned()], true),
+            ]
+        );
+    }
+
+    /// The same setup kept again (its plan applied after its rounds)
+    /// keeps when each follow-up was answered and the settings then.
+    #[test]
+    fn a_setup_kept_again_keeps_its_answers_then() {
+        let mut settings = AppSettings::default();
+        let asks = [yes("labs.files")];
+        let mut first = finished(&asks, &[], None, &settings, 100);
+        first.conversation = 3;
+        first.started_ms = 50;
+        settings.labs.files = true;
+        let mut again = finished(&asks, &[], None, &settings, 300);
+        again.conversation = 3;
+        again.started_ms = 50;
+        assert!(first.same(&again));
+        let merged = merge(&first, again);
+        assert_eq!(merged.asked[0].at_ms, 100);
+        assert_eq!(merged.asked[0].then[0].from, Value::Bool(false));
+    }
+
+    /// An older record, with no follow-ups kept as asked, still holds its
+    /// answers: a No while the switch is as it was, a Yes the plan applied
+    /// isn't asked (it's on).
+    #[test]
+    fn an_older_records_answers_hold_too() {
+        let mut settings = AppSettings::default();
+        settings.labs.stop_shortcut = false;
+        let answer = |id: &str, chosen: &str| Answer {
+            id: id.into(),
+            chosen: vec![chosen.into()],
+            ..Answer::default()
+        };
+        let old = Setup {
+            at_ms: 7,
+            answers: vec![
+                answer("use", "meetings"),
+                answer("labs.stop_shortcut", "no"),
+            ],
+            declined: vec![Line {
+                key: "labs.stop_shortcut".into(),
+                to: Value::Bool(true),
+                from: Value::Bool(false),
+            }],
+            ..Setup::default()
+        };
+        let held = answered_before(std::slice::from_ref(&old), &settings, |_, _| false);
+        assert_eq!(held.len(), 1);
+        assert_eq!(held[0].id, "labs.stop_shortcut");
+        assert_eq!(held[0].chosen, ["no"]);
+        assert!(held[0].before && held[0].own && !held[0].q.is_empty());
+        settings.labs.stop_shortcut = true;
+        assert!(answered_before(&[old], &settings, |_, _| false).is_empty());
+    }
+
+    /// The answers a real store holds back from being asked again, for a
+    /// local check: `HEX_SETUPS` (conversations.json), `HEX_USAGE_SETTINGS`.
+    #[test]
+    #[ignore]
+    fn owners_answers_before() {
+        let read = |name: &str| std::fs::read(std::env::var(name).unwrap()).unwrap();
+        let store: serde_json::Value = serde_json::from_slice(&read("HEX_SETUPS")).unwrap();
+        let setups: Vec<Setup> = serde_json::from_value(store["setups"].clone()).unwrap();
+        let path = std::env::var("HEX_USAGE_SETTINGS").unwrap();
+        let (settings, _) = AppSettings::read_from(std::path::Path::new(&path)).unwrap();
+        let changed = crate::assistant::setup::since::changed_since;
+        for ask in answered_before(&setups, &settings, changed) {
+            println!("held: {} {:?}", ask.id, ask.chosen);
+        }
     }
 }

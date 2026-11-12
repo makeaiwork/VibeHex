@@ -10,6 +10,11 @@
 //! vibe coding turns on several). The more specific its uses, the sooner
 //! it is asked. A remote model may reword them, drop some, and add ones
 //! from the catalog (`follow_ups`), which the app checks key by key.
+//!
+//! A follow-up answered in an earlier setup isn't asked again while it
+//! holds (`past::answered_before`): the app leaves it out, tells a model
+//! never to ask it, drops it if a model asks it anyway, and shows it
+//! folded under "Answered before" with its answer (`before`).
 
 use serde_json::{Map, Value};
 
@@ -125,7 +130,7 @@ pub fn relevant(answers: &[Answer], _settings: &AppSettings) -> Vec<String> {
 }
 
 /// A yes/no question about switch `key`, in English for the pane.
-fn yes_no(key: &str, q: &str, hint: &str) -> Ask {
+pub(super) fn yes_no(key: &str, q: &str, hint: &str) -> Ask {
     Ask {
         id: key.into(),
         q: q.into(),
@@ -206,6 +211,7 @@ pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> 
         && !after.labs.russian_vibe_coding
         && !asked.contains(&OWN[0].id)
         && !declined(vocab::KEY)
+        && !answered(state, OWN[0].id)
     {
         asks.push(terms_ask());
     }
@@ -214,6 +220,7 @@ pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> 
         if asked.contains(&key.as_str())
             || changes::current(&after, &key) == Some(Value::Bool(true))
             || past::held(&state.declined, &key, &Value::Bool(true), settings)
+            || answered(state, &key)
         {
             continue;
         }
@@ -226,9 +233,46 @@ pub fn candidates(answers: &[Answer], settings: &AppSettings, state: &State) -> 
     asks
 }
 
-/// The candidates as `hex-ask` lines, and the other Labs features a model
-/// may add, `key | title | question`, for the follow-up prompt.
-pub fn prompt_lines(candidates: &[Ask], settings: &AppSettings) -> (String, String) {
+/// Whether the follow-up `id` was answered in an earlier setup and isn't
+/// asked again.
+fn answered(state: &State, id: &str) -> bool {
+    state.answered.iter().any(|ask| ask.id == id)
+}
+
+/// The follow-ups answered before that these `answers` would ask about,
+/// as answered then, to show folded beside the round.
+pub fn before(answers: &[Answer], settings: &AppSettings, state: &State) -> Vec<Ask> {
+    let relevant = relevant(answers, settings);
+    let code = picked(answers, "use").any(|id| id == "dictation_code");
+    state
+        .answered
+        .iter()
+        .filter(|ask| relevant.contains(&ask.id) || (ask.id == OWN[0].id && code && tech(answers)))
+        .cloned()
+        .collect()
+}
+
+/// The keys a model may not ask about: answered in an earlier setup, or
+/// declined there while the setting is as it was.
+pub fn settled(settings: &AppSettings, state: &State) -> Vec<String> {
+    let mut keys: Vec<String> = state.answered.iter().map(|ask| ask.id.clone()).collect();
+    for line in &state.declined {
+        if past::held(&state.declined, &line.key, &line.to, settings) && !keys.contains(&line.key) {
+            keys.push(line.key.clone());
+        }
+    }
+    keys
+}
+
+/// The candidates as `hex-ask` lines, the other Labs features a model may
+/// add, `key | title | question`, and those it may not ask about again,
+/// `key | title`, for the follow-up prompt.
+pub fn prompt_lines(
+    candidates: &[Ask],
+    settings: &AppSettings,
+    state: &State,
+) -> (String, String, String) {
+    let settled = settled(settings, state);
     let asks = candidates
         .iter()
         .map(super::ask_line)
@@ -238,11 +282,23 @@ pub fn prompt_lines(candidates: &[Ask], settings: &AppSettings) -> (String, Stri
         .filter(|(_, key)| {
             !candidates.iter().any(|ask| ask.id == *key)
                 && changes::current(settings, key) != Some(Value::Bool(true))
+                && !settled.iter().any(|known| known == key)
         })
         .map(|(article, key)| format!("{key} | {} | {}", article.title, article.ask))
         .collect::<Vec<_>>()
         .join("\n");
-    (asks, others)
+    let before = settled
+        .iter()
+        .map(|key| {
+            let title = askable()
+                .find(|(_, known)| known == key)
+                .map(|(article, _)| article.title.as_str())
+                .unwrap_or_default();
+            format!("{key} | {title}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    (asks, others, before)
 }
 
 /// The follow-up questions a model wrote, checked: a candidate keeps its
@@ -250,14 +306,25 @@ pub fn prompt_lines(candidates: &[Ask], settings: &AppSettings) -> (String, Stri
 /// catalog gets the app's Yes and No; any other key needs each option's
 /// `value` to be one a save takes, and never a key no card changes. At
 /// most [`ROUND`] × [`ROUNDS`]; none usable, the candidates as they are.
-pub fn follow_ups(written: &[Value], candidates: &[Ask], settings: &AppSettings) -> Vec<Ask> {
+/// A key in `settled` (answered or declined before) is never asked unless
+/// the app picked it.
+pub fn follow_ups(
+    written: &[Value],
+    candidates: &[Ask],
+    settings: &AppSettings,
+    settled: &[String],
+) -> Vec<Ask> {
     let shortcuts = crate::rune_ui::shortcut_rules();
     let mut asks: Vec<Ask> = Vec::new();
     for line in written {
         let Some(id) = line.get("id").and_then(Value::as_str).map(str::trim) else {
             continue;
         };
-        if asks.iter().any(|known| known.id == id) {
+        // Answered before, or declined while it holds: never again.
+        let candidate = candidates.iter().any(|ask| ask.id == id);
+        if asks.iter().any(|known| known.id == id)
+            || (!candidate && settled.iter().any(|known| known == id))
+        {
             continue;
         }
         let found = candidates
