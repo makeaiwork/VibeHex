@@ -191,7 +191,7 @@ fn caption(p: Paint, index: usize, why: &str) -> El {
             .key("why")
             .font(p.k.ty.small)
             .color(p.muted())
-            .wrap(),
+            .wrap_anywhere(),
     )
 }
 
@@ -355,7 +355,7 @@ fn line(
                 .key("why")
                 .font(DESCRIPTION)
                 .color(p.muted())
-                .wrap(),
+                .wrap_anywhere(),
         );
     }
     words = words.children(notes(p, item, shown));
@@ -402,7 +402,7 @@ fn notes(p: Paint, item: &Item, shown: &Row) -> Vec<El> {
             .key(key.to_owned())
             .font(DESCRIPTION)
             .color(color)
-            .wrap()
+            .wrap_anywhere()
     };
     if item.yours {
         lines.push(line(
@@ -503,7 +503,7 @@ fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<
                         .key("also")
                         .font(DESCRIPTION)
                         .color(p.faint())
-                        .wrap(),
+                        .wrap_anywhere(),
                 );
             }
         }
@@ -512,7 +512,7 @@ fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<
                 .key("failed")
                 .font(DESCRIPTION)
                 .color(p.danger())
-                .wrap(),
+                .wrap_anywhere(),
         ),
         Row::Downloading { done, total } => {
             let fraction = if *total > 0 {
@@ -540,7 +540,7 @@ fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<
                     .key("downloading")
                     .font(DESCRIPTION)
                     .color(p.muted())
-                    .wrap(),
+                    .wrap_anywhere(),
             );
         }
         Row::Applied | Row::Left => {}
@@ -591,7 +591,7 @@ fn footer(ui: &Ui, p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) 
             .key("status")
             .font(p.k.ty.small)
             .color(color)
-            .wrap()
+            .wrap_anywhere()
             .shrink()
     };
     let space = || el().key("space").grow(1.0);

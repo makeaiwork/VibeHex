@@ -317,6 +317,18 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/Suggested changes",
     ),
     (
+        "assistant-long-follow-german",
+        "Window/Assistant/Long/A follow-up round in German",
+    ),
+    (
+        "assistant-long-plan-russian",
+        "Window/Assistant/Long/A plan in Russian with 95 terms",
+    ),
+    (
+        "assistant-long-choice-russian",
+        "Window/Assistant/Long/A choice of long model names in Russian",
+    ),
+    (
         "assistant-setup-result",
         "Window/Assistant/Setup/Applied, one failed, one downloading",
     ),

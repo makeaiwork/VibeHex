@@ -24,7 +24,16 @@ pub(super) fn actions(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<El> {
     let new = icon_button(p, "assistant-new", PLUS, tr("New conversation"), |ui| {
         new_conversation(ui)
     });
-    vec![picker(ui, p, layer), new]
+    // The picker has what the title and the switch leave: in a narrow
+    // window its name is cut, never the pane's title.
+    let room = row()
+        .key("assistant-picker-room")
+        .w(0.0)
+        .grow(1000.0)
+        .min_w(0.0)
+        .justify_end()
+        .child(picker(ui, p, layer).shrink());
+    vec![room, new]
 }
 
 /// The trigger and the list it opens.
@@ -54,6 +63,7 @@ fn picker(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         .focus_ring(2.0, 0.0, c.border_focus)
         .h(28.0)
         .max_w(360.0)
+        .shrink()
         .pl(10.0)
         .pr(6.0)
         .gap(8.0)

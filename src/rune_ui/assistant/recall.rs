@@ -112,7 +112,7 @@ pub(super) fn consent(ui: &Ui, p: Paint, pending: &Pending) -> Vec<El> {
             .key("why")
             .font(p.k.ty.ui)
             .color(p.reading())
-            .wrap(),
+            .wrap_anywhere(),
         )
         .child(card);
     vec![
@@ -176,14 +176,14 @@ pub(in super::super) fn consent_card(
                         .key("title")
                         .font(p.k.ty.body_medium)
                         .color(p.text())
-                        .wrap(),
+                        .wrap_anywhere(),
                 )
                 .child(
                     text(goes)
                         .key("body")
                         .font(DESCRIPTION)
                         .color(p.muted())
-                        .wrap(),
+                        .wrap_anywhere(),
                 )
                 .child(
                     row()
@@ -305,7 +305,7 @@ pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str, dots: Opti
                 .key("words")
                 .font(p.k.ty.small)
                 .color(if done { p.faint() } else { p.muted() })
-                .wrap()
+                .wrap_anywhere()
                 .shrink(),
         )
 }

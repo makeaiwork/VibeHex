@@ -117,7 +117,7 @@ pub(super) fn head(ui: &Ui, p: Paint, at: At, card: &Card, terms: &Terms, live: 
                     ..p.k.ty.ui
                 })
                 .color(if off { p.muted() } else { p.text() })
-                .wrap()
+                .wrap_anywhere()
                 .shrink(),
         )
         .child(
@@ -154,7 +154,7 @@ pub(super) fn head(ui: &Ui, p: Paint, at: At, card: &Card, terms: &Terms, live: 
                 .key("named")
                 .font(DESCRIPTION)
                 .color(p.muted())
-                .wrap(),
+                .wrap_anywhere(),
         );
     }
     row()

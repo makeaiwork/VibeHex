@@ -792,6 +792,18 @@ pub(super) const SCENES: &[Scene] = &[
         "assistant-setup-returning-plan",
         assistant::setup_fixture::setup_returning_plan,
     ),
+    (
+        "assistant-long-follow-german",
+        assistant::long_fixture::follow_german,
+    ),
+    (
+        "assistant-long-plan-russian",
+        assistant::long_fixture::plan_russian,
+    ),
+    (
+        "assistant-long-choice-russian",
+        assistant::long_fixture::choice_russian,
+    ),
     ("meetings-cited", assistant::fixture::meeting_cited),
     // Opened from a meeting's Requests: Back to Requests.
     ("meetings-cited-requests", |ui| {

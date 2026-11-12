@@ -41,7 +41,7 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
                 .key("error")
                 .font(DESCRIPTION)
                 .color(p.danger())
-                .wrap(),
+                .wrap_anywhere(),
         );
     }
     let Some(conversation) = pane.conversation() else {
@@ -107,7 +107,7 @@ fn start(ui: &Ui, p: Paint) -> El {
             .key("lead")
             .font(DESCRIPTION)
             .color(p.muted())
-            .wrap(),
+            .wrap_anywhere(),
         )
         .children(super::whats_new::row_for(ui, p).map(|row| row.mt(12.0)))
         .child(setup(p).mt(if ui.assistant.updated.is_some() { 8.0 } else { 12.0 }))
@@ -166,7 +166,7 @@ fn setup(p: Paint) -> El {
                     .key("lead")
                     .font(p.k.ty.small)
                     .color(p.muted())
-                    .wrap(),
+                    .wrap_anywhere(),
                 ),
         )
         .child(icon(&CHEVRON, 14.0).key("chevron").color(p.accent()))
@@ -230,7 +230,7 @@ fn knows(p: Paint) -> El {
             .key("words")
             .font(p.k.ty.small)
             .color(p.faint())
-            .wrap()
+            .wrap_anywhere()
             .shrink(),
         )
 }
@@ -259,7 +259,7 @@ fn example(p: Paint, index: usize, question: &'static str) -> El {
                 .key("question")
                 .font(p.k.ty.ui)
                 .color(p.text())
-                .wrap()
+                .wrap_anywhere()
                 .shrink(),
         )
         .on_press(move |ui: &mut Ui| {
@@ -302,7 +302,7 @@ fn reply(
                         .key("error")
                         .font(DESCRIPTION)
                         .color(p.danger())
-                        .wrap()
+                        .wrap_anywhere()
                         .shrink(),
                 )
                 .child(small_button(p, "retry", tr("Try again"), move |ui, _| {

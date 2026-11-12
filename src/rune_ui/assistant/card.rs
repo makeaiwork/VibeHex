@@ -281,7 +281,7 @@ fn state_body(
                     .key("failed")
                     .font(DESCRIPTION)
                     .color(p.danger())
-                    .wrap()
+                    .wrap_anywhere()
                     .pl(INDENT),
             );
             body.push(buttons(vec![push(
@@ -456,7 +456,7 @@ pub(super) fn header_in(
             .key("name")
             .font(p.k.ty.body_medium)
             .color(ink)
-            .wrap(),
+            .wrap_anywhere(),
     );
     row()
         .key("head")
@@ -527,7 +527,7 @@ fn why(p: Paint, words: &str) -> Option<El> {
             .key("why")
             .font(DESCRIPTION)
             .color(p.muted())
-            .wrap()
+            .wrap_anywhere()
             .pl(INDENT)
     })
 }
@@ -537,7 +537,7 @@ fn status(words: &str, color: rune::Color) -> El {
         .key("status")
         .font(DESCRIPTION)
         .color(color)
-        .wrap()
+        .wrap_anywhere()
         .shrink()
 }
 
@@ -565,6 +565,9 @@ fn radios(p: Paint, at: At, item: &Item, options: &[Value], chosen: usize, sugge
             .py(6.0)
             .gap(8.0)
             .items_start()
+            // A long model's name leaves no room beside it: its tag goes
+            // under it.
+            .flex_wrap()
             .radius(p.k.radius.sm)
             .child(
                 radio
@@ -663,7 +666,7 @@ pub(super) fn warned(p: Paint, words: &str) -> El {
                 .key("words")
                 .font(DESCRIPTION)
                 .color(p.warning())
-                .wrap()
+                .wrap_anywhere()
                 .shrink(),
         )
 }
@@ -732,7 +735,7 @@ pub(super) fn refused(ui: &Ui, p: Paint, index: usize, refused: &Refused) -> Opt
                     .key("why")
                     .font(DESCRIPTION)
                     .color(p.faint())
-                    .wrap()
+                    .wrap_anywhere()
                     .pl(INDENT),
             ),
     )

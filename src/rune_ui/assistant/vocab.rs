@@ -159,7 +159,7 @@ pub(super) fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: 
                 .key("sounds-like")
                 .font(p.k.ty.small)
                 .color(p.muted())
-                .wrap(),
+                .wrap_anywhere(),
         );
     if let Row::Failed(why) = shown {
         about = about.child(
@@ -167,7 +167,7 @@ pub(super) fn line(ui: &Ui, p: Paint, at: At, index: usize, item: &Item, shown: 
                 .key("failed")
                 .font(p.k.ty.small)
                 .color(p.danger())
-                .wrap(),
+                .wrap_anywhere(),
         );
     }
     let mut words = text(term.term.clone())
@@ -287,7 +287,7 @@ pub(super) fn status(words: String, color: rune::Color) -> El {
         .key("status")
         .font(DESCRIPTION)
         .color(color)
-        .wrap()
+        .wrap_anywhere()
         .shrink()
 }
 

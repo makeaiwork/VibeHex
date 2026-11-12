@@ -344,7 +344,7 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
             .key("q")
             .font(font)
             .color(p.text())
-            .wrap()
+            .wrap_anywhere()
             .w_full(),
     );
     if !ask.hint.is_empty() && !small {
@@ -353,7 +353,7 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
                 .key("hint")
                 .font(p.k.ty.small)
                 .color(p.faint())
-                .wrap()
+                .wrap_anywhere()
                 .w_full(),
         );
     }
@@ -537,14 +537,25 @@ pub(super) fn chip(p: Paint, key: &str, ask: &Ask, option: &Choice, on: bool, sm
         .gap(1.0)
         .shrink()
         .min_w(0.0)
-        .child(text(label).key("label").font(font).color(ink).max_lines(1));
+        // Beside a caption the chip is as tall as its words: a long label
+        // takes a second line rather than losing its end.
+        .child(if captioned {
+            text(label)
+                .key("label")
+                .font(font)
+                .color(ink)
+                .wrap_anywhere()
+                .max_lines(2)
+        } else {
+            text(label).key("label").font(font).color(ink).max_lines(1)
+        });
     if captioned {
         words = words.child(
             text(note.to_owned())
                 .key("note")
                 .font(p.k.ty.small)
                 .color(if on { p.muted() } else { p.faint() })
-                .wrap(),
+                .wrap_anywhere(),
         );
     }
     chip.children((on && !small).then(|| {

@@ -111,7 +111,7 @@ fn record(p: Paint, at: (u32, usize), knew: &str, shown: bool) -> El {
                     .key(format!("line{index}"))
                     .font(p.k.ty.small)
                     .color(p.muted())
-                    .wrap()
+                    .wrap_anywhere()
                     .selectable(true)
             });
         }

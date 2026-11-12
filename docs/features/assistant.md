@@ -14,7 +14,8 @@ Sidebar                                          // rune_ui::sidebar, rune_ui::a
                 eyes); open, the face and word brighten, no fill. On the rail
                 the last button, 36 by 32, with its own tooltip
 Assistant                                        // rune_ui::assistant
-├── Header      Chat | Settings; in Chat, the conversation picker and +
+├── Header      Chat | Settings; in Chat, the conversation picker and +.
+│               A narrow window cuts the picker's name, never the title
 ├── Chat
 │   ├── New     "Ask anything about VibeHex", after an update "Updated to
 │   │           <version>" (a neutral row: a sparkles tile, "Ask me what's
@@ -62,7 +63,8 @@ Assistant                                        // rune_ui::assistant
 │   │           Vocabulary terms), then round one as one form: four
 │   │           questions, captioned chips in three columns, preselected
 │   │           from the settings, one Continue. Each question wraps to
-│   │           the card's width, its hint on its own line under it. Follow-up rounds (Yes /
+│   │           the card's width, its hint on its own line under it; a
+│   │           captioned chip's long label takes a second line. Follow-up rounds (Yes /
 │   │           No, at most four a round) with a quiet "Skip to the plan".
 │   │           Answered rounds stay as small chosen chips. Then
 │   │           "Suggested changes, 6 changes, 5 selected": rows grouped
@@ -190,7 +192,9 @@ Opened from a place link                         // rune_ui::assistant::places
   `suggest` for a choice); the app reads them (`assistant::changes::parse`),
   never shows them raw (the draft stops at the fence, and "Preparing a
   change…" stands in while the rest comes), and turns each line into a card
-  under the answer, or refuses it.
+  under the answer, or refuses it. A choice card names the chosen value
+  on its button, cut with "…" past 28 letters (the option above has it
+  whole), and puts "Suggested" under a name too long to stand beside.
 - The prompt lists only the keys a card may change, with their values,
   where they live in the window, and, with `assistant.send_settings` on,
   their value now (`assistant::changes::catalog`; a shortcut as the
@@ -993,3 +997,65 @@ path, from the route to the parsed turn.
 - A check that fails on a real engine is fixed where it is ours (a prompt
   rule, a gate, the routing) and never by weakening it; a check that was
   wrong is changed with the reason written beside it.
+
+## Surfaces, scenes, and tests
+
+Fixtures are short and mostly English, and layout breaks on what they
+don't hold: a long question, a model with a long name, a German word no
+line can break, 95 terms. Two things hold the pane's layout on every OS,
+with no golden image:
+
+- **The layout check** (`rune_ui/assistant/layout/check.rs`) reads a laid
+  out window's element tree and the glyphs it would draw, and fails when a
+  box leaves its parent's or a glyph leaves every text's box, when a text
+  is cut by a box above it or by its own "…" to less than half of itself,
+  and when two siblings that show something overlap. A scroll container is
+  excepted by its key; what the pane hangs outside or cuts short on
+  purpose is named with its reason in `layout::RULES`, never skipped
+  silently.
+- **The matrix** (`rune_ui/assistant/layout/matrix.rs`) puts every surface
+  below through that check in English, Russian, and German, with its
+  fixture as it is and with long content (`long_fixture`: long questions,
+  hints, reasons and option labels, a 49-letter model name, 95 terms, eight
+  ways a term is heard), at the window's default width and its narrowest
+  (860). Every other Assistant scene goes through the check as its fixture
+  is. Three long cells are scenes with golden images.
+
+A new surface gets a row in `matrix::SURFACES`, a test, and a line here; a
+new scene gets a line here. `layout::inventory` fails when a scene or a
+surface in code is missing from this list, or the list names one that is
+gone.
+
+| Surface | Scenes | Test in `layout::matrix` |
+| --- | --- | --- |
+| Start page | `assistant-start` | `start_page` |
+| Composer | `assistant` | `composer` |
+| Answer with steps and what it knew | `assistant-steps-open`, `assistant-knew` | `answer_with_steps_and_what_it_knew` |
+| Setting card | `assistant-cards` | `setting_card` |
+| Apply N changes | `assistant-cards-more`, `assistant-change-both` | `apply_n_changes` |
+| Plan with its terms folded | `assistant-plan-terms` | `plan_with_its_terms_folded` |
+| Plan with its terms unfolded | `assistant-plan-terms-open` | `plan_with_its_terms_unfolded` |
+| Vocabulary edit card | `assistant-vocab-edit` | `vocabulary_edit_card` |
+| Follow-up round | `assistant-setup-follow`, `assistant-setup-follow-ru` | `follow_up_round` |
+| Returning opener | `assistant-setup-returning` | `returning_opener` |
+| Consent card | `assistant-consent` | `consent_card` |
+| No model page | `assistant-connect` | `no_model_page` |
+
+The other scenes, each through `every_scene_is_laid_out_whole`:
+
+| Surface | Scenes |
+| --- | --- |
+| Start page in Russian | `assistant-start-russian` |
+| Answer being written | `assistant-answering`, `assistant-web-answering` |
+| Answer from recordings | `assistant-steps`, `assistant-recordings` |
+| Answer from the web | `assistant-web`, `assistant-web-off`, `assistant-web-held` |
+| Places named and opened | `assistant-places`, `assistant-place-opened` |
+| Assistant › Settings | `assistant-settings` |
+| Card held, applied, coming | `assistant-cards-held`, `assistant-applied`, `assistant-change-coming` |
+| Instructions card | `assistant-cards-prompt`, `assistant-cards-prompt-edit` |
+| Vocabulary card | `assistant-vocab-card`, `assistant-vocab-applied` |
+| What's new | `assistant-whats-new`, `assistant-updated` |
+| Setup's first round, plan, and result | `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-kept`, `assistant-setup-result` |
+| Returning setup's plan | `assistant-setup-returning-plan` |
+| Set me up like Denis | `assistant-setup-preset`, `assistant-setup-preset-shortcuts`, `assistant-setup-preset-terms` |
+| Long content, with golden images | `assistant-long-follow-german`, `assistant-long-plan-russian`, `assistant-long-choice-russian` |

@@ -215,6 +215,12 @@ impl Store {
         self.save();
     }
 
+    /// A scene's hand on every conversation, to lengthen what it shows.
+    /// Nothing is saved.
+    pub fn each(&mut self, edit: impl FnMut(&mut Conversation)) {
+        self.conversations.iter_mut().for_each(edit);
+    }
+
     pub fn get(&self, id: u32) -> Option<&Conversation> {
         self.conversations
             .iter()

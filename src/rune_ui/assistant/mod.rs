@@ -24,6 +24,9 @@ pub(super) mod fixture;
 pub(super) mod fixture_cards;
 pub(super) mod jump;
 mod knew;
+#[cfg(test)]
+mod layout;
+pub(super) mod long_fixture;
 pub(super) mod nav;
 mod picker;
 pub(super) mod places;

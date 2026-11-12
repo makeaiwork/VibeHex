@@ -162,8 +162,12 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
                     want.parse::<usize>().unwrap(),
                     "{name}: malformed"
                 ),
+                // A line for a feature this OS lacks made no card: the count
+                // is the Mac's, where every played line is at home.
                 "cards" if elsewhere > 0 => {
-                    assert!(!cfg!(target_os = "macos"), "{name}: not on a Mac")
+                    if cfg!(target_os = "macos") {
+                        panic!("{name}: a played line isn't available on a Mac");
+                    }
                 }
                 "cards" => assert_eq!(cards.len(), want.parse::<usize>().unwrap(), "{name}: cards"),
                 "refused" => {

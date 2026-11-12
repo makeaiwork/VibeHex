@@ -2930,6 +2930,16 @@ fn goldens() {
         check_golden(scene, false, PANE_SIZE);
         check_golden(scene, true, PANE_SIZE);
     }
+    // Three cells of the layout matrix with long content (`long_fixture`),
+    // two of them at the narrowest width, each tall enough to show its card.
+    for (scene, size) in [
+        ("assistant-long-follow-german", (860.0, 1100.0)),
+        ("assistant-long-plan-russian", (980.0, 1100.0)),
+        ("assistant-long-choice-russian", (860.0, 1100.0)),
+    ] {
+        check_golden(scene, false, size);
+        check_golden(scene, true, size);
+    }
     // Denis's preset is taller than the window: tall enough here that its
     // Vocabulary row shows, folded and with the last of its terms.
     for scene in ["assistant-setup-preset", "assistant-setup-preset-terms"] {

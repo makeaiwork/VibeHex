@@ -121,7 +121,7 @@ pub(super) fn folded(p: Paint, at: At, asks: &[Ask]) -> El {
                 .key("q")
                 .font(p.k.ty.body_medium)
                 .color(p.text())
-                .wrap(),
+                .wrap_anywhere(),
         )
         .child(chips)
         .child(

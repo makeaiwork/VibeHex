@@ -137,7 +137,7 @@ fn line(p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
                 .key("why")
                 .font(p.k.ty.small)
                 .color(p.muted())
-                .wrap(),
+                .wrap_anywhere(),
         );
     }
     if let Row::Failed(why) = shown {
@@ -146,7 +146,7 @@ fn line(p: Paint, at: At, index: usize, item: &Item, shown: &Row) -> El {
                 .key("failed")
                 .font(p.k.ty.small)
                 .color(p.danger())
-                .wrap(),
+                .wrap_anywhere(),
         );
     }
     row()
