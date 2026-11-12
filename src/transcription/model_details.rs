@@ -35,7 +35,7 @@ const PARAKEET_ULTRA: ModelDetails = ModelDetails {
              (Q8_0, Q6_K, Q5_K_M, Q4_K_M) also store them at reduced numeric precision. The \
              weights were not retrained or fine-tuned.",
     // transcribe-cli at 7045d1c, five runs of a 10.6 s FLEURS clip.
-    peak_memory: Some(("~0.7 GB GPU · ~0.2 GB RAM", "Radeon 8060S, Vulkan")),
+    peak_memory: Some(("~0.7 GB GPU, ~0.2 GB RAM", "Radeon 8060S, Vulkan")),
     // transcribe.cpp 7045d1c's catalog/parakeet-ultra.json.
     published: &[
         ("en", 4.26),
@@ -64,8 +64,8 @@ const PARAKEET_ULTRA: ModelDetails = ModelDetails {
         ("el", 32.25),
         ("mt", 17.01),
     ],
-    published_conditions: "FLEURS test · Q8_0 · CUDA · batch 8 · each language's hint · \
-                           no timestamps · transcribe.cpp 021aa17d · the benchmark file's \
+    published_conditions: "FLEURS test; Q8_0; CUDA; batch 8; each language's hint; \
+                           no timestamps; transcribe.cpp 021aa17d; the benchmark file's \
                            digest, dataset revision, and scorer versions unknown",
 };
 
@@ -120,8 +120,8 @@ const ORUKEET: ModelDetails = ModelDetails {
         ("sv", 13.26),
         ("uk", 6.53),
     ],
-    published_conditions: "FLEURS test · Q8_0 · CUDA · batch 8 · each language's hint · \
-                           no timestamps · transcribe.cpp 37273409 · the benchmark file's \
+    published_conditions: "FLEURS test; Q8_0; CUDA; batch 8; each language's hint; \
+                           no timestamps; transcribe.cpp 37273409; the benchmark file's \
                            digest, dataset revision, and scorer versions unknown",
 };
 

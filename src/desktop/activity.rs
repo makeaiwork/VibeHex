@@ -178,13 +178,13 @@ pub(crate) fn event_summary(event: &VoiceEvent) -> String {
                     processing.fallback.as_ref().map_or_else(
                         || {
                             format!(
-                                "{description} · {} profile · {} ms",
+                                "{description}, {} profile, {} ms",
                                 processing.profile, processing.latency_ms
                             )
                         },
                         |error| {
                             format!(
-                                "{description} · {} profile fell back to raw after {} ms: {}",
+                                "{description}, {} profile fell back to raw after {} ms: {}",
                                 processing.profile, processing.latency_ms, error
                             )
                         },

@@ -7,33 +7,35 @@ pub(super) mod codex;
 pub(super) mod files;
 mod naming;
 pub(super) mod russian;
+mod undotted;
 
 /// One language's strings by their English source.
 type Pairs = &'static [(&'static str, &'static str)];
 
 /// VibeHex's rows for the six-column table: its own, Files', Codex's, then
-/// Hex's strings said with VibeHex's name.
+/// Hex's strings said with VibeHex's name and without a middle dot.
 pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
     TRANSLATIONS
         .iter()
         .chain(files::TRANSLATIONS)
         .chain(codex::TRANSLATIONS)
         .chain(naming::TRANSLATIONS)
+        .chain(undotted::TRANSLATIONS)
 }
 
 /// VibeHex's French strings.
 pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    pairs(FRENCH, naming::FRENCH)
+    pairs(FRENCH, naming::FRENCH).chain(undotted::FRENCH)
 }
 
 /// VibeHex's Brazilian Portuguese strings.
 pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    pairs(PORTUGUESE, naming::PORTUGUESE)
+    pairs(PORTUGUESE, naming::PORTUGUESE).chain(undotted::PORTUGUESE)
 }
 
 /// VibeHex's Russian strings.
 pub(super) fn russian() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    pairs(russian::TRANSLATIONS, naming::RUSSIAN)
+    pairs(russian::TRANSLATIONS, naming::RUSSIAN).chain(undotted::RUSSIAN)
 }
 
 fn pairs(own: Pairs, named: Pairs) -> impl Iterator<Item = &'static (&'static str, &'static str)> {
@@ -69,7 +71,7 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Hundreds of models with one API key", ["Setki modeli z jednym kluczem API", "一个 API 密钥即可使用数百个模型", "1 つの API キーで数百のモデル", "Hunderte Modelle mit einem API-Schlüssel", "Cientos de modelos con una clave de API", "Сотні моделей з одним ключем API"]),
     ("Ollama, LM Studio, or any OpenAI-compatible URL", ["Ollama, LM Studio lub dowolny adres zgodny z OpenAI", "Ollama、LM Studio 或任何兼容 OpenAI 的 URL", "Ollama、LM Studio、または OpenAI 互換の任意の URL", "Ollama, LM Studio oder jede OpenAI-kompatible URL", "Ollama, LM Studio o cualquier URL compatible con OpenAI", "Ollama, LM Studio або будь-яка URL-адреса, сумісна з OpenAI"]),
     ("Testing…", ["Testowanie…", "正在测试…", "テスト中…", "Wird getestet…", "Probando…", "Перевірка…"]),
-    ("Connected · {} s", ["Połączono · {} s", "已连接 · {} 秒", "接続済み · {} 秒", "Verbunden · {} s", "Conectado · {} s", "Підключено · {} с"]),
+    ("Connected ({} s)", ["Połączono ({} s)", "已连接（{} 秒）", "接続済み（{} 秒）", "Verbunden ({} s)", "Conectado ({} s)", "Підключено ({} с)"]),
     ("Not tested", ["Nie przetestowano", "未测试", "未テスト", "Nicht getestet", "Sin probar", "Не перевірено"]),
     ("Fill in", ["Wstaw", "填入", "入力", "Einsetzen", "Rellenar", "Підставити"]),
     ("API key", ["Klucz API", "API 密钥", "API キー", "API-Schlüssel", "Clave de API", "Ключ API"]),
@@ -173,7 +175,7 @@ const FRENCH: &[(&str, &str)] = &[
     ("Hundreds of models with one API key", "Des centaines de modèles avec une seule clé d'API"),
     ("Ollama, LM Studio, or any OpenAI-compatible URL", "Ollama, LM Studio ou toute URL compatible OpenAI"),
     ("Testing…", "Test en cours…"),
-    ("Connected · {} s", "Connecté · {} s"),
+    ("Connected ({} s)", "Connecté ({} s)"),
     ("Not tested", "Non testé"),
     ("A model Hex downloads and runs itself, offline", "Un modèle que Hex télécharge et exécute lui-même, hors ligne"),
     ("Download a model below", "Téléchargez un modèle ci-dessous"),
@@ -473,7 +475,7 @@ const PORTUGUESE: &[(&str, &str)] = &[
     ("Hundreds of models with one API key", "Centenas de modelos com uma chave de API"),
     ("Ollama, LM Studio, or any OpenAI-compatible URL", "Ollama, LM Studio ou qualquer URL compatível com a OpenAI"),
     ("Testing…", "Testando…"),
-    ("Connected · {} s", "Conectado · {} s"),
+    ("Connected ({} s)", "Conectado ({} s)"),
     ("Not tested", "Não testado"),
     ("A model Hex downloads and runs itself, offline", "Um modelo que o Hex baixa e executa sozinho, offline"),
     ("Download a model below", "Baixe um modelo abaixo"),

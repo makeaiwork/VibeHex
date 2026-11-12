@@ -122,11 +122,10 @@ fn excerpt(p: Paint, lines: &[ExcerptLine]) -> El {
             col()
                 .key(format!("line{index}"))
                 .child(
-                    text(format!(
-                        "{} · {}",
+                    text(crate::rune_ui::lists::apart(&[
                         if line.mine { "You" } else { "Them" },
-                        clock(line.start_ms)
-                    ))
+                        clock(line.start_ms).as_str(),
+                    ]))
                     .key("speaker")
                     .font(p.k.ty.small_medium)
                     .color(p.faint()),

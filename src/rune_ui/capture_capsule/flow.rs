@@ -1208,7 +1208,7 @@ mod tests {
     /// so it suggests only its own session, and the recent ones leave it
     /// out.
     fn rule() -> Route {
-        let to = Dest::new("SEER", "sent · rule");
+        let to = Dest::new("SEER", "rule");
         Route::Rule {
             to: to.clone(),
             suggested: vec![to],
@@ -2653,7 +2653,7 @@ mod tests {
             search(route(), "hex"),
             [
                 ("Hex release notes".into(), "1 h ago".into()),
-                ("Fix the capture tap".into(), "hex · 1 h ago".into()),
+                ("Fix the capture tap".into(), "hex   1 h ago".into()),
             ],
             "titles first, and a folder match names its folder"
         );
@@ -2677,7 +2677,7 @@ mod tests {
         flow.input(Input::Routed(route), 0.0);
         let (_, list) = done(&flow, 0.0).open.unwrap();
         let notes: Vec<_> = list.rows().map(|dest| dest.why.as_str()).collect();
-        assert_eq!(notes, ["home · 1 h ago", "1 h ago", "dotfiles · 1 h ago"]);
+        assert_eq!(notes, ["home   1 h ago", "1 h ago", "dotfiles   1 h ago"]);
     }
 
     #[test]

@@ -115,7 +115,7 @@ fn steps(ui: &Ui, mode: &DictationMode) -> Vec<Step> {
             .iter()
             .map(|entry| entry.term.as_str())
             .collect::<Vec<_>>()
-            .join(" · ");
+            .join(", ");
         steps.push(Step {
             title: tr("Vocabulary").into(),
             detail: Some(terms),
@@ -136,7 +136,7 @@ fn steps(ui: &Ui, mode: &DictationMode) -> Vec<Step> {
                 format!("{} → {output}", pair.matched_phrase)
             })
             .collect::<Vec<_>>()
-            .join(" · ");
+            .join(", ");
         steps.push(Step {
             title: tr("Replace words").into(),
             detail: (!pairs.is_empty()).then_some(pairs),
@@ -651,7 +651,7 @@ fn app_row(ui: &Ui, p: Paint, index: usize, mode: &DictationMode, steps: &[Step]
                 .iter()
                 .map(|step| step.title.as_str())
                 .collect::<Vec<_>>()
-                .join(" · "),
+                .join(", "),
         )
     };
     let icon = mode

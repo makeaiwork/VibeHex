@@ -396,7 +396,7 @@ Settings picker > Compare                 // setup.model-card; shared by every d
 └── "{n} more models" -> Every model
 
 Settings picker > Every model row          // fixed height; scrolls
-├── Name, role, blurb, then "No wait · 1 in 50 words wrong · 25 languages · 2.5 GB"
+├── Name, role, blurb, then "No wait   1 in 50 words wrong   25 languages   2.5 GB" (facts set apart, no dot)
 ├── Saved language unsupported -> Warning line naming the language it switches to
 ├── Trailing edge -> In use dot; progress with Cancel; else Use/Download; Delete when downloaded
 ├── Labs > Benchmark details (off) -> raw error rate "7.57% CER", a wrapping line:
@@ -819,7 +819,7 @@ General                                  // settings
 │   └── A row that hides or shows (Advanced, a microphone error)
 │       -> Folds under a clip as the rows below slide over it; no fade in place
 ├── Microphone -> Value names the input in use, with live level bars // settings.microphone
-│   ├── "System default · Kit Pods", or a saved device
+│   ├── "System default, Kit Pods", or a saved device
 │   ├── Level bars -> peak of the audio Hex receives, ~30 fps while General shows them above rest // input_level
 │   │   ├── Peak measured around each chunk's mean, so a microphone's DC offset never lights them
 │   │   ├── Read from one atomic the audio owner stores per chunk; never opens or blocks the mic
@@ -1394,7 +1394,7 @@ Cancellation / interruption / failure    // recovery
 
 Menu bar and Settings                    // maintenance
 ├── Menu (macOS), top to bottom: now, things to do, the app
-│   ├── Meetings on or a meeting under way: Recording · <title> · 12:34 (opens
+│   ├── Meetings on or a meeting under way: Recording: <title> (12:34) (opens
 │   │   the Meetings pane), Stop & Transcribe, Copy Section ▸; idle: Record Meeting
 │   ├── Paste Last Dictation ⌥⇧V (saved binding), Copy Recent Dictation ▸ (Labs),
 │   │   Copy Last Meeting Transcript (Meetings on), Restore Last Capture (Labs ›
@@ -2079,7 +2079,7 @@ smoke tests on Windows 10 and on ARM64 hardware have not been run.
 Linux updates                            // maintain.linux-updates
 ├── Direct install (versions/ + install.json receipt) -> release service -> staged -> sidebar footer: Restart to update
 ├── Source install (source-build marker) -> Sidebar footer: Updated from your source checkout
-├── Local build (HEX_LOCAL_BUILD=1) -> Sidebar footer: Local build · updates off; Version 2.3.1 (local <commit>); no checks, no channel row
+├── Local build (HEX_LOCAL_BUILD=1) -> Sidebar footer: Local build, updates off; Version 2.3.1 (local <commit>); no checks, no channel row
 ├── pacman (AUR hex-bin: /usr/bin, root-owned) or Nix store -> Sidebar footer: Updated by your package manager
 └── Anything else (a downloaded executable) -> Sidebar footer: Download update
 ```

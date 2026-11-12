@@ -25,7 +25,7 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("{model} is missing, so VibeHex uses {fallback} until you import it again or choose another model", ["Brakuje modelu {model}, więc VibeHex używa {fallback}, dopóki nie zaimportujesz go ponownie albo nie wybierzesz innego modelu", "{model} 不见了，因此在你重新导入或选择其他模型之前，VibeHex 将使用 {fallback}", "{model} が見つからないため、もう一度取り込むか別のモデルを選ぶまで VibeHex は {fallback} を使います", "{model} fehlt, daher verwendet VibeHex {fallback}, bis du es erneut importierst oder ein anderes Modell wählst", "Falta {model}, así que VibeHex usa {fallback} hasta que lo vuelvas a importar o elijas otro modelo", "{model} зникла, тож VibeHex використовує {fallback}, доки ви не імпортуєте її знову або не виберете іншу модель"]),
     ("{model} changed since it was added, so VibeHex uses {fallback} until you check it again in the speech model picker or choose another model", ["Model {model} zmienił się od dodania, więc VibeHex używa {fallback}, dopóki nie sprawdzisz go ponownie w wyborze modelu mowy albo nie wybierzesz innego modelu", "{model} 在添加后已更改，因此在你从语音模型列表重新检查它或选择其他模型之前，VibeHex 将使用 {fallback}", "{model} は追加後に変わったため、音声モデルの一覧でもう一度確認するか別のモデルを選ぶまで VibeHex は {fallback} を使います", "{model} hat sich seit dem Hinzufügen geändert, daher verwendet VibeHex {fallback}, bis du es in der Sprachmodell-Auswahl erneut prüfst oder ein anderes Modell wählst", "{model} cambió desde que se añadió, así que VibeHex usa {fallback} hasta que lo compruebes de nuevo en el selector de modelos de voz o elijas otro modelo", "{model} змінилася після додавання, тож VibeHex використовує {fallback}, доки ви не перевірите її знову у виборі мовної моделі або не виберете іншу модель"]),
     ("Not tested by VibeHex", ["Nie testowany przez VibeHex", "未经 VibeHex 测试", "VibeHex では未テスト", "Nicht von VibeHex getestet", "No probado por VibeHex", "Не перевірена VibeHex"]),
-    ("On this computer · not tested by VibeHex", ["Na tym komputerze · nie testowany przez VibeHex", "在这台电脑上 · 未经 VibeHex 测试", "このコンピュータにあります · VibeHex では未テスト", "Auf diesem Computer · nicht von VibeHex getestet", "En este ordenador · no probado por VibeHex", "На цьому комп’ютері · не перевірена VibeHex"]),
+    ("On this computer, not tested by VibeHex", ["Na tym komputerze, nie testowany przez VibeHex", "在这台电脑上，未经 VibeHex 测试", "このコンピュータにあります、VibeHex では未テスト", "Auf diesem Computer, nicht von VibeHex getestet", "En este ordenador, no probado por VibeHex", "На цьому комп’ютері, не перевірена VibeHex"]),
     ("Experimental: VibeHex has run it only on Linux (Vulkan) so far.", ["Eksperymentalny: VibeHex uruchamiał go dotąd tylko na Linuksie (Vulkan).", "实验性：VibeHex 目前只在 Linux（Vulkan）上运行过它。", "試験的: VibeHex はこれまで Linux（Vulkan）でのみ動かしています。", "Experimentell: VibeHex hat es bisher nur unter Linux (Vulkan) ausgeführt.", "Experimental: VibeHex solo lo ha ejecutado en Linux (Vulkan) hasta ahora.", "Експериментально: VibeHex поки запускав її лише в Linux (Vulkan)."]),
     ("Published conversion benchmarks; not measured in VibeHex", ["Opublikowane testy konwersji; niezmierzone w VibeHex", "已发布的转换基准测试；未在 VibeHex 中测量", "公開された変換ベンチマーク。VibeHex では未測定", "Veröffentlichte Konvertierungs-Benchmarks; nicht in VibeHex gemessen", "Pruebas de conversión publicadas; no medidas en VibeHex", "Опубліковані тести конвертації; не виміряно в VibeHex"]),
     ("{model} needs Labs › Parakeet Ultra, so VibeHex uses {fallback} until you turn it on or choose another model", ["{model} wymaga Laboratorium › Parakeet Ultra, więc VibeHex używa {fallback}, dopóki go nie włączysz albo nie wybierzesz innego modelu", "{model} 需要开启实验室 › Parakeet Ultra，因此在你开启它或选择其他模型之前，VibeHex 将使用 {fallback}", "{model} にはラボ › Parakeet Ultra が必要なため、オンにするか別のモデルを選ぶまで VibeHex は {fallback} を使います", "{model} braucht Labs › Parakeet Ultra, daher verwendet VibeHex {fallback}, bis du es aktivierst oder ein anderes Modell wählst", "{model} necesita Labs › Parakeet Ultra, así que VibeHex usa {fallback} hasta que lo actives o elijas otro modelo", "{model} потребує Лабораторія › Parakeet Ultra, тож VibeHex використовує {fallback}, доки ви її не увімкнете або не виберете іншу модель"]),
@@ -53,7 +53,6 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Allow VibeHex under Privacy & Security › Calendars to get meeting reminders", ["Zezwól VibeHex w Prywatność i ochrona › Kalendarze, aby dostawać przypomnienia o spotkaniach", "在“隐私与安全性 › 日历”中允许 VibeHex 以获取会议提醒", "会議のリマインダーを受け取るには、「プライバシーとセキュリティ › カレンダー」で VibeHex を許可してください", "Erlaube VibeHex unter „Datenschutz & Sicherheit › Kalender“, um an Meetings erinnert zu werden", "Permite VibeHex en Privacidad y seguridad › Calendarios para recibir recordatorios de reuniones", "Дозвольте VibeHex у розділі Приватність і безпека › Календарі, щоб отримувати нагадування про зустрічі"]),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash", ["Nagrania, transkrypcje, notatki i kopia Markdown utworzona przez VibeHex trafiają do kosza", "音频、转写、笔记和 VibeHex 生成的 Markdown 副本会移到废纸篓", "音声、文字起こし、メモ、VibeHex が作成した Markdown のコピーはゴミ箱に移動します", "Audio, Transkripte, Notizen und die Markdown-Kopie von VibeHex kommen in den Papierkorb", "El audio, las transcripciones, las notas y la copia Markdown de VibeHex se mueven a la papelera", "Аудіо, транскрипти, нотатки й копія Markdown від VibeHex переміщуються до Смітника"]),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash. Meetings from before this setting stay until you choose", ["Nagrania, transkrypcje, notatki i kopia Markdown utworzona przez VibeHex trafiają do kosza. Spotkania sprzed tego ustawienia zostają, dopóki nie wybierzesz", "音频、转写、笔记和 VibeHex 生成的 Markdown 副本会移到废纸篓。此设置出现前的会议会保留，直到你做出选择", "音声、文字起こし、メモ、VibeHex が作成した Markdown のコピーはゴミ箱に移動します。この設定より前の会議は、選ぶまで残ります", "Audio, Transkripte, Notizen und die Markdown-Kopie von VibeHex kommen in den Papierkorb. Meetings von vor dieser Einstellung bleiben, bis du wählst", "El audio, las transcripciones, las notas y la copia Markdown de VibeHex se mueven a la papelera. Las reuniones anteriores a este ajuste se conservan hasta que elijas", "Аудіо, транскрипти, нотатки й копія Markdown від VibeHex переміщуються до Смітника. Зустрічі, записані до цього налаштування, лишаються, доки ви не оберете"]),
-    ("{} · VibeHex records automatically", ["{} · VibeHex nagra automatycznie", "{} · VibeHex 会自动录制", "{} · VibeHex が自動で録音します", "{} · VibeHex nimmt automatisch auf", "{} · VibeHex grabará automáticamente", "{} · VibeHex записує автоматично"]),
     ("OpenCode transformation will be available after VibeHex connects to OpenCode.", ["Transformacja OpenCode będzie dostępna, gdy VibeHex połączy się z OpenCode.", "VibeHex 连接到 OpenCode 后即可使用 OpenCode 转换。", "VibeHex が OpenCode に接続すると OpenCode 変換を使えます。", "Die OpenCode-Transformation ist verfügbar, sobald VibeHex mit OpenCode verbunden ist.", "La transformación de OpenCode estará disponible cuando VibeHex se conecte a OpenCode.", "Перетворення за допомогою OpenCode стане доступним після підключення VibeHex до OpenCode."]),
     ("{bluetooth} is Bluetooth, so VibeHex listens to {input}", ["{bluetooth} to Bluetooth, więc VibeHex słucha przez {input}", "{bluetooth} 是蓝牙设备，因此 VibeHex 使用 {input}", "{bluetooth} は Bluetooth のため、VibeHex は {input} を使います", "{bluetooth} ist Bluetooth, daher nutzt VibeHex {input}", "{bluetooth} es Bluetooth, así que VibeHex usa {input}", "{bluetooth} — це Bluetooth, тож VibeHex слухає {input}"]),
     ("VibeHex signature", ["Sygnatura VibeHex", "VibeHex 标志音", "VibeHex シグネチャー", "VibeHex-Signatur", "Firma de VibeHex", "Фірмовий VibeHex"]),
@@ -127,7 +126,7 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("{model} is missing, so VibeHex uses {fallback} until you import it again or choose another model", "{model} est introuvable, VibeHex utilise donc {fallback} jusqu'à ce que vous le réimportiez ou choisissiez un autre modèle"),
     ("{model} changed since it was added, so VibeHex uses {fallback} until you check it again in the speech model picker or choose another model", "{model} a changé depuis son ajout, VibeHex utilise donc {fallback} jusqu'à ce que vous le vérifiiez à nouveau dans le choix du modèle vocal ou choisissiez un autre modèle"),
     ("Not tested by VibeHex", "Non testé par VibeHex"),
-    ("On this computer · not tested by VibeHex", "Sur cet ordinateur · non testé par VibeHex"),
+    ("On this computer, not tested by VibeHex", "Sur cet ordinateur, non testé par VibeHex"),
     ("Experimental: VibeHex has run it only on Linux (Vulkan) so far.", "Expérimental : VibeHex ne l'a exécuté jusqu'ici que sous Linux (Vulkan)."),
     ("Published conversion benchmarks; not measured in VibeHex", "Tests de conversion publiés ; non mesurés dans VibeHex"),
     ("{model} needs Labs › Parakeet Ultra, so VibeHex uses {fallback} until you turn it on or choose another model", "{model} nécessite Labs › Parakeet Ultra, VibeHex utilise donc {fallback} jusqu'à ce que vous l'activiez ou choisissiez un autre modèle"),
@@ -155,7 +154,6 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("Allow VibeHex under Privacy & Security › Calendars to get meeting reminders", "Autorisez VibeHex dans Confidentialité et sécurité › Calendriers pour recevoir des rappels de réunion"),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash", "L'audio, les transcriptions, les notes et la copie Markdown de VibeHex vont à la Corbeille"),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash. Meetings from before this setting stay until you choose", "L'audio, les transcriptions, les notes et la copie Markdown de VibeHex vont à la Corbeille. Les réunions antérieures à ce réglage restent jusqu'à ce que vous choisissiez"),
-    ("{} · VibeHex records automatically", "{} · VibeHex enregistre automatiquement"),
     ("OpenCode transformation will be available after VibeHex connects to OpenCode.", "La transformation OpenCode sera disponible une fois VibeHex connecté à OpenCode."),
     ("{bluetooth} is Bluetooth, so VibeHex listens to {input}", "{bluetooth} est en Bluetooth, VibeHex écoute donc {input}"),
     ("VibeHex signature", "Signature VibeHex"),
@@ -229,7 +227,7 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("{model} is missing, so VibeHex uses {fallback} until you import it again or choose another model", "{model} sumiu, então o VibeHex usa {fallback} até você importá-lo de novo ou escolher outro modelo"),
     ("{model} changed since it was added, so VibeHex uses {fallback} until you check it again in the speech model picker or choose another model", "{model} mudou desde que foi adicionado, então o VibeHex usa {fallback} até você verificá-lo de novo na escolha do modelo de voz ou escolher outro modelo"),
     ("Not tested by VibeHex", "Não testado pelo VibeHex"),
-    ("On this computer · not tested by VibeHex", "Neste computador · não testado pelo VibeHex"),
+    ("On this computer, not tested by VibeHex", "Neste computador, não testado pelo VibeHex"),
     ("Experimental: VibeHex has run it only on Linux (Vulkan) so far.", "Experimental: até agora o VibeHex só o executou no Linux (Vulkan)."),
     ("Published conversion benchmarks; not measured in VibeHex", "Testes de conversão publicados; não medidos no VibeHex"),
     ("{model} needs Labs › Parakeet Ultra, so VibeHex uses {fallback} until you turn it on or choose another model", "{model} precisa de Labs › Parakeet Ultra, então o VibeHex usa {fallback} até você ativá-lo ou escolher outro modelo"),
@@ -257,7 +255,6 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Allow VibeHex under Privacy & Security › Calendars to get meeting reminders", "Permita o VibeHex em Privacidade e Segurança › Calendários para receber lembretes de reuniões"),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash", "Áudio, transcrições, notas e a cópia em Markdown do VibeHex vão para a Lixeira"),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash. Meetings from before this setting stay until you choose", "Áudio, transcrições, notas e a cópia em Markdown do VibeHex vão para a Lixeira. Reuniões anteriores a este ajuste ficam até você escolher"),
-    ("{} · VibeHex records automatically", "{} · O VibeHex grava automaticamente"),
     ("OpenCode transformation will be available after VibeHex connects to OpenCode.", "A transformação do OpenCode estará disponível depois que o VibeHex se conectar ao OpenCode."),
     ("{bluetooth} is Bluetooth, so VibeHex listens to {input}", "{bluetooth} é Bluetooth, então o VibeHex ouve {input}"),
     ("VibeHex signature", "Assinatura do VibeHex"),
@@ -331,7 +328,7 @@ pub(super) const RUSSIAN: &[(&str, &str)] = &[
     ("{model} is missing, so VibeHex uses {fallback} until you import it again or choose another model", "{model} не найдена, поэтому VibeHex использует {fallback}, пока вы не импортируете её снова или не выберете другую модель"),
     ("{model} changed since it was added, so VibeHex uses {fallback} until you check it again in the speech model picker or choose another model", "{model} изменилась после добавления, поэтому VibeHex использует {fallback}, пока вы не проверите её снова в списке моделей речи или не выберете другую модель"),
     ("Not tested by VibeHex", "Не проверена VibeHex"),
-    ("On this computer · not tested by VibeHex", "На этом компьютере · не проверена VibeHex"),
+    ("On this computer, not tested by VibeHex", "На этом компьютере, не проверена VibeHex"),
     ("Experimental: VibeHex has run it only on Linux (Vulkan) so far.", "Экспериментально: пока VibeHex запускал её только в Linux (Vulkan)."),
     ("Published conversion benchmarks; not measured in VibeHex", "Опубликованные тесты конвертации; в VibeHex не измерялись"),
     ("{model} needs Labs › Parakeet Ultra, so VibeHex uses {fallback} until you turn it on or choose another model", "{model} требует Лаборатория › Parakeet Ultra, поэтому VibeHex использует {fallback}, пока вы её не включите или не выберете другую модель"),
@@ -359,7 +356,6 @@ pub(super) const RUSSIAN: &[(&str, &str)] = &[
     ("Allow VibeHex under Privacy & Security › Calendars to get meeting reminders", "Разрешите VibeHex в разделе Конфиденциальность и безопасность › Календари, чтобы получать напоминания о встречах"),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash", "Звук, расшифровки, заметки и копия Markdown от VibeHex перемещаются в Корзину"),
     ("Audio, transcripts, notes, and the Markdown copy VibeHex wrote move to the Trash. Meetings from before this setting stay until you choose", "Звук, расшифровки, заметки и копия Markdown от VibeHex перемещаются в Корзину. Встречи, записанные до этой настройки, остаются, пока вы не сделаете выбор"),
-    ("{} · VibeHex records automatically", "{} · VibeHex записывает автоматически"),
     ("OpenCode transformation will be available after VibeHex connects to OpenCode.", "Преобразование OpenCode станет доступно, когда VibeHex подключится к OpenCode."),
     ("{bluetooth} is Bluetooth, so VibeHex listens to {input}", "{bluetooth} подключён по Bluetooth, поэтому VibeHex слушает {input}"),
     ("VibeHex signature", "Фирменные VibeHex"),
@@ -415,7 +411,7 @@ pub(super) const RUSSIAN: &[(&str, &str)] = &[
 ];
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use std::path::{Path, PathBuf};
 
     /// Names that keep "Hex" inside a string that otherwise says VibeHex:
@@ -455,7 +451,7 @@ mod tests {
     }
 
     /// Every Rust source outside the translation tables, without its comments.
-    fn sources() -> Vec<(PathBuf, String)> {
+    pub(in super::super) fn sources() -> Vec<(PathBuf, String)> {
         fn walk(folder: &Path, found: &mut Vec<(PathBuf, String)>) {
             for entry in std::fs::read_dir(folder)
                 .expect("src is readable")
@@ -488,7 +484,7 @@ mod tests {
     }
 
     /// The string literals passed to `tr`, `tr_fill`, and `tr_named`.
-    fn translated_literals(source: &str) -> Vec<String> {
+    pub(in super::super) fn translated_literals(source: &str) -> Vec<String> {
         let mut literals = Vec::new();
         for call in ["tr(", "tr_fill(", "tr_named("] {
             for (start, _) in source.match_indices(call) {

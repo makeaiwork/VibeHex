@@ -33,7 +33,7 @@ pub(crate) fn model_menu_entries(
             let selection = settings.transcription_for_model(model.id);
             installed(model, &selection.language).then(|| ModelMenuEntry {
                 model: model.id,
-                title: format!("{} · {}", model.name, language_name(&selection.language)),
+                title: format!("{} ({})", model.name, language_name(&selection.language)),
                 selected: model.id == settings.transcription.model,
                 enabled: !preparing && model.id != settings.transcription.model,
             })
@@ -255,10 +255,10 @@ mod tests {
         };
         let entries = model_menu_entries(&settings, false, installed);
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].title, "Parakeet Unified English · English");
+        assert_eq!(entries[0].title, "Parakeet Unified English (English)");
         assert!(entries[0].selected);
         assert!(!entries[0].enabled);
-        assert_eq!(entries[1].title, "Whisper large-v3-turbo · French");
+        assert_eq!(entries[1].title, "Whisper large-v3-turbo (French)");
         assert!(!entries[1].selected);
         assert!(entries[1].enabled);
         let preparing = model_menu_entries(&settings, true, installed);

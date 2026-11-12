@@ -136,7 +136,7 @@ Onboarding opens -> scan; its own download waits until it answers  // setup.foun
     │   download", or "On this computer" when its exact file (same SHA-256) is
     │   in the cache (one row, never two)
     ├── Then each found file -> its name, "On this computer" (a catalog model)
-    │   or "On this computer · not tested by VibeHex"; no hashes, repositories,
+    │   or "On this computer, not tested by VibeHex"; no hashes, repositories,
     │   revisions, or compression
     ├── Picking a row starts it: ours downloads ("Downloading… 42%" on the row)
     │   or, already here, is checked in place; a found file is used where it

@@ -312,7 +312,7 @@ meeting microphone stream delivers only exact zeros for 3 s (macOS, #1518)
   -> reopen the microphone source, at most twice in one recording, the budget
      shared across reopened streams
   ├── still silent -> keep recording; the recording capsule says
-  │     "Microphone is silent · 12:34" and the menu bar "Microphone is silent"
+  │     "Microphone is silent" beside 12:34 and the menu bar "Microphone is silent"
   │     -> manifest.microphone.warning = digital_silence is written as soon
   │        as it is raised, so a crash while recording keeps it
   ├── nonzero audio returns -> clear the live warning, including in a stream

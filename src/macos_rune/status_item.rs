@@ -635,9 +635,9 @@ fn meeting_menu(state: &crate::meeting::watcher::MeetingMenuState, enabled: bool
             ..
         } => {
             let elapsed = crate::meeting::format_duration(started.elapsed().as_millis() as u64);
-            let mut status = format!("Recording · {} · {elapsed}", menu_title(title));
+            let mut status = format!("Recording: {} ({elapsed})", menu_title(title));
             if warning.is_some() {
-                status.push_str(" · Microphone is silent");
+                status.push_str(", microphone is silent");
             }
             MeetingMenu {
                 status: Some(status),
@@ -649,7 +649,7 @@ fn meeting_menu(state: &crate::meeting::watcher::MeetingMenuState, enabled: bool
                     .iter()
                     .map(|chapter| {
                         format!(
-                            "{} · {}",
+                            "{} {}",
                             crate::meeting::format_duration(chapter.start_ms),
                             menu_title(&chapter.title)
                         )
@@ -899,7 +899,7 @@ mod tests {
         );
         assert_eq!(
             recording.status.as_deref(),
-            Some("Recording · Zoom call — 2:30 PM · 12:34")
+            Some("Recording: Zoom call — 2:30 PM (12:34)")
         );
         let long = meeting_menu(
             &recording_state(
@@ -911,7 +911,7 @@ mod tests {
         );
         assert_eq!(
             long.status.as_deref(),
-            Some("Recording · A very long provisional title that keeps going… · 12:34")
+            Some("Recording: A very long provisional title that keeps going… (12:34)")
         );
         assert_eq!(recording.button_title, " 12:34");
         assert!(recording.can_stop && !recording.can_start);
@@ -926,7 +926,7 @@ mod tests {
         );
         assert_eq!(
             silent.status.as_deref(),
-            Some("Recording · Team sync · 12:34 · Microphone is silent")
+            Some("Recording: Team sync (12:34), microphone is silent")
         );
         let chapter = |title: &str, start_ms| crate::meeting::Chapter {
             title: title.into(),
@@ -943,7 +943,7 @@ mod tests {
         );
         assert_eq!(
             chaptered.sections,
-            ["00:00 · Image storage", "03:10 · Motion lint"]
+            ["00:00 Image storage", "03:10 Motion lint"]
         );
         let transcribing = meeting_menu(&MeetingMenuState::Transcribing, true);
         assert!(!transcribing.can_start && !transcribing.can_stop);

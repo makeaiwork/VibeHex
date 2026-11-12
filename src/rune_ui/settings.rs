@@ -660,13 +660,13 @@ pub(super) fn listener_card(ui: &Ui, p: Paint) -> (String, El) {
     let hint = match (running, ui.settings.shortcut_mode) {
         _ if no_model => tr("VibeHex can't dictate until a speech model is installed").to_string(),
         _ if !ui.records_shortcuts() => {
-            tr("Ready anywhere · Use your desktop's shortcuts to dictate").to_string()
+            tr("Ready anywhere. Use your desktop's shortcuts to dictate").to_string()
         }
         (true, ShortcutMode::Toggle) => tr_fill(
-            "Ready anywhere · Press {} to start and stop dictating",
+            "Ready anywhere. Press {} to start and stop dictating",
             &shortcut,
         ),
-        (true, ShortcutMode::Hold) => tr_fill("Ready anywhere · Hold {} to dictate", &shortcut),
+        (true, ShortcutMode::Hold) => tr_fill("Ready anywhere. Hold {} to dictate", &shortcut),
         (false, _) => tr_fill("Enable VibeHex to dictate into any app with {}", &shortcut),
     };
     let search = format!("{status} {hint} {} {}", tr("Enable"), tr("Disable"));
@@ -1121,7 +1121,7 @@ pub(super) fn input_source_rows(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<E
                     if ui.picker.installed(model, &choice.language) {
                         model.name.into()
                     } else {
-                        format!("{} · {}", model.name, tr("Not installed"))
+                        format!("{} ({})", model.name, tr("Not installed"))
                     }
                 },
             );
@@ -1220,7 +1220,7 @@ pub(super) fn transcription_status(ui: &Ui, p: Paint) -> Option<(String, rune::C
             transcription.downloaded_bytes as f64 / 1_000_000.0
         ),
     };
-    Some((format!("{name} · {stage}"), p.accent()))
+    Some((super::lists::apart(&[name, stage.as_str()]), p.accent()))
 }
 
 /// What a recorder shows; each change rolls up into it from below.

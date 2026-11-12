@@ -15,7 +15,7 @@ pub(in super::super) const TRANSLATIONS: &[(&str, &str)] = &[
     ("Hundreds of models with one API key", "Сотни моделей с одним ключом API"),
     ("Ollama, LM Studio, or any OpenAI-compatible URL", "Ollama, LM Studio или любой URL, совместимый с OpenAI"),
     ("Testing…", "Проверка…"),
-    ("Connected · {} s", "Подключено · {} с"),
+    ("Connected ({} s)", "Подключено ({} с)"),
     ("Not tested", "Не проверено"),
     ("Fill in", "Подставить"),
     ("API key", "Ключ API"),

@@ -1725,7 +1725,7 @@ fn transcribe_again_shows_only_with_its_lab_and_replace_updates_the_entry() {
     // The kept version shows with its model, copies, and comes back.
     let shown = texts(&rt);
     assert!(shown.iter().any(|text| text == "Whisper"), "{shown:?}");
-    assert!(shown.iter().any(|text| text.starts_with("Parakeet v3 · ")));
+    assert!(shown.iter().any(|text| text.starts_with("Parakeet v3   ")));
     tap(&mut rt, "version0/actions/copy");
     assert_eq!(rt.copy_request.as_deref(), Some("Ship it."));
     tap(&mut rt, "version0/actions/use");
@@ -2417,7 +2417,7 @@ fn settings_opens_the_picker_and_names_the_model_and_language_apart() {
         "{shown:?}"
     );
     assert!(
-        !shown.iter().any(|text| text.contains(" · Parakeet")),
+        !shown.iter().any(|text| text.contains("   Parakeet")),
         "{shown:?}"
     );
     tap(&mut rt, "transcription-control");

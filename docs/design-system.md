@@ -111,6 +111,18 @@ missing capability omits the row instead of imitating it.
   Hex) is listed in [features/about.md](features/about.md). Comments and
   internal docs still say Hex, and `HEX_*` environment variables are
   identifiers, not copy.
+- Never a middle dot ("·") between words. Separate facts in one line
+  ("Zoom   38 min", "Dictation   Slack") are set apart with air by
+  `lists::apart`, each a string of its own; a status tag (`tone_tag`) or an
+  icon is better still where the row has room. Two parts of one thought take
+  a comma, a full stop or brackets ("Local build, updates off",
+  "Connected (0.8 s)", "Ready anywhere. Hold ⌥ to dictate"). Plain-text
+  places (the tray and menu titles, tooltips, what assistive technology
+  hears) use a comma or brackets. Two tests in
+  `desktop/i18n/vibehex/undotted.rs` fail on a translated string, or an
+  interface source line, that joins words with one; the `hex` command's
+  output, a transcript's Markdown (`**You** · 00:01`) and the Playground's
+  story names are outside it.
 - Use "…" (one character) for ellipses, for both progress ("Saving…") and for
   buttons that open a further choice ("Choose a file…").
 - Row descriptions are one phrase with no closing period ("Hold to dictate,

@@ -1222,7 +1222,7 @@ fn upcoming_meeting(meeting: &crate::calendar::CalendarMeeting, now_ms: i64) -> 
     };
     UpcomingMeeting {
         title: meeting.display_title(),
-        when: format!("{day} · {}", crate::meeting::clock(start)),
+        when: format!("{day}, {}", crate::meeting::clock(start)),
         provider: meeting.link.as_ref().map(|link| link.provider),
     }
 }

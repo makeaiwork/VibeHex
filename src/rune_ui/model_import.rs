@@ -315,7 +315,7 @@ pub(super) fn metadata(model: &ModelDefinition) -> String {
         }
         parts.push(format!("SHA-256 {}…", &import.sha256[..12]));
     }
-    parts.join(" · ")
+    super::lists::apart(&parts)
 }
 
 /// Whether `id` is a file used where it is (found, or added in place),

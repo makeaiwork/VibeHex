@@ -885,7 +885,7 @@ fn calendars_row(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
                 label: if info.source.is_empty() {
                     info.title.clone()
                 } else {
-                    format!("{} · {}", info.title, info.source)
+                    format!("{} ({})", info.title, info.source)
                 },
                 detail: None,
                 selected: calendar.includes(&info.id),

@@ -219,7 +219,7 @@ fn matching<'a>(dests: impl Iterator<Item = &'a Dest>, query: &str) -> Vec<Dest>
                 why: if dest.why.is_empty() {
                     folder.clone()
                 } else {
-                    format!("{folder} · {}", dest.why)
+                    crate::rune_ui::lists::apart(&[folder.as_str(), dest.why.as_str()])
                 },
                 ..dest.clone()
             },

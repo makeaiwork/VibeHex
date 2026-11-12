@@ -1259,7 +1259,7 @@ Labs › Keep recordings on                     // labs.keep-recordings
 ├── History card, entry with audio -> "Saved recording" + "Transcribe again" menu
 │   ├── Lists every available model installed for the language it would use
 │   ├── A model that takes a language hint (not Parakeet v3/Ultra, GigaAM,
-│   │   Granite, Bark) -> "<model> · Language: <saved language>" menu (Auto when it
+│   │   Granite, Bark) -> "<model>   Language: <saved language>" menu (Auto when it
 │   │   detects, then its languages) + Transcribe; the language applies to
 │   │   that run only, never to settings (#1068)
 │   ├── Choose one -> "Transcribing with <model>…" on a worker: its own
@@ -1385,7 +1385,7 @@ shortcut uses) opens a second copy of Annotate's capture picker
 │                 a drag draws the area with its W × H beside the pointer, outside the area
 ├── Space      -> window mode: a camera replaces the pointer and the window under it highlights;
 │                 Space again -> area
-├── Click      -> the whole display ("Full screen · Click to capture")
+├── Click      -> the whole display ("Full screen. Click to capture")
 ├── Escape     -> closes it, nothing shot; Escape reaches no other app or Hex shortcut
 └── Release    -> shot at the display's own pixels (ScreenCaptureKit), Hex's overlays,
                   the picker, and the pointer left out
@@ -1438,7 +1438,7 @@ Captures
 ├── search      -> every word in what was said over it, its file name, or its kind
 ├── rows        -> newest first, the last 30 days, only files still where they were saved:
 │                  thumbnail · the words said over it (else the file's name) ·
-│                  "Screenshot · 2880 × 1800" or "Screen recording · 0:42" · its age
+│                  "Screenshot   2880 × 1800" or "Screen recording   0:42" · its age
 ├── click       -> the editor (a shot with its words; a recording to trim)
 ├── drag        -> the file
 ├── hover       -> Copy, Show in Finder, Move to Trash in the age's place
@@ -1529,7 +1529,7 @@ until the drawer's Record screen row sets one (a key is required; the
 trash button clears it); without Annotate the row says "Needs Annotate".
 
 ```ts
-record shortcut  -> the same picker, "Full screen · Click to record"; area, window (Space), or display
+record shortcut  -> the same picker, "Full screen. Click to record"; area, window (Space), or display
 │                   while an Annotate capture records -> nothing
 ├── recording    -> Annotate's capsule shows it recording, as any capture; talk to narrate
 ├── record shortcut again (or the capsule's stop) -> stops; the capsule folds unless it failed
@@ -1930,7 +1930,7 @@ Output › AI cleanup (only while the toggle is on)   // labs.ai-cleanup-server
 │           (≈93 tok/s; 36 of 44 misheard vocabulary forms written as terms), Qwen3
 │           4B 4 · 4 (≈61 tok/s; 37), E4B 3 · 5 (≈47 tok/s; 40), measured on an
 │           M-series Mac
-├── <server name> -> "Not tested · host" | "Testing…" | "Connected · 0.8 s" | the error; Test
+├── <server name> -> "Not tested   host" | "Testing…" | "Connected (0.8 s)" | the error; Test
 │   sends one short request on its own thread (30 s), a changed server forgets the result
 ├── URL (Your own) -> field + Save; Fill in LM Studio (http://127.0.0.1:1234/v1) · Ollama
 │   (http://127.0.0.1:11434/v1); anything but http(s) is refused

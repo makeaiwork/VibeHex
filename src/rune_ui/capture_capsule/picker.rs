@@ -54,7 +54,7 @@ const BADGE_TEXT: TextStyle = TextStyle::new(12.0, 530.0).features("'tnum' 1");
 pub(crate) const MIN_AREA_SIDE: f32 = 36.0;
 /// The camera that stands in for the pointer over windows.
 const CAMERA: f32 = 40.0;
-pub(crate) const FULL_SCREEN: &str = "Full screen · Click to record";
+pub(crate) const FULL_SCREEN: &str = "Full screen. Click to record";
 /// How long the picker's exit gets before its overlay hides.
 const HIDE_AFTER_S: f64 = 0.35;
 /// A pick that started no capture this long after shows the picker again.

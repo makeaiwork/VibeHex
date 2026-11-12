@@ -251,12 +251,15 @@ fn status_row(ui: &Ui, p: Paint, server: &Server) -> El {
     let (status, color) = match &ui.output.cleanup.test {
         Test::Testing(tested, _) if tested == server => (tr("Testing…").to_owned(), p.muted()),
         Test::Passed(tested, took) if tested == server => (
-            tr_fill("Connected · {} s", &format!("{:.1}", took.as_secs_f32())),
+            tr_fill("Connected ({} s)", &format!("{:.1}", took.as_secs_f32())),
             p.success(),
         ),
         Test::Failed(tested, why) if tested == server => (why.clone(), p.danger()),
         _ if server.provider == Provider::Local => super::local_cleanup::engine_status(ui, p),
-        _ => (format!("{} · {host}", tr("Not tested")), p.muted()),
+        _ => (
+            crate::rune_ui::lists::apart(&[tr("Not tested"), host.as_str()]),
+            p.muted(),
+        ),
     };
     let testing = matches!(&ui.output.cleanup.test, Test::Testing(tested, _) if tested == server);
     let untestable =

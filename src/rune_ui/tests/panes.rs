@@ -1430,7 +1430,7 @@ fn a_connected_calendar_saves_reminders_and_lists_meetings() {
     let shown = texts(&rt);
     for text in [
         "Design sync",
-        "Today · 2:30 PM",
+        "Today, 2:30 PM",
         "Google Meet",
         "2 of 3 calendars",
     ] {

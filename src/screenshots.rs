@@ -50,7 +50,7 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) {
         picked,
         PickerRole {
             name: "VibeHex screenshot picker",
-            screen_label: crate::desktop::i18n::tr("Full screen · Click to capture"),
+            screen_label: crate::desktop::i18n::tr("Full screen. Click to capture"),
             exclude_from_capture: true,
             prewarm: crate::labs::screenshots(),
             created: |window| PICKER_WINDOW.store(window, Ordering::Release),
@@ -101,9 +101,9 @@ fn open(record: bool) -> bool {
     RECORDING.store(record, Ordering::Release);
     if let Some(overlays) = OVERLAYS.get() {
         overlays.picker.set_screen_label(if record {
-            crate::desktop::i18n::tr("Full screen · Click to record")
+            crate::desktop::i18n::tr("Full screen. Click to record")
         } else {
-            crate::desktop::i18n::tr("Full screen · Click to capture")
+            crate::desktop::i18n::tr("Full screen. Click to capture")
         });
     }
     // Off the tap's thread: a fresh Screen Recording read may take a moment.
