@@ -491,10 +491,14 @@ impl MeetingCapsules {
         };
         let panel = overlay(
             app,
-            "Hex meeting",
+            "VibeHex meeting",
             (MEETING_PANEL_WIDTH, MEETING_PANEL_HEIGHT),
         );
-        let recording = overlay(app, "Hex meeting recording", recording_window_size(false));
+        let recording = overlay(
+            app,
+            "VibeHex meeting recording",
+            recording_window_size(false),
+        );
         Self {
             panel,
             recording,
@@ -875,9 +879,9 @@ fn view_body(capsule: &Capsule, cx: &mut Cx<Capsule>) -> El {
             p.danger(),
             tr_fill("{} left the call", app),
             if *auto_stop {
-                tr("Hex stops recording in 30 s unless you keep recording.")
+                tr("VibeHex stops recording in 30 s unless you keep recording.")
             } else {
-                tr("Hex is still recording.")
+                tr("VibeHex is still recording.")
             }
             .to_owned(),
             vec![
@@ -971,7 +975,7 @@ fn reminder(
         return (
             p.accent(),
             meeting.display_title(),
-            tr_fill("{} · Hex records automatically", &when),
+            super::lists::apart(&[when.as_str(), tr("VibeHex records automatically")]),
             actions,
         );
     }
@@ -1005,7 +1009,7 @@ fn reminder(
         }),
     ));
     let subtitle = match &meeting.link {
-        Some(link) => format!("{when} · {}", link.provider.label()),
+        Some(link) => super::lists::apart(&[when.as_str(), link.provider.label()]),
         None => when,
     };
     (p.accent(), meeting.display_title(), subtitle, actions)
@@ -1079,7 +1083,7 @@ fn ready(
     let title = if title == manifest.title && manifest.notes.is_none() {
         tr("Meeting transcript ready").to_owned()
     } else {
-        tr_fill("Ready · {}", &title)
+        tr_fill("Ready: {}", &title)
     };
     let copy = Button::new(tr(if copied { "Copied" } else { "Copy" }))
         .variant(ButtonVariant::Neutral)
@@ -1123,9 +1127,9 @@ fn recording(p: Paint, capsule: &Capsule, title: &str, started: Instant, automat
         })
     );
     let subtitle = if silent {
-        tr_fill("Microphone is silent · {}", &elapsed)
+        super::lists::apart(&[tr("Microphone is silent"), elapsed.as_str()])
     } else if automatic && started.elapsed() < AUTOMATIC_LABEL {
-        tr_fill("Started automatically · {}", &elapsed)
+        super::lists::apart(&[tr("Started automatically"), elapsed.as_str()])
     } else {
         elapsed
     };
@@ -1468,7 +1472,7 @@ mod tests {
         assert!(
             texts(&rt)
                 .iter()
-                .any(|text| text.starts_with("Started automatically · "))
+                .any(|text| text.starts_with("Started automatically   "))
         );
         let earlier = Instant::now() - AUTOMATIC_LABEL - Duration::from_secs(1);
         let (rt, _, _) = runtime(recording(earlier), false, true, RECORDING);
@@ -1486,7 +1490,7 @@ mod tests {
         assert!(
             texts(&rt)
                 .iter()
-                .any(|text| text.starts_with("Microphone is silent · ")),
+                .any(|text| text.starts_with("Microphone is silent   ")),
             "{:?}",
             texts(&rt)
         );
@@ -1498,7 +1502,7 @@ mod tests {
         let shown = texts(&rt);
         assert!(shown.contains(&"Design sync".to_string()), "{shown:?}");
         assert!(
-            shown.contains(&"Starts in 1 min · Zoom".to_string()),
+            shown.contains(&"Starts in 1 min   Zoom".to_string()),
             "{shown:?}"
         );
         assert!(rt.find("record").is_some());
@@ -1536,7 +1540,9 @@ mod tests {
     #[test]
     fn an_always_record_reminder_says_so_and_never_offers_record() {
         let (mut rt, commands, _) = runtime(reminder(true, true), false, true, REMINDER);
-        assert!(texts(&rt).contains(&"Starts in 1 min · Hex records automatically".to_string()));
+        assert!(
+            texts(&rt).contains(&"Starts in 1 min   VibeHex records automatically".to_string())
+        );
         assert!(rt.find("record").is_none());
         assert!(rt.find("join-record").is_none());
         tap(&mut rt, "join");
@@ -1974,8 +1980,9 @@ mod tests {
         };
         let (mut rt, commands, _) = runtime(auto, false, true, CALL_ENDED);
         assert!(
-            texts(&rt)
-                .contains(&"Hex stops recording in 30 s unless you keep recording.".to_string())
+            texts(&rt).contains(
+                &"VibeHex stops recording in 30 s unless you keep recording.".to_string()
+            )
         );
         tap(&mut rt, "keep-recording");
         assert!(matches!(
@@ -1986,7 +1993,7 @@ mod tests {
 
         // Without the lab, Keep recording only closes the capsule.
         let (mut rt, commands, _) = runtime(call_ended(), false, true, CALL_ENDED);
-        assert!(texts(&rt).contains(&"Hex is still recording.".to_string()));
+        assert!(texts(&rt).contains(&"VibeHex is still recording.".to_string()));
         tap(&mut rt, "keep-recording");
         assert!(commands.try_recv().is_err());
     }

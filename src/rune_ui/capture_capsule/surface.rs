@@ -1599,7 +1599,7 @@ mod tests {
 
     #[test]
     fn long_names_end_in_an_ellipsis() {
-        let cut = ellipsize("OpenCode Desktop · Problems board rewrite", medium(), 120.0);
+        let cut = ellipsize("OpenCode Desktop: Problems board rewrite", medium(), 120.0);
         assert!(
             cut.ends_with('…') && measure(&cut, medium()) <= 120.0,
             "{cut}"

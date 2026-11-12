@@ -102,7 +102,7 @@ Picker opens, or onboarding starts -> one scan (found_models::scan)   // setup.f
 │   -> that catalog model counts as downloaded; its card says "Found on this
 │   computer" and offers Use, never Download
 ├── Other compatible files -> "Found on this computer" at the top of the picker:
-│   name · Not tested by Hex · Q8_0/F16/F32 · owner/name@revision · languages,
+│   name · Not tested by VibeHex · Q8_0/F16/F32 · owner/name@revision · languages,
 │   "It may be too big for this computer's GPU memory." when the tensor data
 │   plus a quarter exceeds the largest GPU transcribe.cpp reports, and
 │   "Compatible doesn't mean accurate: …"
@@ -139,7 +139,7 @@ Onboarding opens with no model -> the model step, and a scan  // setup.found-cho
     │   its own row says "On this computer" in place of its size (one row,
     │   never two), and the button says Use this model
     ├── Then each other found file -> its name and "On this computer"; a file
-    │   that is no catalog model says "Not tested by Hex" under its name; no
+    │   that is no catalog model says "Not tested by VibeHex" under its name; no
     │   hashes, repositories, revisions, or compression
     ├── Selecting a row starts nothing. Use this model checks the file in
     │   place ("Checking…" on its row) and the story goes on with no download

@@ -243,7 +243,7 @@ fn an_unconfirmed_portal_shortcut_is_not_called_refused() {
     assert!(
         shown
             .iter()
-            .any(|text| text == "Your desktop assigns this key itself, so Hex can't confirm it")
+            .any(|text| text == "Your desktop assigns this key itself, so VibeHex can't confirm it")
     );
     assert!(
         !shown
@@ -1726,7 +1726,7 @@ fn transcribe_again_shows_only_with_its_lab_and_replace_updates_the_entry() {
     // The kept version shows with its model, copies, and comes back.
     let shown = texts(&rt);
     assert!(shown.iter().any(|text| text == "Whisper"), "{shown:?}");
-    assert!(shown.iter().any(|text| text.starts_with("Parakeet v3 · ")));
+    assert!(shown.iter().any(|text| text.starts_with("Parakeet v3   ")));
     tap(&mut rt, "version0/actions/copy");
     assert_eq!(rt.copy_request.as_deref(), Some("Ship it."));
     tap(&mut rt, "version0/actions/use");
@@ -2418,7 +2418,7 @@ fn settings_opens_the_picker_and_names_the_model_and_language_apart() {
         "{shown:?}"
     );
     assert!(
-        !shown.iter().any(|text| text.contains(" · Parakeet")),
+        !shown.iter().any(|text| text.contains("   Parakeet")),
         "{shown:?}"
     );
     tap(&mut rt, "transcription-control");
@@ -2474,7 +2474,7 @@ fn onboarding_downloads_nothing_until_download_is_pressed() {
         );
         assert!(rt.find("all-models").is_some(), "{scene}: All models…");
         assert!(
-            !shown.contains(&"Setting up Hex".to_owned()),
+            !shown.contains(&"Setting up VibeHex".to_owned()),
             "{scene}: {shown:?}"
         );
         let tour = rt.state.tour.as_ref().unwrap();
@@ -2518,10 +2518,10 @@ fn onboarding_downloads_nothing_until_download_is_pressed() {
     settle(&mut rt);
     let step = |rt: &Runtime<Ui>| rt.state.tour.as_ref().unwrap().flow.step();
     assert_eq!(step(&rt), crate::desktop::onboarding::Step::TryIt);
-    // The practice can be left with Done; Start using Hex closes onboarding.
+    // The practice can be left with Done; Start using VibeHex closes onboarding.
     tap(&mut rt, "done");
     tap(&mut rt, "start-using-hex");
-    assert!(rt.state.tour.is_none(), "Start using Hex closes setup");
+    assert!(rt.state.tour.is_none(), "Start using VibeHex closes setup");
     assert!(rt.state.first_run.is_none());
 }
 
@@ -2956,7 +2956,7 @@ fn the_microphone_field_names_the_input_in_use() {
 
 #[test]
 fn a_closed_lid_names_the_input_standing_in_for_the_built_in_microphone() {
-    let note = "MacBook Pro Microphone is off while the lid is closed, so Hex listens to Studio Display Microphone";
+    let note = "MacBook Pro Microphone is off while the lid is closed, so VibeHex listens to Studio Display Microphone";
     let field = microphone_value;
     let mut rt = runtime("mac-microphone-lid-closed", true, TALL_SIZE);
     assert_eq!(
@@ -2983,7 +2983,7 @@ fn a_closed_lid_names_the_input_standing_in_for_the_built_in_microphone() {
 
 #[test]
 fn a_passed_over_bluetooth_default_names_the_input_in_use() {
-    let note = "Kit Pods is Bluetooth, so Hex listens to MacBook Pro Microphone";
+    let note = "Kit Pods is Bluetooth, so VibeHex listens to MacBook Pro Microphone";
     let mut rt = runtime("mac-microphone-bluetooth", true, TALL_SIZE);
     assert_eq!(
         a11y_value(&rt, "microphone-control").as_deref(),

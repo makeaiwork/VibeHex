@@ -186,7 +186,11 @@ fn row_for(
         }
         Pick::Found(index) => {
             let found = ui.found.models.get(index)?;
-            (found.name.clone(), tr("Not tested by Hex"), String::new())
+            (
+                found.name.clone(),
+                tr("Not tested by VibeHex"),
+                String::new(),
+            )
         }
     };
     let state = if choice.started() != Some(pick) {
@@ -241,7 +245,7 @@ fn line(model: &models::ModelDefinition) -> &'static str {
         (models::TranscriptionModelId::Orukeet, _) => {
             tr("A Parakeet v3 fine-tune, trained on many languages and accents")
         }
-        (_, "") => tr("Not tested by Hex"),
+        (_, "") => tr("Not tested by VibeHex"),
         (_, blurb) => blurb,
     }
 }

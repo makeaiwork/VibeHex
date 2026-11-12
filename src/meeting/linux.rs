@@ -30,7 +30,7 @@ pub(super) fn ensure_system_audio() -> Result<()> {
         Ok(())
     } else {
         Err(eyre!(
-            "Install PipeWire's pw-record (the pipewire-audio package) so Hex can hear the other participants, then try again"
+            "Install PipeWire's pw-record (the pipewire-audio package) so VibeHex can hear the other participants, then try again"
         ))
     }
 }

@@ -316,8 +316,12 @@ pub fn count_tokens(
         streamed: None,
     };
     let body = exchange.run()?;
-    let tokens: Tokens = serde_json::from_slice(&body)
-        .map_err(|error| eyre!("{} sent token counts Hex can't read: {error}", model.name))?;
+    let tokens: Tokens = serde_json::from_slice(&body).map_err(|error| {
+        eyre!(
+            "{} sent token counts VibeHex can't read: {error}",
+            model.name
+        )
+    })?;
     Ok(tokens.tokens.len())
 }
 
@@ -654,7 +658,7 @@ fn server_message(body: &[u8]) -> Option<String> {
 
 fn answer(name: &str, body: &[u8]) -> Result<String> {
     let response: ChatResponse = serde_json::from_slice(body)
-        .map_err(|error| eyre!("{name} sent an answer Hex can't read: {error}"))?;
+        .map_err(|error| eyre!("{name} sent an answer VibeHex can't read: {error}"))?;
     let content = response
         .choices
         .into_iter()

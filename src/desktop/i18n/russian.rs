@@ -13,7 +13,7 @@ pub(super) fn table() -> &'static HashMap<&'static str, &'static str> {
     TABLE.get_or_init(|| {
         TRANSLATIONS
             .iter()
-            .chain(super::vibehex::russian::TRANSLATIONS)
+            .chain(super::vibehex::russian())
             .copied()
             .collect()
     })

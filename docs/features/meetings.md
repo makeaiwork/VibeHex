@@ -46,7 +46,7 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   │       └── OpenCode -> "Sends the transcript to your OpenCode model";
 │   │           Model nests under it: a searchable picker of the running
 │   │           OpenCode's models (refreshed each time it opens; no Refresh),
-│   │           "Hex picks a fast model" first (clears meetings.opencode_model
+│   │           "VibeHex picks a fast model" first (clears meetings.opencode_model
 │   │           -> the ranked fast models); a pick is used alone, no fallback.
 │   │           OpenCode missing or failing -> a notice with Check again /
 │   │           Retry, the saved model kept and shown by its ID (#1107, #1301)
@@ -566,18 +566,18 @@ Meetings > Settings > Calendar                       // meetings.calendar (macOS
     ├── Remind me before meetings -> on by default
     ├── Remind me -> At start / 1 / 2 / 5 min
     ├── Calendars -> All calendars, or "2 of 3 calendars"; each switched in the menu
-    └── Next 3 meetings: title, "Today · 2:30 PM", provider icon when it has a call link
+    └── Next 3 meetings: title, "Today, 2:30 PM", provider icon when it has a call link
 
 Meeting = not all-day, declined, free, or cancelled, AND has other attendees or a
           Zoom / Google Meet / Teams / Slack huddle / Webex link (URL, location, notes)
 
 Lead time reached (or Mac wakes within 5 min of the start)   // meetings.reminder
   -> Reminder capsule, offer-capsule placement, focus-free
-     ├── "Design sync" · "Starts in 1 min · Zoom"
+     ├── "Design sync" · "Starts in 1 min   Zoom"
      │   ├── Not now -> close; this call is not offered when detected
      │   ├── Join & record (only with a link) -> open the link, then record
      │   └── Record -> recording titled "Design sync" with its attendees
-     └── Service set to Always record: "Starts in 1 min · Hex records automatically"
+     └── Service set to Always record: "Starts in 1 min   VibeHex records automatically"
          ├── Don't record -> close; the detected call neither offers nor auto-records
          └── Join (only with a link) -> open the link; Always record starts on detection
   -> Closes 60 s after the start (at least 30 s after showing); withdrawn if the
@@ -675,7 +675,7 @@ Record (offer, menu bar "Record Meeting", Meetings pane, or voice command)
   -> system.wav + microphone.wav, owner-only, Application Support/meetings/<id>
   -> No idle sleep; no dictation mute or media pause // meetings.record
   -> Menu bar: record symbol + elapsed time
-     ├── "Recording · <title> · 12:34" -> Meetings pane
+     ├── "Recording: <title> (12:34)" -> Meetings pane
      │   └── title follows the provisional title (see Titles And Summary)
      └── Stop & Transcribe
      (Idle menu bar: "Record Meeting"; "Copy Last Meeting Transcript" sits
@@ -819,7 +819,7 @@ Capture sources (meeting/capture.rs)                // meetings.capture
 │       -> Reopened like a failed source, at most twice in one recording,
 │          the budget shared by every reopened stream
 │       ├── Still silent -> keep recording; the capsule says
-│       │   "Microphone is silent · 12:34" and the menu bar "Microphone is
+│       │   "Microphone is silent" beside 12:34 and the menu bar "Microphone is
 │       │   silent"; manifest.microphone.warning is written as soon as it is
 │       │   raised, so a crash keeps it
 │       ├── Nonzero audio returns -> the live warning clears, including in a
@@ -1231,7 +1231,7 @@ Header: Start recording (the pane's one Primary button) / red dot, elapsed
 List (on the title's edge, no divider; grouped Today / Yesterday / date)
 ├── Search meetings (title, app, notes, final transcript) above the rows
 └── Row: title (generated when present), time on the right; meta line
-    "Recording · Zoom" / "Failed · 2 min" / "Zoom · 38 min" (red while
+    "Recording   Zoom" / "Failed   2 min" / "Zoom   38 min" (red while
     recording or failed); no hover fill; a completed row shows a Copy
     icon in the time's place on hover (pointer only; "Copied" as a check)
 Detail (a raised card beside the list)
@@ -1395,7 +1395,50 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 The sound is the meeting's two tracks, `system.wav` and `microphone.wav`,
 mixed where each started (`first_arrival_us` in `manifest.json`), the
 origin the transcript's clocks count from, so a turn plays from its own
-time. Each transcript entry keeps its words' starts (`words` in
+time. The microphone plays with the speakers' sound taken out
+([files/speaker_echo.rs](../../src/files/speaker_echo.rs)): on speakers the
+microphone hears the call too, and mixing it in as recorded played every
+remote word twice. WebRTC's echo canceller (AEC3, the pure-Rust `sonora`
+crate) takes the system track as what the speakers played and removes it
+from the microphone, in 10 ms frames on the meeting's timeline, after the
+call; capture, transcripts, and echo suppression are untouched. With Labs ›
+Listen to the recording on, each meeting is cleaned on a background thread
+(utility priority) as soon as it is transcribed, after Stop or after a
+pending final pass at launch (`prepare_playback` in
+[meeting/watcher.rs](../../src/meeting/watcher.rs)); a meeting finished
+before then is cleaned on its first Play, and a Play during the cleaning
+waits for it. The result is kept beside the recording as
+`microphone.echo-cancelled.wav` (16 kHz, 16-bit, owner-only, written whole
+then renamed; a copy of another length is redone); Delete and retention
+take it with the folder. A meeting without a system track plays its
+microphone as recorded.
+
+Observed 2026-11-11 on the Pro with the opt-in
+`a_recorded_meeting_plays_with_the_echo_taken_out` on a copy of an 88-minute
+call on external speakers (the microphone heard the remote side about 250 ms
+late and only about 4 dB quieter than the system track): cleaning took
+18.6 s, and a Play with the cleaned copy loaded in 1.3 s; the copy is 169 MB. Measured
+against that call's transcript in 20 ms frames:
+
+```text
+                         microphone as recorded -> cleaned
+Only the remote side     -17.1 dB -> -33.0 dB   (12.3 min; the echo)
+Only the user            -17.9 dB -> -18.1 dB   (51.8 min)
+Both at once             -16.6 dB -> -18.5 dB   (3.2 min)
+```
+
+Parakeet on a 10-minute stretch of the cleaned microphone (`hex meeting
+echo --transcribe`) gave 91 You sentences, none echo, against 161 (50 echo)
+as recorded and 92 (1 echo) after echo suppression; in four places where both
+spoke it lost the user's words ("Я уже, знаешь, я показываю" became "Я уже,
+знаешь,"). So transcripts keep the recorded microphone; the cleaned one is
+for listening. The suppressor's tuning for the user's speech (nearend) was
+loosened in a probe and changed nothing measurable. Checks:
+`the_speakers_echo_goes_and_the_users_voice_stays`,
+`a_meeting_is_cleaned_once_and_read_back_after`. Cleaning after the call
+has not been seen in the running app yet.
+
+Each transcript entry keeps its words' starts (`words` in
 `TranscriptEntry`, from the sentence's timed words, `meeting::sentence_entry`);
 a turn joins them while every entry it joins has them, else its words
 spread over its start and end. Models that time words: Parakeet (word times) and
@@ -1517,7 +1560,7 @@ While recording, setting on, model available           // meetings.title.provisi
      -> waits (≤30 s) while dictation is busy
      -> ONE title-only call over the transcript so far (≤5,000 chars, 30 s timeout)
   -> Recorder stores provisional_title in the manifest
-     -> menu bar "Recording · <title>", Meetings pane list and detail
+     -> menu bar "Recording: <title>", Meetings pane list and detail
   -> Refreshed once when speech reaches 10 minutes; a failure retries a minute
      later; at most 3 calls per meeting; Stop discards a call in flight
   -> The exported Markdown file name and heading use it when it arrived first;
@@ -1565,7 +1608,7 @@ Unavailable (not eligible / Apple Intelligence off / model not ready / macOS < 2
   -> Settings row says why; nothing runs
 Meetings pane -> title in list and detail; Summary paragraph above the transcript;
   "Summarize" / "Regenerate summary" / "Summarizing…" in the overflow menu
-Transcript ready capsule -> "Ready · <title>" once a provisional or final title
+Transcript ready capsule -> "Ready: <title>" once a provisional or final title
   exists; subtitle "Summarizing with Apple Intelligence…", then the summary
 ```
 

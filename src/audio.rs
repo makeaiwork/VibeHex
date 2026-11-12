@@ -1040,7 +1040,7 @@ fn resolve_input(
     if let Some(name) = device_override {
         if is_hex(name) {
             return Err(format!(
-                "Hex cannot capture from its own virtual microphone: {name}"
+                "VibeHex cannot capture from its own virtual microphone: {name}"
             ));
         }
         return position(name)

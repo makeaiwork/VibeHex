@@ -387,7 +387,7 @@ impl ContextSnapshot {
 
     pub fn label(&self) -> String {
         match (&self.application, self.browser_host()) {
-            (Some(application), Some(host)) => format!("{application} · {host}"),
+            (Some(application), Some(host)) => format!("{application} ({host})"),
             (Some(application), None) => application.clone(),
             _ => "unknown context".into(),
         }

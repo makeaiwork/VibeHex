@@ -470,9 +470,15 @@ impl DictationWorker {
     /// Switches the warm model after the work already handed to the engine.
     pub fn reload(&self, selection: TranscriptionSelection) -> Result<(), &'static str> {
         let events = self.event_sender.clone();
-        self.engine
+        let engine = self
+            .engine
             .as_ref()
-            .ok_or("dictation worker is unavailable")?
+            .ok_or("dictation worker is unavailable")?;
+        // An engine unloaded for idleness loads this one, not the one it dropped.
+        engine
+            .follow(selection.clone())
+            .map_err(|_| "dictation worker is unavailable")?;
+        engine
             .run(move |model| {
                 let _busy = DictationInference::begin();
                 if let Err(error) = model.activate(&selection) {
@@ -724,7 +730,7 @@ fn wait_for_dictation_idle() -> Result<()> {
         thread::sleep(std::time::Duration::from_millis(50));
     }
     if crate::desktop::process_exit::quitting() {
-        return Err(eyre!("Hex is quitting"));
+        return Err(eyre!("VibeHex is quitting"));
     }
     Ok(())
 }

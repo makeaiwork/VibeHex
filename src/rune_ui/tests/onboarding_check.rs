@@ -191,7 +191,7 @@ fn onboarding_continue_without_model() {
         "Add model file…"
     );
     assert!(
-        texts(&rt).contains(&"Hex can't dictate until a speech model is installed".to_owned()),
+        texts(&rt).contains(&"VibeHex can't dictate until a speech model is installed".to_owned()),
         "the status says so too"
     );
 
@@ -382,12 +382,15 @@ fn onboarding_walkthrough() {
     assert!(texts(&rt).contains(&"Clear your messages".to_owned()));
     assert!(rt.find("skip").is_some(), "Skip shows on the practice too");
     tap(&mut rt, "done");
-    assert!(texts(&rt).contains(&"Hex is ready".to_owned()));
+    assert!(texts(&rt).contains(&"VibeHex is ready".to_owned()));
     tap(&mut rt, "start-using-hex");
-    assert!(rt.state.tour.is_none(), "Start using Hex closes onboarding");
+    assert!(
+        rt.state.tour.is_none(),
+        "Start using VibeHex closes onboarding"
+    );
     assert!(rt.state.first_run.is_none());
     println!(
-        "onboarding walkthrough: Choose a speech model -> Download -> {} downloaded ({} bytes) -> Your turn -> Hex is ready",
+        "onboarding walkthrough: Choose a speech model -> Download -> {} downloaded ({} bytes) -> Your turn -> VibeHex is ready",
         definition.name,
         downloaded.load(std::sync::atomic::Ordering::Relaxed)
     );

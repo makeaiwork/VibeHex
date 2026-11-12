@@ -21,16 +21,16 @@ pub(super) fn permission_lines(need: CaptureNeed, grant: Grant) -> Done {
         Grant::Off => Done {
             why: Some(why.into()),
             ask: Some(tr("Allow").into()),
-            ..Done::plain(Lead::Warning, tr_fill("Hex needs {}", name))
+            ..Done::plain(Lead::Warning, tr_fill("VibeHex needs {}", name))
         },
         Grant::Asked => Done {
-            why: Some(tr("turn Hex on in System Settings").into()),
+            why: Some(tr("turn VibeHex on in System Settings").into()),
             ask: Some(tr("Allow").into()),
-            ..Done::plain(Lead::Warning, tr_fill("Hex needs {}", name))
+            ..Done::plain(Lead::Warning, tr_fill("VibeHex needs {}", name))
         },
         Grant::Restart => Done {
-            why: Some(tr("turns on when Hex restarts").into()),
-            ask: Some(tr("Restart Hex").into()),
+            why: Some(tr("turns on when VibeHex restarts").into()),
+            ask: Some(tr("Restart VibeHex").into()),
             ..Done::plain(Lead::Warning, tr_fill("{} is on", name))
         },
         Grant::Ready => Done {
@@ -219,7 +219,7 @@ fn matching<'a>(dests: impl Iterator<Item = &'a Dest>, query: &str) -> Vec<Dest>
                 why: if dest.why.is_empty() {
                     folder.clone()
                 } else {
-                    format!("{folder} · {}", dest.why)
+                    crate::rune_ui::lists::apart(&[folder.as_str(), dest.why.as_str()])
                 },
                 ..dest.clone()
             },

@@ -2,7 +2,7 @@
 
 ## Fork scope and precedence
 
-This checkout is the `makeaiwork/hex` fork of `anomalyco/hex`, stored in
+This checkout is the `makeaiwork/VibeHex` fork of `anomalyco/hex`, stored in
 `58. VibeHex`. `origin` points to the fork; `upstream` points to the original.
 The default development branch is `dev`. VibeHex is the workspace name;
 the executable, package, and existing product copy remain `hex` / Hex until
@@ -350,6 +350,10 @@ substitute for source inspection or a second roadmap.
   never open a console window.
 - `dictation/text_replacements`: phrase-boundary-aware compilation of configured text
   replacements applied longest-match-first to transcripts.
+- `dictation/vocabulary_guard`: the Vocabulary in code around every AI
+  cleanup: exact "sounds like" spellings written as their term before the
+  model, then each answer lined up with its transcript and a term the heard
+  words don't support undone (pure, no model, counts-only logging).
 - `dictation/config`: dictation profiles.
 - `dictation/context`: the foreground context snapshot and selectors for modes,
   plus native macOS capture. Browser host is the domain concept. Only while a
@@ -1850,7 +1854,7 @@ workflow on every push to `dev` with `test-build`, plus an ad-hoc signed
 it must never read the real `hex` data), as unsigned 14-day artifacts for
 teammates (`docs/test-builds.md`). `HEX_TEST_BUILD=1` builds never update
 themselves, and neither do local builds (`HEX_LOCAL_BUILD=1`, the owner's own
-build from a checkout: footer "Local build · updates off", version label with its
+build from a checkout: footer "Local build, updates off", version label with its
 commit, no channel row). Every push to `dev` (except docs/site-only changes) publishes a dev-channel
 build (the service lets a run from `dev` publish only the `dev` channel, and
 only signed platforms are published). Stable runs only from `production`.

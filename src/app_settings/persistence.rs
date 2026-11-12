@@ -54,7 +54,7 @@ impl AppSettings {
     /// Launch stays available even when the data folder itself cannot be
     /// resolved. Invalid settings are recovered by `load_from` in place.
     pub(crate) fn load_for_launch() -> LaunchLoad {
-        match path().and_then(|path| Self::load_checked_from(&path)) {
+        match path().and_then(|path| Self::launch_from(&path)) {
             Ok((settings, issue)) => {
                 let note = match issue {
                     Some(LoadIssue::Unparseable(reason)) => {
@@ -69,11 +69,22 @@ impl AppSettings {
                 LaunchLoad {
                     settings: Self::default(),
                     note: Some(LaunchNote::Failed(format!(
-                        "Hex couldn't read its settings and started with defaults. ({error:#})"
+                        "VibeHex couldn't read its settings and started with defaults. ({error:#})"
                     ))),
                 }
             }
         }
+    }
+
+    /// What launch reads from `path`, applied to this process before
+    /// anything starts. The listener reads the speech model, the shortcuts
+    /// and the microphone the moment it starts, ahead of the window's own
+    /// load; unapplied, it started on the default model, which an engine
+    /// unloaded at launch (Labs › Unload model when idle) then kept.
+    fn launch_from(path: &Path) -> Result<(Self, Option<LoadIssue>)> {
+        let loaded = Self::load_checked_from(path)?;
+        loaded.0.apply_runtime();
+        Ok(loaded)
     }
 
     pub(crate) fn load_from(path: &Path) -> Result<Self> {
@@ -205,7 +216,7 @@ impl AppSettings {
         // They may be stale defaults, so a fixed file must be loaded instead.
         if load_found_unparseable(path) {
             return Err(eyre!(
-                "settings.json couldn't be read when Hex loaded it. Restart Hex to load the fixed file. Nothing was saved."
+                "settings.json couldn't be read when VibeHex loaded it. Restart VibeHex to load the fixed file. Nothing was saved."
             ));
         }
         match &original {
@@ -272,7 +283,7 @@ impl LoadIssue {
         match self {
             Self::Unparseable(reason) => reason.reload_error(),
             Self::Unreadable => {
-                "Hex couldn't read settings.json; keeping the settings it already has.".into()
+                "VibeHex couldn't read settings.json; keeping the settings it already has.".into()
             }
         }
     }
@@ -304,7 +315,7 @@ impl Unparseable {
 
     fn launch_note(&self) -> String {
         format!(
-            "Hex couldn't read settings.json and started with defaults. Your file wasn't changed; fix or remove it, then restart Hex. ({})",
+            "VibeHex couldn't read settings.json and started with defaults. Your file wasn't changed; fix or remove it, then restart VibeHex. ({})",
             self.reason()
         )
     }
@@ -312,7 +323,7 @@ impl Unparseable {
     /// The error a save returns; nothing is written.
     fn save_error(&self) -> String {
         format!(
-            "settings.json {}. Fix or remove it, then restart Hex. Nothing was saved.",
+            "settings.json {}. Fix or remove it, then restart VibeHex. Nothing was saved.",
             self.sentence()
         )
     }
@@ -321,7 +332,7 @@ impl Unparseable {
     #[cfg(target_os = "linux")]
     fn reload_error(&self) -> String {
         format!(
-            "settings.json {}. Fix or remove it, then restart Hex.",
+            "settings.json {}. Fix or remove it, then restart VibeHex.",
             self.sentence()
         )
     }

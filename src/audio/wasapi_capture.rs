@@ -439,7 +439,7 @@ fn open_with(
     if !format.is_decodable() {
         return Err(Failure {
             mix: Some(mix_format),
-            error: format!("Hex cannot decode this format ({format})"),
+            error: format!("VibeHex cannot decode this format ({format})"),
         });
     }
     if path == Path::SharedAudioStream {

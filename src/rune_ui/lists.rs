@@ -16,6 +16,17 @@ use super::controls::{
 use crate::desktop::i18n::tr;
 
 const LIST_WIDTH: f32 = 320.0;
+
+/// A line of separate facts ("Zoom   12 min"): air sets them apart, and no
+/// dot or other mark joins them. VibeHex never puts "·" between words.
+pub(super) fn apart<S: AsRef<str>>(parts: &[S]) -> String {
+    let parts: Vec<&str> = parts
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|part| !part.is_empty())
+        .collect();
+    parts.join("   ")
+}
 /// A [`list_row`]'s text inset.
 const LIST_ROW_PX: f32 = 10.0;
 /// A list column's leading padding, which puts its rows' text on the pane

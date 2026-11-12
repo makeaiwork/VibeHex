@@ -271,10 +271,10 @@ pub(super) fn shown_recommendation(
     })
 }
 
-/// The raw error rate with its direction: `7.57% CER · lower is better`.
+/// The raw error rate with its direction: `7.57% CER (lower is better)`.
 pub(super) fn benchmark_rate(record: &BenchmarkRecord) -> String {
     tr_named(
-        "{rate} · lower is better",
+        "{rate} (lower is better)",
         &[("rate", record.rate_label().as_str())],
     )
 }
@@ -327,7 +327,7 @@ pub(super) fn benchmark_detail(record: &BenchmarkRecord) -> String {
         );
     }
     parts.push(tr("Speed: upstream figure; hardware and method unknown").to_owned());
-    parts.join(" · ")
+    super::lists::apart(&parts)
 }
 
 pub(super) type PickerModel = (
@@ -658,7 +658,7 @@ pub(super) fn preparation(ui: &Ui, model: &ModelDefinition) -> Option<(String, O
             let elapsed = ui
                 .preparing
                 .map_or(0, |(_, since)| since.elapsed().as_secs());
-            (tr_fill("Loading model · {}s", &elapsed.to_string()), None)
+            (tr_fill("Loading model ({}s)", &elapsed.to_string()), None)
         }
         _ => {
             let fraction = model.download_bytes().map_or(0.0, |bytes| {
@@ -961,7 +961,7 @@ mod tests {
     fn benchmark_details_show_raw_rates_and_mark_unknowns() {
         let qwen = transcription_models::definition(TranscriptionModelId::Qwen3Asr06B);
         let record = transcription_models::benchmark(qwen).unwrap();
-        assert_eq!(benchmark_rate(&record), "7.57% CER · lower is better");
+        assert_eq!(benchmark_rate(&record), "7.57% CER (lower is better)");
         let detail = benchmark_detail(&record);
         for part in [
             "Mandarin Chinese",

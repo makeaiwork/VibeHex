@@ -495,7 +495,7 @@ fn update_item(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
         (None, Some(S::SourceBuild))
             if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local =>
         {
-            (tr("Local build · updates off").into(), None, false)
+            (tr("Local build, updates off").into(), None, false)
         }
         (None, Some(S::SourceBuild)) => {
             (tr("Updated from your source checkout").into(), None, false)
@@ -596,7 +596,7 @@ fn footer(ui: &Ui, p: Paint) -> El {
         Some(DesktopUpdateStatus::SourceBuild) => Some(line(
             "update-status",
             if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local {
-                tr("Local build · updates off")
+                tr("Local build, updates off")
             } else {
                 tr("Updated from your source checkout")
             },
@@ -842,7 +842,7 @@ fn quit_item(p: Paint) -> El {
     row()
         .key("quit")
         .role("button")
-        .label(tr("Quit Hex"))
+        .label(tr("Quit VibeHex"))
         .h(NAV_ROW_HEIGHT)
         .px(6.0)
         .mt(NAV_ROW_GAP)
@@ -854,7 +854,7 @@ fn quit_item(p: Paint) -> El {
         .focusable(true)
         .focus_ring(2.0, -2.0, c.border_focus)
         .child(
-            text(tr("Quit Hex"))
+            text(tr("Quit VibeHex"))
                 .key("label")
                 .font(p.k.ty.ui)
                 .color(c.text_muted)

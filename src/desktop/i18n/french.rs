@@ -13,7 +13,7 @@ pub(super) fn table() -> &'static HashMap<&'static str, &'static str> {
     TABLE.get_or_init(|| {
         TRANSLATIONS
             .iter()
-            .chain(super::vibehex::FRENCH)
+            .chain(super::vibehex::french())
             .copied()
             .collect()
     })
@@ -1253,7 +1253,7 @@ mod tests {
     #[test]
     fn french_keys_are_unique_and_keep_their_placeholders() {
         let mut seen = std::collections::HashSet::new();
-        for (english, french) in TRANSLATIONS.iter().chain(super::super::vibehex::FRENCH) {
+        for (english, french) in TRANSLATIONS.iter().chain(super::super::vibehex::french()) {
             assert!(seen.insert(english), "duplicate key {english:?}");
             let names = english
                 .split('{')

@@ -60,7 +60,7 @@ pub(crate) const FRANK: Notice = Notice {
 pub(crate) const JAY: Notice = Notice {
     key: "jay",
     app: App::Messages,
-    from: "Jay · CEO",
+    from: "Jay, CEO",
     place: None,
     body: "The investors are in the room. Are we ready to ship?",
     field: "iMessage",

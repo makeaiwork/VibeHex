@@ -44,7 +44,7 @@ const ARTIFACT: &str = "desktop";
 /// `updates` release of the fork's GitHub repository, rewritten by
 /// `scripts/publish-vibehex.sh`; its targets are files on the version's own
 /// release there, so every download stays on github.com.
-const ORIGIN: &str = "https://github.com/makeaiwork/hex/releases/download/updates";
+const ORIGIN: &str = "https://github.com/makeaiwork/VibeHex/releases/download/updates";
 const STARTUP_DELAY: Duration = Duration::from_secs(10);
 const CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
 /// Dev builds land on every push to dev, so the Dev channel checks often.
@@ -682,7 +682,7 @@ fn check(
         } => Ok(match command {
             Some(command) => State::Command { command },
             None => State::Download {
-                url: notes_url.unwrap_or_else(|| "https://anoma.ly/hex".into()),
+                url: notes_url.unwrap_or_else(notes::download_page),
             },
         }),
         Decision::Install {
@@ -710,7 +710,7 @@ fn check(
                             .and_then(|target| protocol::resolve_url(&manifest_url, &target.url))
                             .or(manifest.release.notes_url)
                     })
-                    .unwrap_or_else(|| "https://anoma.ly/hex".into());
+                    .unwrap_or_else(notes::download_page);
                 return Ok(State::Download { url });
             }
             let url = protocol::resolve_url(&manifest_url, &target.url)
@@ -729,7 +729,7 @@ fn check(
                 .and_then(|console| platform::stage(&file, console.as_deref(), &version));
             #[cfg(not(target_os = "windows"))]
             let staged = platform::stage(&file, &version);
-            let staged = staged.wrap_err_with(|| format!("could not stage Hex {version}"))?;
+            let staged = staged.wrap_err_with(|| format!("could not stage VibeHex {version}"))?;
             *lock(&shared.staged) = Some(StagedUpdate {
                 staged,
                 sha256: target.sha256,
@@ -1227,7 +1227,7 @@ mod tests {
     fn the_manifest_url_names_app_artifact_and_channel() {
         assert_eq!(
             manifest_url("stable"),
-            "https://github.com/makeaiwork/hex/releases/download/updates/stable.json"
+            "https://github.com/makeaiwork/VibeHex/releases/download/updates/stable.json"
         );
     }
 }

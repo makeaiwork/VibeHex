@@ -1699,11 +1699,11 @@ the real overlay draws it. It is a preview, not the overlay: Dot scope's
 in-bar and notch placements show below the menu bar, the voice is HUD Lab's
 demo, not the microphone, and it ignores Reduce Motion.
 
-Hex signature (2026-10-27) is one kalimba-like FM voice playing one motif,
+VibeHex signature (2026-10-27) is one kalimba-like FM voice playing one motif,
 D-B-A-D (a sixth, since "hex" is six): start D5 to B5 (116 ms), stop B5 to A5
 (230 ms), done D6 over A5 (330 ms), error D4
 then a minor D4+Bb4 (280 ms), and onboarding success, the whole motif landing
-on a D sixth chord (1.1 s), played when the first run reaches Hex is ready. Click is mechanical key clicks, Soft tone warm sine blips in A major,
+on a D sixth chord (1.1 s), played when the first run reaches VibeHex is ready. Click is mechanical key clicks, Soft tone warm sine blips in A major,
 Wood a soft-mallet marimba with hollow wood blocks for error, and
 Warm synth two detuned saws through a closing low-pass filter, and Thock one
 mechanical keyboard key, from the team's vote on the start sound (its winner,

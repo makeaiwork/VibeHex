@@ -130,7 +130,7 @@ pub(super) fn basics(ui: &Ui, p: Paint, layer: &mut Vec<El>, query: &str) -> Opt
         if let Some(row) = configure_shortcuts_row(ui, p) {
             rows.push_described(
                 tr("Desktop shortcuts"),
-                Some(tr("Change the keys your desktop gave Hex")),
+                Some(tr("Change the keys your desktop gave VibeHex")),
                 row,
             );
         }
@@ -158,7 +158,7 @@ pub(super) fn basics(ui: &Ui, p: Paint, layer: &mut Vec<El>, query: &str) -> Opt
                 super::model_import::download_failure(ui),
             ) {
                 (Some(_), _) => (
-                    tr("Hex can't listen until the speech model has downloaded").to_string(),
+                    tr("VibeHex can't listen until the speech model has downloaded").to_string(),
                     p.muted(),
                 ),
                 (None, Some(error)) => {
@@ -279,7 +279,7 @@ fn configure_shortcuts_row(ui: &Ui, p: Paint) -> Option<El> {
                 "configure-shortcuts",
                 &KEYBOARD,
                 tr("Desktop shortcuts"),
-                Some(tr("Change the keys your desktop gave Hex")),
+                Some(tr("Change the keys your desktop gave VibeHex")),
                 button(
                     p,
                     "configure-shortcuts-control",
@@ -338,7 +338,7 @@ fn pause_browser_rows(ui: &Ui, p: Paint) -> Vec<El> {
             "pause-browser-audio",
             &SPEAKER,
             tr("Screen & System Audio Recording"),
-            Some(tr("Lets Hex hear whether a tab is playing")),
+            Some(tr("Lets VibeHex hear whether a tab is playing")),
             permission_control(
                 p,
                 "pause-browser-allow",
@@ -433,7 +433,7 @@ fn microphone_rows(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<CardRow> {
     let mac = ui.platform.caps.os == super::platform::Os::Macos;
     let lid_note = |built_in: &str| match default_name {
         Some(name) => tr_named(
-            "{built_in} is off while the lid is closed, so Hex listens to {input}",
+            "{built_in} is off while the lid is closed, so VibeHex listens to {input}",
             &[("built_in", built_in), ("input", name)],
         ),
         None => tr_fill("{} is off while the lid is closed", built_in),
@@ -449,7 +449,7 @@ fn microphone_rows(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<CardRow> {
         }),
         None if devices.default_is_hex_microphone => default_name.map(|name| {
             tr_fill(
-                "Hex Microphone is the system default, so Hex listens to {}",
+                "Hex Microphone is the system default, so VibeHex listens to {}",
                 name,
             )
         }),
@@ -460,7 +460,7 @@ fn microphone_rows(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Vec<CardRow> {
             .zip(default_name)
             .map(|(bluetooth, input)| {
                 tr_named(
-                    "{bluetooth} is Bluetooth, so Hex listens to {input}",
+                    "{bluetooth} is Bluetooth, so VibeHex listens to {input}",
                     &[("bluetooth", bluetooth), ("input", input)],
                 )
             }),
@@ -931,7 +931,7 @@ pub(super) fn output(ui: &Ui, p: Paint, layer: &mut Vec<El>, query: &str) -> Vec
     {
         rows.extend_described(
             tr("Screen & System Audio Recording"),
-            Some(tr("Lets Hex hear whether a tab is playing")),
+            Some(tr("Lets VibeHex hear whether a tab is playing")),
             pause_browser_rows(ui, p).into_iter().map(CardRow::from),
         );
     }
@@ -982,7 +982,7 @@ pub(super) fn output(ui: &Ui, p: Paint, layer: &mut Vec<El>, query: &str) -> Vec
     }
     if clipboard_note_shown(ui) {
         let copy = tr(
-            "This desktop doesn't let Hex put your clipboard back after a paste. Turn on Labs › Restore clipboard on GNOME to try it.",
+            "This desktop doesn't let VibeHex put your clipboard back after a paste. Turn on Labs › Restore clipboard on GNOME to try it.",
         );
         rows.push_described(
             tr("Restore clipboard on GNOME"),
@@ -1271,12 +1271,12 @@ fn speech_engine_row(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> CardRow {
     #[cfg(target_os = "linux")]
     let vulkan_missing = false;
     let vulkan_note = (ui.live() && vulkan_missing).then(|| {
-        tr("Hex uses the CPU because the graphics driver's Vulkan is missing or too old. Update the GPU driver to use the GPU.")
+        tr("VibeHex uses the CPU because the graphics driver's Vulkan is missing or too old. Update the GPU driver to use the GPU.")
             .to_owned()
     });
     // Launched on CPU, Hex loaded no GPU driver (#1253).
     let restart_note = (ui.live() && crate::transcription::local_transcriber::gpu_after_restart())
-        .then(|| tr("Turns on when Hex restarts").to_owned());
+        .then(|| tr("Turns on when VibeHex restarts").to_owned());
     let note = vulkan_note.or(restart_note).or_else(|| failed.map(|failure| {
         tr_named(
             if failure.slow {
