@@ -366,7 +366,10 @@ then answer from this text alone.";
 /// past its own text: how to use and cite the other recordings `found`,
 /// and the block of them, numbered as the Assistant numbers its excerpts.
 pub fn linked(found: &Found, now_ms: u64) -> String {
-    format!("{LINKED}\n{}", tagged("other_recordings", found, now_ms))
+    format!(
+        "{LINKED}\n{}",
+        tagged("other_recordings", &found.excerpts, now_ms)
+    )
 }
 
 /// The prompt for `question` after `earlier` turns, oldest first. With
@@ -500,7 +503,7 @@ pub fn build(
             {
                 instructions.push_str(HEARD_WROTE);
             }
-            input.push_str(&recordings_block(recordings, now_ms));
+            input.push_str(&tagged("recordings", &recordings.excerpts, now_ms));
         }
         Reach::Releases(selection) => {
             instructions.push_str(releases::prompt::INSTRUCTIONS);
@@ -668,18 +671,14 @@ fn excerpt(article: &Article) -> String {
     )
 }
 
-/// The excerpts as the model reads them: `[n]`, what and when, the text.
-fn recordings_block(found: &Found, now_ms: u64) -> String {
-    tagged("recordings", found, now_ms)
-}
-
-/// The excerpts in a `<tag>` block.
-fn tagged(tag: &str, found: &Found, now_ms: u64) -> String {
+/// `excerpts` in a `<tag>` block, as the model reads them: `[n]`, what and
+/// when, then the text, or a transcript's lines as `[n.m]`.
+pub(super) fn tagged(tag: &str, excerpts: &[Excerpt], now_ms: u64) -> String {
     let mut block = format!("\n<{tag} now=\"{}\">\n", stamp(now_ms));
-    if found.excerpts.is_empty() {
+    if excerpts.is_empty() {
         block.push_str("Nothing in the recordings matches this question.\n");
     }
-    for excerpt in &found.excerpts {
+    for excerpt in excerpts {
         block.push_str(&format!("[{}] {}\n", excerpt.n, heading(excerpt)));
         if excerpt.lines.is_empty() {
             block.push_str(&excerpt.text);
@@ -1020,7 +1019,7 @@ mod tests {
             ],
             steps: Vec::new(),
         };
-        let block = recordings_block(&found, 0);
+        let block = tagged("recordings", &found.excerpts, 0);
         assert!(block.contains(", Notes\nApproved.\n"));
         assert!(block.contains(", Them\n[2.1] So.\n[2.2] The limit holds.\n"));
         assert!(!block.contains("So. The limit holds."));
