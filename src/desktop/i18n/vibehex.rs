@@ -5,14 +5,39 @@
 
 pub(super) mod codex;
 pub(super) mod files;
+mod naming;
 pub(super) mod russian;
 
-/// VibeHex's rows for the six-column table: its own, then Files' and Codex's.
+/// One language's strings by their English source.
+type Pairs = &'static [(&'static str, &'static str)];
+
+/// VibeHex's rows for the six-column table: its own, Files', Codex's, then
+/// Hex's strings said with VibeHex's name.
 pub(super) fn rows() -> impl Iterator<Item = &'static (&'static str, [&'static str; 6])> {
     TRANSLATIONS
         .iter()
         .chain(files::TRANSLATIONS)
         .chain(codex::TRANSLATIONS)
+        .chain(naming::TRANSLATIONS)
+}
+
+/// VibeHex's French strings.
+pub(super) fn french() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    pairs(FRENCH, naming::FRENCH)
+}
+
+/// VibeHex's Brazilian Portuguese strings.
+pub(super) fn portuguese() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    pairs(PORTUGUESE, naming::PORTUGUESE)
+}
+
+/// VibeHex's Russian strings.
+pub(super) fn russian() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    pairs(russian::TRANSLATIONS, naming::RUSSIAN)
+}
+
+fn pairs(own: Pairs, named: Pairs) -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    own.iter().chain(named)
 }
 
 /// The interface's language code (`en`, `pl`, `zh-Hant`…).
@@ -136,7 +161,7 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
 ];
 
 #[rustfmt::skip]
-pub(super) const FRENCH: &[(&str, &str)] = &[
+const FRENCH: &[(&str, &str)] = &[
     ("Clean up on your own server", "Nettoyer sur votre propre serveur"),
     ("Rewrite dictations with OpenRouter or a local server such as LM Studio or Ollama, set up in Output", "Réécrit les dictées avec OpenRouter ou un serveur local comme LM Studio ou Ollama ; à configurer dans Sortie"),
     ("AI cleanup", "Nettoyage par IA"),
@@ -436,7 +461,7 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
 ];
 
 #[rustfmt::skip]
-pub(super) const PORTUGUESE: &[(&str, &str)] = &[
+const PORTUGUESE: &[(&str, &str)] = &[
     ("Clean up on your own server", "Limpar no seu próprio servidor"),
     ("Rewrite dictations with OpenRouter or a local server such as LM Studio or Ollama, set up in Output", "Reescreve os ditados com o OpenRouter ou um servidor local como LM Studio ou Ollama; configure em Saída"),
     ("AI cleanup", "Limpeza com IA"),

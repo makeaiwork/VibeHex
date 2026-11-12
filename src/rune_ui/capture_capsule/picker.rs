@@ -911,7 +911,7 @@ impl PickerOverlay {
             app,
             act,
             PickerRole {
-                name: "Hex capture picker",
+                name: "VibeHex capture picker",
                 screen_label: FULL_SCREEN,
                 exclude_from_capture: !crate::capture_host::own_windows_recorded(),
                 prewarm: true,

@@ -46,7 +46,7 @@ Labs > Meetings switch (macOS)                       // meetings.opt-in; off by 
 │   │       └── OpenCode -> "Sends the transcript to your OpenCode model";
 │   │           Model nests under it: a searchable picker of the running
 │   │           OpenCode's models (refreshed each time it opens; no Refresh),
-│   │           "Hex picks a fast model" first (clears meetings.opencode_model
+│   │           "VibeHex picks a fast model" first (clears meetings.opencode_model
 │   │           -> the ranked fast models); a pick is used alone, no fallback.
 │   │           OpenCode missing or failing -> a notice with Check again /
 │   │           Retry, the saved model kept and shown by its ID (#1107, #1301)

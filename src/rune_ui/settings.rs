@@ -631,7 +631,7 @@ pub(super) fn error_notes(p: Paint, error: &str) -> [El; 2] {
     [
         note(
             "error-title",
-            tr("Hex could not apply this change."),
+            tr("VibeHex could not apply this change."),
             p.danger(),
         ),
         note("error", error, p.muted()),
@@ -658,7 +658,7 @@ pub(super) fn listener_card(ui: &Ui, p: Paint) -> (String, El) {
     };
     let no_model = super::general::missing_model(ui).is_some();
     let hint = match (running, ui.settings.shortcut_mode) {
-        _ if no_model => tr("Hex can't dictate until a speech model is installed").to_string(),
+        _ if no_model => tr("VibeHex can't dictate until a speech model is installed").to_string(),
         _ if !ui.records_shortcuts() => {
             tr("Ready anywhere · Use your desktop's shortcuts to dictate").to_string()
         }
@@ -667,7 +667,7 @@ pub(super) fn listener_card(ui: &Ui, p: Paint) -> (String, El) {
             &shortcut,
         ),
         (true, ShortcutMode::Hold) => tr_fill("Ready anywhere · Hold {} to dictate", &shortcut),
-        (false, _) => tr_fill("Enable Hex to dictate into any app with {}", &shortcut),
+        (false, _) => tr_fill("Enable VibeHex to dictate into any app with {}", &shortcut),
     };
     let search = format!("{status} {hint} {} {}", tr("Enable"), tr("Disable"));
     let failure = ui
@@ -779,7 +779,7 @@ pub(super) fn granted(ui: &Ui, p: Paint, target: ShortcutTarget) -> Option<(Stri
             unconfirmed: true,
             ..
         } => (
-            tr("Your desktop assigns this key itself, so Hex can't confirm it").to_string(),
+            tr("Your desktop assigns this key itself, so VibeHex can't confirm it").to_string(),
             p.muted(),
         ),
         DesktopGrantedShortcut { trigger: None, .. } => (
@@ -901,7 +901,7 @@ pub(super) fn gnome_clash_note(ui: &Ui, p: Paint, target: ShortcutTarget) -> Opt
         note(
             "gnome-clash",
             &tr_fill(
-                "GNOME uses {} itself, so it never reaches Hex. Record another shortcut, or change it in GNOME Settings › Keyboard › Keyboard Shortcuts.",
+                "GNOME uses {} itself, so it never reaches VibeHex. Record another shortcut, or change it in GNOME Settings › Keyboard › Keyboard Shortcuts.",
                 &keys,
             ),
             p.danger(),
@@ -962,7 +962,7 @@ pub(super) fn desktop_commands(ui: &Ui, p: Paint) -> El {
             p,
             "raw-dictation",
             tr("Dictate without processing"),
-            tr("Paste your words as Hex heard them, skipping every step"),
+            tr("Paste your words as VibeHex heard them, skipping every step"),
             &["hex dictation toggle --raw"],
         ),
     ];
@@ -979,7 +979,7 @@ fn gnome_shortcuts_row(ui: &Ui, p: Paint) -> El {
     let on = ui.settings.gnome_keyboard_shortcuts;
     let description = if on {
         tr(
-            "Added to GNOME Settings › Keyboard › Custom Shortcuts while Hex is enabled. GNOME runs them on the key press, so your dictation shortcut toggles dictation. Change the keys there.",
+            "Added to GNOME Settings › Keyboard › Custom Shortcuts while VibeHex is enabled. GNOME runs them on the key press, so your dictation shortcut toggles dictation. Change the keys there.",
         )
     } else {
         tr(

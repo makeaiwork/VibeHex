@@ -265,13 +265,13 @@ impl PortalBus {
                 // /proc entry, which setgid wrappers such as newgrp make unreadable.
                 let fix = match written {
                     Some(entry) => format!(
-                        "Hex wrote {}; restart xdg-desktop-portal (systemctl --user restart xdg-desktop-portal) so it reads it",
+                        "VibeHex wrote {}; restart xdg-desktop-portal (systemctl --user restart xdg-desktop-portal) so it reads it",
                         entry.display()
                     ),
-                    None => "run Hex without setuid or setgid wrappers such as newgrp".into(),
+                    None => "run VibeHex without setuid or setgid wrappers such as newgrp".into(),
                 };
                 return Err(eyre!(
-                    "the desktop portal could not identify Hex ({error}); {fix}"
+                    "the desktop portal could not identify VibeHex ({error}); {fix}"
                 ));
             }
         } else {
@@ -512,7 +512,7 @@ fn executable() -> Result<String> {
     executable
         .to_str()
         .map(str::to_owned)
-        .ok_or_else(|| eyre!("Hex's executable path is not UTF-8"))
+        .ok_or_else(|| eyre!("the VibeHex executable path is not UTF-8"))
 }
 
 fn ensure_desktop_entry() -> Result<Option<PathBuf>> {
@@ -885,7 +885,7 @@ impl Portal {
                     "allActionsForComponent",
                     &(vec![component],),
                 )
-                .wrap_err("could not list Hex's old KDE shortcuts")
+                .wrap_err("could not list the old VibeHex shortcuts in KDE")
         };
         let legacy = list(LEGACY_APP_ID)?;
         let current = list(APP_ID)?;
@@ -899,7 +899,9 @@ impl Portal {
                     "unregister",
                     &(component, action),
                 )
-                .wrap_err_with(|| format!("could not remove Hex's old KDE shortcut {action}"))?;
+                .wrap_err_with(|| {
+                    format!("could not remove the old VibeHex shortcut {action} from KDE")
+                })?;
             if removed {
                 tracing::info!(component, action, "removed an old Hex shortcut from KDE");
             }
@@ -922,7 +924,7 @@ impl Portal {
                     "shortcutKeys",
                     &(vec![APP_ID, action.as_str()],),
                 )
-                .wrap_err_with(|| format!("could not read Hex's KDE shortcut {action}"))?;
+                .wrap_err_with(|| format!("could not read the VibeHex shortcut {action} in KDE"))?;
             if keys.iter().any(|(keys,)| keys.iter().any(|key| *key != 0)) {
                 continue;
             }
@@ -935,7 +937,9 @@ impl Portal {
                     "unregister",
                     &(APP_ID, action.as_str()),
                 )
-                .wrap_err_with(|| format!("could not remove Hex's KDE shortcut {action}"))?;
+                .wrap_err_with(|| {
+                    format!("could not remove the VibeHex shortcut {action} from KDE")
+                })?;
             if removed {
                 tracing::info!(
                     action,

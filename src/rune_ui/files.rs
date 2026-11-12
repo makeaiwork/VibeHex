@@ -720,7 +720,7 @@ pub(super) fn pane(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> (Vec<El>, El) {
             ui.files.drop_rejected = false;
             if let Some(file) = files.first() {
                 ui.files.error = Some(tr_fill(
-                    "{} isn't an audio or video file Hex can read.",
+                    "{} isn't an audio or video file VibeHex can read.",
                     &file
                         .file_name()
                         .map(|name| name.to_string_lossy().into_owned())
@@ -745,7 +745,11 @@ fn day_label(day: &str) -> &str {
 fn drop_zone(ui: &Ui, p: Paint) -> El {
     let c = &p.k.c;
     let (title, ink, border) = if ui.files.drop_rejected {
-        (tr("Hex can't read this file"), p.danger(), c.danger.border)
+        (
+            tr("VibeHex can't read this file"),
+            p.danger(),
+            c.danger.border,
+        )
     } else if ui.files.drop_over {
         (tr("Drop to transcribe"), p.accent(), c.info.border)
     } else {

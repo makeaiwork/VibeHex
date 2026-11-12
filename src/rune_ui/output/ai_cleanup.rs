@@ -181,7 +181,7 @@ fn runs_on_row(p: Paint, runs_on: CleanupRunsOn) -> El {
         CleanupRunsOn::Opencode => tr("The OpenCode service running on this computer"),
         CleanupRunsOn::Openrouter => tr("Hundreds of models with one API key"),
         CleanupRunsOn::Custom => tr("Ollama, LM Studio, or any OpenAI-compatible URL"),
-        CleanupRunsOn::Local => tr("A model Hex downloads and runs itself, offline"),
+        CleanupRunsOn::Local => tr("A model VibeHex downloads and runs itself, offline"),
         CleanupRunsOn::Codex => tr("Your ChatGPT plan, through the Codex CLI on this computer"),
     };
     // The built-in engine ships in the macOS app only.
@@ -533,7 +533,7 @@ fn instructions(ui: &Ui, p: Paint) -> El {
     let edited = edit.text.trim() != saved.trim();
     let area = TextArea::new(edit)
         .placeholder(tr(
-            "Your own rules, added to Hex's prompt along with your vocabulary",
+            "Your own rules, added to the VibeHex prompt along with your vocabulary",
         ))
         .rows(4)
         // Long instructions scroll inside the field instead of stretching
@@ -572,7 +572,7 @@ fn instructions(ui: &Ui, p: Paint) -> El {
                 )
                 .child(
                     text(tr(
-                        "Your own rules, added to Hex's prompt along with your vocabulary",
+                        "Your own rules, added to the VibeHex prompt along with your vocabulary",
                     ))
                     .key("description")
                     .font(DESCRIPTION)

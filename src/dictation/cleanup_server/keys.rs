@@ -140,7 +140,7 @@ mod file {
     }
 
     pub fn set(name: &str, key: Option<&str>) -> Result<(), String> {
-        let path = super::file_path().ok_or("Hex's data folder is unavailable")?;
+        let path = super::file_path().ok_or("the VibeHex data folder is unavailable")?;
         set_at(&path, name, key)
     }
 

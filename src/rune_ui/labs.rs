@@ -443,7 +443,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
                 Feature::StopWhenCallEnds,
                 Some(&TIMER),
                 tr("Stop when the call ends"),
-                tr("Stop a recording Hex started on its own 30 s after the call app leaves the microphone and goes quiet"),
+                tr("Stop a recording VibeHex started on its own 30 s after the call app leaves the microphone and goes quiet"),
             ));
             // Only macOS's capsules know the screen to snap a drag against.
             rows.push(row(
@@ -469,7 +469,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
             Feature::MeetingFinishedEvent,
             Some(&GLOBE),
             tr("Meeting finished event"),
-            tr("Tell apps on this computer when a meeting's transcript is ready. They get only the meeting's ID, through Hex's local API"),
+            tr("Tell apps on this computer when a meeting's transcript is ready. They get only the meeting's ID, through the VibeHex local API"),
         ));
         rows.push(row(
             Feature::FollowLiveTranscript,
@@ -541,13 +541,13 @@ fn rows(ui: &Ui) -> Vec<Row> {
             Feature::CapsLockDictation,
             Some(&KEYBOARD),
             tr("Caps Lock dictation"),
-            tr("Press Caps Lock to start dictation and again to finish. Hex keeps Caps Lock off and uses its light while it records and transcribes"),
+            tr("Press Caps Lock to start dictation and again to finish. VibeHex keeps Caps Lock off and uses its light while it records and transcribes"),
         ));
         rows.push(row(
             Feature::PauseBrowser,
             Some(&GLOBE),
             tr("Also pause the browser"),
-            tr("While dictating with Pause media: YouTube and other tabs, resumed only if Hex paused them"),
+            tr("While dictating with Pause media: YouTube and other tabs, resumed only if VibeHex paused them"),
         ));
         // macOS's listener only, so Linux renders of macOS scenes leave it out.
         if cfg!(target_os = "macos") {
@@ -590,14 +590,14 @@ fn rows(ui: &Ui) -> Vec<Row> {
                 Feature::HideMenuBarIcon,
                 None,
                 tr("Hide menu bar icon"),
-                tr("Hide Hex's icon from the menu bar. Shortcuts keep working; open Hex again from Finder or Spotlight for Settings"),
+                tr("Hide the VibeHex icon from the menu bar. Shortcuts keep working; open VibeHex again from Finder or Spotlight for Settings"),
             ));
             // macOS's app menu Quit Hex closes the window instead.
             rows.push(row(
                 Feature::QuitClosesWindow,
                 None,
                 tr("⌘Q closes Settings"),
-                tr("⌘Q closes the Settings window instead of quitting Hex. Dictation keeps running; quit from the menu bar icon"),
+                tr("⌘Q closes the Settings window instead of quitting VibeHex. Dictation keeps running; quit from the menu bar icon"),
             ));
             // macOS's HUD reads the screen's notch from NSScreen.
             rows.push(row(
@@ -638,7 +638,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
             Feature::SectionKeyAlone,
             Some(&KEYBOARD),
             tr("Section key alone"),
-            tr("Use the § key, left of 1 on ISO keyboards, as a shortcut without a modifier. Hex takes § from every app while it's bound"),
+            tr("Use the § key, left of 1 on ISO keyboards, as a shortcut without a modifier. VibeHex takes § from every app while it's bound"),
         ));
         // Linux's shortcut machine reads it with the listener's options.
         rows.push(row(
@@ -769,7 +769,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
         Feature::ApiProcessing,
         None,
         tr("Process API transcripts"),
-        tr("Apps can ask Hex's local API for transcripts with Global mode's processing applied."),
+        tr("The VibeHex local API can return transcripts with Global mode's processing applied."),
     ));
     // VibeHex's labs.
     rows.push(row(

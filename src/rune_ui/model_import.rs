@@ -262,7 +262,7 @@ pub(super) fn selection_notice(ui: &Ui) -> Option<String> {
     let fallback = crate::transcription::models::definition(custom_models::fallback().model).name;
     if model.id == TranscriptionModelId::ParakeetUltra && !model.available() {
         return Some(tr_named(
-            "{model} needs Labs › Parakeet Ultra, so Hex uses {fallback} until you turn it on or choose another model",
+            "{model} needs Labs › Parakeet Ultra, so VibeHex uses {fallback} until you turn it on or choose another model",
             &[("model", model.name), ("fallback", fallback)],
         ));
     }
@@ -277,10 +277,10 @@ pub(super) fn selection_notice(ui: &Ui) -> Option<String> {
     let notice = match custom_models::status(id) {
         Status::Ready => return None,
         Status::Missing => {
-            "{model} is missing, so Hex uses {fallback} until you import it again or choose another model"
+            "{model} is missing, so VibeHex uses {fallback} until you import it again or choose another model"
         }
         Status::Changed => {
-            "{model} changed since it was added, so Hex uses {fallback} until you check it again in the speech model picker or choose another model"
+            "{model} changed since it was added, so VibeHex uses {fallback} until you check it again in the speech model picker or choose another model"
         }
     };
     Some(tr_named(notice, &[("model", name), ("fallback", fallback)]))

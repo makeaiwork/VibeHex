@@ -503,7 +503,7 @@ pub fn install() -> Result<Receiver<StatusItemAction>> {
 fn status_bar_icon(png: &[u8], accessibility_description: &str) -> Result<Retained<NSImage>> {
     let data = NSData::with_bytes(png);
     let image = NSImage::initWithData(NSImage::alloc(), &data)
-        .ok_or_else(|| eyre!("could not decode Hex status item icon"))?;
+        .ok_or_else(|| eyre!("could not decode VibeHex status item icon"))?;
     image.setSize(NSSize::new(STATUS_ICON_POINTS, STATUS_ICON_POINTS));
     image.setTemplate(true);
     image.setAccessibilityDescription(Some(&NSString::from_str(accessibility_description)));

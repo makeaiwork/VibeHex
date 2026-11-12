@@ -175,7 +175,7 @@ pub fn stage(file: &Path, version: &str) -> Result<Staged> {
 
 pub fn restart_into(staged: &Staged) -> Result<()> {
     if !staged.0.is_file() {
-        bail!("the prepared Hex update is no longer installed");
+        bail!("the prepared VibeHex update is no longer installed");
     }
     crate::linux::service::schedule_restart()
 }

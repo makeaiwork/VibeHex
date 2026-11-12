@@ -438,14 +438,14 @@ pub fn adopt_catalog(
     let metadata = fs::metadata(path)?;
     if metadata.len() != artifact.bytes {
         bail!(
-            "{} found on this computer is not the size Hex pins",
+            "{} found on this computer is not the size VibeHex pins",
             model.name
         );
     }
     let sha256 = super::models::sha256_hex(path, Some(canceled))?;
     if sha256 != artifact.sha256 {
         bail!(
-            "{} found on this computer doesn't match the checksum Hex pins",
+            "{} found on this computer doesn't match the checksum VibeHex pins",
             model.name
         );
     }

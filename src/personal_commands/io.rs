@@ -507,7 +507,7 @@ fn refuse_unless(
     Err(Exception::throw_message(
         ctx,
         &format!(
-            "Hex has not allowed this config to {action}. Allow it in Hex's Output pane; Hex asks again whenever the config changes"
+            "VibeHex has not allowed this config to {action}. Allow it in the Output pane; VibeHex asks again whenever the config changes"
         ),
     ))
 }

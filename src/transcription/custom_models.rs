@@ -503,13 +503,13 @@ pub(crate) fn profile_of(header: &GgufHeader, file_name: &str) -> Result<Profile
 
 fn profile(header: &GgufHeader, file_name: &str) -> Result<Profile> {
     let Some(architecture) = header.string("general.architecture") else {
-        bail!("it has no general.architecture, so Hex can't tell which model family it is");
+        bail!("it has no general.architecture, so VibeHex can't tell which model family it is");
     };
     if !ARCHITECTURES.iter().any(|(name, _)| *name == architecture) {
         bail!(
-            "its architecture is {architecture}, so it was made for another program. Hex runs \
+            "its architecture is {architecture}, so it was made for another program. VibeHex runs \
              only GGUF files converted with transcribe.cpp (Parakeet, Whisper, Qwen3-ASR, \
-             Cohere Transcribe, SenseVoice, or GigaAM); for a model in Hex's list, download \
+             Cohere Transcribe, SenseVoice, or GigaAM); for a model in VibeHex's list, download \
              it from the list instead"
         );
     }
@@ -525,7 +525,7 @@ fn profile(header: &GgufHeader, file_name: &str) -> Result<Profile> {
     let unsupported = header.unsupported_tensor_types();
     if !unsupported.is_empty() {
         bail!(
-            "it has {} tensors; Hex runs only F32, F16, and Q8_0 weights on Metal and Vulkan. \
+            "it has {} tensors; VibeHex runs only F32, F16, and Q8_0 weights on Metal and Vulkan. \
              Quantize it to Q8_0 with transcribe-quantize",
             unsupported.join(", ")
         );
@@ -543,7 +543,7 @@ fn profile(header: &GgufHeader, file_name: &str) -> Result<Profile> {
         }
     }
     if languages.is_empty() {
-        bail!("its general.languages names no language Hex knows");
+        bail!("its general.languages names no language VibeHex knows");
     }
     Ok(Profile {
         name: header
@@ -1307,6 +1307,6 @@ mod tests {
             &[],
             &[("a", 0, 4)],
         );
-        assert!(reason(no_languages).contains("no language Hex knows"));
+        assert!(reason(no_languages).contains("no language VibeHex knows"));
     }
 }

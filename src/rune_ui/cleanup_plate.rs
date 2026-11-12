@@ -73,7 +73,7 @@ fn placement(spot: Spot) -> OverlayPlacement {
 /// hides the HUD meanwhile.
 pub(crate) fn install<S: 'static>(app: &mut rune::App<S>, place: super::live_text::Place) {
     let spec = OverlaySpec {
-        name: "Hex cleanup progress",
+        name: "VibeHex cleanup progress",
         size: SIZE,
         // Placed for real each time it appears.
         edge: ScreenEdge::Top,

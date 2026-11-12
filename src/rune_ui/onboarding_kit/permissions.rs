@@ -97,7 +97,7 @@ pub(super) fn page(p: Paint, s: &Onboard) -> El {
     let head = heading(
         p,
         s.motion,
-        "Let Hex hear you and type for you",
+        "Let VibeHex hear you and type for you",
         "macOS asks once. You can change these any time in System Settings.",
     );
 
@@ -152,11 +152,11 @@ fn live_page(p: Paint, live: &Live, motion: Motion) -> El {
         ItemStatus::Denied | ItemStatus::Waiting if windows => {
             tr("Turn on “Let desktop apps access your microphone” in Windows Settings.")
         }
-        ItemStatus::Denied => tr("Switch on Hex in System Settings"),
+        ItemStatus::Denied => tr("Switch on VibeHex in System Settings"),
         _ if live.release_microphone => tr("Opens only while you dictate"),
         _ if windows => tr("Ready the moment you press the shortcut"),
         _ => tr(
-            "Ready the moment you press the shortcut. macOS shows the mic in use while Hex runs; you can change that in Settings",
+            "Ready the moment you press the shortcut. macOS shows the mic in use while VibeHex runs; you can change that in Settings",
         ),
     };
     let mut card = col()
@@ -182,9 +182,9 @@ fn live_page(p: Paint, live: &Live, motion: Motion) -> El {
         ));
     if live.accessibility_row {
         let ax_desc = match live.accessibility {
-            ItemStatus::Stale => tr("An older Hex entry can keep this off"),
-            ItemStatus::Waiting => tr("Switch on Hex in System Settings"),
-            ItemStatus::Restart => tr("Turns on when Hex restarts"),
+            ItemStatus::Stale => tr("An older VibeHex entry can keep this off"),
+            ItemStatus::Waiting => tr("Switch on VibeHex in System Settings"),
+            ItemStatus::Restart => tr("Turns on when VibeHex restarts"),
             _ => tr("Notices the shortcut and pastes your words in any app"),
         };
         card = card.child(separator(p, "sep0")).child(perm_row(
@@ -204,7 +204,7 @@ fn live_page(p: Paint, live: &Live, motion: Motion) -> El {
         ));
     }
     let action = if live.restart {
-        Button::new(tr("Restart Hex"))
+        Button::new(tr("Restart VibeHex"))
             .variant(ButtonVariant::Contrast)
             .on_press(super::live::restart_hex)
             .build_push(k)
@@ -216,18 +216,18 @@ fn live_page(p: Paint, live: &Live, motion: Motion) -> El {
     };
     let (title, lead) = if windows {
         (
-            tr("Let Hex hear you"),
+            tr("Let VibeHex hear you"),
             tr("Windows has the microphone turned off for desktop apps."),
         )
     } else {
         (
-            tr("Let Hex hear you and type for you"),
+            tr("Let VibeHex hear you and type for you"),
             tr("macOS asks once. You can change these any time in System Settings."),
         )
     };
     let relaunch = live.relaunch_failed.then(|| {
         text(tr(
-            "Quit and reopen Hex to finish setup. macOS applies some permissions only after a restart.",
+            "Quit and reopen VibeHex to finish setup. macOS applies some permissions only after a restart.",
         ))
         .key("relaunch-notice")
         .font(LEAD)
@@ -253,9 +253,9 @@ fn live_page(p: Paint, live: &Live, motion: Motion) -> El {
 fn paste_page(p: Paint, paste: PasteAccess, motion: Motion) -> El {
     let k = p.k;
     let desc = if paste == PasteAccess::Declined {
-        tr("Without it, Hex copies your words and you press Ctrl+V.")
+        tr("Without it, VibeHex copies your words and you press Ctrl+V.")
     } else {
-        tr("Hex only sends the paste keystroke. It never sees your screen.")
+        tr("VibeHex only sends the paste keystroke. It never sees your screen.")
     };
     let allow = |label: &str, primary: bool| {
         Button::new(label)
@@ -309,13 +309,13 @@ fn paste_page(p: Paint, paste: PasteAccess, motion: Motion) -> El {
                 .gap(8.0)
                 .items_center()
                 .child(
-                    text(tr("Let Hex paste for you"))
+                    text(tr("Let VibeHex paste for you"))
                         .key("title")
                         .font(title_font(p))
                         .color(p.text()),
                 )
                 .child(
-                    text(tr("Hex needs this to type your words into your apps. Your desktop asks once, and may call it remote desktop."))
+                    text(tr("VibeHex needs this to type your words into your apps. Your desktop asks once, and may call it remote desktop."))
                         .key("lead")
                         .font(LEAD)
                         .color(p.muted())
@@ -418,7 +418,7 @@ fn stage(p: Paint, e: f64, mic: PermState, ax: PermState, reduced: bool) -> El {
 fn setup_card(p: Paint, mic: PermState, ax: PermState, tray_open: bool, escaped: bool) -> El {
     let k = p.k;
     let ax_desc = if ax == PermState::Asking {
-        "Drag Hex into System Settings below"
+        "Drag VibeHex into System Settings below"
     } else {
         "Notices the shortcut and pastes your words in any app"
     };
@@ -616,7 +616,7 @@ fn microphone_prompt(p: Paint, pressed: bool) -> El {
         .border(p.hair, k.c.border_weak)
         .child(badge)
         .child(
-            text("“Hex” would like to access the microphone.")
+            text("“VibeHex” would like to access the microphone.")
                 .key("title")
                 .font(TextStyle {
                     weight: if k.dark { 560.0 } else { 600.0 },
@@ -628,7 +628,7 @@ fn microphone_prompt(p: Paint, pressed: bool) -> El {
                 .w(PROMPT_W - 36.0),
         )
         .child(
-            text("Hex listens only while you hold your shortcut.")
+            text("VibeHex listens only while you hold your shortcut.")
                 .key("body")
                 .font(k.ty.small)
                 .color(p.muted())
@@ -729,8 +729,14 @@ fn settings_window(p: Paint, e: f64, reduced: bool) -> El {
         );
         if landed {
             list = list.child(
-                settings_app_row(p, "hex-landed", "Hex", hex_app_icon(p), e >= SWITCH_ON)
-                    .transition(Transition::opacity()),
+                settings_app_row(
+                    p,
+                    "hex-landed",
+                    crate::app_paths::PRODUCT_NAME,
+                    hex_app_icon(p),
+                    e >= SWITCH_ON,
+                )
+                .transition(Transition::opacity()),
             );
         } else {
             // Subtle drop-target highlight waiting to catch the dragged Hex row.
@@ -795,7 +801,7 @@ fn escaping_guide_and_drag(p: Paint, e: f64, reduced: bool) -> El {
     let tile_w = LIST_W;
 
     let instruction = (esc_u > 0.35).then(|| {
-        text("↑  Drag Hex into the Accessibility list above")
+        text("↑  Drag VibeHex into the Accessibility list above")
             .key("guide-instruction")
             .font(k.ty.small_medium)
             .color(p.text())
@@ -827,7 +833,7 @@ fn escaping_guide_and_drag(p: Paint, e: f64, reduced: bool) -> El {
             .offset_motion(Anim::INSTANT)
             .child(hex_app_icon(p))
             .child(
-                text("Hex")
+                text(crate::app_paths::PRODUCT_NAME)
                     .key("name")
                     .font(k.ty.small_medium)
                     .color(p.text()),
@@ -916,7 +922,7 @@ fn dragged_row(p: Paint, u: f32) -> El {
         .offset_motion(Anim::INSTANT)
         .child(hex_app_icon(p))
         .child(
-            text("Hex")
+            text(crate::app_paths::PRODUCT_NAME)
                 .key("name")
                 .font(k.ty.small_medium)
                 .color(p.text()),

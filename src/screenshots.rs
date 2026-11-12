@@ -49,7 +49,7 @@ pub(crate) fn install<S: 'static>(app: &mut rune::App<S>) {
         app,
         picked,
         PickerRole {
-            name: "Hex screenshot picker",
+            name: "VibeHex screenshot picker",
             screen_label: crate::desktop::i18n::tr("Full screen · Click to capture"),
             exclude_from_capture: true,
             prewarm: crate::labs::screenshots(),

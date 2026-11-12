@@ -102,9 +102,15 @@ missing capability omits the row instead of imitating it.
 
 - Sentence case for every label, button, title, and section label:
   "Open settings", "Stop & transcribe", "Permissions needed". Proper nouns keep
-  their capitals: Hex, OpenCode, Apple Intelligence, Finder, Zoom.
-- One product name: "Hex", in copy, comments, and docs alike. `HEX_*`
-  environment variables are identifiers, not copy.
+  their capitals: VibeHex, OpenCode, Apple Intelligence, Finder, Zoom.
+- One product name where the user reads it: "VibeHex"
+  (`app_paths::PRODUCT_NAME`). A translated string that names the app says
+  VibeHex and has its rows in `desktop/i18n/vibehex/naming.rs`; a test there
+  fails on a window string that says bare "Hex". What keeps the name Hex
+  (the `hex` command, Hex Microphone, the Hex Meetings folder, the credit to
+  Hex) is listed in [features/about.md](features/about.md). Comments and
+  internal docs still say Hex, and `HEX_*` environment variables are
+  identifiers, not copy.
 - Use "…" (one character) for ellipses, for both progress ("Saving…") and for
   buttons that open a further choice ("Choose a file…").
 - Row descriptions are one phrase with no closing period ("Hold to dictate,

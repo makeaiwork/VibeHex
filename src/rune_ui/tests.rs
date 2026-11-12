@@ -242,7 +242,7 @@ fn an_unconfirmed_portal_shortcut_is_not_called_refused() {
     assert!(
         shown
             .iter()
-            .any(|text| text == "Your desktop assigns this key itself, so Hex can't confirm it")
+            .any(|text| text == "Your desktop assigns this key itself, so VibeHex can't confirm it")
     );
     assert!(
         !shown
@@ -2451,7 +2451,7 @@ fn onboarding_downloads_the_model_through_the_service() {
             ..
         }]
     ));
-    assert!(texts(&rt).contains(&"Setting up Hex".to_owned()));
+    assert!(texts(&rt).contains(&"Setting up VibeHex".to_owned()));
     // The service finishes: the model is installed and the practice opens.
     rt.state.picker.installed = Some(vec![TranscriptionModelId::ParakeetUnifiedEnglish]);
     settle(&mut rt);
@@ -2484,7 +2484,10 @@ fn a_found_model_moves_on_without_a_download_and_back_returns_to_it() {
         shown.contains(&"Choose a speech model".to_owned()),
         "{shown:?}"
     );
-    assert!(!shown.contains(&"Setting up Hex".to_owned()), "{shown:?}");
+    assert!(
+        !shown.contains(&"Setting up VibeHex".to_owned()),
+        "{shown:?}"
+    );
     assert!(
         shown.contains(&"Parakeet Unified English".to_owned()),
         "the rows stay"
@@ -2494,7 +2497,7 @@ fn a_found_model_moves_on_without_a_download_and_back_returns_to_it() {
     settle(&mut rt);
     let s = rt.state.first_run.as_ref().unwrap();
     assert!(s.had_model, "a model here needs no download pill");
-    assert!(!texts(&rt).contains(&"Setting up Hex".to_owned()));
+    assert!(!texts(&rt).contains(&"Setting up VibeHex".to_owned()));
     // Back returns to the list to change the pick.
     tap(&mut rt, "back");
     assert!(rt.find("model-list").is_some());
@@ -2544,7 +2547,7 @@ fn with_no_model_found_onboarding_downloads_the_recommended_model_with_no_list()
         let shown = texts(&rt);
         assert!(rt.find("model-list").is_none(), "{scene}: no model list");
         assert!(
-            shown.contains(&"Setting up Hex".to_owned()),
+            shown.contains(&"Setting up VibeHex".to_owned()),
             "{scene}: {shown:?}"
         );
         assert!(
@@ -2608,7 +2611,7 @@ fn the_microphone_field_names_the_input_in_use() {
 
 #[test]
 fn a_closed_lid_names_the_input_standing_in_for_the_built_in_microphone() {
-    let note = "MacBook Pro Microphone is off while the lid is closed, so Hex listens to Studio Display Microphone";
+    let note = "MacBook Pro Microphone is off while the lid is closed, so VibeHex listens to Studio Display Microphone";
     let field = microphone_value;
     let mut rt = runtime("mac-microphone-lid-closed", true, TALL_SIZE);
     assert_eq!(
@@ -2635,7 +2638,7 @@ fn a_closed_lid_names_the_input_standing_in_for_the_built_in_microphone() {
 
 #[test]
 fn a_passed_over_bluetooth_default_names_the_input_in_use() {
-    let note = "Kit Pods is Bluetooth, so Hex listens to MacBook Pro Microphone";
+    let note = "Kit Pods is Bluetooth, so VibeHex listens to MacBook Pro Microphone";
     let mut rt = runtime("mac-microphone-bluetooth", true, TALL_SIZE);
     assert_eq!(
         a11y_value(&rt, "microphone-control").as_deref(),
