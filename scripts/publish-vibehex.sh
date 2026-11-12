@@ -19,7 +19,7 @@ set -eu
 #
 #   HEX_NOTARY_PROFILE=<profile> scripts/publish-vibehex.sh [prepare|upload] 3.3.0-vibe.2
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-repo=${VIBEHEX_REPO:-makeaiwork/hex}
+repo=${VIBEHEX_REPO:-makeaiwork/VibeHex}
 channel=stable
 step=all
 case "${1:-}" in

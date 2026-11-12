@@ -13,7 +13,7 @@ use crate::desktop::i18n::tr;
 /// The developer's Telegram.
 pub(super) const TELEGRAM_URL: &str = "https://t.me/DenisKey";
 /// The fork's source.
-pub(super) const SOURCE_URL: &str = "https://github.com/makeaiwork/hex";
+pub(super) const SOURCE_URL: &str = "https://github.com/makeaiwork/VibeHex";
 
 /// Opens `url` in its app (the browser, Mail, Telegram); the window shows
 /// why it couldn't.
@@ -91,7 +91,7 @@ fn fork_card(p: Paint) -> El {
                 "source",
                 &SOURCE,
                 tr("Source code"),
-                Some("github.com/makeaiwork/hex"),
+                Some("github.com/makeaiwork/VibeHex"),
                 open_source,
             ),
         ],
