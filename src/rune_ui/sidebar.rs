@@ -842,7 +842,7 @@ fn quit_item(p: Paint) -> El {
     row()
         .key("quit")
         .role("button")
-        .label(tr("Quit Hex"))
+        .label(tr("Quit VibeHex"))
         .h(NAV_ROW_HEIGHT)
         .px(6.0)
         .mt(NAV_ROW_GAP)
@@ -854,7 +854,7 @@ fn quit_item(p: Paint) -> El {
         .focusable(true)
         .focus_ring(2.0, -2.0, c.border_focus)
         .child(
-            text(tr("Quit Hex"))
+            text(tr("Quit VibeHex"))
                 .key("label")
                 .font(p.k.ty.ui)
                 .color(c.text_muted)

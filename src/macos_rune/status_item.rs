@@ -353,7 +353,8 @@ pub fn install() -> Result<Receiver<StatusItemAction>> {
         MainThreadMarker::new().ok_or_else(|| eyre!("status item requires the main thread"))?;
     let (actions, receiver) = sync_channel(8);
     let target = StatusItemTarget::new(actions, mtm);
-    let menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str("Hex"));
+    let name = crate::app_paths::app_name();
+    let menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str(name));
     let meeting_sections_menu =
         NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str("Copy Section"));
     let recent_menu = NSMenu::initWithTitle(
@@ -451,8 +452,11 @@ pub fn install() -> Result<Receiver<StatusItemAction>> {
     let button = item
         .button(mtm)
         .ok_or_else(|| eyre!("status item button is unavailable"))?;
-    let symbol = status_bar_icon(IDLE_ICON_PNG, "Hex")?;
-    let recording_symbol = status_bar_icon(RECORDING_ICON_PNG, "Hex is recording a meeting")?;
+    let symbol = status_bar_icon(IDLE_ICON_PNG, name)?;
+    let recording_symbol = status_bar_icon(
+        RECORDING_ICON_PNG,
+        &format!("{name} is recording a meeting"),
+    )?;
     button.setImage(Some(&symbol));
     // SAFETY: the target answers `menuNeedsUpdate:` and outlives the menu's
     // weak delegate reference (both live in STATUS_ITEM for the app's life).

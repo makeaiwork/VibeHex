@@ -1399,7 +1399,7 @@ Menu bar and Settings                    // maintenance
 │   ├── Paste Last Dictation ⌥⇧V (saved binding), Copy Recent Dictation ▸ (Labs),
 │   │   Copy Last Meeting Transcript (Meetings on), Restore Last Capture (Labs ›
 │   │   Screenshots on; dimmed until a capture card was closed), Speech Model ▸
-│   ├── Settings… ⌘, · Check for Updates… · Quit Hex ⌘Q
+│   ├── Settings… ⌘, · Check for Updates… · Quit VibeHex ⌘Q (the name: features/about.md)
 │   │   └── Labs > ⌘Q closes Settings (off, #1473) -> ⌘Q closes the Settings
 │   │       window instead; dictation keeps running, the menu bar icon quits (labs.md)
 │   ├── No Meetings… (Settings… opens the same window) and no Show Hex in
@@ -1717,7 +1717,7 @@ Linux beta                               // not macOS feature parity
 │   // checked on apollo with a planted record (RADV); a real i915 hang not reproduced
 │   └── CPU or a model that cannot stream -> Transcribe the whole clip after release
 ├── hex / hex app -> Window in the same process; closing it leaves Hex running
-│   └── Ctrl+Q in the window or Quit Hex in the sidebar -> quits Hex (#808)
+│   └── Ctrl+Q in the window or Quit VibeHex in the sidebar -> quits Hex (#808)
 │       // check: ctrl_q_quits_hex (fixture; not run on a GNOME session)
 ├── Recording sounds -> Shortcut press / capture stop
 ├── Shortcuts -> One state machine, three sources        // linux.shortcuts
@@ -2018,9 +2018,9 @@ Windows beta                             // x64 (Vulkan GPU) and ARM64 (CPU)
 │   └── Theme read when the tray is created; a later switch applies at the next launch
 ├── Tray menu (tray_menu, shared with Linux)    // maintain.tray
 │   ├── Recording / Transcribing… status line and tooltip while the listener works
-│   ├── Show Hex · Paste last dictation (refocuses the app the menu covered)
+│   ├── Show VibeHex · Paste last dictation (refocuses the app the menu covered)
 │   ├── Speech model: downloaded models, ✓ on the selected one; none while one prepares
-│   └── Update item · Enable / Disable Hex · Quit Hex
+│   └── Update item · Enable / Disable VibeHex · Quit VibeHex
 ├── Single-modifier shortcut -> Left / Either / Right side picker, as macOS
 ├── Recordable keys -> letters, digits, F1–F24, named keys, mouse buttons (#794)
 │   ├── Punctuation -> saved by virtual key (`oem 1`…`oem 102`), so a layout

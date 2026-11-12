@@ -293,4 +293,11 @@ pub(in super::super) const TRANSLATIONS: &[(&str, &str)] = &[
     ("Ask about this meeting", "Спросите об этой встрече"),
     ("Writing notes…", "Пишем заметки…"),
     ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Использует службу OpenCode, запущенную в вашем дистрибутиве WSL по умолчанию, для ИИ-очистки, сводок встреч и их списка моделей, а также «Отправить в» в Annotate. Её поиск может запустить WSL."),
+    ("Show VibeHex", "Показать VibeHex"),
+    ("Enable / Disable VibeHex", "Включить / выключить VibeHex"),
+    ("Quit VibeHex", "Выйти из VibeHex"),
+    ("VibeHex Dictation", "Диктовка VibeHex"),
+    ("VibeHex Dictation: recording", "Диктовка VibeHex: запись"),
+    ("VibeHex Dictation: transcribing", "Диктовка VibeHex: распознавание"),
+    ("VibeHex Dictation: update available", "Диктовка VibeHex: доступно обновление"),
 ];

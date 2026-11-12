@@ -6,8 +6,8 @@ use rune::{El, row, text};
 
 use super::controls::Paint;
 
-/// The fork's name, shown beside the logo.
-pub(super) const NAME: &str = "VibeHex";
+/// The fork's name, shown beside the logo and as the window's title.
+pub(super) const NAME: &str = crate::app_paths::PRODUCT_NAME;
 
 /// Hex's app icon, the 128 px one Linux installs.
 static LOGO_PNG: &[u8] =

@@ -126,6 +126,13 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("No Labs features match.", ["Brak pasujących funkcji Labs.", "没有匹配的 Labs 功能。", "一致する Labs 機能はありません。", "Keine passenden Labs-Funktionen.", "No hay funciones de Labs que coincidan.", "Відповідних функцій Labs немає."]),
     ("Writing notes…", ["Tworzenie notatek…", "正在撰写笔记…", "ノートを作成中…", "Notizen werden geschrieben…", "Escribiendo notas…", "Створення нотаток…"]),
     ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", ["Używaj usługi OpenCode działającej w domyślnej dystrybucji WSL do porządkowania przez AI, podsumowań spotkań i ich listy modeli oraz funkcji „Wyślij do” w Adnotacjach. Szukanie jej może uruchomić WSL.", "使用运行在默认 WSL 发行版中的 OpenCode 服务，用于 AI 整理、会议摘要及其模型列表，以及 Annotate 的“发送到”。查找它可能会启动 WSL。", "既定の WSL ディストリビューションで動作している OpenCode サービスを、AI による整え、会議の要約とそのモデル一覧、Annotate の「送信先」に使います。検索すると WSL が起動することがあります。", "Verwendet einen OpenCode-Dienst in deiner Standard-WSL-Distribution für KI-Bereinigung, Besprechungszusammenfassungen und deren Modellliste sowie „Senden an“ in Annotate. Die Suche danach kann WSL starten.", "Usa un servicio de OpenCode que se ejecuta en tu distribución WSL predeterminada para la limpieza con IA, los resúmenes de reuniones y su lista de modelos, y «Enviar a» de Annotate. Buscarlo puede iniciar WSL.", "Використовує службу OpenCode, що працює в типовому дистрибутиві WSL, для упорядкування ШІ, підсумків зустрічей і їхнього списку моделей, а також «Надіслати до» в Annotate. Її пошук може запустити WSL."]),
+    ("Show VibeHex", ["Pokaż VibeHex", "显示 VibeHex", "VibeHex を表示", "VibeHex anzeigen", "Mostrar VibeHex", "Показати VibeHex"]),
+    ("Enable / Disable VibeHex", ["Włącz / wyłącz VibeHex", "启用 / 停用 VibeHex", "VibeHex を有効 / 無効にする", "VibeHex aktivieren / deaktivieren", "Activar / desactivar VibeHex", "Увімкнути / вимкнути VibeHex"]),
+    ("Quit VibeHex", ["Zakończ VibeHex", "退出 VibeHex", "VibeHex を終了", "VibeHex beenden", "Salir de VibeHex", "Вийти з VibeHex"]),
+    ("VibeHex Dictation", ["Dyktowanie VibeHex", "VibeHex 听写", "VibeHex 音声入力", "VibeHex-Diktat", "Dictado de VibeHex", "Диктування VibeHex"]),
+    ("VibeHex Dictation: recording", ["Dyktowanie VibeHex: nagrywanie", "VibeHex 听写：录音中", "VibeHex 音声入力: 録音中", "VibeHex-Diktat: Aufnahme", "Dictado de VibeHex: grabando", "Диктування VibeHex: запис"]),
+    ("VibeHex Dictation: transcribing", ["Dyktowanie VibeHex: transkrypcja", "VibeHex 听写：转写中", "VibeHex 音声入力: 文字起こし中", "VibeHex-Diktat: transkribiert", "Dictado de VibeHex: transcribiendo", "Диктування VibeHex: розпізнавання"]),
+    ("VibeHex Dictation: update available", ["Dyktowanie VibeHex: dostępna aktualizacja", "VibeHex 听写：有可用更新", "VibeHex 音声入力: アップデートがあります", "VibeHex-Diktat: Update verfügbar", "Dictado de VibeHex: actualización disponible", "Диктування VibeHex: доступне оновлення"]),
 ];
 
 #[rustfmt::skip]
@@ -419,6 +426,13 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("How long a dictation waits for Codex before it pastes as heard", "Combien de temps une dictée attend Codex avant d’être collée telle qu’entendue"),
     ("Writing notes…", "Rédaction des notes…"),
     ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Utilise un service OpenCode exécuté dans votre distribution WSL par défaut pour le nettoyage par IA, les résumés de réunions et leur liste de modèles, et « Envoyer à » d’Annotate. Sa recherche peut démarrer WSL."),
+    ("Show VibeHex", "Afficher VibeHex"),
+    ("Enable / Disable VibeHex", "Activer / désactiver VibeHex"),
+    ("Quit VibeHex", "Quitter VibeHex"),
+    ("VibeHex Dictation", "Dictée VibeHex"),
+    ("VibeHex Dictation: recording", "Dictée VibeHex : enregistrement"),
+    ("VibeHex Dictation: transcribing", "Dictée VibeHex : transcription"),
+    ("VibeHex Dictation: update available", "Dictée VibeHex : mise à jour disponible"),
 ];
 
 #[rustfmt::skip]
@@ -712,4 +726,11 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("How long a dictation waits for Codex before it pastes as heard", "Quanto tempo um ditado espera o Codex antes de ser colado como foi ouvido"),
     ("Writing notes…", "Escrevendo notas…"),
     ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Usa um serviço do OpenCode rodando na sua distribuição WSL padrão para a limpeza com IA, os resumos de reuniões e a lista de modelos deles, e o “Enviar para” do Annotate. Procurá-lo pode iniciar o WSL."),
+    ("Show VibeHex", "Mostrar o VibeHex"),
+    ("Enable / Disable VibeHex", "Ativar / desativar o VibeHex"),
+    ("Quit VibeHex", "Sair do VibeHex"),
+    ("VibeHex Dictation", "Ditado do VibeHex"),
+    ("VibeHex Dictation: recording", "Ditado do VibeHex: gravando"),
+    ("VibeHex Dictation: transcribing", "Ditado do VibeHex: transcrevendo"),
+    ("VibeHex Dictation: update available", "Ditado do VibeHex: atualização disponível"),
 ];
