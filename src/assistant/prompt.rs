@@ -9,6 +9,7 @@
 
 use super::changes::{self, Refused, catalog};
 use super::guide::{self, Article};
+use super::intent;
 use super::recordings::{Excerpt, Found, Kind, cite};
 use super::releases;
 use super::retrieve;
@@ -64,6 +65,8 @@ pub struct Prompt {
     /// stage shows them as the steps an answer took.
     #[cfg_attr(not(test), allow(dead_code))]
     pub articles: Vec<&'static str>,
+    /// It carries Vocabulary entries: personal, so no web search.
+    pub vocabulary: bool,
 }
 
 const INSTRUCTIONS: &str = "You are Assistant, the help built into VibeHex, a dictation app \
@@ -140,7 +143,20 @@ per term in one block, after your answer, before the Sources line:
 
 - `term` spelled as it should be written; `sounds_like`: up to 5 ways a transcript gets it \
 wrong, in the language they speak. At most 8 terms, only ones the question is about.
-- You never see their vocabulary: the app leaves out a term it has.";
+- You see only the Vocabulary entries this question names, in <vocabulary> when it is there \
+(with how many there are); the app leaves out a term it has.";
+
+/// A question about what cleanup or recognition did to their words, with
+/// their instructions and Vocabulary entries to go by.
+const DIAGNOSE: &str = "
+
+The question is about what dictation did to their words. <cleanup_instructions> holds their \
+cleanup instructions and replacements when the catalog carries it, and <vocabulary> the \
+Vocabulary entries the conversation names. Find the cause from them: an entry whose term or \
+sounds-like spellings catch the word (\"AI\" listed as a spelling of \"AI cleanup\" writes \
+AI cleanup whenever they say AI), a replacement, a line of the instructions, or else the \
+speech model. Name it and how to fix it; when it is the instructions, offer the fix as a card \
+for the instructions key.";
 
 /// With the person's settings sent: answers for them, not for anyone.
 const PERSONAL: &str = "
@@ -329,6 +345,26 @@ pub fn build(
     for article in &found {
         input.push_str(&excerpt(article));
     }
+    // A question about what cleanup or recognition does to their words
+    // (or the turn before it) reads their instructions and the Vocabulary
+    // entries it names; so does one the cleanup or Vocabulary articles
+    // answer.
+    let wants = std::iter::once(question)
+        .chain(earlier.iter().rev().take(2).map(|turn| turn.question))
+        .map(intent::cleanup::wants)
+        .fold(
+            intent::cleanup::Wants::default(),
+            intent::cleanup::Wants::or,
+        )
+        .or(intent::cleanup::Wants {
+            instructions: found
+                .iter()
+                .any(|article| article.id == "topics/output-and-instructions"),
+            vocabulary: found.iter().any(|article| {
+                article.id == "topics/vocabulary" || article.id.starts_with("labs/vocabulary")
+            }),
+        });
+    let mut vocabulary = false;
     let mut instructions = INSTRUCTIONS.to_owned();
     instructions.push_str(&default_language(changes.map(|context| &context.settings)));
     if *stage == Stage::Ask {
@@ -366,9 +402,7 @@ pub fn build(
                 .chain(released)
                 .collect(),
             send: context.send,
-            instructions: found
-                .iter()
-                .any(|article| article.id == "topics/output-and-instructions"),
+            instructions: wants.instructions,
         };
         input.push('\n');
         input.push_str(&catalog::section(
@@ -376,6 +410,15 @@ pub fn build(
             &reading,
             &context.state,
         ));
+        if context.send && wants.vocabulary && !plan {
+            let mut texts = vec![question];
+            for turn in earlier.iter().rev().take(2) {
+                texts.extend([turn.question, turn.answer]);
+            }
+            input.push_str(&super::personal::vocabulary(&context.settings, &texts));
+            vocabulary = true;
+            instructions.push_str(DIAGNOSE);
+        }
     }
     match reach {
         Reach::Guide => {}
@@ -417,6 +460,7 @@ pub fn build(
         instructions,
         input,
         articles: found.iter().map(|article| article.id).collect(),
+        vocabulary,
     }
 }
 
@@ -443,6 +487,7 @@ pub fn repair(prompt: &Prompt, reply: &str, refused: &[Refused]) -> Prompt {
         instructions: format!("{}{REPAIR}", prompt.instructions),
         input,
         articles: prompt.articles.clone(),
+        vocabulary: prompt.vocabulary,
     }
 }
 
@@ -475,6 +520,7 @@ pub fn rewrite(prompt: &Prompt, reply: &str, already: &[String], refused: &[Refu
         instructions: format!("{}{REWRITE}", prompt.instructions),
         input,
         articles: prompt.articles.clone(),
+        vocabulary: prompt.vocabulary,
     }
 }
 
@@ -931,6 +977,81 @@ mod tests {
             &Stage::None,
         );
         assert!(!unsent.instructions.contains("Answer for them"));
+    }
+
+    /// The owner's question, in Russian, about cleanup writing "AI cleanup"
+    /// for "AI": the prompt carries their instructions, every mode's, and
+    /// the Vocabulary entries the words name, and says how to find the
+    /// cause. With settings not sent, none of it, and where to allow it.
+    #[test]
+    fn a_question_about_cleanup_reads_the_instructions_and_named_terms() {
+        let mut sent = context(true);
+        sent.settings
+            .dictation_processing
+            .default_mode
+            .post_processing
+            .prompt = "Fix punctuation. Keep tech terms in English.".into();
+        sent.settings.vocabulary = vec![
+            crate::dictation::vocabulary::VocabularyEntry {
+                term: "AI cleanup".into(),
+                sounds_like: vec!["эй ай клинап".into(), "AI".into()],
+            },
+            crate::dictation::vocabulary::VocabularyEntry {
+                term: "Kubernetes".into(),
+                sounds_like: vec!["кубер".into()],
+            },
+        ];
+        let question = "можешь проверить, в промпте есть ли какие-то штуки, которые могли привести к этому, для AI cleanup";
+        let earlier = [Turn {
+            question: "у меня бывает, продиктовал слово, и оно распозналось как часть, например AI cleanup. Если я просто скажу AI, он может AI cleanup вставить",
+            answer: "Без записи в словаре точную причину определить нельзя.",
+            changes: "",
+        }];
+        let prompt = build(
+            question,
+            &earlier,
+            Room::Large,
+            Reach::Guide,
+            Some(&sent),
+            &Stage::None,
+        );
+        assert!(prompt.input.contains("<cleanup_instructions>"));
+        assert!(
+            prompt
+                .input
+                .contains("Fix punctuation. Keep tech terms in English.")
+        );
+        assert!(prompt.input.contains("<vocabulary total=\"2\">"));
+        assert!(
+            prompt
+                .input
+                .contains("AI cleanup (sounds like: эй ай клинап, AI)")
+        );
+        assert!(!prompt.input.contains("Kubernetes (sounds like"));
+        assert!(prompt.vocabulary);
+        assert!(prompt.instructions.contains("Find the cause from them"));
+        assert!(
+            !prompt
+                .instructions
+                .contains("You never see their vocabulary")
+        );
+
+        let unsent = build(
+            question,
+            &earlier,
+            Room::Large,
+            Reach::Guide,
+            Some(&context(false)),
+            &Stage::None,
+        );
+        assert!(!unsent.input.contains("<cleanup_instructions>"));
+        assert!(!unsent.input.contains("<vocabulary"));
+        assert!(!unsent.vocabulary);
+        assert!(
+            unsent
+                .input
+                .contains("**Assistant › Settings › Your current settings**")
+        );
     }
 
     /// Dictating Russian in an English window: the model is told Russian is

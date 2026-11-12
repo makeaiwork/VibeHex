@@ -15,14 +15,12 @@ release yesterday?".
 
 ## Its language
 
-Assistant speaks the language you dictate in: with a specific language set for
-speech recognition (General › Speech model), its example questions, setup's
-questions and chips, and the buttons on its cards are in that language, and so
-are its answers until you write to it in another. With recognition on Auto it
-follows the window's language. Write in another language and it answers in
-that one. Places in the window it names keep the window's words. For a
-language VibeHex has no translation for, such as Italian, its own buttons
-stay in English, and its answers are still in your language.
+Assistant speaks the language you dictate in: with a specific speech
+recognition language, its example questions, setup's questions and chips,
+card buttons, and answers are in it; on Auto, the window's language. Write in
+another language and it answers in that one. Places it names keep the
+window's words. Without a translation (Italian, say) its buttons stay
+English.
 
 ## Changes it suggests
 
@@ -44,8 +42,13 @@ For the AI cleanup instructions, the card shows the lines that change.
 
 Names your dictation gets wrong come as one **Add 3 terms** card: each term
 with what it sounds like, a checkbox, and **Edit** to fix the spelling or the
-spellings. Terms already in your Vocabulary are left out; Assistant never
-sees your vocabulary. Undo takes out exactly the terms it added.
+spellings. Terms already in your Vocabulary are left out. Undo takes out
+exactly the terms it added.
+
+Ask why dictation wrote one word as another ("it writes AI cleanup when I
+say AI") and, with Your current settings on, Assistant reads your cleanup
+instructions (every mode's) and the Vocabulary entries your words name, and
+looks for the cause there. Such a question never searches the web.
 
 ## Set VibeHex up for you
 

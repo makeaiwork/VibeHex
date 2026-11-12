@@ -320,19 +320,14 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
         out.push_str(&notes_line(settings));
         out.push_str(&state_line(state, settings));
         if reading.instructions {
-            out.push_str(&format!(
-                "<global_instructions>\n{}\n</global_instructions>\n",
-                settings
-                    .dictation_processing
-                    .default_mode
-                    .post_processing
-                    .prompt
-                    .trim()
-            ));
+            out.push_str(&crate::assistant::personal::instructions(settings));
         }
     } else {
         out.push_str(
-            "You don't know the person's current values; the app shows each on its card.\n",
+            "You don't know the person's current values, cleanup instructions, or Vocabulary; \
+             the app shows each value on its card. When an answer needs them, say in one \
+             sentence that **Assistant › Settings › Your current settings** lets you read them, \
+             with no card.\n",
         );
     }
     out

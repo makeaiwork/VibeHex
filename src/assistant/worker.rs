@@ -197,8 +197,9 @@ enum Offline {
     Earlier,
 }
 
-fn offline(question: &Question, found: Option<&Found>) -> Option<Offline> {
-    if found.is_some() || matches!(question.recall, Recall::Declined) {
+fn offline(question: &Question, found: Option<&Found>, vocabulary: bool) -> Option<Offline> {
+    // Vocabulary entries are the person's own, as recordings are.
+    if found.is_some() || vocabulary || matches!(question.recall, Recall::Declined) {
         Some(Offline::Recordings)
     } else if question.earlier.iter().any(|earlier| earlier.recordings) {
         Some(Offline::Earlier)
@@ -278,18 +279,6 @@ fn start_with(
                     (_, _, Some(notes)) => Reach::Releases(notes),
                     _ => Reach::Guide,
                 };
-                let search = match search.as_ref().and(offline(&question, found.as_ref())) {
-                    None => search,
-                    Some(why) => {
-                        if why == Offline::Earlier {
-                            let mut state = state();
-                            if let Some(answering) = &mut state.answering {
-                                answering.web.held_back = true;
-                            }
-                        }
-                        None
-                    }
-                };
                 let mut prompt = prompt::build(
                     &question.question,
                     &earlier,
@@ -298,6 +287,22 @@ fn start_with(
                     question.changes.as_ref(),
                     &question.setup,
                 );
+                let search =
+                    match search
+                        .as_ref()
+                        .and(offline(&question, found.as_ref(), prompt.vocabulary))
+                    {
+                        None => search,
+                        Some(why) => {
+                            if why == Offline::Earlier {
+                                let mut state = state();
+                                if let Some(answering) = &mut state.answering {
+                                    answering.web.held_back = true;
+                                }
+                            }
+                            None
+                        }
+                    };
                 let first = match &search {
                     Some(search) => {
                         prompt.instructions.push_str(super::web::RULES);
@@ -1140,6 +1145,27 @@ mod tests {
         let (searched, turn) = called_with_web(question("How do I start LM Studio's server?"));
         assert!(searched, "a guide question with Web on may search");
         assert!(!turn.web.held_back);
+    }
+
+    /// The owner's question about cleanup writing "AI cleanup" for "AI":
+    /// the prompt carries their instructions and the Vocabulary entries it
+    /// names, and so, with Web on, the call never searches.
+    #[test]
+    fn a_turn_carrying_vocabulary_stays_off_the_web() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut question = with_changes(
+            "можешь проверить, в промпте есть ли какие-то штуки, которые могли привести к этому, для AI cleanup",
+        );
+        if let Some(context) = &mut question.changes {
+            context.settings.vocabulary = vec![crate::dictation::vocabulary::VocabularyEntry {
+                term: "AI cleanup".into(),
+                sounds_like: vec!["AI".into()],
+            }];
+        }
+        let (searched, _) = called_with_web(question);
+        assert!(!searched, "Vocabulary went online");
     }
 
     /// After an answer from the recordings, the conversation's next answers

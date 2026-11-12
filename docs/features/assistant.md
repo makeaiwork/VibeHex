@@ -236,9 +236,30 @@ Opened from a place link                         // rune_ui::assistant::places
   (`{"vocabulary_add":[…]}`, the older shape, reads too). Each term is
   checked as `hex vocabulary add` checks it (`changes::vocab`); an empty or
   too long one is refused like any line.
-- The model never sees the vocabulary (`assistant.send_settings` leaves it
-  out), so a term the vocabulary has, in any case, is dropped by the app
-  and never named back to the model.
+- A term the vocabulary has, in any case, is dropped by the app and never
+  named back to the model.
+
+## Why a word came out wrong
+
+- `intent::cleanup::wants` reads from the words (every language the app
+  speaks: промпт, инструкции, prompt, cleanup, клинап, очистка, «вместо»,
+  «заменяет», «дописывает», «распозналось», словарь…) whether a question,
+  or one of the two before it, is about what cleanup or recognition did to
+  the person's words. With `assistant.send_settings` on it then reads
+  (`assistant::personal`): `<cleanup_instructions>` (the Global mode's, each
+  mode's with its replacements and own terms count, Files' own, each cut at
+  4,000 characters) and `<vocabulary total="N">`, the entries whose term or
+  "sounds like" the question and the last two turns name, at most 30. The
+  cleanup article found brings the instructions too; a Vocabulary article,
+  the entries. The prompt (`DIAGNOSE`) asks for the cause: an entry whose
+  spelling catches the word, a replacement, a line of the instructions, or
+  the speech model, with a card for the instructions when they are it.
+- A prompt carrying Vocabulary entries never searches the web
+  (`worker::offline`, like recordings), and the recordings search never
+  reads more of it than before.
+- With `send_settings` off nothing of it goes, and the model says that
+  **Assistant › Settings › Your current settings** lets it read them, with
+  no card.
 - The card, "General › Vocabulary, Add 3 terms", lists each term with
   "sounds like: …", a checkbox, and Edit, which renames the term and
   changes its spellings in the row (two fields and Done). "Add N terms"
@@ -592,7 +613,10 @@ addresses and local names are a setting's value, not a source.
 
 What reaches a model is the question, the conversation so far, and guide
 text; never history, meetings, Files texts, or keys, except the passages
-`recordings` found once the person allowed it. Keys never. Kept
+`recordings` found once the person allowed it, and, with
+`assistant.send_settings`, settings' values and, for a question about what
+cleanup did to a word, the cleanup instructions and the Vocabulary entries
+it names. Keys never. Kept
 conversations live in `<support>/assistant/conversations.json`, readable only
 by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.

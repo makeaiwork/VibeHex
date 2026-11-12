@@ -59,8 +59,11 @@ to a server at sign-in; everything else stays in `%APPDATA%\hex`.
   the model in Assistant › Settings › Runs on. Only after you allow it on
   the first question about your recordings does it also send passages it
   found on this computer in your meetings, Files texts, and dictations; the
-  recordings themselves never go. Assistant › Settings › What it reads takes
-  that back. On Codex it may also search the web through OpenAI when the
+  recordings themselves never go. With Your current settings on it sends
+  your settings' values, and, for a question about what cleanup or
+  recognition did to a word, your cleanup instructions and the Vocabulary
+  entries the question names (never the whole list). Assistant › Settings ›
+  What it reads takes that back. On Codex it may also search the web through OpenAI when the
   guide has no answer, never with anything from your recordings, files, or
   settings; What it reads › The web turns that off.
 - Your own scripts in Output ask first to use the network.

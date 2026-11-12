@@ -17,6 +17,7 @@
 //! about recordings (`releases`).
 
 pub mod beyond;
+pub mod cleanup;
 mod day;
 mod follow;
 pub mod preset;
