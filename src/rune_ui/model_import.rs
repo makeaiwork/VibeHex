@@ -227,8 +227,11 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
             Ok(id) => {
                 tracing::info!(id = id.as_str(), "an imported speech model is ready");
                 let selected = ui.settings.transcription.model == TranscriptionModelId::Custom(id);
-                if use_it || (reselect && selected) {
-                    let model = TranscriptionModelId::Custom(id);
+                let model = TranscriptionModelId::Custom(id);
+                if use_it && ui.tour.is_some() {
+                    // The first run takes the file as the person's pick.
+                    super::onboarding::choose(ui, model);
+                } else if use_it || (reselect && selected) {
                     let language = crate::transcription::models::definition(model)
                         .language_for(&ui.settings.transcription.language)
                         .to_owned();

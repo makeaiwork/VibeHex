@@ -11,36 +11,24 @@ use rune::Waker;
 use super::{Request, Ui};
 use crate::transcription::custom_models;
 use crate::transcription::found_models::{self, Found};
-use crate::transcription::models::{CustomModelId, TranscriptionModelId, TranscriptionSelection};
+use crate::transcription::models::{CustomModelId, TranscriptionModelId};
 
 #[derive(Default)]
 pub(super) struct FoundState {
     /// Compatible models from the last hub-cache scan, which the picker and
     /// onboarding start when they open.
     pub(super) models: Vec<Found>,
-    /// The model onboarding's choice asked for, which the next model
-    /// download prepares instead of the saved selection.
-    pub(super) choice: Option<TranscriptionSelection>,
     scan: Option<Receiver<Vec<Found>>>,
     /// Hashing and registering a chosen file; true when onboarding chose it.
     adopting: Option<(Receiver<Result<CustomModelId, String>>, bool)>,
     pub(super) error: Option<String>,
     /// Whether this window has scanned since it opened the picker or step.
     scanned: bool,
-    /// The onboarding list's row the person picked, which started; until
-    /// then the recommended model's row is selected.
-    pub(super) picked: Option<usize>,
-    /// The recommended model when the list first showed (`found_choice`).
-    pub(super) recommended: Option<TranscriptionSelection>,
 }
 
 impl FoundState {
     pub(super) fn adopting(&self) -> bool {
         self.adopting.is_some()
-    }
-
-    pub(super) fn scanning(&self) -> bool {
-        self.scan.is_some()
     }
 }
 
@@ -114,21 +102,24 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         match result {
             Ok(id) => {
                 let model = TranscriptionModelId::Custom(id);
-                let language = crate::transcription::models::definition(model)
-                    .language_for(&ui.settings.transcription.language)
-                    .to_owned();
-                if onboarding {
-                    super::found_choice::prepare(ui, TranscriptionSelection { model, language });
-                } else {
-                    ui.send(Request::ChooseModel { model, language });
+                // Onboarding's pick takes the language chosen there.
+                let chosen = ui
+                    .tour
+                    .as_ref()
+                    .filter(|_| onboarding)
+                    .map(|tour| tour.flow.choice().selection_for(model));
+                match chosen {
+                    Some(selection) => super::onboarding::prepare(ui, selection),
+                    None => {
+                        let language = crate::transcription::models::definition(model)
+                            .language_for(&ui.settings.transcription.language)
+                            .to_owned();
+                        ui.send(Request::ChooseModel { model, language });
+                    }
                 }
             }
-            Err(error) => {
-                ui.found.error = Some(error);
-                if onboarding {
-                    ui.found.picked = None;
-                }
-            }
+            // Onboarding's row says the pick failed and asks again.
+            Err(error) => ui.found.error = Some(error),
         }
     }
     changed
@@ -336,7 +327,7 @@ pub(super) fn fixture_catalog(model: TranscriptionModelId) -> Found {
 }
 
 /// Onboarding's model step over [`fixture`]: with the recommended model's
-/// exact file too, or with the recommended model picked and downloading.
+/// exact file too, or with the recommended model started and downloading.
 fn onboarding_scene(ui: &mut Ui, recommended_found: bool, downloading: bool) {
     *ui = super::portal_fixture();
     ui.found.models = fixture();
@@ -344,9 +335,8 @@ fn onboarding_scene(ui: &mut Ui, recommended_found: bool, downloading: bool) {
         let recommended = fixture_catalog(ui.settings.transcription.model);
         ui.found.models.insert(0, recommended);
     }
-    super::onboarding::fixture(ui, crate::desktop::onboarding::Step::Setup, false);
+    super::onboarding::fixture(ui, crate::desktop::onboarding::Step::Setup, downloading);
     if downloading {
-        super::found_choice::start_selected(ui);
         super::onboarding::set_downloaded(ui, 42);
         super::onboarding::poll(ui);
     }
@@ -358,9 +348,11 @@ pub(super) fn listed(ui: &mut Ui) {
     onboarding_scene(ui, false, false);
 }
 
-/// The recommended model picked and downloading.
+/// The recommended model started and downloading, back on the list.
 pub(super) fn loading(ui: &mut Ui) {
     onboarding_scene(ui, false, true);
+    super::onboarding_kit::live::back_to_models(ui);
+    super::onboarding_kit::live::fixture_resume(ui, super::Page::Download);
 }
 
 /// The recommended model's exact file found too.
@@ -368,10 +360,9 @@ pub(super) fn present(ui: &mut Ui) {
     onboarding_scene(ui, true, false);
 }
 
-/// Continued from the list with ours downloading: the next page, with Back
-/// to the list.
+/// Ours downloading and the story gone on: the next page, with Back to
+/// the list.
 pub(super) fn chosen(ui: &mut Ui) {
     onboarding_scene(ui, false, true);
-    super::onboarding_kit::live::continue_model(ui);
     super::onboarding_kit::live::fixture_resume(ui, super::Page::Demo);
 }

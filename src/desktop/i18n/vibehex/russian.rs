@@ -292,4 +292,9 @@ pub(in super::super) const TRANSLATIONS: &[(&str, &str)] = &[
     ("Ask about decisions, tasks, or who said what. Answers come from the transcript", "Спрашивайте о решениях, задачах или о том, кто что сказал. Ответы берутся из расшифровки"),
     ("Ask about this meeting", "Спросите об этой встрече"),
     ("Writing notes…", "Пишем заметки…"),
+    // The first run's model step.
+    ("Dictation language", "Язык диктовки"),
+    ("All models…", "Все модели…"),
+    ("Use this model", "Использовать эту модель"),
+    ("Dictation won't work until you choose a model in Settings.", "Диктовка не будет работать, пока вы не выберете модель в Настройках."),
 ];

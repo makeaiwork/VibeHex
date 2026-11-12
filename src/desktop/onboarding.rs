@@ -21,6 +21,10 @@ use objc2_foundation::NSString;
 
 use crate::transcription::models::TranscriptionSelection;
 
+pub mod model_choice;
+
+pub use model_choice::{Decision, ModelChoice, Pick, Remembered};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PermissionState {
     Ready,
@@ -108,7 +112,8 @@ pub fn permission_warnings(status: SetupStatus) -> Vec<PermissionWarning> {
 
 /// The first-run tour, in order. `Setup` holds every permission on one
 /// screen; `TryIt` is a practice dictation into a field in the window. The
-/// speech model downloads in the background from the moment the tour opens.
+/// speech model is the person's choice ([`ModelChoice`]): nothing downloads
+/// until they start one, and then it downloads behind the rest of the tour.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Step {
     Welcome,
@@ -192,7 +197,17 @@ pub enum Input {
     Continue,
     /// "Skip" on the practice step.
     Skip,
+    /// A permission's Allow; for [`SetupItem::Model`], the press that
+    /// starts the selected model (Download, Use, or Try again).
     Grant(SetupItem),
+    /// The dictation language chosen on the model step.
+    Language(&'static str),
+    /// A row selected on the model step. Selecting starts nothing.
+    Pick(Pick),
+    /// Cancel on the model the person started.
+    CancelModel,
+    /// "Continue without a model".
+    WithoutModel,
     Status(SetupStatus, ModelProgress),
     Dictation(Observation),
     /// The shortcut listener could not start after setup became ready.
@@ -214,7 +229,10 @@ pub enum Effect {
     /// Clear stale TCC entries for this permission and reopen the prompt and
     /// guide.
     ResetPermission(PermissionKind),
+    /// Prepare the model the person started ([`ModelChoice::started`]).
     DownloadModel,
+    /// Stop the download the person started.
+    CancelModel,
     /// Every permission just turned on: move to the next step after a beat,
     /// so the last check is seen.
     AdvanceSoon,
@@ -242,6 +260,8 @@ pub struct View {
     /// Dictation can run: permissions and the model are ready.
     pub dictation_ready: bool,
     pub model: ItemStatus,
+    /// The model step: the language, its models, and what the person chose.
+    pub choice: ModelChoice,
     /// The tour downloaded the model, so its progress is worth showing
     /// outside the setup rows.
     pub show_download: bool,
@@ -270,9 +290,9 @@ pub struct Flow {
     microphone_guide: bool,
     practice: Practice,
     download_requested: bool,
-    /// The recommended model waits for the person: a scan for models already
-    /// on this computer is running, or found one and they choose.
-    download_held: bool,
+    choice: ModelChoice,
+    /// A download the person asked for in an earlier launch goes on.
+    resume_download: bool,
     advance_due: bool,
     reopen: bool,
     relaunching: bool,
@@ -297,7 +317,8 @@ impl Flow {
             microphone_guide: false,
             practice: Practice::Waiting,
             download_requested: false,
-            download_held: false,
+            choice: ModelChoice::new(&TranscriptionSelection::default()),
+            resume_download: false,
             advance_due: false,
             reopen: false,
             relaunching: false,
@@ -313,10 +334,30 @@ impl Flow {
         flow
     }
 
-    /// Holds (or releases) the download the tour starts by itself, while the
-    /// person can choose a model already on this computer instead.
-    pub fn hold_download(&mut self, held: bool) {
-        self.download_held = held;
+    /// The model step opens on `preselected`: its language, and its model's
+    /// row selected. A preselection starts nothing and decides nothing.
+    pub fn preselect(mut self, preselected: &TranscriptionSelection) -> Self {
+        self.choice = ModelChoice::new(preselected);
+        self
+    }
+
+    /// What the person decided in an earlier launch: a download they asked
+    /// for goes on, and a run without a model stays without one.
+    pub fn resume(mut self, remembered: Remembered) -> Self {
+        match remembered {
+            Remembered::Model(selection) => {
+                self.choice = ModelChoice::new(&selection);
+                self.choice.start(Pick::Model(selection.model));
+                self.resume_download = true;
+            }
+            Remembered::Without => self.choice.go_without(),
+        }
+        self.step = self.forward_from(self.step);
+        self
+    }
+
+    pub fn choice(&self) -> &ModelChoice {
+        &self.choice
     }
 
     pub fn step(&self) -> Step {
@@ -335,6 +376,20 @@ impl Flow {
             Input::Skip if self.step == Step::TryIt => self.advance(),
             Input::Skip => Effect::None,
             Input::Grant(item) => self.grant(item),
+            Input::Language(language) => {
+                self.choice.set_language(language);
+                Effect::None
+            }
+            Input::Pick(pick) => {
+                self.choice.select(pick);
+                Effect::None
+            }
+            Input::CancelModel => self.cancel_model(),
+            Input::WithoutModel => {
+                let effect = self.cancel_model();
+                self.choice.go_without();
+                effect
+            }
             Input::Status(status, model) => self.update(status, model),
             Input::Dictation(observation) => {
                 if self.step == Step::TryIt {
@@ -367,6 +422,7 @@ impl Flow {
             ready: self.setup_ready(),
             dictation_ready: self.status.ready(),
             model: self.model_status(),
+            choice: self.choice.clone(),
             show_download: self.download_requested && !self.model_in_setup(),
             practice: self.practice,
             reopen: self.reopen,
@@ -397,13 +453,18 @@ impl Flow {
             && self.status.accessibility == PermissionState::Ready
     }
 
+    /// A run without a model waits for no model.
     fn setup_ready(&self) -> bool {
-        self.permissions_ready() && (!self.model_in_setup() || self.status.transcription_model)
+        self.permissions_ready()
+            && (!self.model_in_setup() || self.status.transcription_model || self.choice.without())
     }
 
     fn model_status(&self) -> ItemStatus {
         if self.status.transcription_model {
             ItemStatus::Ready
+        } else if self.choice.started().is_none() {
+            // Until the person starts a model, none is on its way.
+            ItemStatus::Todo
         } else if let Some(progress) = self.model.downloading {
             ItemStatus::Downloading(progress)
         } else if self.model.failed {
@@ -426,13 +487,13 @@ impl Flow {
         if self.step == Step::Setup && !was_ready && self.setup_ready() {
             self.advance_due = true;
         }
-        // The download starts the first time the tour sees no model, before
-        // any permission is asked, so it runs while the person reads.
-        if !status.transcription_model
+        // Nothing downloads by itself: only the download the person asked
+        // for in an earlier launch goes on, the first time this one sees
+        // its model still missing.
+        if std::mem::take(&mut self.resume_download)
+            && !status.transcription_model
             && model.downloading.is_none()
             && !model.failed
-            && !self.download_requested
-            && !self.download_held
         {
             self.download_requested = true;
             return Effect::DownloadModel;
@@ -497,7 +558,8 @@ impl Flow {
     fn passes(&self, step: Step) -> bool {
         match step {
             Step::Setup => self.setup_ready(),
-            Step::TryIt => !self.practice_step,
+            // There is nothing to practise with while there is no model.
+            Step::TryIt => !self.practice_step || self.choice.without(),
             _ => false,
         }
     }
@@ -527,15 +589,9 @@ impl Flow {
 
     fn grant(&mut self, item: SetupItem) -> Effect {
         match item {
-            // The model can be retried from any step: its progress follows
-            // the whole tour.
-            SetupItem::Model
-                if !self.status.transcription_model && self.model.downloading.is_none() =>
-            {
-                self.model.failed = false;
-                self.download_requested = true;
-                Effect::DownloadModel
-            }
+            // The model can be started, replaced, and retried from any
+            // step: its progress follows the whole tour.
+            SetupItem::Model => self.start_model(),
             _ if self.step != Step::Setup => Effect::None,
             SetupItem::Microphone => {
                 self.asked[0] = true;
@@ -558,6 +614,40 @@ impl Flow {
             }
             _ => Effect::None,
         }
+    }
+
+    /// Starts the selected row. The same row already on its way (or ready)
+    /// is not started twice; another row replaces the one still downloading.
+    fn start_model(&mut self) -> Effect {
+        let Some(pick) = self.choice.selected() else {
+            return Effect::None;
+        };
+        if self.choice.started() == Some(pick)
+            && (self.status.transcription_model || self.model.downloading.is_some())
+        {
+            return Effect::None;
+        }
+        self.choice.start(pick);
+        self.model.failed = false;
+        self.model.downloading = None;
+        self.resume_download = false;
+        self.download_requested = true;
+        Effect::DownloadModel
+    }
+
+    /// Cancel on the model the person started: nothing is chosen again.
+    fn cancel_model(&mut self) -> Effect {
+        if self.choice.started().is_none() {
+            // Back from a run without a model: nothing is decided again.
+            self.choice.undecide();
+            return Effect::None;
+        }
+        self.choice.undecide();
+        self.resume_download = false;
+        self.download_requested = false;
+        self.model.downloading = None;
+        self.model.failed = false;
+        Effect::CancelModel
     }
 
     /// Once per tour, and only after dictation is ready: before that, the
@@ -930,6 +1020,7 @@ pub(crate) fn reset_at(directory: &Path) -> color_eyre::Result<()> {
         "onboarding-complete",
         "onboarding-step",
         "onboarding-relaunch",
+        "onboarding-model",
     ] {
         match fs::remove_file(directory.join(marker)) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
@@ -1186,6 +1277,7 @@ unsafe extern "C" {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transcription::models::TranscriptionModelId;
 
     #[cfg(target_os = "macos")]
     #[test]
@@ -1505,71 +1597,383 @@ mod tests {
         assert_eq!(flow.on(Input::Continue), Effect::Finish);
     }
 
-    #[test]
-    fn the_model_downloads_as_soon_as_the_tour_opens() {
-        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
-        assert_eq!(flow.view().model, ItemStatus::Todo);
+    /// A flow whose person pressed Download on the selected row.
+    fn started(start: Step, status: SetupStatus, permissions: bool, practice: bool) -> Flow {
+        let mut flow = Flow::new(start, status, permissions, practice);
         assert_eq!(
-            flow.on(Input::Status(fresh_status(), ModelProgress::default())),
-            Effect::DownloadModel,
-            "on the welcome screen, before any permission"
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::DownloadModel
         );
-        assert_eq!(flow.step(), Step::Welcome);
+        flow
+    }
+
+    fn selection(model: TranscriptionModelId, language: &str) -> TranscriptionSelection {
+        TranscriptionSelection {
+            model,
+            language: language.into(),
+        }
+    }
+
+    fn offered(flow: &Flow) -> Vec<TranscriptionModelId> {
+        flow.choice()
+            .offered()
+            .iter()
+            .map(|(model, _)| *model)
+            .collect()
+    }
+
+    #[test]
+    fn nothing_downloads_before_the_person_presses_download() {
+        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
+        assert_eq!(flow.choice().decision(), Decision::Undecided);
+        for _ in 0..3 {
+            assert_eq!(
+                flow.on(Input::Status(fresh_status(), ModelProgress::default())),
+                Effect::None,
+                "the tour never starts a download by itself"
+            );
+        }
+        assert_eq!(flow.on(Input::Continue), Effect::None);
+        assert_eq!(flow.step(), Step::Setup);
+        assert_eq!(
+            flow.on(Input::Status(permissions_only(), ModelProgress::default())),
+            Effect::AdvanceSoon,
+            "the permissions move on; still no download"
+        );
+        assert_eq!(flow.on(Input::Continue), Effect::None);
+        assert_eq!(flow.step(), Step::TryIt);
+        assert_eq!(flow.view().model, ItemStatus::Todo);
+        assert!(!flow.view().show_download);
+        // A download someone else's progress reports is not this tour's
+        // either: the preselected row is not a choice.
+        flow.on(Input::Status(permissions_only(), downloading(0.4)));
+        assert_eq!(flow.view().model, ItemStatus::Todo);
+
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::DownloadModel,
+            "the press starts the selected row"
+        );
+        assert_eq!(
+            flow.choice().decision(),
+            Decision::Started(Pick::Model(TranscriptionModelId::ParakeetUnifiedEnglish))
+        );
         assert!(flow.view().show_download);
+        flow.on(Input::Status(permissions_only(), ModelProgress::default()));
         assert_eq!(
             flow.view().model,
             ItemStatus::Downloading(0.0),
             "progress shows before the first byte"
+        );
+        flow.on(Input::Status(permissions_only(), downloading(0.3)));
+        assert_eq!(flow.view().model, ItemStatus::Downloading(0.3));
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::None,
+            "a running download is not restarted"
+        );
+    }
+
+    #[test]
+    fn the_preselection_opens_the_choice_and_a_language_changes_the_models() {
+        use TranscriptionModelId::{
+            CohereTranscribe, GigaAmV3, ParakeetUnifiedEnglish, ParakeetV3, WhisperLargeV3Turbo,
+        };
+        let english = crate::transcription::models::recommended_selection("en");
+        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true).preselect(&english);
+        assert_eq!(flow.choice().language(), "en");
+        assert_eq!(
+            offered(&flow),
+            [
+                ParakeetUnifiedEnglish,
+                CohereTranscribe,
+                WhisperLargeV3Turbo
+            ]
+        );
+        assert_eq!(
+            flow.choice().selected(),
+            Some(Pick::Model(ParakeetUnifiedEnglish)),
+            "the recommended row is preselected"
+        );
+        assert_eq!(
+            flow.choice().offered()[0].1,
+            Some(crate::transcription::models::Recommendation::Recommended)
+        );
+
+        // An English system, a Russian speaker.
+        assert_eq!(flow.on(Input::Language("ru")), Effect::None);
+        assert_eq!(flow.choice().language(), "ru");
+        assert_eq!(offered(&flow), [GigaAmV3, WhisperLargeV3Turbo, ParakeetV3]);
+        assert_eq!(flow.choice().selected(), Some(Pick::Model(GigaAmV3)));
+        assert_eq!(
+            flow.choice().decision(),
+            Decision::Undecided,
+            "choosing a language downloads nothing"
+        );
+
+        // Auto: only models that detect the language.
+        flow.on(Input::Language(crate::transcription::models::AUTO_LANGUAGE));
+        assert_eq!(offered(&flow)[0], WhisperLargeV3Turbo);
+        assert!(offered(&flow).iter().all(|model| {
+            crate::transcription::models::definition(*model).supports_language_detection
+        }));
+
+        // Every listed language offers at least one model, never more than
+        // three, each speaking it, the first recommended.
+        for (language, _) in crate::transcription::models::LANGUAGES {
+            let offers = model_choice::offers(language);
+            assert!(
+                (1..=model_choice::OFFERED).contains(&offers.len()),
+                "{language}"
+            );
+            assert_eq!(
+                offers[0].0,
+                crate::transcription::models::recommended_selection(language).model,
+                "{language}: the recommendation comes first"
+            );
+            for (model, _) in offers {
+                assert!(
+                    crate::transcription::models::definition(model).supports_language(language),
+                    "{language}: {model:?}"
+                );
+            }
+        }
+
+        // A row picked for one language keeps the model's own language when
+        // the model does not speak the chosen one.
+        flow.on(Input::Language("ru"));
+        assert_eq!(
+            flow.choice().selection_for(GigaAmV3),
+            selection(GigaAmV3, "ru")
+        );
+        assert_eq!(
+            flow.choice().selection_for(ParakeetUnifiedEnglish),
+            selection(ParakeetUnifiedEnglish, "en")
+        );
+    }
+
+    #[test]
+    fn selecting_a_row_starts_nothing_and_download_starts_that_row() {
+        use TranscriptionModelId::{GigaAmV3, WhisperLargeV3Turbo};
+        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
+        flow.on(Input::Language("ru"));
+        assert_eq!(
+            flow.on(Input::Pick(Pick::Model(WhisperLargeV3Turbo))),
+            Effect::None
+        );
+        assert_eq!(flow.view().model, ItemStatus::Todo);
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::DownloadModel
+        );
+        assert_eq!(
+            flow.choice().started(),
+            Some(Pick::Model(WhisperLargeV3Turbo))
+        );
+        assert_ne!(flow.choice().started(), Some(Pick::Model(GigaAmV3)));
+        // A file found on this computer is a row like any other.
+        flow.on(Input::Pick(Pick::Found(1)));
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::DownloadModel
+        );
+        assert_eq!(flow.choice().started(), Some(Pick::Found(1)));
+    }
+
+    #[test]
+    fn a_download_is_cancelled_and_another_model_picked() {
+        use TranscriptionModelId::{GigaAmV3, WhisperLargeV3Turbo};
+        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
+        assert_eq!(
+            flow.on(Input::CancelModel),
+            Effect::None,
+            "nothing to cancel before a download"
+        );
+        flow.on(Input::Language("ru"));
+        flow.on(Input::Grant(SetupItem::Model));
+        flow.on(Input::Status(fresh_status(), downloading(0.4)));
+        assert_eq!(flow.view().model, ItemStatus::Downloading(0.4));
+
+        assert_eq!(flow.on(Input::CancelModel), Effect::CancelModel);
+        assert_eq!(flow.choice().decision(), Decision::Undecided);
+        assert!(!flow.view().show_download);
+        // The service takes a moment to stop: its last progress is no
+        // longer this tour's.
+        flow.on(Input::Status(fresh_status(), downloading(0.41)));
+        assert_eq!(flow.view().model, ItemStatus::Todo);
+        assert_eq!(
+            flow.on(Input::Status(fresh_status(), ModelProgress::default())),
+            Effect::None,
+            "a cancelled download does not start again by itself"
+        );
+
+        flow.on(Input::Pick(Pick::Model(WhisperLargeV3Turbo)));
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::DownloadModel
+        );
+        assert_eq!(
+            flow.choice().started(),
+            Some(Pick::Model(WhisperLargeV3Turbo))
+        );
+
+        // Without cancelling: another row's Download replaces the one
+        // still on its way.
+        flow.on(Input::Status(fresh_status(), downloading(0.2)));
+        flow.on(Input::Pick(Pick::Model(GigaAmV3)));
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::DownloadModel
+        );
+        assert_eq!(flow.choice().started(), Some(Pick::Model(GigaAmV3)));
+        assert_eq!(
+            flow.view().model,
+            ItemStatus::Downloading(0.0),
+            "the replaced download's progress is not the new one's"
+        );
+    }
+
+    #[test]
+    fn the_tour_goes_on_while_the_model_downloads() {
+        let mut flow = started(Step::Welcome, fresh_status(), true, true);
+        flow.on(Input::Continue);
+        assert_eq!(flow.step(), Step::Setup);
+        flow.on(Input::Status(fresh_status(), downloading(0.1)));
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Microphone)),
+            Effect::RequestMicrophone,
+            "permissions are asked while it downloads"
+        );
+        assert_eq!(
+            flow.on(Input::Status(permissions_only(), downloading(0.3))),
+            Effect::AdvanceSoon
+        );
+        flow.on(Input::Continue);
+        assert_eq!(flow.step(), Step::TryIt, "past setup, still downloading");
+        assert_eq!(flow.view().model, ItemStatus::Downloading(0.3));
+        assert!(!flow.view().dictation_ready, "only the practice waits");
+        assert_eq!(
+            flow.on(Input::Continue),
+            Effect::None,
+            "the practice needs the model"
+        );
+        // The practice can be skipped while it still downloads.
+        flow.on(Input::Skip);
+        assert_eq!(flow.step(), Step::Done);
+        assert_eq!(flow.view().model, ItemStatus::Downloading(0.3));
+        assert_eq!(flow.on(Input::Continue), Effect::Finish);
+    }
+
+    #[test]
+    fn continuing_without_a_model_waits_for_no_model() {
+        // macOS: the permissions are still asked, then the tour is done.
+        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
+        assert_eq!(flow.on(Input::WithoutModel), Effect::None);
+        assert!(flow.choice().without());
+        flow.on(Input::Continue);
+        assert_eq!(flow.step(), Step::Setup);
+        assert!(!flow.view().ready, "permissions first");
+        assert_eq!(
+            flow.on(Input::Status(permissions_only(), ModelProgress::default())),
+            Effect::AdvanceSoon
+        );
+        flow.on(Input::Continue);
+        assert_eq!(flow.step(), Step::Done, "nothing to practise with");
+        assert!(!flow.view().dictation_ready);
+        assert_eq!(flow.view().model, ItemStatus::Todo);
+
+        // Linux and Windows, where the model is a setup row: setup no
+        // longer waits for it.
+        let mut flow = Flow::new(Step::Welcome, permissions_only(), false, true);
+        flow.on(Input::Continue);
+        assert_eq!(flow.step(), Step::Setup, "the model is still to choose");
+        flow.on(Input::WithoutModel);
+        assert!(flow.view().ready);
+        flow.on(Input::Continue);
+        assert_eq!(flow.step(), Step::Done);
+
+        // A download already started is stopped.
+        let mut flow = started(Step::Welcome, fresh_status(), true, true);
+        assert_eq!(flow.on(Input::WithoutModel), Effect::CancelModel);
+        assert!(flow.choice().without());
+        assert_eq!(
+            flow.on(Input::Status(fresh_status(), ModelProgress::default())),
+            Effect::None
+        );
+
+        // Changing their mind: a press downloads after all.
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
+            Effect::DownloadModel
+        );
+        assert!(!flow.choice().without());
+
+        // Back to the list from a run without a model: nothing is decided,
+        // and nothing was there to cancel.
+        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
+        flow.on(Input::WithoutModel);
+        assert_eq!(flow.on(Input::CancelModel), Effect::None);
+        assert_eq!(flow.choice().decision(), Decision::Undecided);
+    }
+
+    #[test]
+    fn a_remembered_choice_goes_on_at_the_next_launch() {
+        use TranscriptionModelId::GigaAmV3;
+        let directory = std::env::temp_dir().join(format!(
+            "hex-onboarding-model-{}-{}",
+            std::process::id(),
+            unix_ms()
+        ));
+        assert_eq!(model_choice::remembered_at(&directory), None);
+        let chosen = Remembered::Model(selection(GigaAmV3, "ru"));
+        model_choice::remember_at(&directory, &chosen).unwrap();
+        assert_eq!(
+            model_choice::remembered_at(&directory),
+            Some(chosen.clone())
+        );
+
+        // The download the person asked for goes on, once, without a press.
+        let mut flow = Flow::new(Step::Setup, fresh_status(), true, true).resume(chosen);
+        assert_eq!(flow.choice().language(), "ru");
+        assert_eq!(flow.choice().started(), Some(Pick::Model(GigaAmV3)));
+        assert_eq!(
+            flow.on(Input::Status(fresh_status(), ModelProgress::default())),
+            Effect::DownloadModel
         );
         assert_eq!(
             flow.on(Input::Status(fresh_status(), ModelProgress::default())),
             Effect::None,
             "asked once"
         );
-        flow.on(Input::Status(fresh_status(), downloading(0.3)));
-        assert_eq!(flow.view().model, ItemStatus::Downloading(0.3));
 
-        let installed_flow = {
-            let mut flow = Flow::new(Step::Welcome, ready_status(), true, true);
-            assert_eq!(
-                flow.on(Input::Status(ready_status(), installed())),
-                Effect::None
-            );
-            flow
-        };
-        assert!(!installed_flow.view().show_download);
-    }
+        // A run without a model stays without one, and passes the practice.
+        model_choice::remember_at(&directory, &Remembered::Without).unwrap();
+        let without = model_choice::remembered_at(&directory).unwrap();
+        let mut flow = Flow::new(Step::TryIt, permissions_only(), true, true).resume(without);
+        assert_eq!(flow.step(), Step::Done);
+        assert_eq!(
+            flow.on(Input::Status(permissions_only(), ModelProgress::default())),
+            Effect::None
+        );
 
-    #[test]
-    fn a_held_download_waits_for_the_person() {
-        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
-        flow.hold_download(true);
-        assert_eq!(
-            flow.on(Input::Status(fresh_status(), ModelProgress::default())),
-            Effect::None,
-            "found models are offered first"
-        );
-        assert_eq!(flow.view().model, ItemStatus::Todo);
-        assert_eq!(
-            flow.on(Input::Grant(SetupItem::Model)),
-            Effect::DownloadModel,
-            "choosing still starts it"
-        );
-        let mut released = Flow::new(Step::Welcome, fresh_status(), true, true);
-        released.hold_download(true);
-        released.on(Input::Status(fresh_status(), ModelProgress::default()));
-        released.hold_download(false);
-        assert_eq!(
-            released.on(Input::Status(fresh_status(), ModelProgress::default())),
-            Effect::DownloadModel,
-            "nothing found: the tour downloads as before"
-        );
+        // Run setup again forgets it with the other markers.
+        reset_at(&directory).unwrap();
+        assert_eq!(model_choice::remembered_at(&directory), None);
+        // A model this build no longer knows is not resumed.
+        std::fs::write(
+            directory.join("onboarding-model"),
+            br#"{"model":{"model":"retired_model","language":"en"}}"#,
+        )
+        .unwrap();
+        assert_eq!(model_choice::remembered_at(&directory), None);
+        model_choice::forget_at(&directory);
+        assert!(!directory.join("onboarding-model").exists());
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
     fn a_failed_download_retries_from_any_step() {
-        let mut flow = Flow::new(Step::Welcome, fresh_status(), true, true);
-        flow.on(Input::Status(fresh_status(), ModelProgress::default()));
+        let mut flow = started(Step::Welcome, fresh_status(), true, true);
         let failed = ModelProgress {
             failed: true,
             ..ModelProgress::default()
@@ -1591,7 +1995,7 @@ mod tests {
 
     #[test]
     fn permissions_are_the_only_rows_and_the_model_waits_for_practice() {
-        let mut flow = Flow::new(Step::Setup, fresh_status(), true, true);
+        let mut flow = started(Step::Setup, fresh_status(), true, true);
         assert_eq!(
             statuses(&flow),
             [
@@ -1688,6 +2092,11 @@ mod tests {
         );
         assert_eq!(
             flow.on(Input::Status(status, ModelProgress::default())),
+            Effect::None,
+            "the model is the person's to choose"
+        );
+        assert_eq!(
+            flow.on(Input::Grant(SetupItem::Model)),
             Effect::DownloadModel
         );
         assert!(

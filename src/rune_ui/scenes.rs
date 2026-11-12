@@ -279,18 +279,40 @@ pub(super) const SCENES: &[Scene] = &[
             },
         );
     }),
-    // The first run on Linux (Windows is the same window): setting up Hex
-    // with nothing found, the model step with models found here, the demo,
-    // waiting for the model, the practice game, and Hex is ready.
+    // The first run on Linux (Windows is the same window): the model step
+    // as it opens on an English system (nothing downloads), with Russian
+    // chosen there, with the pick downloading, failed, and with models
+    // found here; then the demo while the model downloads, waiting for it,
+    // the practice game, and Hex is ready.
     ("onboarding", |ui| {
-        first_run(ui, FirstRun::Fresh, Page::Download)
+        first_run(ui, FirstRun::Choosing, Page::Download)
     }),
-    ("onboarding-download-failed", |ui| {
+    ("onboarding-choice-russian", |ui| {
+        first_run(ui, FirstRun::Choosing, Page::Download);
+        onboarding_kit::choice::choose_language(ui, "ru");
+    }),
+    // The same two in Russian and German, the longest lines the page has.
+    ("onboarding-choice-in-russian", |ui| {
+        first_run_in(ui, "ru");
+        onboarding_kit::choice::choose_language(ui, "ru");
+    }),
+    ("onboarding-choice-in-german", |ui| first_run_in(ui, "de")),
+    // Back on the list while the pick downloads: its progress, and Cancel.
+    ("onboarding-choice-downloading", |ui| {
+        first_run(ui, FirstRun::Downloading, Page::Demo);
+        onboarding_kit::live::back_to_models(ui);
+        onboarding_kit::live::fixture_resume(ui, Page::Download);
+    }),
+    ("onboarding-choice-failed", |ui| {
         first_run(ui, FirstRun::Failed, Page::Download)
     }),
-    // Continue without a model after it, then Settings with no model.
+    // The failure where the practice waits for the model, with its ways on.
+    ("onboarding-download-failed", |ui| {
+        first_run(ui, FirstRun::Failed, Page::Waiting)
+    }),
+    // Continue without a model from the start, then Settings with no model.
     ("onboarding-no-model", |ui| {
-        first_run(ui, FirstRun::Failed, Page::Download);
+        first_run(ui, FirstRun::Choosing, Page::Download);
         onboarding_kit::live::continue_without_model(ui);
     }),
     ("onboarding-model-found", found::listed),
@@ -1012,7 +1034,7 @@ pub(super) const SCENES: &[Scene] = &[
     // The first run on macOS: setting up Hex, each permission state, the
     // practice game, and Hex is ready.
     ("mac-onboarding", |ui| {
-        mac_first_run(ui, onboarding::MacStep::Setup, Page::Download)
+        mac_first_run(ui, onboarding::MacStep::Model, Page::Download)
     }),
     ("mac-onboarding-permissions", |ui| {
         mac_first_run(ui, onboarding::MacStep::Setup, Page::Permissions)
@@ -1040,11 +1062,11 @@ pub(super) const SCENES: &[Scene] = &[
 /// The tour state a Linux first-run scene starts from.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FirstRun {
-    /// Nothing installed; the recommended model just started downloading.
-    Fresh,
-    /// The download is a third of the way.
+    /// Nothing installed and nothing chosen: nothing downloads.
+    Choosing,
+    /// The person pressed Download; it is a third of the way.
     Downloading,
-    /// The download stopped.
+    /// The download they started stopped.
     Failed,
     /// The model is installed.
     Ready,
@@ -1055,9 +1077,13 @@ enum FirstRun {
 
 fn first_run(ui: &mut Ui, state: FirstRun, page: Page) {
     *ui = portal_fixture();
-    onboarding::fixture(ui, crate::desktop::onboarding::Step::Setup, true);
+    onboarding::fixture(
+        ui,
+        crate::desktop::onboarding::Step::Setup,
+        state != FirstRun::Choosing,
+    );
     match state {
-        FirstRun::Fresh => onboarding::set_downloaded(ui, 8),
+        FirstRun::Choosing => {}
         FirstRun::Downloading => onboarding::set_downloaded(ui, 31),
         FirstRun::Failed => {
             if let Some(view) = &mut ui.view {
@@ -1077,6 +1103,14 @@ fn first_run(ui: &mut Ui, state: FirstRun, page: Page) {
     }
     onboarding::poll(ui);
     onboarding_kit::live::fixture(ui, page);
+}
+
+/// The model step as it opens, with the interface in `language`.
+fn first_run_in(ui: &mut Ui, language: &str) {
+    first_run(ui, FirstRun::Choosing, Page::Download);
+    ui.settings.ui_language = Some(language.into());
+    crate::desktop::i18n::apply(Some(language));
+    onboarding_kit::live::refresh_choice(ui);
 }
 
 fn mac_first_run(ui: &mut Ui, step: onboarding::MacStep, page: Page) {

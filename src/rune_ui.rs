@@ -22,7 +22,6 @@ pub(crate) mod deep_link;
 mod explainer;
 mod files;
 mod found;
-mod found_choice;
 mod fun;
 mod general;
 mod history;
@@ -621,9 +620,6 @@ enum Menu {
 
 pub(crate) struct Ui {
     settings: AppSettings,
-    /// A test's preferred system language, instead of the host locale.
-    #[cfg(test)]
-    preferred_language: Option<String>,
     service: Service,
     /// This window's app, to know whether it shows (`app` sets it).
     window: Option<rune::AppHandle<Ui>>,
@@ -765,8 +761,6 @@ impl Ui {
         let vocabulary = vocabulary::VocabularyEditor::new(&settings.vocabulary);
         Self {
             settings,
-            #[cfg(test)]
-            preferred_language: None,
             service,
             view: None,
             error: None,
@@ -828,16 +822,6 @@ impl Ui {
     /// A scene or test: nothing here runs on real time.
     fn is_fixture(&self) -> bool {
         matches!(self.service, Service::Fixture(_))
-    }
-
-    /// The person's first preferred system language: a test's when it sets
-    /// one, else the host locale.
-    fn preferred_language(&self) -> String {
-        #[cfg(test)]
-        if let Some(language) = &self.preferred_language {
-            return language.clone();
-        }
-        crate::desktop::i18n::preferred_language()
     }
 
     fn send(&mut self, request: Request) {
@@ -1463,9 +1447,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         update_sheet::modal(ui, p),
     ];
     layer.extend(modals.into_iter().flatten().flatten());
-    if let Some(first_run) = onboarding_kit::live::overlay(ui, p, cx.is_reduced_motion()) {
-        layer.push(first_run);
-    }
+    onboarding_kit::live::overlay(ui, p, cx.is_reduced_motion(), &mut layer);
     rune_kit::root(window, layer).on_window_focus(window_focused)
 }
 

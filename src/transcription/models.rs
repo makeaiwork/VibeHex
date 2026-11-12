@@ -2235,6 +2235,56 @@ mod tests {
         assert!(!detector_touched);
     }
 
+    /// First run's cancel and "pick another" rest on this: a download that
+    /// stopped part-way is only ever a `.partial` beside the model's name,
+    /// which no check counts as the model.
+    #[test]
+    fn a_stopped_download_leaves_a_partial_that_never_counts_as_installed() {
+        let model = fixture_model();
+        let directory = std::env::temp_dir().join(format!(
+            "hex-partial-download-{}-{}",
+            std::process::id(),
+            NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed),
+        ));
+        fs::create_dir(&directory).unwrap();
+        TEST_MODELS_DIR.with(|models| *models.borrow_mut() = Some(directory.clone()));
+        let path = directory.join("fixture.gguf");
+        let partial = path.with_extension("gguf.partial");
+        // Part of the file, then all of its bytes unverified: neither is
+        // the model.
+        for bytes in [&b"he"[..], b"hello"] {
+            fs::write(&partial, bytes).unwrap();
+            assert!(!is_installed(&model, "en"), "{bytes:?}");
+            assert!(!path.exists());
+        }
+        // A cancelled preparation promotes nothing.
+        let canceled = AtomicBool::new(true);
+        assert!(download_with_progress(&model, &canceled, &AtomicU64::new(0)).is_err());
+        assert!(!path.exists());
+        assert!(!is_installed(&model, "en"));
+        // A partial of the right size and the wrong bytes is thrown away
+        // rather than promoted.
+        fs::write(&partial, b"world").unwrap();
+        let promoted = verify_and_promote_partial(
+            &partial,
+            &path,
+            &directory,
+            match model.runtime {
+                ModelRuntime::Gguf(artifact) => artifact,
+                ModelRuntime::AppleSpeech => unreachable!(),
+            },
+            model.name,
+            &AtomicBool::new(false),
+            &AtomicU64::new(0),
+            &AtomicU8::new(ModelPreparationStage::Downloading as u8),
+        );
+        assert!(promoted.is_err());
+        assert!(!path.exists());
+        assert!(!is_installed(&model, "en"));
+        TEST_MODELS_DIR.with(|models| *models.borrow_mut() = None);
+        fs::remove_dir_all(&directory).unwrap();
+    }
+
     #[test]
     fn canceled_downloads_stop_before_io() {
         let canceled = AtomicBool::new(true);

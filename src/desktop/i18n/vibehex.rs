@@ -125,6 +125,11 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Search Labs", ["Szukaj w Labs", "搜索 Labs", "Labs を検索", "Labs durchsuchen", "Buscar en Labs", "Пошук у Labs"]),
     ("No Labs features match.", ["Brak pasujących funkcji Labs.", "没有匹配的 Labs 功能。", "一致する Labs 機能はありません。", "Keine passenden Labs-Funktionen.", "No hay funciones de Labs que coincidan.", "Відповідних функцій Labs немає."]),
     ("Writing notes…", ["Tworzenie notatek…", "正在撰写笔记…", "ノートを作成中…", "Notizen werden geschrieben…", "Escribiendo notas…", "Створення нотаток…"]),
+    // The first run's model step.
+    ("Dictation language", ["Język dyktowania", "听写语言", "音声入力の言語", "Diktiersprache", "Idioma de dictado", "Мова диктування"]),
+    ("All models…", ["Wszystkie modele…", "所有模型…", "すべてのモデル…", "Alle Modelle…", "Todos los modelos…", "Усі моделі…"]),
+    ("Use this model", ["Użyj tego modelu", "使用此模型", "このモデルを使う", "Dieses Modell verwenden", "Usar este modelo", "Використати цю модель"]),
+    ("Dictation won't work until you choose a model in Settings.", ["Dyktowanie nie zadziała, dopóki nie wybierzesz modelu w Ustawieniach.", "在设置中选择模型之前无法听写。", "設定でモデルを選ぶまで、音声入力は使えません。", "Diktieren funktioniert erst, wenn du in den Einstellungen ein Modell wählst.", "El dictado no funcionará hasta que elijas un modelo en Ajustes.", "Диктування не працюватиме, доки ви не виберете модель у Налаштуваннях."]),
 ];
 
 #[rustfmt::skip]
@@ -417,6 +422,11 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("Clean up transcript", "Nettoyer la transcription"),
     ("How long a dictation waits for Codex before it pastes as heard", "Combien de temps une dictée attend Codex avant d’être collée telle qu’entendue"),
     ("Writing notes…", "Rédaction des notes…"),
+    // The first run's model step.
+    ("Dictation language", "Langue de dictée"),
+    ("All models…", "Tous les modèles…"),
+    ("Use this model", "Utiliser ce modèle"),
+    ("Dictation won't work until you choose a model in Settings.", "La dictée ne fonctionnera pas tant que vous n'aurez pas choisi un modèle dans les Réglages."),
 ];
 
 #[rustfmt::skip]
@@ -709,4 +719,9 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Clean up transcript", "Limpar transcrição"),
     ("How long a dictation waits for Codex before it pastes as heard", "Quanto tempo um ditado espera o Codex antes de ser colado como foi ouvido"),
     ("Writing notes…", "Escrevendo notas…"),
+    // The first run's model step.
+    ("Dictation language", "Idioma do ditado"),
+    ("All models…", "Todos os modelos…"),
+    ("Use this model", "Usar este modelo"),
+    ("Dictation won't work until you choose a model in Settings.", "O ditado não funcionará até você escolher um modelo nos Ajustes."),
 ];

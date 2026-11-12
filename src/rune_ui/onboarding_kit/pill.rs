@@ -6,8 +6,6 @@
 
 use crate::desktop::i18n::{tr, tr_named};
 use rune::{Align, El, Spring, Transition, el, icon, row, text};
-#[cfg(not(test))]
-use std::sync::Mutex;
 
 use super::super::controls::Paint;
 use super::fixture::{Download, Language};
@@ -23,60 +21,13 @@ pub(crate) const CAPSULE: &str = "download-capsule";
 pub(crate) const FLY: Spring = Spring::new(0.42, 0.0);
 const HEIGHT: f32 = 30.0;
 
-/// What the real first run calls [`Language::Other`]: the language it
-/// downloads. Each run replaces it, so a later setup never shows the
-/// language of an earlier one. Tests keep one per thread, as `i18n` does.
-#[cfg(not(test))]
-static OTHER: Mutex<String> = Mutex::new(String::new());
-
-#[cfg(test)]
-thread_local! {
-    static OTHER: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
-}
-
-/// The story fixture's own other language, until a real run sets one.
-const OTHER_FALLBACK: &str = "French";
-
-#[cfg(test)]
-fn set_other(value: String) {
-    OTHER.with(|other| *other.borrow_mut() = value);
-}
-
-#[cfg(not(test))]
-fn set_other(value: String) {
-    *OTHER
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = value;
-}
-
-pub(crate) fn set_other_label(label: Option<&str>) {
-    set_other(label.map_or_else(String::new, str::to_owned));
-}
-
-#[cfg(test)]
-fn other_label() -> String {
-    OTHER.with(|other| other.borrow().clone())
-}
-
-#[cfg(not(test))]
-fn other_label() -> String {
-    OTHER.lock().map_or_else(
-        |poisoned| poisoned.into_inner().clone(),
-        |label| label.clone(),
-    )
-}
+/// The story's own other language.
+const OTHER: &str = "French";
 
 pub(crate) fn language_label(language: Language) -> String {
     match language {
         Language::English => "English".into(),
-        Language::Other => {
-            let label = other_label();
-            if label.is_empty() {
-                OTHER_FALLBACK.into()
-            } else {
-                label
-            }
-        }
+        Language::Other => OTHER.into(),
     }
 }
 
@@ -84,6 +35,12 @@ pub(crate) fn language_label(language: Language) -> String {
 /// progress capsule travels up into it as one shape, width leading; the
 /// `16 pt` hexagon mark carries [`PILL`] on to the Ready landing.
 pub(crate) fn pill(p: Paint, download: Download, closed: f32) -> El {
+    pill_named(p, download, closed, None)
+}
+
+/// [`pill`] named for what downloads: the real first run's model, where
+/// the story's own names its language.
+pub(crate) fn pill_named(p: Paint, download: Download, closed: f32, name: Option<&str>) -> El {
     let k = p.k;
     let done = download.done();
     let status = if done {
@@ -132,7 +89,7 @@ pub(crate) fn pill(p: Paint, download: Download, closed: f32) -> El {
                 .child(hex_meter(p, "meter", 16.0, download.fraction(), closed)),
         )
         .child(
-            text(language_label(download.language))
+            text(name.map_or_else(|| language_label(download.language), str::to_owned))
                 .key("label")
                 .font(k.ty.small_medium)
                 .color(p.text()),

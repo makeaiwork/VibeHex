@@ -198,7 +198,7 @@ pub(super) fn reads_vocabulary(ui: &Ui, def: &ModelDefinition) -> bool {
 }
 
 /// The download's size, or who keeps the model when Hex downloads none.
-pub(super) fn size_text(def: &ModelDefinition) -> String {
+pub(in crate::rune_ui) fn size_text(def: &ModelDefinition) -> String {
     match def.runtime {
         ModelRuntime::AppleSpeech => tr("Managed by macOS").into(),
         ModelRuntime::Gguf(_) => def.size_label(),
@@ -211,7 +211,7 @@ fn downloads(entry: &Entry) -> bool {
 }
 
 /// One plain line on why you'd pick it.
-pub(super) fn blurb(def: &ModelDefinition) -> &'static str {
+pub(in crate::rune_ui) fn blurb(def: &ModelDefinition) -> &'static str {
     use TranscriptionModelId as M;
     match def.id {
         M::ParakeetUnifiedEnglish => {
@@ -240,12 +240,21 @@ pub(super) fn blurb(def: &ModelDefinition) -> &'static str {
 
 /// A list row's recommendation, and whether it is the one to read first.
 pub(super) fn list_role(entry: &Entry) -> Option<(&'static str, bool)> {
-    Some(match entry.recommendation? {
-        Recommendation::Recommended => (tr("Recommended"), true),
-        Recommendation::MostAccurate => (tr("Fewest wrong words"), false),
-        Recommendation::Fastest => (tr("Fastest"), false),
-        Recommendation::Vocabulary => (tr("Reads your vocabulary"), false),
-    })
+    let recommendation = entry.recommendation?;
+    Some((
+        recommendation_label(recommendation),
+        recommendation == Recommendation::Recommended,
+    ))
+}
+
+/// The badge a recommendation shows, here and on the first run's model step.
+pub(in crate::rune_ui) fn recommendation_label(recommendation: Recommendation) -> &'static str {
+    match recommendation {
+        Recommendation::Recommended => tr("Recommended"),
+        Recommendation::MostAccurate => tr("Fewest wrong words"),
+        Recommendation::Fastest => tr("Fastest"),
+        Recommendation::Vocabulary => tr("Reads your vocabulary"),
+    }
 }
 
 /// What a model is best at among `others`, for its eyebrow, with the key

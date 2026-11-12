@@ -12,6 +12,8 @@
 
 mod compare;
 mod facts;
+
+pub(super) use facts::{blurb, recommendation_label, size_text};
 mod list;
 
 use rune::{El, col, el, row, text};
@@ -100,6 +102,10 @@ pub(super) struct Picker {
     /// The model whose Delete (an import's Remove) is armed.
     pub(super) deletion: Option<TranscriptionModelId>,
     deletion_error: Option<String>,
+    /// Opened from the first run's model step ("All models…"), for the
+    /// dictation language chosen there: a model chosen here goes back to
+    /// that step as the person's pick instead of to the saved selection.
+    pub(super) setup_language: Option<&'static str>,
     /// Installed models for fixtures; live windows ask the filesystem.
     pub(super) installed: Option<Vec<TranscriptionModelId>>,
     pub(super) fallback: Option<LanguageFallback>,
@@ -149,6 +155,20 @@ pub(super) fn open(ui: &mut Ui) {
     ui.picker.others_open = false;
     ui.picker.in_use_first = (active_first_on(ui) && ui.picker.selected_installed(&ui.settings))
         .then_some(ui.settings.transcription.model);
+}
+
+/// "All models…" on the first run's model step: the picker for `language`.
+pub(super) fn open_for_setup(ui: &mut Ui, language: &'static str) {
+    open(ui);
+    ui.picker.setup_language = Some(language);
+}
+
+/// The language the picker shows models for: the saved one, or the first
+/// run's while it opened the picker.
+fn shown_language(ui: &Ui) -> String {
+    ui.picker
+        .setup_language
+        .map_or_else(|| ui.settings.transcription.language.clone(), str::to_owned)
 }
 
 /// Switches between the comparison and the full list.
@@ -364,6 +384,7 @@ fn hidden_model(
 
 pub(super) fn close(ui: &mut Ui) {
     ui.picker.open = false;
+    ui.picker.setup_language = None;
     ui.picker.in_use_first = None;
     ui.picker.clear_deletion();
 }
@@ -378,6 +399,11 @@ pub(super) fn cancel(ui: &mut Ui) {
 /// its default language, which Settings then names.
 pub(super) fn choose(ui: &mut Ui, model: &'static ModelDefinition) {
     ui.picker.clear_deletion();
+    // The first run's model step takes it as the person's pick.
+    if ui.picker.setup_language.is_some() && ui.tour.is_some() {
+        close(ui);
+        return super::onboarding::choose(ui, model.id);
+    }
     let current = &ui.settings.transcription;
     let installed = ui.picker.installed(model, &current.language);
     if transcription_selection_is_active(current, model, installed) {
@@ -445,14 +471,23 @@ pub(super) fn delete(ui: &mut Ui, model: &'static ModelDefinition) {
     }
 }
 
+/// The picker among the window's modals; the first run shows the one its
+/// model step opened above itself ([`over_first_run`]).
+pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
+    if ui.first_run.is_some() {
+        return None;
+    }
+    over_first_run(ui, p)
+}
+
 /// The picker's scrim and panel over the window, when open: the scrim fades
 /// and the panel scales in as one surface ([`modal_transition`]).
-pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
+pub(super) fn over_first_run(ui: &Ui, p: Paint) -> Option<[El; 2]> {
     if !ui.picker.open {
         return None;
     }
     let c = &p.k.c;
-    let language = ui.settings.transcription.language.clone();
+    let language = shown_language(ui);
     let view = ui.picker.view;
     let inset = match view {
         View::Compare => 24.0,

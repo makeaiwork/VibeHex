@@ -320,7 +320,7 @@ const PATHS: &[(&str, &str)] = &[
     ("mac-labs-settings", "Window/General/Labs settings"),
     ("mac-production", "Window/General/Production build"),
     ("mac-activity", "Window/Activity/Activity"),
-    ("mac-onboarding", "Window/Onboarding/Setting up Hex"),
+    ("mac-onboarding", "Window/Onboarding/Choose a speech model"),
     (
         "mac-onboarding-permissions",
         "Window/Onboarding/Permissions",
@@ -359,6 +359,26 @@ const PATHS: &[(&str, &str)] = &[
         "Linux & Windows/Voice Filter unavailable",
     ),
     ("onboarding", "Linux & Windows/Onboarding"),
+    (
+        "onboarding-choice-russian",
+        "Linux & Windows/Onboarding model step, Russian chosen",
+    ),
+    (
+        "onboarding-choice-in-russian",
+        "Linux & Windows/Onboarding model step in Russian",
+    ),
+    (
+        "onboarding-choice-in-german",
+        "Linux & Windows/Onboarding model step in German",
+    ),
+    (
+        "onboarding-choice-downloading",
+        "Linux & Windows/Onboarding model step, the pick downloading",
+    ),
+    (
+        "onboarding-choice-failed",
+        "Linux & Windows/Onboarding model step, the pick failed",
+    ),
     (
         "onboarding-download-failed",
         "Linux & Windows/Onboarding · download failed",
