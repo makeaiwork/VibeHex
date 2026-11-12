@@ -426,11 +426,14 @@ fn sources(p: Paint, ids: &[String], web: &[String]) -> Option<El> {
 fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
     let steps = super::recall::live(p, answering);
     let web = super::web::live(p, answering);
+    // The model said nothing in time and is asked again.
+    let retry = (answering.retrying && answering.draft.trim().is_empty())
+        .then(|| super::recall::step_line(p, "retry", false, tr("No reply yet, asking again")));
     let words = if !answering.draft.trim().is_empty() {
         let mut draft = answering.draft.trim_end().to_owned();
         draft.push('▌');
         Some(super::recall::answer(p, &draft, None, None, (true, true)))
-    } else if steps.is_none() && web.is_none() {
+    } else if steps.is_none() && web.is_none() && retry.is_none() {
         Some(
             text(tr("Looking in the guide…"))
                 .key("looking")
@@ -464,6 +467,7 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
                 .gap(10.0)
                 .children(steps)
                 .children(web)
+                .children(retry)
                 .children(words)
                 .children(preparing),
         )])

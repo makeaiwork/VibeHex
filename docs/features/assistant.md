@@ -33,6 +33,10 @@ Assistant                                        // rune_ui::assistant
 │   │           didn't cover it all, "Searched the web: 2 pages read", and
 │   │           each search's words. While it searches: "Searched the web
 │   │           for “…”", "Read lmstudio.ai", "Searching the web".
+│   │           A cloud model (Codex, OpenRouter) silent 75 s after its
+│   │           turn starts (no word, reasoning, or search) is stopped and
+│   │           asked once more, "No reply yet, asking again" in the steps;
+│   │           its deadline counts from the new turn.
 │   │           A failed answer says why and offers Try again.
 │   │           From recordings: "Read 4 meetings and 1 file in 9 s ›" over
 │   │           the answer (a click lists the steps), and with the guide

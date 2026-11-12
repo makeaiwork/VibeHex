@@ -26,6 +26,13 @@ use crate::files::rewrite::Engine;
 
 /// How often a growing draft reaches the pane.
 const DRAFT_EVERY: Duration = Duration::from_millis(80);
+/// How long a cloud model may stay silent after its turn starts (no word,
+/// no reasoning, no search) before the turn is stopped and asked once
+/// more; the engine's own deadline then counts from the new turn. A model
+/// that is merely slow has said something by then.
+const FIRST_EVENT: Duration = Duration::from_secs(75);
+/// How often the watchdog looks.
+const WATCH_EVERY: Duration = Duration::from_millis(50);
 
 type Generate =
     Box<dyn Fn(&str, &str, &AtomicBool, Option<Streamed>) -> Result<String> + Send + 'static>;
@@ -107,6 +114,8 @@ pub struct Answering {
     pub cards_coming: bool,
     /// What it has searched on the web so far.
     pub web: Web,
+    /// The model stayed silent past [`FIRST_EVENT`] and is asked again.
+    pub retrying: bool,
 }
 
 #[derive(Default)]
@@ -170,10 +179,14 @@ pub fn ask(question: Question, engine: Engine) -> bool {
             },
         ) as Searching
     });
+    // A cloud model's silence is a stall; a built-in model, OpenCode
+    // (which answers whole) and the person's own server (reading a long
+    // prompt on their hardware) may be silent a long while.
+    let silence = engine.streams_from_the_cloud().then_some(FIRST_EVENT);
     let generate: Generate = Box::new(move |instructions, input, cancel, streamed| {
         engine.generate(context, instructions, input, cancel, streamed)
     });
-    start_with(question, room, model, (generate, search), local)
+    start_with(question, room, model, (generate, search), (local, silence))
 }
 
 /// Whether `question`'s answer may search the web: its conversation's Web
@@ -210,7 +223,7 @@ fn offline(question: &Question, found: Option<&Found>, vocabulary: bool) -> Opti
 
 #[cfg(test)]
 fn start(question: Question, room: Room, model: String, generate: Generate, local: bool) -> bool {
-    start_with(question, room, model, (generate, None), local)
+    start_with(question, room, model, (generate, None), (local, None))
 }
 
 fn start_with(
@@ -218,7 +231,7 @@ fn start_with(
     room: Room,
     model: String,
     (generate, search): (Generate, Option<Searching>),
-    local: bool,
+    (local, silence): (bool, Option<Duration>),
 ) -> bool {
     let mut held = state();
     if held.answering.is_some() {
@@ -239,6 +252,7 @@ fn start_with(
         searching: matches!(question.recall, Recall::Search(_)),
         cards_coming: false,
         web: Web::default(),
+        retrying: false,
     });
     held.cancel = Some(cancel.clone());
     changed(held);
@@ -303,18 +317,47 @@ fn start_with(
                             None
                         }
                     };
-                let first = match &search {
-                    Some(search) => {
-                        prompt.instructions.push_str(super::web::RULES);
-                        search(
-                            &prompt.instructions,
-                            &prompt.input,
-                            &cancel,
-                            Some(drafts()),
-                            &seen,
-                        )
+                if search.is_some() {
+                    prompt.instructions.push_str(super::web::RULES);
+                }
+                let ask = |stop: &AtomicBool, heard: &Arc<AtomicBool>| {
+                    let streamed: Streamed = {
+                        let (heard, drafts) = (heard.clone(), drafts());
+                        Arc::new(move |chars, text| {
+                            heard.store(true, Ordering::Release);
+                            drafts(chars, text);
+                        })
+                    };
+                    match &search {
+                        Some(search) => {
+                            let seen = |item: &Value, done: bool| {
+                                heard.store(true, Ordering::Release);
+                                seen(item, done);
+                            };
+                            search(
+                                &prompt.instructions,
+                                &prompt.input,
+                                stop,
+                                Some(streamed),
+                                &seen,
+                            )
+                        }
+                        None => generate(&prompt.instructions, &prompt.input, stop, Some(streamed)),
                     }
-                    None => generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts())),
+                };
+                let first = match silence {
+                    Some(silence) => match watched(&cancel, silence, &ask) {
+                        Some(result) => result,
+                        None => {
+                            tracing::warn!(
+                                "Assistant's model said nothing in {} s; asking again",
+                                silence.as_secs()
+                            );
+                            retrying();
+                            ask(&cancel, &Arc::new(AtomicBool::new(false)))
+                        }
+                    },
+                    None => ask(&cancel, &Arc::new(AtomicBool::new(false))),
                 };
                 let result = first
                     .map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
@@ -380,6 +423,52 @@ fn read(search: &Search, room: Room) -> Option<Found> {
 }
 
 /// One of Codex's web searches, as a step the pane shows.
+/// Runs `ask` with a stop of its own, which `cancel` sets, and so does
+/// `silence` passing before `ask` hears anything. None when it was the
+/// silence that stopped it.
+fn watched<T>(
+    cancel: &AtomicBool,
+    silence: Duration,
+    ask: impl FnOnce(&AtomicBool, &Arc<AtomicBool>) -> Result<T>,
+) -> Option<Result<T>> {
+    let stop = AtomicBool::new(false);
+    let heard = Arc::new(AtomicBool::new(false));
+    let done = AtomicBool::new(false);
+    let silent = AtomicBool::new(false);
+    let result = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let started = Instant::now();
+            while !done.load(Ordering::Acquire) {
+                if cancel.load(Ordering::Acquire) {
+                    stop.store(true, Ordering::Release);
+                } else if !heard.load(Ordering::Acquire)
+                    && !silent.load(Ordering::Acquire)
+                    && started.elapsed() >= silence
+                {
+                    silent.store(true, Ordering::Release);
+                    stop.store(true, Ordering::Release);
+                }
+                std::thread::sleep(WATCH_EVERY);
+            }
+        });
+        let result = ask(&stop, &heard);
+        done.store(true, Ordering::Release);
+        result
+    });
+    let stalled = silent.load(Ordering::Acquire) && !cancel.load(Ordering::Acquire);
+    (!stalled).then_some(result)
+}
+
+/// The steps say it is asking again.
+fn retrying() {
+    let mut state = state();
+    if let Some(answering) = &mut state.answering {
+        answering.retrying = true;
+        answering.web = Web::default();
+    }
+    changed(state);
+}
+
 fn seen(item: &Value, done: bool) {
     let mut state = state();
     if let Some(answering) = &mut state.answering {
@@ -1031,6 +1120,115 @@ mod tests {
         panic!("no answer came");
     }
 
+    /// A cloud model silent past the watchdog is stopped and asked once
+    /// more, the steps saying so; the second answer is the turn's.
+    #[test]
+    fn a_silent_model_is_asked_once_more() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        take_finished();
+        let asked = Arc::new(Mutex::new(0));
+        let seen_retry = Arc::new(AtomicBool::new(false));
+        let generate: Generate = {
+            let (asked, seen_retry) = (asked.clone(), seen_retry.clone());
+            Box::new(move |_, _, stop, streamed| {
+                let round = {
+                    let mut asked = asked.lock().unwrap();
+                    *asked += 1;
+                    *asked
+                };
+                if round == 1 {
+                    // Silent until stopped.
+                    while !stop.load(Ordering::Acquire) {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    return Err(eyre!("stopped"));
+                }
+                if answering().is_some_and(|answering| answering.retrying) {
+                    seen_retry.store(true, Ordering::Release);
+                }
+                if let Some(streamed) = streamed {
+                    streamed(5, "Hello");
+                }
+                Ok("Hello".into())
+            })
+        };
+        assert!(start_with(
+            question("Why?"),
+            Room::Large,
+            "GPT".into(),
+            (generate, None),
+            (false, Some(Duration::from_millis(100)))
+        ));
+        let (_, turn) = finished();
+        assert_eq!(turn.answer, "Hello");
+        assert_eq!(*asked.lock().unwrap(), 2);
+        assert!(
+            seen_retry.load(Ordering::Acquire),
+            "the steps said it asked again"
+        );
+    }
+
+    /// A model that answers, however slowly after its first sign, is never
+    /// asked again; one silent twice fails with its own error.
+    #[test]
+    fn a_model_that_speaks_is_not_asked_again_and_a_second_silence_fails() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        take_finished();
+        let generate: Generate = Box::new(|_, _, _, streamed| {
+            if let Some(streamed) = streamed {
+                streamed(0, "");
+            }
+            std::thread::sleep(Duration::from_millis(300));
+            Ok("Slow but here".into())
+        });
+        assert!(start_with(
+            question("Why?"),
+            Room::Large,
+            "GPT".into(),
+            (generate, None),
+            (false, Some(Duration::from_millis(100)))
+        ));
+        let (_, turn) = finished();
+        assert_eq!(turn.answer, "Slow but here");
+
+        let asked = Arc::new(Mutex::new(0));
+        let generate: Generate = {
+            let asked = asked.clone();
+            Box::new(move |_, _, stop, _| {
+                *asked.lock().unwrap() += 1;
+                let started = Instant::now();
+                // The second turn runs to the engine's own deadline.
+                while !stop.load(Ordering::Acquire) {
+                    if started.elapsed() > Duration::from_millis(300) {
+                        return Err(eyre!("Codex didn't answer within 240 seconds"));
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(eyre!("stopped"))
+            })
+        };
+        assert!(start_with(
+            question("Why?"),
+            Room::Large,
+            "GPT".into(),
+            (generate, None),
+            (false, Some(Duration::from_millis(100)))
+        ));
+        let (_, turn) = finished();
+        assert_eq!(*asked.lock().unwrap(), 2, "asked again once, not more");
+        assert!(
+            turn.error
+                .as_deref()
+                .is_some_and(|error| error.contains("didn't answer")),
+            "{:?}",
+            turn.error
+        );
+    }
+
     #[test]
     fn a_reply_becomes_a_turn_with_its_sources() {
         let _serial = SERIAL
@@ -1106,7 +1304,7 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, Some(search)),
-            false
+            (false, None)
         ));
         let (_, turn) = finished();
         (searched.load(Ordering::SeqCst), turn)
@@ -1246,7 +1444,7 @@ mod tests {
             Room::Large,
             "GPT".into(),
             (generate, Some(search)),
-            false
+            (false, None)
         ));
         let (_, turn) = finished();
         assert_eq!(turn.web.searches, ["LM Studio local server"]);

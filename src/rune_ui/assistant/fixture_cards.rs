@@ -399,6 +399,7 @@ pub(in super::super) fn change_coming(ui: &mut Ui) {
         searching: false,
         cards_coming: true,
         web: Default::default(),
+        retrying: false,
     });
 }
 
