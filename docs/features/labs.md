@@ -188,7 +188,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Terminal paste  no    paste_with_shift             (Windows) paste with Ctrl+Shift+V (#477/#478; Linux keeps it in General);
 │                                         Java games (javaw/java, e.g. Minecraft) still get Ctrl+V (#1362)
 │                                         // check: terminal_paste_sends_plain_control_v_to_java_games (windows/paste.rs)
-└── OpenCode in WSL no    labs.opencode_in_wsl          (Windows) Modes rewriting, the Modes model picker, and Annotate's capture sends
+└── OpenCode in WSL no    labs.opencode_in_wsl          (Windows) AI cleanup, meeting summaries and their model list, and Annotate's Send to
                                          use an OpenCode service running in the default WSL distribution
                                          when no Windows registration answers; looking for it can start WSL
                                          // checks: the_passwd_line_for_the_uid_names_its_home, both_wsl_prefixes_name_the_distribution,
@@ -2515,10 +2515,11 @@ vocabulary list itself (rewriting and search), and Linux's Terminal paste.
 - Terminal paste shortcut (Windows, Linux): another dictation shortcut whose
   paste is always Ctrl+Shift+V, whatever Terminal paste says. Its own switch
   is `labs.terminal_paste_shortcut`, and General shows its recorder while on.
-- OpenCode in WSL (Windows): Modes rewriting, the Modes model picker, and
-  Annotate's capture sends use an OpenCode service running inside the default
-  WSL distribution. WSL2 forwards
-  loopback, so Hex dials the registered URL as usual; what it cannot see
+- OpenCode in WSL (Windows): everything that asks the running OpenCode
+  service uses one running inside the default WSL distribution when no Windows
+  one answers: AI cleanup on OpenCode, meeting summaries and notes, the
+  summary model list in Meetings › Settings, and Annotate's Send to. WSL2
+  forwards loopback, so Hex dials the registered URL as usual; what it cannot see
   without this lab is the registration, which lives in the distribution's
   home.
 

@@ -292,4 +292,5 @@ pub(in super::super) const TRANSLATIONS: &[(&str, &str)] = &[
     ("Ask about decisions, tasks, or who said what. Answers come from the transcript", "Спрашивайте о решениях, задачах или о том, кто что сказал. Ответы берутся из расшифровки"),
     ("Ask about this meeting", "Спросите об этой встрече"),
     ("Writing notes…", "Пишем заметки…"),
+    ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Использует службу OpenCode, запущенную в вашем дистрибутиве WSL по умолчанию, для ИИ-очистки, сводок встреч и их списка моделей, а также «Отправить в» в Annotate. Её поиск может запустить WSL."),
 ];

@@ -871,7 +871,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
             Feature::OpenCodeInWsl,
             Some(&TERMINAL),
             tr("OpenCode in WSL"),
-            tr("Use an OpenCode service running in your default WSL distribution for Modes rewriting and the Modes model picker. Looking for it can start WSL."),
+            tr("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL."),
         ));
     }
     if caps.os != super::platform::Os::Macos {

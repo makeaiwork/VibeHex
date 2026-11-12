@@ -125,6 +125,7 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Search Labs", ["Szukaj w Labs", "搜索 Labs", "Labs を検索", "Labs durchsuchen", "Buscar en Labs", "Пошук у Labs"]),
     ("No Labs features match.", ["Brak pasujących funkcji Labs.", "没有匹配的 Labs 功能。", "一致する Labs 機能はありません。", "Keine passenden Labs-Funktionen.", "No hay funciones de Labs que coincidan.", "Відповідних функцій Labs немає."]),
     ("Writing notes…", ["Tworzenie notatek…", "正在撰写笔记…", "ノートを作成中…", "Notizen werden geschrieben…", "Escribiendo notas…", "Створення нотаток…"]),
+    ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", ["Używaj usługi OpenCode działającej w domyślnej dystrybucji WSL do porządkowania przez AI, podsumowań spotkań i ich listy modeli oraz funkcji „Wyślij do” w Adnotacjach. Szukanie jej może uruchomić WSL.", "使用运行在默认 WSL 发行版中的 OpenCode 服务，用于 AI 整理、会议摘要及其模型列表，以及 Annotate 的“发送到”。查找它可能会启动 WSL。", "既定の WSL ディストリビューションで動作している OpenCode サービスを、AI による整え、会議の要約とそのモデル一覧、Annotate の「送信先」に使います。検索すると WSL が起動することがあります。", "Verwendet einen OpenCode-Dienst in deiner Standard-WSL-Distribution für KI-Bereinigung, Besprechungszusammenfassungen und deren Modellliste sowie „Senden an“ in Annotate. Die Suche danach kann WSL starten.", "Usa un servicio de OpenCode que se ejecuta en tu distribución WSL predeterminada para la limpieza con IA, los resúmenes de reuniones y su lista de modelos, y «Enviar a» de Annotate. Buscarlo puede iniciar WSL.", "Використовує службу OpenCode, що працює в типовому дистрибутиві WSL, для упорядкування ШІ, підсумків зустрічей і їхнього списку моделей, а також «Надіслати до» в Annotate. Її пошук може запустити WSL."]),
 ];
 
 #[rustfmt::skip]
@@ -417,6 +418,7 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("Clean up transcript", "Nettoyer la transcription"),
     ("How long a dictation waits for Codex before it pastes as heard", "Combien de temps une dictée attend Codex avant d’être collée telle qu’entendue"),
     ("Writing notes…", "Rédaction des notes…"),
+    ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Utilise un service OpenCode exécuté dans votre distribution WSL par défaut pour le nettoyage par IA, les résumés de réunions et leur liste de modèles, et « Envoyer à » d’Annotate. Sa recherche peut démarrer WSL."),
 ];
 
 #[rustfmt::skip]
@@ -709,4 +711,5 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Clean up transcript", "Limpar transcrição"),
     ("How long a dictation waits for Codex before it pastes as heard", "Quanto tempo um ditado espera o Codex antes de ser colado como foi ouvido"),
     ("Writing notes…", "Escrevendo notas…"),
+    ("Use an OpenCode service running in your default WSL distribution for AI cleanup, meeting summaries and their model list, and Annotate's Send to. Looking for it can start WSL.", "Usa um serviço do OpenCode rodando na sua distribuição WSL padrão para a limpeza com IA, os resumos de reuniões e a lista de modelos deles, e o “Enviar para” do Annotate. Procurá-lo pode iniciar o WSL."),
 ];
