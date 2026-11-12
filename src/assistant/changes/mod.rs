@@ -282,6 +282,31 @@ fn card(
     })
 }
 
+/// Takes out of `cards` each one that would change nothing: a single
+/// change (or the instructions) to the value the setting has now, compared
+/// as `names::same` compares them, so `codex` over `codex:<that model>` is
+/// no change either. Returns them as `key = value` lines, for a repair
+/// round to tell the model; a plan, a choice, and terms are left alone.
+pub fn already_set(cards: &mut Vec<Card>, settings: &AppSettings) -> Vec<String> {
+    let mut lines = Vec::new();
+    cards.retain(|card| {
+        let no_change = matches!(card.kind, CardKind::Single | CardKind::Prompt)
+            && !card.items.is_empty()
+            && card.items.iter().all(|item| {
+                let now = current(settings, &item.key).unwrap_or_else(|| item.from.clone());
+                names::same(settings, &item.key, &now, &item.to)
+            });
+        if no_change {
+            lines.extend(card.items.iter().map(|item| {
+                let now = current(settings, &item.key).unwrap_or_else(|| item.from.clone());
+                format!("{} = {} : already set to {now}", item.key, item.to)
+            }));
+        }
+        !no_change
+    });
+    lines
+}
+
 /// `key`'s value now, as `hex settings get` shows it, or a part's; `None`
 /// for a key this VibeHex doesn't have.
 pub fn current(settings: &AppSettings, key: &str) -> Option<Value> {

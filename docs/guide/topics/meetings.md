@@ -37,7 +37,7 @@ A question in Requests that reaches past the meeting ("what did we decide at the
 
 **Settings › After a meeting › Summaries** is a pop-up on a Mac: **Off**, **On this Mac** (Apple Intelligence, the default; macOS 26 or later; nothing leaves the Mac) or **OpenCode** (sends the transcript to your OpenCode model). With OpenCode, a **Model** row appears; left unset, VibeHex picks a fast model. OpenCode must be running. On Windows and Linux Summaries is a switch, off by default, and on means OpenCode. With Off, a meeting gets no title or summary on its own.
 
-**Settings › Notes › Written by** can pick another writer; while it does, Summaries is hidden. Default is Apple Intelligence on a Mac and OpenCode (when turned on) elsewhere; OpenCode is always listed. Codex, Built in and Other appear when **Labs › Clean up on your own server** is on and set up in Output › AI cleanup. Apple Intelligence and Built in keep the transcript on the computer; any other writer receives it.
+**Settings › Notes › Written by** can pick another writer; while it does, Summaries is hidden and only the fallback for when no writer is chosen: with Codex picked there, Codex writes the notes and an **On this Mac** left in Summaries is not used. Default is Apple Intelligence on a Mac and OpenCode (when turned on) elsewhere; OpenCode is always listed. Codex, Built in and Other appear when **Labs › Clean up on your own server** is on and set up in Output › AI cleanup. Apple Intelligence and Built in keep the transcript on the computer; any other writer receives it.
 
 ## Ask questions about a meeting
 

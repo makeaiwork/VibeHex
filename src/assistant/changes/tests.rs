@@ -189,3 +189,51 @@ fn vocabulary_terms_make_one_card() {
     let streaming = "Добавлю.\n\n```hex-vo";
     assert_eq!(crate::assistant::prompt::draft(streaming), "Добавлю.");
 }
+
+/// A change to the value there is now is no card: the same value, or the
+/// same engine written another way (`codex` over `codex:<AI cleanup's
+/// model>`). A real change stays, and its from side names the model.
+#[test]
+fn a_value_already_set_makes_no_card() {
+    let mut settings = settings();
+    settings.labs.ai_cleanup_server = true;
+    settings.meetings.enabled = true;
+    settings.meetings.notes.writer = Some("codex:gpt-6.1-terra".into());
+    settings.dictation_processing.server.codex_model = "gpt-6.1-terra".into();
+    let lines = [
+        proposal("meetings.notes.writer", json!("codex")),
+        proposal("meetings.notes.writer", json!("codex:gpt-6.1-terra")),
+        proposal("labs.smart_spacing", json!("off")),
+        proposal("files.cleanup_engine", json!("opencode")),
+        proposal("meetings.notes.writer", json!("opencode")),
+    ];
+    let (mut cards, refused) = resolve(&lines, &settings, &rules());
+    assert!(refused.is_empty(), "{refused:?}");
+    let already = already_set(&mut cards, &settings);
+    assert_eq!(already.len(), 3, "{already:?}");
+    assert!(already[0].starts_with("meetings.notes.writer = \"codex\" : already set to"));
+    let keys: Vec<&str> = cards
+        .iter()
+        .map(|card| card.items[0].key.as_str())
+        .collect();
+    assert_eq!(keys, ["files.cleanup_engine", "meetings.notes.writer"]);
+    let writer = &cards[1].items[0];
+    assert_eq!(writer.from, json!("codex:gpt-6.1-terra"));
+    assert!(
+        names::label(&writer.key, &writer.from).starts_with("Codex ("),
+        "{}",
+        names::label(&writer.key, &writer.from)
+    );
+    assert!(names::same(
+        &settings,
+        "meetings.notes.writer",
+        &json!(""),
+        &Value::Null
+    ));
+    assert!(!names::same(
+        &settings,
+        "labs.smart_spacing",
+        &json!(true),
+        &json!(false)
+    ));
+}

@@ -439,12 +439,21 @@ fn settle(
     let rules = crate::rune_ui::shortcut_rules();
     let (mut cards, mut refused) = changes::resolve(&parsed.proposals, &context.settings, &rules);
     refused.extend(malformed(&parsed.malformed));
+    // A change to the value there is now never becomes a card; a plan's
+    // rules fold such lines into "Already set" themselves.
+    let already = if plan {
+        Vec::new()
+    } else {
+        changes::already_set(&mut cards, &context.settings)
+    };
+    let mut reply = reply;
     let fixable: Vec<Refused> = refused
         .iter()
         .filter(|refused| refused.why != Why::Never)
         .cloned()
         .collect();
-    if remote && !fixable.is_empty() && !cancel.load(Ordering::Acquire) {
+    let asking_again = !fixable.is_empty() || !already.is_empty();
+    if remote && asking_again && !cancel.load(Ordering::Acquire) {
         {
             let mut state = state();
             if let Some(answering) = &mut state.answering {
@@ -452,6 +461,24 @@ fn settle(
             }
             changed(state);
         }
+    }
+    if remote && !already.is_empty() && !cancel.load(Ordering::Acquire) {
+        // Its words may claim a difference there isn't: the whole reply
+        // again, told what is set already; its own refusals fixed with it.
+        let again = prompt::rewrite(prompt, &reply, &already, &fixable);
+        if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None)
+            && !changes::parse::parse(&fixed).body.trim().is_empty()
+        {
+            let parsed = changes::parse::parse(&fixed);
+            let (mut more, mut more_refused) =
+                changes::resolve(&parsed.proposals, &context.settings, &rules);
+            more_refused.extend(malformed(&parsed.malformed));
+            changes::already_set(&mut more, &context.settings);
+            cards = more;
+            refused = more_refused;
+            reply = fixed;
+        }
+    } else if remote && !fixable.is_empty() && !cancel.load(Ordering::Acquire) {
         let again = prompt::repair(prompt, &reply, &fixable);
         if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None) {
             let mut parsed = changes::parse::parse(&fixed);
@@ -811,6 +838,55 @@ mod tests {
         assert_eq!(*calls.lock().unwrap(), 2, "asked once more, no further");
         assert_eq!(turn.cards.len(), 1);
         assert_eq!(turn.refused.len(), 1);
+    }
+
+    /// The owner's case: notes already written by Codex, and a reply that
+    /// offers Codex as the writer. No card; a remote model writes its
+    /// reply again, told the value is set, and that reply is the answer.
+    #[test]
+    fn a_value_already_set_is_no_card_and_its_words_are_rewritten() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let asked = Arc::new(Mutex::new(Vec::<String>::new()));
+        let seen = asked.clone();
+        let generate: Generate = Box::new(move |_, input, _, _| {
+            let mut asked = seen.lock().unwrap();
+            asked.push(input.to_owned());
+            Ok(if asked.len() == 1 {
+                "Notes are written on this Mac; switch them to Codex.\n```hex-change\n{\"key\":\"meetings.notes.writer\",\"value\":\"codex\"}\n```\nSources: none".into()
+            } else {
+                "Codex already writes your notes.\nSources: none".into()
+            })
+        });
+        let mut question = with_changes("can you recommend anything else?");
+        if let Some(context) = &mut question.changes {
+            context.settings.meetings.notes.writer = Some("codex:gpt-6.1-terra".into());
+            context.settings.dictation_processing.server.codex_model = "gpt-6.1-terra".into();
+        }
+        assert!(start(
+            question.clone(),
+            Room::Large,
+            "GPT".into(),
+            generate,
+            false
+        ));
+        let (_, turn) = finished();
+        let asked = asked.lock().unwrap().clone();
+        assert_eq!(asked.len(), 2);
+        assert!(asked[1].contains("<already_set>\nmeetings.notes.writer = \"codex\""));
+        assert!(turn.cards.is_empty(), "{:?}", turn.cards);
+        assert!(turn.refused.is_empty());
+        assert_eq!(turn.answer, "Codex already writes your notes.");
+
+        // A built-in model isn't asked again: the card just goes.
+        let generate: Generate = Box::new(|_, _, _, _| {
+            Ok("Switch them.\n```hex-change\n{\"key\":\"meetings.notes.writer\",\"value\":\"codex:gpt-6.1-terra\"}\n```\nSources: none".into())
+        });
+        assert!(start(question, Room::Small, "Qwen".into(), generate, true));
+        let (_, turn) = finished();
+        assert!(turn.cards.is_empty());
+        assert!(turn.refused.is_empty());
     }
 
     fn setup(text: &str, stage: Stage) -> Question {

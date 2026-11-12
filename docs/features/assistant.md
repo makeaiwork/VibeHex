@@ -164,6 +164,17 @@ Opened from a place link                         // rune_ui::assistant::places
 - What a card shows follows the settings each frame: applied, declined,
   already set, changed by hand since, downloading, a macOS permission to
   ask, a Codex sign-in, or held by the organization or the OS.
+- A change to the value the setting has now is never a card, compared as
+  the engine it runs (`names::same`: `codex` equals `codex:<AI cleanup's
+  model>`, empty equals none; `changes::already_set`). A remote model gets
+  one silent round (`prompt::rewrite`) to write its whole reply again, told
+  in `<already_set>` that the value is set, so its words claim no
+  difference; a built-in model's card just goes. A card's from side names
+  the engine with its model (Codex (GPT-6.1 Terra)).
+- The snapshot says who writes meeting notes (`catalog::notes_line`):
+  with `meetings.notes.writer` in use, `meetings.summaries` reads as the
+  fallback, not used now; engine ids and Codex efforts go in the now
+  column as stored.
 - A line the app refuses (no such key, a value it doesn't take, a key
   never changed from a card) shows as a muted row, never an action. Codex,
   OpenCode, OpenRouter, and your own server get one silent round to fix

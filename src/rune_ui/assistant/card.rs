@@ -759,5 +759,11 @@ fn text_of(value: &Value) -> &str {
 
 /// A value as the window names it, in the window's language.
 pub(super) fn label(key: &str, value: &Value) -> String {
-    tr(&names::label(key, value)).to_owned()
+    let label = names::label(key, value);
+    // An engine with its model: the engine's word translated, the model's
+    // name as it is.
+    match label.split_once(" (") {
+        Some((engine, model)) if names::is_engine(key) => format!("{} ({model}", tr(engine)),
+        _ => tr(&label).to_owned(),
+    }
 }
