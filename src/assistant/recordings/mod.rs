@@ -12,6 +12,7 @@
 //! cites the very lines it rests on and the place opens with them lit.
 
 pub mod cite;
+pub mod heard;
 mod meetings;
 mod spoken;
 pub mod terms;

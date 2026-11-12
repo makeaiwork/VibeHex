@@ -3,7 +3,7 @@
 # keeps turning a heard word into it, or it is shaped like a brand).
 # Plurals and -ed/-ing forms are found from these (`recordings::terms`).
 # Leave out words that are mostly names here: cursor, linear, notion,
-# react, rust, python, swift, slack, zoom, docker.
+# react, rust, python, swift, slack, zoom, docker, whisper.
 
 a about above across act action active actually add address after again
 against age ago agree ah ahead air all allow almost alone along already
@@ -116,3 +116,151 @@ saw seen took taken came given gave got known knew thought told found
 left kept felt brought bought began begun ran wrote written spoke spoken
 better best worse worst
 file files bug bugs token tokens
+
+# Everyday words a capital alone doesn't make a term (animals, food, the
+# home, nature, people, plain adjectives and verbs).
+monkey dog cat bird fish horse cow pig sheep goat chicken duck mouse rat
+rabbit bear wolf fox lion tiger elephant snake frog bee ant spider fly
+butterfly whale shark dolphin eagle owl deer turtle dragon
+apple orange banana lemon grape berry cherry peach pear melon tomato
+potato onion garlic carrot corn rice bread butter cheese milk egg meat
+beef pork salt sugar pepper honey cake cookie pie soup salad sauce pizza
+pasta sandwich coffee tea juice wine beer water breakfast lunch dinner
+kitchen bedroom bathroom garden garage roof wall floor ceiling stairs
+chair sofa couch desk lamp mirror shelf drawer carpet curtain pillow
+blanket towel soap brush knife fork spoon plate cup glass bottle bowl
+oven fridge stove sink shower toilet key lock bell clock watch
+sun moon star sky cloud rain snow wind storm fire ice river lake sea
+ocean beach island mountain hill valley forest tree leaf flower grass
+stone rock sand earth world planet space weather summer winter spring
+autumn morning evening night noon midnight today tomorrow yesterday
+hero king queen prince princess knight soldier doctor nurse teacher
+student driver pilot farmer worker boss guest friend neighbor stranger
+mother father brother sister son daughter uncle aunt cousin husband wife
+head face eye ear nose mouth tooth hair neck shoulder hand finger leg
+foot knee heart brain blood bone skin
+red blue green yellow black white gray grey brown pink purple gold
+silver dark light bright
+shout laugh smile cry scream sing dance jump swim climb fly
+prompt generative creative native active passive massive positive
+negative relative alternative
+session web net link page site post message chat mail email letter note
+story news paper book magazine picture photo image video movie film
+music song sound voice noise silence
+shirt dress shoe hat coat jacket pocket button ring belt glove sock
+car bus train plane boat ship bike truck wheel engine road street bridge
+tunnel station airport hotel shop store market bank church school office
+hospital library museum theater park farm factory
+money price cost cash coin gift prize ticket pass
+hello hi bye thanks sorry please yes no maybe okay
+cancel submit confirm apply reset clear delete remove insert select
+toggle switch enable disable install update upgrade download upload
+settings options preferences profile account dashboard home menu
+toolbar sidebar panel tab window dialog popup tooltip badge banner
+magic power energy force speed shadow ghost spirit angel devil monster
+giant dwarf robot rocket laser crystal diamond pearl
+# More plain adjectives and nouns.
+original russian english german french spanish italian chinese japanese
+korean polish ukrainian american british european asian african mate lap
+pal buddy teen adult crew squad gang club normal regular complex loud
+silent slow rapid ancient classic fresh dirty dry wet warm sharp flat
+round square thin thick narrow shallow tall tiny sad angry afraid proud
+brave calm crazy funny strange weird famous rare unique equal fair
+honest polite rude cruel expensive lazy tired sick healthy weak
+dangerous lucky obvious vague initial primary secondary minor partial
+double triple multiple advanced smart clever stupid wise perfect ideal
+typical actual virtual digital analog manual automatic portable remote
+global secret upper lower inner outer rear absolute abstract academic
+accurate adequate annual apparent appropriate artificial average aware
+awful capable careful casual chief civil comfortable commercial concrete
+confident conscious constant critical curious daily decent definite
+delicate direct distinct domestic dramatic due dull eager effective
+efficient elegant emotional empty endless enormous essential exact
+excellent exciting existing exotic experimental extra extreme false
+familiar fancy fatal favorite fit fixed flexible formal frequent
+friendly fundamental gentle genuine glad golden grand grateful gross
+guilty handy harsh helpful hidden holy hollow hostile humble hungry
+illegal immediate impossible impressive incredible independent indirect
+industrial infinite informal innocent instant intense internal joint
+junior keen liberal limited literal logical lonely loose lost lovely
+loyal mad mature maximum mental mere mild minimum mixed moral mutual
+naked nasty neat nervous neutral noble nuclear numerous odd opposite
+ordinary organic overall pale parallel peaceful permanent plain pleasant
+potential practical precise pregnant previous prime prior proper pure
+random raw reasonable relevant reliable responsible rough royal rural
+sacred scientific secure sensitive separate severe sexual shy slight
+smooth solid spare stable steady stiff straight strict subtle sudden
+sufficient suitable super superior supreme sweet technical temporary
+tender terrible tight tough toxic tropical ugly ultimate unable unfair
+unknown unlikely upset urban urgent useful useless valid valuable vast
+violent visible visual vital wild willing wonderful wooden worth ability
+absence access accident achievement advantage adventure advice affair
+agency agent agreement aid aim alarm album alcohol ambition analysis
+angle anger anniversary announcement anxiety apartment appeal appearance
+appointment argument army arrangement arrival aspect assignment
+association assumption atmosphere attempt attitude audience authority
+award background balance band barrier basis basket battery battle beauty
+birth blade blame bomb bond bonus border bother boundary branch brand
+breath brick brief bunch burden cabinet cable camp campaign cap captain
+carrier cart cast category celebration chain champion channel charity
+chart chase cheek chest chip circle citizen clerk climate closet clothes
+clue coast collar colleague column combination comfort command
+commission committee communication companion comparison competition
+complaint concept concert conclusion confidence conflict confusion
+connection consequence consideration contact contest contract
+contribution conversation corridor council counter county courage crack
+craft crash cream creature credit crisis criticism crop cross crowd
+curve custom cycle damage danger database debt definition delay delivery
+department departure deposit depth desert desire diet dimension disaster
+discipline discount dish distance district division dozen drama dust
+duty edition element emergency emotion emphasis employer employment
+enemy entrance entry envelope episode equipment escape estate exam
+examination exchange excitement excuse exercise exit explanation
+expression extension extent facility failure faith fame fan fashion fate
+fault fee feeling fence festival fiction flag flame flash flavor flight
+flood folk formula fortune foundation frame freedom frequency fuel
+funeral fur gain gallery gap gate gear gene gesture god grade grain
+grant graph guard guide guitar habit hall harm hate heaven height hell
+highway hint hobby hole holiday honor hook host household housing humor
+hunt identity illusion impression improvement incident income index
+infection inflation influence injury insect inspection instance
+instruction instrument insurance intention interaction internet
+introduction invitation iron jail jar jaw jewel joke journal journey joy
+judge judgment jungle jury justice kick killer kiss kit labor lack
+ladder lady landscape lane laughter launch layer league leather lecture
+legend length lesson liberty license lid lift literature loan location
+logic luck lung maintenance manner manufacturer margin mark mask mass
+master match math meal meaning medicine medium membership mess metal
+mile mill miracle mistake mixture monitor mood motion motor mud muscle
+mystery myth nail needle nerve nest nightmare nobody nonsense novel
+object objective obligation occasion oil opinion opponent orbit organ
+origin outcome pace pack package paint pair palace pan panic parade
+parking passage passenger passion path payment peak pen penalty pension
+percent permission personality perspective pet phase philosophy phrase
+physics piano pile pill pin pipe pitch pity plastic platform pleasure
+plot poem poet poetry poison pole pollution pool port portion portrait
+possession possibility pot pound poverty powder prayer preference
+presence pride priest principle priority prison privacy procedure
+producer profession profit promise promotion proof proposal protection
+protest psychology pump punch punishment purchase pursuit puzzle quarter
+quest queue quote rail rank ratio reaction reader reception recipe
+recognition recommendation recovery reduction reference reflection
+reform regret relation relief religion reputation rescue reserve
+resident resistance resolution resort respect responsibility restaurant
+revenue revolution reward rhythm rival rope route routine row rumor rush
+sacrifice safety sake salary sample satisfaction scale scandal schedule
+scheme scholar scratch seal secretary sector seed selection self
+sentence sequence servant shame shape shelter shift shock sight signal
+signature silk sin slave slice slide slip slope smell smoke soil
+solution soul speaker species spite spot spread stack stadium stake
+stamp status steam steel stick stomach strain stream strength stress
+stretch strike string stroke struggle studio substance suburb suggestion
+suit sum supply surgery surprise survey survival suspect sweat symbol
+sympathy symptom tail tale talent tank tape target taste technique
+teenager temperature tension tent territory therapy thief throat thumb
+tide tissue tobacco tone tongue topic tour tourist tower tradition
+traffic tragedy trail trainer trait transition transport trap trash
+treasure trend tribe trick troop tube tune twin uniform union universe
+university vacation variety vehicle version victory village virus vision
+visitor volume voter voyage wage wave wealth wedding weekend welfare
+wing winner wire wisdom witness wood wound wrap youth zone

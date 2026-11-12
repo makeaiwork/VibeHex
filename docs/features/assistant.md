@@ -522,14 +522,23 @@ Opened from a place link                         // rune_ui::assistant::places
   they wait for the plan. A term is a Latin word said beside a Russian
   one, said twice or more, that isn't an ordinary English word (a list of
   common words, `recordings/english.txt`, with plurals and -ed/-ing
-  forms), unless it is shaped like a name (`GitHub`, `API`, `gpt5`) or
-  cleanup turned one heard word into exactly it 3+ times and wrote it as
-  a name every time (курсор → Cursor; тест → test is cleanup putting a
-  word into English, no term); never a small word ("to"). A word that is a Vocabulary term, one of a term's words
-  ("Code" of "Claude Code"), or a sounds-like is known. A phrase cleanup
-  writes twice or more for Russian it heard ("pull request") is one term,
-  as a whole. How it was heard comes only from fixes into exactly it,
-  word for word or phrase for phrase. In the plan they are rows of their
+  forms), unless it is shaped like a name (`GitHub`, `API`, `gpt5`);
+  never a small word ("to"). A word that is a Vocabulary term, one of a
+  term's words ("Code" of "Claude Code"), or a sounds-like is known. A
+  phrase cleanup writes twice or more for Russian it heard ("pull
+  request") is one term, as a whole. How it was heard comes only from
+  fixes into exactly it, word for word or phrase for phrase.
+- An ordinary word written as a name (Web, Monkey), or a Title Case
+  phrase of ordinary words (New Session), is no term on its capital alone
+  (`terms::ordinary`): a Russian speech model writes an English word in
+  Russian letters, and cleanup writing «веб» as Web is that word heard
+  right, put into English. It is a term only when it is misheard
+  (`recordings::heard`): one heard word fixed into exactly it 3+ times,
+  written as a name every time, and a heard form that isn't the word
+  itself (compared by consonants: «вольт» for Bolt, never «монки» for
+  Monkey) fixed into it twice or more. A term a model names passes the
+  same rule (`terms::passes`): an ordinary word needs a sounds-like that
+  isn't the word itself. In the plan the terms are rows of their
   own: the sure ones (one heard word fixed into exactly it 3+ times)
   checked, "Cleanup keeps fixing how these are heard"; the rest unchecked,
   "You say these, and Vocabulary doesn't have them" (`plan::with_terms`).

@@ -2,10 +2,17 @@
 //! lacks. A term sits inside Russian speech (a Cyrillic word next to it,
 //! never in an English sentence), is said often or keeps being fixed into,
 //! and is not an ordinary English word (`english.txt`), unless it is
-//! shaped like a name (`GitHub`, `API`, `gpt5`) or cleanup turned one
-//! heard word into exactly it [`SURE`] times or more. A phrase cleanup keeps writing ("pull
-//! request") is one term, as a whole. How a term was heard comes only
-//! from fixes into exactly it, word for word or phrase for phrase.
+//! shaped like a name (`GitHub`, `API`, `gpt5`). A phrase cleanup keeps
+//! writing ("pull request") is one term, as a whole. How a term was heard
+//! comes only from fixes into exactly it, word for word or phrase for
+//! phrase.
+//!
+//! An ordinary word written as a name (`Web`, `Monkey`), or a Title Case
+//! phrase of ordinary words (`New Session`), is no term on its capital
+//! alone ([`ordinary`]): cleanup writing «веб» as Web is a word put into
+//! English, heard right. It is one only when it is misheard
+//! (`heard::misheard`): a heard form that isn't the word itself, fixed
+//! into it [`FIXED`] times or more, beside one form fixed [`SURE`] times.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
@@ -82,6 +89,34 @@ pub fn brand(word: &str) -> bool {
         return !common(word);
     }
     word.chars().any(|c| c.is_ascii_digit()) || word.chars().skip(1).any(|c| c.is_ascii_uppercase())
+}
+
+/// Whether `term` is ordinary English that only its capital makes a name:
+/// one ordinary word (`Web`, `monkey`), or a phrase of ordinary words
+/// written in Title Case (`New Session`; "pull request" is a term of the
+/// trade and stays one).
+pub fn ordinary(term: &str) -> bool {
+    let words: Vec<&str> = term.split_whitespace().collect();
+    let plain = |word: &&str| latin(word) && common(word) && !brand(word);
+    let capital = |word: &&str| word.chars().next().is_some_and(char::is_uppercase);
+    match words.as_slice() {
+        [] => false,
+        [one] => plain(one),
+        many => {
+            many.iter().all(plain)
+                && many
+                    .iter()
+                    .all(|word| capital(word) || SMALL.contains(&word.to_lowercase().as_str()))
+        }
+    }
+}
+
+/// Whether a term a model or a follow-up names, with how it says it
+/// sounds, passes the rule the use's terms pass: an ordinary word or
+/// Title Case phrase needs a spelling that isn't the word itself.
+pub fn passes(term: &str, sounds_like: &[String]) -> bool {
+    !ordinary(term)
+        || super::heard::misheard(term, sounds_like.iter().map(|heard| (heard.as_str(), 1))) > 0
 }
 
 /// Whether `word` is written in Latin letters: two or more, nothing but
@@ -190,16 +225,22 @@ pub fn pick(seen: &Seen, fixes: &[Fix], known: &[String]) -> Vec<Term> {
         let into = into(fixes, lower, false);
         let fixed: usize = into.iter().map(|fix| fix.count).sum();
         let most = into.iter().map(|fix| fix.count).max().unwrap_or(0);
-        let fits = if common(&word) && !brand(&word) {
-            // An ordinary word only when one heard word keeps becoming
-            // it, never a small one ("то" → "to"), and only written as a
-            // name every time (курсор → Cursor): тест → test is cleanup
-            // putting a word into English, not a term.
+        let fits = if ordinary(&word) {
+            // An ordinary word only when it keeps being misheard: one
+            // heard word keeps becoming it, a form that isn't the word
+            // itself among them («вольт» → Bolt), never a small one
+            // ("то" → "to"), and written as a name every time. «веб» →
+            // Web and тест → test are cleanup putting a word into
+            // English, not terms.
             let named = said
                 .forms
                 .keys()
                 .all(|form| form.chars().next().is_some_and(char::is_uppercase));
-            most >= SURE && named && !SMALL.contains(&lower.as_str())
+            let misheard = super::heard::misheard(
+                &word,
+                into.iter().map(|fix| (fix.heard.as_str(), fix.count)),
+            );
+            most >= SURE && misheard >= FIXED && named && !SMALL.contains(&lower.as_str())
         } else {
             said.count >= SAID || fixed >= FIXED
         };
@@ -217,13 +258,19 @@ pub fn pick(seen: &Seen, fixes: &[Fix], known: &[String]) -> Vec<Term> {
         if edges.iter().any(|edge| SMALL.contains(edge)) {
             continue;
         }
+        // "New Session" for «нью сешн» is heard right, not a term.
+        let into = into(fixes, &lower, true);
+        let heard = into.iter().map(|fix| (fix.heard.as_str(), fix.count));
+        if ordinary(&written) && super::heard::misheard(&written, heard) < FIXED {
+            continue;
+        }
         terms.retain(|term| {
             !(term.count <= count
                 && parts
                     .iter()
                     .any(|part| term.word.eq_ignore_ascii_case(part)))
         });
-        terms.push(term(written, count, &into(fixes, &lower, true)));
+        terms.push(term(written, count, &into));
     }
     let sure = |term: &Term| term.fixed >= SURE;
     terms.sort_by(|a, b| {
@@ -319,7 +366,7 @@ fn skeleton(letters: &[char]) -> Vec<char> {
 }
 
 /// Levenshtein distance.
-fn distance(one: &[char], other: &[char]) -> usize {
+pub(super) fn distance(one: &[char], other: &[char]) -> usize {
     let mut before: Vec<usize> = (0..=other.len()).collect();
     for (row, a) in one.iter().enumerate() {
         let mut now = vec![row + 1];
@@ -378,5 +425,81 @@ mod tests {
             assert_eq!(named(word, &names), None, "{word}");
         }
         assert_eq!(named("Wisper", &names), Some("Whisper"));
+    }
+
+    #[test]
+    fn a_capital_alone_makes_no_term_of_an_ordinary_word() {
+        for term in [
+            "Web",
+            "Monkey",
+            "Hero",
+            "prompt",
+            "New Session",
+            "Speech to Text",
+        ] {
+            assert!(ordinary(term), "{term}");
+        }
+        for term in [
+            "Codex",
+            "GitHub",
+            "Claude Code",
+            "pull request",
+            "API",
+            "New Codex Session",
+            "",
+        ] {
+            assert!(!ordinary(term), "{term}");
+        }
+        let heard = |forms: &[&str]| -> Vec<String> { forms.iter().map(|&f| f.into()).collect() };
+        // The word itself in Russian letters is no evidence; another word is.
+        assert!(!passes("Web", &heard(&["веб"])));
+        assert!(!passes("Web", &[]));
+        assert!(!passes("New Session", &heard(&["нью сешн"])));
+        assert!(passes("Bolt", &heard(&["вольт"])));
+        assert!(passes("Web", &heard(&["веб", "вэп"])));
+        // A name needs none.
+        assert!(passes("Codex", &[]));
+        assert!(passes("pull request", &heard(&["пул реквест"])));
+    }
+
+    /// What the use shows, as `pick` reads it: each word said among
+    /// Russian words, and the fixes cleanup made.
+    #[test]
+    fn the_use_offers_a_misheard_word_and_never_one_heard_right() {
+        let fix = |heard: &str, written: &str, count: usize| Fix {
+            heard: heard.into(),
+            written: written.into(),
+            count,
+        };
+        let mut seen = Seen::default();
+        for word in ["Web", "Monkey", "Bolt", "Codex", "Hero"] {
+            for _ in 0..6 {
+                note(&mut seen, &["открой", word, "сейчас"]);
+            }
+        }
+        let fixes = [
+            // Heard right, written in English: not terms.
+            fix("веб", "Web", 9),
+            fix("монки", "Monkey", 5),
+            fix("хиру", "Hero", 4),
+            fix("нью сешн", "New Session", 4),
+            // Misheard: «вольт» is another word.
+            fix("вольт", "Bolt", 3),
+            fix("болт", "Bolt", 2),
+            // A name, and a term of the trade.
+            fix("кодекс", "Codex", 3),
+            fix("пул реквест", "pull request", 3),
+        ];
+        let picked: Vec<(String, bool)> = pick(&seen, &fixes, &[])
+            .into_iter()
+            .map(|term| (term.word.clone(), term.fixed >= SURE))
+            .collect();
+        let has = |word: &str| picked.iter().find(|(known, _)| known == word);
+        for gone in ["Web", "Monkey", "Hero", "New Session"] {
+            assert!(has(gone).is_none(), "{gone} in {picked:?}");
+        }
+        for (kept, sure) in [("Bolt", true), ("Codex", true), ("pull request", true)] {
+            assert_eq!(has(kept), Some(&(kept.to_owned(), sure)), "{picked:?}");
+        }
     }
 }
