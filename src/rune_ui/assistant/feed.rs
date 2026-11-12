@@ -439,23 +439,17 @@ fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<
         draft.push('▌');
         Some(super::recall::answer(p, &draft, None, None, (true, true)))
     } else if steps.is_none() && web.is_none() && retry.is_none() {
+        // A step like the others: its three dots move while it goes on.
         Some(
-            text(tr("Looking in the guide…"))
-                .key("looking")
-                .font(DESCRIPTION)
-                .color(p.faint())
-                .mt(2.0),
+            super::recall::step_line(p, "looking", false, tr("Looking in the guide"), dots).mt(2.0),
         )
     } else {
         None
     };
     // A change being read and checked: never its raw lines.
-    let preparing = answering.cards_coming.then(|| {
-        text(tr("Preparing a change…"))
-            .key("preparing")
-            .font(DESCRIPTION)
-            .color(p.faint())
-    });
+    let preparing = answering
+        .cards_coming
+        .then(|| super::recall::step_line(p, "preparing", false, tr("Preparing a change"), dots));
     let bubble = (!answering.question.trim().is_empty())
         .then(|| session::bubble(p, "asking", &answering.question));
     bubble
@@ -572,6 +566,38 @@ mod tests {
                 .filter(|control| speaking(Some(code), || tr(control)) == *control)
                 .collect();
             assert!(english.is_empty(), "{code} shows {english:?} in English");
+        }
+    }
+
+    /// Before an answer's words come, its line is a step going on: the
+    /// dots' clock counts it ("Looking in the guide", and "Preparing a
+    /// change" beside a draft), and the words carry no typed ellipsis in
+    /// any language, the dots say it.
+    #[test]
+    fn the_lines_before_an_answer_are_steps_going_on() {
+        let mut ui = dictating("auto");
+        super::super::fixture::answering(&mut ui);
+        let live = |ui: &Ui| super::super::steps_live(ui);
+        fn answering(ui: &mut Ui) -> &mut Answering {
+            ui.assistant.answering.as_mut().expect("answering")
+        }
+        // Words alone: nothing goes on.
+        assert!(!live(&ui));
+        answering(&mut ui).cards_coming = true;
+        assert!(live(&ui), "Preparing a change");
+        answering(&mut ui).cards_coming = false;
+        answering(&mut ui).draft.clear();
+        assert!(live(&ui), "Looking in the guide");
+
+        for words in ["Looking in the guide", "Preparing a change"] {
+            for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
+                let shown = speaking(Some(code), || tr(words).to_owned());
+                assert_ne!(shown, words, "{code} has no row for {words}");
+                assert!(
+                    !shown.ends_with('…') && !shown.ends_with("..."),
+                    "{code}: {shown}"
+                );
+            }
         }
     }
 

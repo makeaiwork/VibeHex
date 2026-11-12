@@ -2962,6 +2962,7 @@ fn goldens() {
     }
 }
 
+mod assistant_coming;
 mod assistant_jump;
 mod onboarding_check;
 mod panes;
