@@ -184,15 +184,17 @@ pub fn rules(answers: &[Answer], settings: &AppSettings, state: &State) -> Rules
         }
     }
     // The Labs features that fit and are on already.
-    for key in follow::relevant(answers, settings) {
+    for key in follow::relevant(answers, &state.hardware) {
         if changes::current(settings, &key) == Some(Value::Bool(true)) && !rules.kept.contains(&key)
         {
             rules.kept.push(key);
         }
     }
-    rules
-        .lines
-        .retain(|line| settings::unavailable(&line_key(&line.key, settings)).is_none());
+    // Nor a feature this computer can't use (a notch, a mouse's buttons).
+    rules.lines.retain(|line| {
+        settings::unavailable(&line_key(&line.key, settings)).is_none()
+            && !follow::unfit(&line.key, &state.hardware)
+    });
     rules
         .kept
         .retain(|key| settings::unavailable(&line_key(key, settings)).is_none());
@@ -389,7 +391,8 @@ pub fn plan(
             }
             continue;
         }
-        let held = settings::unavailable(&line_key(&item.key, settings)).is_some();
+        let held = settings::unavailable(&line_key(&item.key, settings)).is_some()
+            || follow::unfit(&item.key, &state.hardware);
         let known = items.iter().any(|known| known.key == item.key);
         if held || known || item.from == item.to {
             continue;

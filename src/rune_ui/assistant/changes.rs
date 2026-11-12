@@ -56,6 +56,12 @@ pub(super) fn context(ui: &Ui) -> Context {
                 crate::assistant::setup::engines::installed_servers()
             },
             declined: crate::assistant::setup::past::declined(ui.assistant.store.setups()),
+            // Read when a question is sent or setup moves on; a scene's own.
+            hardware: if ui.assistant.fixture {
+                ui.assistant.hardware.clone()
+            } else {
+                crate::desktop::hardware::detect()
+            },
         },
     }
 }

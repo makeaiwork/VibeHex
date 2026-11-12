@@ -443,7 +443,7 @@ fn a_models_follow_ups_are_checked() {
     .iter()
     .map(|line| serde_json::from_str(line).unwrap())
     .collect();
-    let asks = follow::follow_ups(&written, &candidates, &settings);
+    let asks = follow::follow_ups(&written, &candidates, &settings, &Default::default());
     let ids: Vec<&str> = asks.iter().map(|ask| ask.id.as_str()).collect();
     assert_eq!(ids, ["labs.filler_words", "history_retention"]);
     assert_eq!(asks[0].q, "Убирать «эээ»?");
@@ -457,7 +457,10 @@ fn a_models_follow_ups_are_checked() {
         asks[1].options[0].changes,
         [("history_retention".to_owned(), json!("forever"))]
     );
-    assert_eq!(follow::follow_ups(&[], &candidates, &settings), candidates);
+    assert_eq!(
+        follow::follow_ups(&[], &candidates, &settings, &Default::default()),
+        candidates
+    );
 }
 
 #[test]
@@ -607,4 +610,104 @@ fn a_declined_line_is_not_offered_again() {
     };
     let card = plan::plan(Vec::new(), &answers, &settings, &state).unwrap();
     assert!(card.items.iter().any(|item| item.key == row.key));
+}
+
+/// A Mac known to have no notch and only a Magic Mouse, one with a notch
+/// and an MX mouse, and one whose hardware couldn't be read.
+fn macs() -> [State; 3] {
+    use crate::desktop::hardware::{Hardware, Pointer, Screens};
+    let with = |notch: bool, name: &str, extra_buttons: bool| State {
+        hardware: Hardware {
+            screens: Some(Screens {
+                built_in: notch,
+                external: usize::from(!notch),
+                notch,
+            }),
+            pointers: Some(vec![Pointer {
+                name: name.into(),
+                extra_buttons,
+            }]),
+            model: None,
+        },
+        ..mac()
+    };
+    [
+        with(false, "Magic Mouse", false),
+        with(true, "MX Master 3S", true),
+        mac(),
+    ]
+}
+
+/// A Labs feature this Mac can't use is never asked or planned; one it
+/// can is asked straight out; unknown hardware asks "if your … has …".
+#[test]
+fn a_feature_this_mac_cant_use_is_left_out_and_unknown_hardware_asks_if() {
+    let [mini, notched, unknown] = macs();
+    let answers = vec![
+        answer("use", &["dictation_any"]),
+        answer("language", &["en"]),
+        answer("cleanup", &["none"]),
+    ];
+    let settings = AppSettings::default();
+    for (key, ask, ask_if) in [
+        (
+            "labs.notch_indicator",
+            "Show the recording indicator in your screen's notch?",
+            "If your screen has a notch, show the recording indicator in it?",
+        ),
+        (
+            "labs.mouse_shortcuts",
+            "Start dictation with a mouse button, such as a side button?",
+            "If your mouse has extra buttons, start dictation with one?",
+        ),
+    ] {
+        if !here(key) {
+            continue;
+        }
+        let relevant = |state: &State| follow::relevant(&answers, &state.hardware);
+        assert!(!relevant(&mini).contains(&key.to_owned()), "{key}");
+        assert!(relevant(&notched).contains(&key.to_owned()), "{key}");
+        assert!(relevant(&unknown).contains(&key.to_owned()), "{key}");
+        let candidates = follow::candidates(&answers, &settings, &mini);
+        assert!(candidates.iter().all(|ask| ask.id != key), "{key}");
+        // A model asking about it anyway: dropped where it can't be used.
+        let written = [json!({"id": key})];
+        let asked = |state: &State| {
+            follow::follow_ups(&written, &[], &settings, &state.hardware)
+                .into_iter()
+                .find(|ask| ask.id == key)
+                .map(|ask| ask.q)
+        };
+        assert_eq!(asked(&mini), None, "{key}");
+        assert_eq!(asked(&notched).as_deref(), Some(ask));
+        assert_eq!(asked(&unknown).as_deref(), Some(ask_if));
+        let (_, others) = follow::prompt_lines(&[], &settings, &mini.hardware);
+        assert!(!others.contains(key), "{key}");
+        // A Yes from an earlier round, or a model's plan line, doesn't
+        // make the plan where it can't be used.
+        let mut yes = answers.clone();
+        yes.push(Answer {
+            id: key.into(),
+            chosen: vec!["yes".into()],
+            changes: vec![(key.into(), Value::Bool(true))],
+        });
+        let model = vec![Card {
+            items: vec![changes::Item {
+                key: key.into(),
+                from: Value::Bool(false),
+                to: Value::Bool(true),
+                included: true,
+                ..changes::Item::default()
+            }],
+            ..Card::default()
+        }];
+        let planned = |state: &State, cards: Vec<Card>| {
+            plan::plan(cards, &yes, &settings, state)
+                .is_some_and(|card| card.items.iter().any(|item| item.key == key))
+        };
+        assert!(!planned(&mini, Vec::new()), "{key}");
+        assert!(!planned(&mini, model.clone()), "{key}");
+        assert!(planned(&notched, Vec::new()), "{key}");
+        assert!(planned(&unknown, Vec::new()), "{key}");
+    }
 }

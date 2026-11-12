@@ -382,7 +382,11 @@ pub fn build(
         let plan = matches!(stage, Stage::Plan { .. } | Stage::Follow { .. });
         match stage {
             Stage::Follow { candidates, .. } => {
-                let (asks, others) = setup::follow::prompt_lines(candidates, &context.settings);
+                let (asks, others) = setup::follow::prompt_lines(
+                    candidates,
+                    &context.settings,
+                    &context.state.hardware,
+                );
                 instructions.push_str(&setup_follow(&asks, &others));
             }
             Stage::Plan { .. } => instructions.push_str(SETUP_PLAN),

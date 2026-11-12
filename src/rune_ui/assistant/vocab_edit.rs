@@ -310,7 +310,7 @@ pub(super) fn apply(ui: &mut Ui, at: At, mut card: Card) {
         let now = list
             .iter()
             .find(|entry| entry.term.to_lowercase() == from.term.to_lowercase());
-        if now.map(|now| vocab_edit::value(now)) != Some(item.from.clone()) {
+        if now.map(vocab_edit::value) != Some(item.from.clone()) {
             item.failed = Some(tr("Changed since").to_owned());
             continue;
         }

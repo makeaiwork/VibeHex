@@ -3,7 +3,9 @@ feature: notch-indicator
 key: labs.notch_indicator
 title: Notch indicator
 for: [dictation]
-ask: On a notched MacBook, show the recording indicator in the notch?
+ask: Show the recording indicator in your screen's notch?
+ask_if: If your screen has a notch, show the recording indicator in it?
+needs: [notch]
 group: Dictation
 os: macOS
 vibehex: false

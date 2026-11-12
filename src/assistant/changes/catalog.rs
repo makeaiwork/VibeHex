@@ -207,6 +207,8 @@ pub struct State {
     /// What earlier setups offered and the person declined: not offered
     /// again while the setting is as it was (`setup::past`).
     pub declined: Vec<crate::assistant::setup::past::Line>,
+    /// The screens and pointing devices, for Labs features that need them.
+    pub hardware: crate::desktop::hardware::Hardware,
 }
 
 /// How much of the catalog a model reads.
@@ -316,6 +318,7 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
         "Never through a card: sign-ins, API keys, folders, microphones, app lists, the update \
          channel, Assistant's own settings.\n",
     );
+    out.push_str(&unfit_line(state));
     if reading.send {
         out.push_str(&notes_line(settings));
         out.push_str(&state_line(state, settings));
@@ -487,13 +490,45 @@ fn state_line(state: &State, settings: &AppSettings) -> String {
         Some(false) => "no",
         None => "unknown",
     };
+    let hardware = state.hardware.line();
     format!(
-        "<state>OS: {}; speech models downloaded: {}; Codex signed in: {}; OpenCode running: {}</state>\n",
+        "<state>OS: {}; speech models downloaded: {}; Codex signed in: {}; OpenCode running: {}{}</state>\n",
         state.os,
         downloaded(state, settings),
         known(state.codex_signed_in),
         known(state.opencode_running),
+        match hardware.is_empty() {
+            true => String::new(),
+            false => format!("; {hardware}"),
+        },
     )
+}
+
+/// The Labs features this computer can't use (no notch, no mouse with
+/// extra buttons), so an answer never suggests one and, asked about one,
+/// says what it needs; empty while the hardware is unknown.
+fn unfit_line(state: &State) -> String {
+    let unfit: Vec<String> = crate::assistant::guide::articles()
+        .iter()
+        .filter(|article| article.is_lab() && !article.fits(&state.hardware))
+        .map(|article| {
+            let needs: Vec<&str> = article
+                .needs
+                .iter()
+                .filter(|need| state.hardware.has(**need) == Some(false))
+                .map(|need| need.words())
+                .collect();
+            format!("{} (needs {})", article.title, needs.join(" and "))
+        })
+        .collect();
+    match unfit.is_empty() {
+        true => String::new(),
+        false => format!(
+            "Not on this Mac: {}. Don't suggest them or offer their cards; asked about one \
+             directly, say what it needs and that this Mac doesn't have it.\n",
+            unfit.join(", ")
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -639,6 +674,41 @@ mod tests {
     /// What reaches a model of the person's settings: switches, choices,
     /// numbers, and known models. No path, list, host, key, word, or
     /// instruction (unless asked about instructions).
+    #[test]
+    fn a_feature_this_mac_cant_use_is_named_with_what_it_needs() {
+        use crate::desktop::hardware::{Hardware, Pointer, Screens};
+        let every = reading(true, Vec::new(), true);
+        let mini = State {
+            hardware: Hardware {
+                screens: Some(Screens {
+                    built_in: false,
+                    external: 1,
+                    notch: false,
+                }),
+                pointers: Some(vec![Pointer {
+                    name: "Magic Mouse".into(),
+                    extra_buttons: false,
+                }]),
+                model: None,
+            },
+            ..State::default()
+        };
+        let section = section(&AppSettings::default(), &every, &mini);
+        let unfit = section
+            .lines()
+            .find(|line| line.starts_with("Not on this Mac: "))
+            .unwrap();
+        assert!(unfit.contains("Notch indicator (needs a screen with a notch)"));
+        assert!(unfit.contains("Mouse shortcuts (needs a mouse with extra buttons)"));
+        assert!(section.contains(
+            "OpenCode running: unknown; screens: 1 external, no notch; pointing: Magic Mouse, \
+             no extra buttons</state>"
+        ));
+        // Unknown hardware leaves nothing out.
+        let unknown = super::section(&AppSettings::default(), &every, &State::default());
+        assert!(!unknown.contains("Not on this Mac"));
+    }
+
     #[test]
     fn the_snapshot_carries_nothing_personal() {
         let mut settings = AppSettings::default();

@@ -116,6 +116,8 @@ pub(in super::super) struct AssistantPane {
     woken: bool,
     /// A scene: nothing reads the disk or asks a model.
     pub(super) fixture: bool,
+    /// A scene's screens and pointing devices; unknown otherwise.
+    pub(super) hardware: crate::desktop::hardware::Hardware,
     /// A scene's clock, so its times read the same on any day.
     pub(super) fixed_now: Option<u64>,
     /// The version this install updated to lately, and when (`whats_new`).

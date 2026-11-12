@@ -1827,13 +1827,13 @@ mod tests {
     #[test]
     fn every_follow_up_question_has_every_language() {
         let table: std::collections::HashMap<_, _> = all_translations().copied().collect();
-        for article in crate::assistant::guide::articles() {
-            if article.ask.is_empty() {
-                continue;
-            }
+        let questions = crate::assistant::guide::articles()
+            .iter()
+            .flat_map(|article| [article.ask.as_str(), article.ask_if.as_str()]);
+        for question in questions.filter(|question| !question.is_empty()) {
             let translations = table
-                .get(article.ask.as_str())
-                .unwrap_or_else(|| panic!("{:?} has no translations", article.ask));
+                .get(question)
+                .unwrap_or_else(|| panic!("{question:?} has no translations"));
             assert!(
                 translations
                     .iter()

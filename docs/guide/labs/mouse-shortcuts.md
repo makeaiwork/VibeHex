@@ -4,6 +4,8 @@ key: labs.mouse_shortcuts
 title: Mouse shortcuts
 for: [dictation]
 ask: Start dictation with a mouse button, such as a side button?
+ask_if: If your mouse has extra buttons, start dictation with one?
+needs: [mouse_buttons]
 then: In General, click Change shortcut and press a mouse button
 group: Shortcuts
 os: macOS

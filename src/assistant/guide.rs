@@ -5,6 +5,8 @@
 
 use std::sync::OnceLock;
 
+use crate::desktop::hardware::Need;
+
 include!(concat!(env!("OUT_DIR"), "/guide_files.rs"));
 
 /// One guide article.
@@ -30,9 +32,32 @@ pub struct Article {
     /// What else it takes after the switch, in English (`then:`), if
     /// anything.
     pub then: String,
+    /// What it needs of the hardware (`needs: [notch]`); one unmet here
+    /// keeps it out of setup and the answers' suggestions.
+    pub needs: Vec<Need>,
+    /// Setup's question while it isn't known whether the need is met
+    /// (`ask_if:`, "If your mouse has extra buttons, …"); else `ask`.
+    pub ask_if: String,
 }
 
 impl Article {
+    /// Whether this computer may have what it needs: false only when a
+    /// need is known not to be met.
+    pub fn fits(&self, hardware: &crate::desktop::hardware::Hardware) -> bool {
+        hardware.allows(&self.needs)
+    }
+
+    /// Setup's question about it here: `ask_if` while a need is unknown,
+    /// else `ask`.
+    pub fn question(&self, hardware: &crate::desktop::hardware::Hardware) -> &str {
+        let unsure = self.needs.iter().any(|need| hardware.has(*need).is_none());
+        if unsure && !self.ask_if.is_empty() {
+            &self.ask_if
+        } else {
+            &self.ask
+        }
+    }
+
     /// Whether it describes a Labs feature, not a topic.
     pub fn is_lab(&self) -> bool {
         self.id.starts_with("labs/")
@@ -83,6 +108,13 @@ fn parse(id: &'static str, text: &str) -> Article {
         uses: field("for").map(list).unwrap_or_default(),
         ask: field("ask").unwrap_or_default(),
         then: field("then").unwrap_or_default(),
+        needs: field("needs")
+            .map(list)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|need| Need::parse(need))
+            .collect(),
+        ask_if: field("ask_if").unwrap_or_default(),
         asked_as: asked_as(&body),
         body,
     }
@@ -118,6 +150,34 @@ fn asked_as(body: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `needs:` names only what the app can tell, and an article with one
+    /// asks the unsure way too.
+    #[test]
+    fn hardware_needs_parse_and_come_with_an_unsure_question() {
+        use crate::desktop::hardware::Need;
+        let needs = |id: &str| article(id).unwrap().needs.clone();
+        assert_eq!(needs("labs/notch-indicator"), [Need::Notch]);
+        assert_eq!(needs("labs/mouse-shortcuts"), [Need::MouseButtons]);
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/guide");
+        for article in articles() {
+            let text = std::fs::read_to_string(root.join(format!("{}.md", article.id))).unwrap();
+            let written = text.lines().find_map(|line| line.strip_prefix("needs:"));
+            let named = written.map_or(0, |list| list.split(',').count());
+            assert_eq!(
+                article.needs.len(),
+                named,
+                "{}: an unknown need",
+                article.id
+            );
+            assert_eq!(
+                article.needs.is_empty(),
+                article.ask_if.is_empty(),
+                "{}: needs and ask_if go together",
+                article.id
+            );
+        }
+    }
 
     #[test]
     fn every_guide_file_is_an_article_without_its_sources() {

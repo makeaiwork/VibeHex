@@ -130,8 +130,9 @@ Opened from a place link                         // rune_ui::assistant::places
   answers until the person writes in another language; a latest message
   clearly in another language is answered in it; a short unclear one keeps
   the conversation's.
-- Setup's follow-up questions (each Labs article's `ask:` line) have rows
-  in every language (`i18n/vibehex/follow.rs`, a test holds every `ask:`).
+- Setup's follow-up questions (each Labs article's `ask:` and `ask_if:`
+  line) have rows in every language (`i18n/vibehex/follow.rs`, a test
+  holds every one).
 - Scene `assistant-start-russian`: an English window dictating Russian.
   The setup scenes play the owner's settings (Orukeet, Russian), so
   their questions and chips show in Russian too.
@@ -216,7 +217,25 @@ Opened from a place link                         // rune_ui::assistant::places
   column as stored. `<state>` names the speech models downloaded as the
   window does, the one in use marked (`Parakeet v3 (parakeet_v3, in
   use)`), read from disk when a question is sent (a scene's list in
-  scenes); "unknown" when it couldn't be told, never "none".
+  scenes); "unknown" when it couldn't be told, never "none". It also
+  names the hardware (`desktop::hardware`, read when a question is sent or
+  setup moves on, never per frame; a scene's own, unknown by default):
+  `screens: 1 external, no notch; pointing: Magic Mouse, no extra
+  buttons`, with `model: Mac16,11` (`hw.model`, raw: a `MacNN,N` id
+  doesn't say MacBook or desktop). Screens come from `NSScreen` on the
+  main thread (a notch is a top safe-area inset, built in by
+  `CGDisplayIsBuiltin`); pointing devices from IOKit's HID registry
+  without opening one (no Input Monitoring), the owner's name dropped
+  ("Anna's Magic Mouse" is Magic Mouse). Apple's mice and trackpads have
+  no extra buttons; another reporting more than two, or not saying, may.
+- A Labs article may say what it needs (`needs: [notch]`,
+  `[mouse_buttons]`): one known unmet keeps the feature out of setup's
+  follow-ups (the app's and a model's), the plan (the rules' lines and a
+  model's), and the answers' suggestions: the prompt says "Not on this
+  Mac: Notch indicator (needs a screen with a notch)", and asked about it
+  directly the model says what it needs. Unknown hardware leaves nothing
+  out: setup asks the article's `ask_if:` ("If your mouse has extra
+  buttons, …"), and the plain `ask:` once the need is known met.
 - No card stands in for what the model doesn't know, or only lets the
   person look something up (Labs › Downloaded models only "to see the
   list"): where it can't tell, it names the place to look, no card.

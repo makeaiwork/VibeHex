@@ -346,7 +346,7 @@ fn start_with(
                     }
                 };
                 let first = match silence {
-                    Some(silence) => match watched(&cancel, silence, &ask) {
+                    Some(silence) => match watched(&cancel, silence, ask) {
                         Some(result) => result,
                         None => {
                             tracing::warn!(
@@ -519,7 +519,12 @@ fn settle(
         }
         // Follow-up questions only: any change lines are dropped.
         (Stage::Follow { candidates, .. }, Some(context)) => {
-            let asks = setup::follow::follow_ups(&parsed.asks, candidates, &context.settings);
+            let asks = setup::follow::follow_ups(
+                &parsed.asks,
+                candidates,
+                &context.settings,
+                &context.state.hardware,
+            );
             return Settled {
                 reply,
                 cards: Vec::new(),
