@@ -154,7 +154,7 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
 }
 
 /// The owner's shortcuts as a plan of their own.
-fn use_these(ui: &mut Ui, id: u32) {
+pub(super) fn use_these(ui: &mut Ui, id: u32) {
     let _speaking = crate::assistant::language::speak(&ui.settings);
     let card = preset::shortcuts(&preset::denis(), &ui.settings);
     let answer = if card.is_some() {
@@ -176,7 +176,7 @@ fn use_these(ui: &mut Ui, id: u32) {
     );
 }
 
-fn keep_mine(ui: &mut Ui, id: u32) {
+pub(super) fn keep_mine(ui: &mut Ui, id: u32) {
     let _speaking = crate::assistant::language::speak(&ui.settings);
     let now = ui.assistant.now_ms();
     ui.assistant.store.push(

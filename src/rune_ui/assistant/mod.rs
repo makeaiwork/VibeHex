@@ -22,6 +22,8 @@ mod facts_tests;
 mod feed;
 pub(super) mod fixture;
 pub(super) mod fixture_cards;
+#[cfg(test)]
+mod flow_pins;
 pub(super) mod jump;
 mod knew;
 #[cfg(test)]

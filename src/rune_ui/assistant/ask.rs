@@ -591,7 +591,7 @@ fn set_round(ui: &mut Ui, at: At, asks: Vec<Ask>) {
 /// A chip pressed: a single choice takes it, a multiple one toggles. What
 /// the person picked is theirs; an untouched question follows it (code
 /// with Russian is Russian with English tech terms).
-fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
+pub(super) fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
     let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(mut asks) = round(ui, at) else {
         return;
