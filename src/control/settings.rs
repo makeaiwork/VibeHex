@@ -1761,6 +1761,7 @@ mod tests {
             assistant: crate::app_settings::AssistantSettings {
                 engine: Some("codex".into()),
                 effort: "high".into(),
+                agent: "codex".into(),
                 read_recordings: Some(true),
                 ..Default::default()
             },
