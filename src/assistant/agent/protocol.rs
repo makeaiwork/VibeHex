@@ -122,15 +122,74 @@ pub fn reads(reply: &str) -> Option<Reads> {
         .map(|line| line.trim())
         .filter(|line| !line.is_empty())
         .collect();
-    if !written.iter().all(|line| starts_call(line) || debris(line)) {
+    if written.iter().all(|line| starts_call(line) || debris(line)) {
+        let calls: Vec<&str> = written
+            .into_iter()
+            .filter(|line| starts_call(line))
+            .collect();
+        block(&calls, &mut reads);
+        return (!reads.calls.is_empty()).then_some(reads);
+    }
+    // Or one call, or an array of them, spread over lines.
+    let spread: Vec<&str> = written.into_iter().filter(|line| !fence(line)).collect();
+    if !starts_call(&spread.concat()) {
         return None;
     }
-    let calls: Vec<&str> = written
-        .into_iter()
-        .filter(|line| starts_call(line))
-        .collect();
-    block(&calls, &mut reads);
-    (!reads.calls.is_empty()).then_some(reads)
+    block(&spread, &mut reads);
+    (!reads.calls.is_empty() && reads.malformed.is_empty()).then_some(reads)
+}
+
+/// The part of a reply still streaming that may show: what comes before
+/// anything that is, or may yet turn out to be, a request to read. A call
+/// never shows, not for the moment before its line is whole: the cut is
+/// before the first line from which the rest starts a call or is still
+/// too short to tell (`{`, `{"to`), and before a fence that such a rest
+/// follows or that is the last thing written.
+pub fn shown(draft: &str) -> &str {
+    let mut at = 0;
+    let mut inside = false;
+    for line in draft.split_inclusive('\n') {
+        let rest = &draft[at..];
+        let after = &rest[line.len()..];
+        let hidden = if fence(line) {
+            // A code block's closing fence hides nothing.
+            !inside && (after.trim().is_empty() || may_call(after))
+        } else {
+            !inside && (may_call(rest) || (after.is_empty() && starts_fence(line)))
+        };
+        if hidden {
+            return draft[..at].trim_end();
+        }
+        if fence(line) {
+            inside = !inside;
+        }
+        at += line.len();
+    }
+    draft
+}
+
+fn fence(line: &str) -> bool {
+    let line = line.trim();
+    line.starts_with("```") || line.starts_with("~~~")
+}
+
+/// A fence's first mark or two, with the rest still to come.
+fn starts_fence(line: &str) -> bool {
+    let line = line.trim();
+    !line.is_empty() && (line.chars().all(|c| c == '`') || line.chars().all(|c| c == '~'))
+}
+
+/// Whether `text` starts a call, or is so far only the start of one.
+fn may_call(text: &str) -> bool {
+    let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+    let compact = compact.trim_start_matches('[');
+    if compact.is_empty() {
+        // Brackets alone: an array of calls may follow.
+        return text.contains('[');
+    }
+    ["{\"tool\"", "{'tool'"]
+        .iter()
+        .any(|start| compact.starts_with(start) || start.starts_with(compact))
 }
 
 /// A line that says nothing: a fence of any kind, or brackets alone. A
@@ -138,8 +197,7 @@ pub fn reads(reply: &str) -> Option<Reads> {
 /// the person must never be shown that as an answer.
 fn debris(line: &str) -> bool {
     let line = line.trim();
-    line.starts_with("```")
-        || line.starts_with("~~~")
+    fence(line)
         || (!line.is_empty()
             && line
                 .chars()
@@ -165,14 +223,17 @@ pub fn without(reply: &str) -> String {
         }
         index += 1;
     }
-    // Nothing but what a call left around it is no answer.
+    // Nothing but what a call left around it, or one call spread over
+    // lines, is no answer.
+    let left = kept.join("\n");
     if kept
         .iter()
         .all(|line| line.trim().is_empty() || debris(line))
+        || reads(&left).is_some()
     {
         return String::new();
     }
-    kept.join("\n").trim().to_owned()
+    left.trim().to_owned()
 }
 
 /// [`opens`] for line `index` of a whole reply, where a `json` fence's
@@ -376,9 +437,74 @@ mod tests {
         assert_eq!(tools(broken), ["cleanup_instructions"]);
         assert_eq!(without(broken), "");
         assert_eq!(tools("```text\n{\"tool\":\"facts\"}\n```"), ["facts"]);
+        // One call spread over lines with no fence, and an array of them.
+        let spread = "{\n  \"tool\": \"facts\"\n}";
+        assert_eq!(tools(spread), ["facts"]);
+        assert_eq!(without(spread), "");
+        assert_eq!(
+            tools("[\n{\"tool\":\"facts\"},\n{\"tool\":\"vocabulary_list\"}\n]"),
+            ["facts", "vocabulary_list"]
+        );
+        // An object that is no call is an answer's own.
+        assert_eq!(reads("{\n  \"key\": \"labs.files\"\n}"), None);
         // Code alone, or brackets alone, asks for nothing.
         assert_eq!(reads("```sh\nhex status\n```"), None);
         assert_eq!(reads("}"), None);
+    }
+
+    /// Nothing of a call shows while a reply streams, at any length of
+    /// it: not a brace, not the word, not the fence around it.
+    #[test]
+    fn nothing_of_a_call_shows_at_any_prefix() {
+        let prose = "Let me look.";
+        for (reply, before) in [
+            // Call lines with no fence.
+            ("{\"tool\":\"facts\"}\n{\"tool\":\"vocabulary_list\"}", ""),
+            // A fence written wrong, as a live reply had it.
+            (
+                "{\"tool\":\"cleanup_instructions\"}\n```⊢final_marker\n}",
+                "",
+            ),
+            ("```text\n{\"tool\":\"facts\"}\n```", ""),
+            ("```\n{\"tool\":\"facts\"}\n```", ""),
+            ("~~~hex-read\n{\"tool\":\"facts\"}\n~~~", ""),
+            // One call spread over lines, and an array of them.
+            ("{\n  \"tool\": \"facts\"\n}", ""),
+            ("[\n  {\"tool\":\"facts\"}\n]", ""),
+            (" [ { 'tool' : 'facts' } ]", ""),
+            // Prose, then a call: the prose shows, the call never.
+            ("Let me look.\n{\"tool\":\"facts\"}", prose),
+            ("Let me look.\n\n{\n\"tool\":\"facts\"\n}", prose),
+            ("Let me look.\n```text\n{\"tool\":\"facts\"}\n```", prose),
+            (
+                "Let me look.\n```hex-read\n{\"tool\":\"facts\"}\n```",
+                prose,
+            ),
+        ] {
+            for end in (1..=reply.len()).filter(|end| reply.is_char_boundary(*end)) {
+                // Blank space before anything is written shows nothing.
+                let cut = shown(&reply[..end]).trim();
+                assert!(before.starts_with(cut), "{:?} shows {cut:?}", &reply[..end]);
+            }
+        }
+    }
+
+    /// What isn't a call shows as it comes: a code block, an object of
+    /// the answer's own, a citation that opens a line.
+    #[test]
+    fn an_answers_own_code_and_brackets_show() {
+        for whole in [
+            "Run:\n```sh\nhex labs on files\n```\nThen ask again.",
+            "It is saved as:\n{\n  \"key\": \"labs.files\"\n}",
+            "[1] says the budget was cut.\n[LM Studio](https://lmstudio.ai) is one.",
+            "Turn it on.\n\n```hex-change\n{\"key\":\"labs.files\",\"value\":true}\n```",
+        ] {
+            assert_eq!(shown(whole), whole);
+        }
+        // A fence shows once what follows it is known not to be a call.
+        assert_eq!(shown("Run:\n```sh"), "Run:");
+        assert_eq!(shown("Run:\n```sh\nhex"), "Run:\n```sh\nhex");
+        assert_eq!(shown("It is:\n{"), "It is:");
     }
 
     #[test]

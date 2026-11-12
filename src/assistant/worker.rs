@@ -610,15 +610,24 @@ pub(super) fn asking_again() {
     changed(state);
 }
 
+/// What of a reply still streaming goes into the draft. Where a reply
+/// may ask to read (`reads`), one that does shows nothing, however it is
+/// fenced, and nothing of a call shows before its line is whole.
+pub(super) fn showing(reads: bool, text: &str) -> &str {
+    if !reads {
+        text
+    } else if agent::protocol::reads(text).is_some() {
+        ""
+    } else {
+        agent::protocol::shown(text)
+    }
+}
+
 /// The streamed reply into the draft, at most once each [`DRAFT_EVERY`].
 fn drafts(reads: bool) -> Streamed {
     let last: Mutex<Option<Instant>> = Mutex::new(None);
     Arc::new(move |_, text| {
-        // A reply that asks to read shows nothing, however it is fenced.
-        let text = match reads && agent::protocol::reads(text).is_some() {
-            true => "",
-            false => text,
-        };
+        let text = showing(reads, text);
         let now = Instant::now();
         {
             let mut last = last.lock().unwrap_or_else(|poisoned| poisoned.into_inner());

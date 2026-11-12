@@ -559,3 +559,66 @@ fn a_no_on_the_card_closes_the_recordings_for_the_conversation() {
     live::forget();
     assert!(!live::declined(asking.conversation));
 }
+
+/// The draft a person sees while a reply streams never holds anything of
+/// a request to read, at any length of the reply: the worker's own cut
+/// (`worker::showing`) and the draft's (`prompt::draft`) together, as the
+/// stream's callback applies them. Nor does a call ever read as a change
+/// being prepared.
+#[test]
+fn no_call_ever_shows_in_the_draft() {
+    use crate::assistant::prompt as base;
+    use crate::assistant::worker::showing;
+    let prose = "Let me look.";
+    for (reply, before) in [
+        ("```hex-read\n{\"tool\":\"facts\"}\n```", ""),
+        ("{\"tool\":\"facts\"}\n{\"tool\":\"vocabulary_list\"}", ""),
+        (
+            "{\"tool\":\"cleanup_instructions\"}\n```⊢final_marker\n}",
+            "",
+        ),
+        ("```text\n{\"tool\":\"facts\"}\n```", ""),
+        ("```json\n[{\"tool\":\"facts\"}]\n```", ""),
+        ("```\n{\"tool\":\"facts\"}\n```", ""),
+        ("~~~\n{\"tool\":\"facts\"}\n~~~", ""),
+        ("{\n  \"tool\": \"facts\"\n}", ""),
+        (
+            "[\n  {\"tool\":\"facts\"},\n  {\"tool\":\"usage_insights\"}\n]",
+            "",
+        ),
+        ("\n\n  {'tool':'facts'}", ""),
+        ("Let me look.\n{\"tool\":\"facts\"}", prose),
+        ("Let me look.\n\n{\n\"tool\":\"facts\"\n}", prose),
+        ("Let me look.\n```text\n{\"tool\":\"facts\"}\n```", prose),
+        (
+            "Let me look.\n```hex-read\n{\"tool\":\"facts\"}\n```",
+            prose,
+        ),
+        (
+            "Let me look.\n```json\n{\"tool\":\"facts\"}\n```\nThen I answer.",
+            prose,
+        ),
+    ] {
+        for end in (1..=reply.len()).filter(|end| reply.is_char_boundary(*end)) {
+            let streamed = &reply[..end];
+            let cut = showing(true, streamed);
+            let draft = base::draft(cut);
+            assert!(
+                before.starts_with(draft.trim()),
+                "{streamed:?} shows {draft:?}"
+            );
+            assert!(!base::cards_coming(cut), "{streamed:?} reads as a change");
+        }
+    }
+    // An engine that never reads keeps its draft as it was.
+    assert_eq!(
+        showing(false, "{\"tool\":\"facts\"}"),
+        "{\"tool\":\"facts\"}"
+    );
+    // And an answer's own words, code, and change block still show.
+    let answer = "Run this:\n```sh\nhex labs on files\n```\nThen ask again.";
+    assert_eq!(base::draft(showing(true, answer)), base::draft(answer));
+    let change = "Turn it on.\n\n```hex-change\n{\"key\":\"labs.files\",\"value\":true}";
+    assert_eq!(base::draft(showing(true, change)), "Turn it on.");
+    assert!(base::cards_coming(showing(true, change)));
+}
