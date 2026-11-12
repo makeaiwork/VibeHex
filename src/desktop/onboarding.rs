@@ -1703,7 +1703,17 @@ mod tests {
         // An English system, a Russian speaker.
         assert_eq!(flow.on(Input::Language("ru")), Effect::None);
         assert_eq!(flow.choice().language(), "ru");
-        assert_eq!(offered(&flow), [GigaAmV3, WhisperLargeV3Turbo, ParakeetV3]);
+        // Russian's list also offers Orukeet, last and unbadged.
+        assert_eq!(
+            offered(&flow),
+            [
+                GigaAmV3,
+                WhisperLargeV3Turbo,
+                ParakeetV3,
+                crate::transcription::models::TranscriptionModelId::Orukeet
+            ]
+        );
+        assert_eq!(flow.choice().offered()[3].1, None);
         assert_eq!(flow.choice().selected(), Some(Pick::Model(GigaAmV3)));
         assert_eq!(
             flow.choice().decision(),
@@ -1719,13 +1729,12 @@ mod tests {
         }));
 
         // Every listed language offers at least one model, never more than
-        // three, each speaking it, the first recommended.
+        // three (Russian's Orukeet aside), each speaking it, the first
+        // recommended.
         for (language, _) in crate::transcription::models::LANGUAGES {
             let offers = model_choice::offers(language);
-            assert!(
-                (1..=model_choice::OFFERED).contains(&offers.len()),
-                "{language}"
-            );
+            let most = model_choice::OFFERED + usize::from(*language == "ru");
+            assert!((1..=most).contains(&offers.len()), "{language}");
             assert_eq!(
                 offers[0].0,
                 crate::transcription::models::recommended_selection(language).model,

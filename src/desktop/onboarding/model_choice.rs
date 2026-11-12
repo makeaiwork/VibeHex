@@ -22,16 +22,34 @@ use crate::transcription::models::{
 /// picker's comparison shows.
 pub const OFFERED: usize = 3;
 
+/// A model one language's list also offers after those three, with no badge.
+/// Russian's is Orukeet: the recommendation there writes Russian only, and
+/// Orukeet, a fine-tune of the 25-language Parakeet v3, is what this fork's
+/// owner dictates Russian with English terms on. It is here by that choice,
+/// not by a measurement: the catalog never recommends it, and Hex has not
+/// measured it.
+const ALSO_OFFERED: &[(&str, TranscriptionModelId)] = &[("ru", TranscriptionModelId::Orukeet)];
+
 /// The models worth offering for `language`, the recommended one first: the
 /// first catalog models in the picker's order that speak it, each with the
-/// picker's badge. A language only one model speaks offers that one.
+/// picker's badge, then the language's [`ALSO_OFFERED`] model. A language
+/// only one model speaks offers that one.
 pub fn offers(language: &str) -> Vec<(TranscriptionModelId, Option<Recommendation>)> {
-    models::picker_models(language)
-        .into_iter()
-        .filter(|(model, _)| !model.id.is_custom() && model.supports_language(language))
-        .take(OFFERED)
-        .map(|(model, recommendation)| (model.id, recommendation))
-        .collect()
+    let mut offers: Vec<(TranscriptionModelId, Option<Recommendation>)> =
+        models::picker_models(language)
+            .into_iter()
+            .filter(|(model, _)| !model.id.is_custom() && model.supports_language(language))
+            .take(OFFERED)
+            .map(|(model, recommendation)| (model.id, recommendation))
+            .collect();
+    for (_, also) in ALSO_OFFERED.iter().filter(|(code, _)| *code == language) {
+        let model = models::definition(*also);
+        let listed = offers.iter().any(|(offered, _)| offered == also);
+        if !listed && model.available() && model.supports_language(language) {
+            offers.push((*also, None));
+        }
+    }
+    offers
 }
 
 /// One row the person can select.
@@ -262,6 +280,38 @@ mod tests {
             );
         }
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn russian_also_offers_orukeet_last_and_unbadged() {
+        use TranscriptionModelId::{GigaAmV3, Orukeet, ParakeetV3, WhisperLargeV3Turbo};
+        let russian = offers("ru");
+        let ids: Vec<_> = russian.iter().map(|(model, _)| *model).collect();
+        assert_eq!(ids, [GigaAmV3, WhisperLargeV3Turbo, ParakeetV3, Orukeet]);
+        assert_eq!(russian[0].1, Some(Recommendation::Recommended));
+        assert_eq!(russian[3].1, None, "Orukeet is never badged");
+        // The recommendation is still the row a new choice selects.
+        let choice = ModelChoice::new(&models::recommended_selection("ru"));
+        assert_eq!(choice.selected(), Some(Pick::Model(GigaAmV3)));
+        // No other language's list grows, and none lists a model twice.
+        for (language, _) in models::LANGUAGES {
+            let offered = offers(language);
+            let extra = ALSO_OFFERED
+                .iter()
+                .filter(|(code, _)| code == language)
+                .count();
+            assert!(offered.len() <= OFFERED + extra, "{language}: {offered:?}");
+            if *language != "ru" {
+                assert!(offered.len() <= OFFERED, "{language}: {offered:?}");
+            }
+            for (index, (model, _)) in offered.iter().enumerate() {
+                assert!(
+                    offered[..index].iter().all(|(other, _)| other != model),
+                    "{language} lists {model:?} twice"
+                );
+                assert!(models::definition(*model).supports_language(language));
+            }
+        }
     }
 
     #[test]

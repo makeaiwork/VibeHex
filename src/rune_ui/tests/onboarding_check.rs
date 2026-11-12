@@ -15,8 +15,10 @@ pub(super) const SCENES: &[&str] = &[
     // A fresh install: the model step, nothing downloading.
     "onboarding",
     "mac-onboarding",
-    // Russian chosen there; the same page in Russian and in German.
+    // Russian chosen there, and with a file found here that speaks it (the
+    // most rows the step shows); the same page in Russian and in German.
     "onboarding-choice-russian",
+    "onboarding-choice-russian-found",
     "onboarding-choice-in-russian",
     "onboarding-choice-in-german",
     // Back on the list while the pick downloads, and a pick that failed.
@@ -71,6 +73,7 @@ const WITHOUT_MODEL: &[&str] = &[
     "onboarding",
     "mac-onboarding",
     "onboarding-choice-russian",
+    "onboarding-choice-russian-found",
     "onboarding-choice-in-russian",
     "onboarding-choice-in-german",
     "onboarding-choice-downloading",

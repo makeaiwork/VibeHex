@@ -291,6 +291,9 @@ pub(super) const SCENES: &[Scene] = &[
         first_run(ui, FirstRun::Choosing, Page::Download);
         onboarding_kit::choice::choose_language(ui, "ru");
     }),
+    // Russian with a file found here that speaks it: its four offers and
+    // the found row, the most rows the step shows.
+    ("onboarding-choice-russian-found", found::russian),
     // The same two in Russian and German, the longest lines the page has.
     ("onboarding-choice-in-russian", |ui| {
         first_run_in(ui, "ru");
@@ -314,6 +317,13 @@ pub(super) const SCENES: &[Scene] = &[
     ("onboarding-no-model", |ui| {
         first_run(ui, FirstRun::Choosing, Page::Download);
         onboarding_kit::live::continue_without_model(ui);
+    }),
+    // "All models…" from the model step: the picker for the language chosen
+    // there, where a model is only chosen for the step.
+    ("picker-first-run", |ui| {
+        first_run(ui, FirstRun::Choosing, Page::Download);
+        onboarding_kit::choice::choose_language(ui, "ru");
+        onboarding_kit::choice::all_models(ui);
     }),
     ("onboarding-model-found", found::listed),
     ("onboarding-model-found-downloading", found::loading),

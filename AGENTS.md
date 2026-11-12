@@ -962,9 +962,13 @@ CoreAudio formats, AppleScript details, or event serialization.
   preselected from the system's and changeable there; the first three models
   the picker lists for it (`onboarding::model_choice::offers`), the
   recommended one first and selected, each with the picker's badge, line, and
-  size; the compatible files found on this computer that speak it; All
-  models… (the picker); one main button for the selected row; and Continue
-  without a model, from the start. A preselection (`default_transcription`)
+  size; for Russian, Orukeet after them with no badge (`ALSO_OFFERED`: the
+  owner's choice for Russian with English terms, not a measurement, so
+  Orukeet stays never recommended and its line claims no accuracy); the
+  compatible files found on this computer that speak it; All models… (the
+  picker, where a model is only chosen for the step and Download there
+  starts it); one main button for the selected row; and Continue without a
+  model, from the start. A preselection (`default_transcription`)
   is neither a download nor the person's choice: until Download (or Use this
   model) is pressed, nothing asks the service for a model and nothing in the
   first run behaves as if one were chosen. Its lines say only what the
@@ -976,9 +980,12 @@ CoreAudio formats, AppleScript details, or event serialization.
   an installed model. The decision is remembered in `onboarding-model` until
   its model is installed, so an interrupted run goes on with it, and the
   saved selection changes only when the service has the model ready.
-  Continue without a model stops any download, still asks for the
-  permissions, records completion, and Settings › General then says no model
-  is installed, with Download and Add model file…; it also shows on Almost
+  Continue without a model stops any download, keeps the dictation language
+  chosen on the step (with no model here the saved preselection becomes that
+  language's recommended model, so the pair stays valid; settings.json only,
+  no download), still asks for the permissions, records completion, and
+  Settings › General then says no model is installed, with Download and Add
+  model file…; it also shows on Almost
   ready once the download failed or stalled (30 s without bytes) with every
   permission ready (#894). A found model is never picked for the person.
 - The menu-bar model picker lists only downloaded, available models and remembers

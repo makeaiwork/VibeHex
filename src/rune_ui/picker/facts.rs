@@ -51,6 +51,9 @@ pub(super) struct Entry {
     pub(super) recommendation: Option<Recommendation>,
     pub(super) supports: bool,
     pub(super) state: State,
+    /// Opened from the first run's model step: choosing only selects the
+    /// model there, so its action says Choose.
+    pub(super) picks: bool,
 }
 
 impl Entry {
@@ -72,6 +75,7 @@ pub(super) fn entries(ui: &Ui, language: &str, models: &[PickerModel]) -> Vec<En
             recommendation: picker::shown_recommendation(recommendation, def, language, details),
             supports: def.supports_language(language),
             state: state(ui, def, language),
+            picks: ui.picker.setup_language.is_some(),
         })
         .collect()
 }
@@ -420,7 +424,9 @@ pub(super) fn progress_line(p: Paint, entry: &Entry) -> El {
 /// the compare columns.
 pub(super) fn choose_button(p: Paint, entry: &Entry, primary: bool) -> El {
     let def = entry.def;
-    let label = if downloads(entry) {
+    let label = if entry.picks {
+        tr("Choose").into()
+    } else if downloads(entry) {
         tr_fill("Download {}", &def.size_label())
     } else {
         tr("Use").into()
@@ -441,8 +447,8 @@ pub(super) fn choose_button(p: Paint, entry: &Entry, primary: bool) -> El {
 /// The list's quieter Use or download action, at row size.
 pub(super) fn row_choose_button(p: Paint, entry: &Entry) -> El {
     let def = entry.def;
-    if !downloads(entry) {
-        return Button::new(tr("Use"))
+    if entry.picks || !downloads(entry) {
+        return Button::new(if entry.picks { tr("Choose") } else { tr("Use") })
             .variant(ButtonVariant::Neutral)
             .on_press_tx(move |ui: &mut Ui, _| choose(ui, def))
             .build_small_push(p.k)

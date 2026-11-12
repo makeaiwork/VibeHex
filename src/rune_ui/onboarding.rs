@@ -321,11 +321,62 @@ pub(super) fn prepare(ui: &mut Ui, selection: TranscriptionSelection) {
     });
 }
 
-/// A model chosen for the open tour from outside its list (the full picker,
-/// a model file): it is the person's pick, started as Download starts one.
+/// A model file the person chose to use during the open tour: it is their
+/// pick, started as "Use this model" starts one. Nothing downloads: the file
+/// is already here.
 pub(super) fn choose(ui: &mut Ui, model: TranscriptionModelId) {
     input(ui, Input::Pick(Pick::Model(model)));
     input(ui, Input::Grant(SetupItem::Model));
+}
+
+/// A model chosen in the full picker ("All models…") during the open tour:
+/// it is only selected, and the model step shows its row with its size, where
+/// Download starts it. A model that does not speak the language chosen there
+/// brings its own, as the picker's card said it would.
+pub(super) fn select(ui: &mut Ui, model: TranscriptionModelId) {
+    let Some(tour) = &ui.tour else {
+        return;
+    };
+    let definition = crate::transcription::models::definition(model);
+    if !definition.supports_language(tour.flow.choice().language())
+        && let Some(language) =
+            crate::transcription::models::known_language(definition.default_language())
+    {
+        input(ui, Input::Language(language));
+    }
+    input(ui, Input::Pick(Pick::Model(model)));
+    super::onboarding_kit::live::refresh_choice(ui);
+}
+
+/// "Continue without a model" keeps the dictation language chosen on the
+/// model step, so Settings and the picker open on it. With no model here the
+/// saved preselection becomes that language's recommended model, as a new
+/// install on a system in that language starts: the language alone could name
+/// a model that does not speak it. A model that is here stays, and takes the
+/// language where it speaks it. Only settings.json is written: nothing is
+/// asked of the service, and nothing downloads. A saved model file is never
+/// rewritten away.
+pub(super) fn keep_language(ui: &mut Ui) {
+    use crate::transcription::models;
+    let Some(tour) = &ui.tour else {
+        return;
+    };
+    let language = tour.flow.choice().language();
+    let saved = &ui.settings.transcription;
+    if saved.language == language || saved.model.is_custom() {
+        return;
+    }
+    let selection = if ui.picker.selected_installed(&ui.settings) {
+        TranscriptionSelection {
+            model: saved.model,
+            language: language.into(),
+        }
+    } else {
+        models::recommended_selection(language)
+    };
+    if models::validate(&selection).is_ok() {
+        ui.update(|settings| settings.transcription = selection);
+    }
 }
 
 /// Once per launch, with setup already finished: the download the person

@@ -296,5 +296,7 @@ pub(in super::super) const TRANSLATIONS: &[(&str, &str)] = &[
     ("Dictation language", "Язык диктовки"),
     ("All models…", "Все модели…"),
     ("Use this model", "Использовать эту модель"),
+    ("Choose", "Выбрать"),
+    ("A Parakeet v3 fine-tune, trained on many languages and accents", "Parakeet v3, дообученная на многих языках и акцентах"),
     ("Dictation won't work until you choose a model in Settings.", "Диктовка не будет работать, пока вы не выберете модель в Настройках."),
 ];

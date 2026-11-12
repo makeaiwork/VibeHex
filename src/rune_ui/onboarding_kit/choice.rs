@@ -182,11 +182,7 @@ fn row_for(
     let (name, blurb, size) = match pick {
         Pick::Model(id) => {
             let model = models::definition(id);
-            let blurb = match picker::blurb(model) {
-                "" => tr("Not tested by Hex"),
-                blurb => blurb,
-            };
-            (model.name.to_owned(), blurb, picker::size_text(model))
+            (model.name.to_owned(), line(model), picker::size_text(model))
         }
         Pick::Found(index) => {
             let found = ui.found.models.get(index)?;
@@ -233,6 +229,21 @@ fn row_for(
         selected: choice.selected() == Some(pick),
         state,
     })
+}
+
+/// A catalog model's one line here: the picker's own, with one exception.
+fn line(model: &models::ModelDefinition) -> &'static str {
+    match (model.id, picker::blurb(model)) {
+        // The picker's line counts the languages Orukeet's published figures
+        // beat Parakeet v3's in. Hex has measured none of them, and the page
+        // offers it for one language, so here it says only what the model's
+        // card says it is.
+        (models::TranscriptionModelId::Orukeet, _) => {
+            tr("A Parakeet v3 fine-tune, trained on many languages and accents")
+        }
+        (_, "") => tr("Not tested by Hex"),
+        (_, blurb) => blurb,
+    }
 }
 
 /// The name of what the person started, for the download pill.
@@ -285,7 +296,8 @@ pub(in crate::rune_ui) fn cancel(ui: &mut Ui) {
 }
 
 /// "All models…": the full picker, for the language chosen here. A model
-/// chosen there comes back as the started row ([`onboarding::choose`]).
+/// chosen there comes back as the selected row ([`onboarding::select`]);
+/// Download here starts it.
 pub(in crate::rune_ui) fn all_models(ui: &mut Ui) {
     let Some(language) = step(ui).map(|shown| shown.language) else {
         return;

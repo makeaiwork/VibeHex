@@ -585,8 +585,9 @@ pub(in crate::rune_ui) fn skip(ui: &mut Ui) {
 
 /// "Continue without a model": on the model step from the start, and where
 /// a download failed or stalled (#894). Whatever was downloading stops, the
-/// permissions are still asked for, and onboarding finishes with no model;
-/// Settings says so with Download and Add model file….
+/// dictation language chosen here is saved, the permissions are still asked
+/// for, and onboarding finishes with no model; Settings says so with
+/// Download and Add model file….
 pub(in crate::rune_ui) fn continue_without_model(ui: &mut Ui) {
     let Some(s) = ui.first_run.as_ref() else {
         return;
@@ -599,6 +600,8 @@ pub(in crate::rune_ui) fn continue_without_model(ui: &mut Ui) {
         return;
     }
     let granted = s.granted;
+    // The language chosen here is kept for Settings and the picker.
+    onboarding::keep_language(ui);
     onboarding::input(ui, Input::WithoutModel);
     if granted {
         return finish_without_model(ui);

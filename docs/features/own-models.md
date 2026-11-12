@@ -130,8 +130,8 @@ API's `/models` and the SDK's `ModelInfo.source` carry the same field.
 Onboarding opens with no model -> the model step, and a scan  // setup.found-choice
 ├── The step never waits for the scan and downloads nothing by itself
 │   (features/README.md, setup.model-choice): the language, the picker's
-│   first three models for it, one main button, All models…, Continue
-│   without a model
+│   first three models for it (four for Russian, with Orukeet), one main
+│   button, All models…, Continue without a model
 └── Something compatible found -> rows after the offers, for the files that
     speak the chosen language (a catalog model by its languages, another
     file by its header's; Auto keeps every such file)
@@ -149,7 +149,9 @@ Onboarding opens with no model -> the model step, and a scan  // setup.found-cho
     ├── A pick that fails says so on its row, and the button tries again
     ├── Back on the pages after it returns to the list to change the pick,
     │   even with the model ready
-    └── Five rows at most; the rest are in All models… › Found on this computer
+    └── Five rows at most (Russian's four offers leave room for one found
+        file; scene `onboarding-choice-russian-found`); the rest are in All
+        models… › Found on this computer
 ```
 
 Observed on apollo (Linux, Radeon 8060S over Vulkan, 2026-11-01) with an

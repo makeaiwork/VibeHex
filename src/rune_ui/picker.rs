@@ -104,7 +104,7 @@ pub(super) struct Picker {
     deletion_error: Option<String>,
     /// Opened from the first run's model step ("All models…"), for the
     /// dictation language chosen there: a model chosen here goes back to
-    /// that step as the person's pick instead of to the saved selection.
+    /// that step as its selected row, and nothing is prepared or saved.
     pub(super) setup_language: Option<&'static str>,
     /// Installed models for fixtures; live windows ask the filesystem.
     pub(super) installed: Option<Vec<TranscriptionModelId>>,
@@ -165,7 +165,7 @@ pub(super) fn open_for_setup(ui: &mut Ui, language: &'static str) {
 
 /// The language the picker shows models for: the saved one, or the first
 /// run's while it opened the picker.
-fn shown_language(ui: &Ui) -> String {
+pub(super) fn shown_language(ui: &Ui) -> String {
     ui.picker
         .setup_language
         .map_or_else(|| ui.settings.transcription.language.clone(), str::to_owned)
@@ -399,10 +399,11 @@ pub(super) fn cancel(ui: &mut Ui) {
 /// its default language, which Settings then names.
 pub(super) fn choose(ui: &mut Ui, model: &'static ModelDefinition) {
     ui.picker.clear_deletion();
-    // The first run's model step takes it as the person's pick.
+    // The first run's model step takes it as the selected row; Download
+    // there starts it.
     if ui.picker.setup_language.is_some() && ui.tour.is_some() {
         close(ui);
-        return super::onboarding::choose(ui, model.id);
+        return super::onboarding::select(ui, model.id);
     }
     let current = &ui.settings.transcription;
     let installed = ui.picker.installed(model, &current.language);

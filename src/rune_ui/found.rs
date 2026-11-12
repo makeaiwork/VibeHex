@@ -348,6 +348,20 @@ pub(super) fn listed(ui: &mut Ui) {
     onboarding_scene(ui, false, false);
 }
 
+/// Russian chosen on the list, with a found file that speaks it.
+pub(super) fn russian(ui: &mut Ui) {
+    onboarding_scene(ui, false, false);
+    for found in ui
+        .found
+        .models
+        .iter_mut()
+        .filter(|found| found.catalog.is_none())
+    {
+        found.languages.push("ru".into());
+    }
+    super::onboarding_kit::choice::choose_language(ui, "ru");
+}
+
 /// The recommended model started and downloading, back on the list.
 pub(super) fn loading(ui: &mut Ui) {
     onboarding_scene(ui, false, true);

@@ -206,6 +206,14 @@ Launch Hex, setup incomplete              // setup.tour; every build and OS, ful
 │   │   the download's size. English -> Parakeet Unified English, Cohere
 │   │   Transcribe, Whisper large-v3-turbo; Russian -> GigaAM v3, Whisper
 │   │   large-v3-turbo, Parakeet v3; Auto -> only models that detect it
+│   ├── Russian also offers Orukeet, fourth and with no badge (`ALSO_OFFERED`
+│   │   in `model_choice.rs`): Russian's recommendation writes Russian only,
+│   │   and Orukeet is what this fork's owner dictates Russian with English
+│   │   terms on. That is his choice, not a measurement: the catalog never
+│   │   recommends Orukeet, and Hex has not measured it. Its line here is
+│   │   "A Parakeet v3 fine-tune, trained on many languages and accents"
+│   │   (what its model card says), not the picker's count of the languages
+│   │   its published figures are better in
 │   ├── The lines say only what the catalog knows (Russian only, or how many
 │   │   languages; reads your vocabulary). Nothing there says how a model
 │   │   handles English terms inside other speech: Hex has not measured it
@@ -218,7 +226,10 @@ Launch Hex, setup incomplete              // setup.tour; every build and OS, ful
 │   │       download's pill (model name, percent) on top. Only the practice
 │   │       waits for the model (Almost ready, with Skip)
 │   ├── All models… -> the full picker for the chosen language, above the
-│   │   page; choosing there starts that model and adds its row to the list
+│   │   page. Its buttons say Choose: a model chosen there only becomes the
+│   │   step's selected row, shown with its size, and Download on the step
+│   │   starts it. Nothing downloads or is saved by choosing. A model that
+│   │   does not speak the step's language brings its own, as its card says
 │   ├── Back on the demo, permissions, and Almost ready returns to the list
 │   │   with the download still running: × on its row cancels it (nothing is
 │   │   chosen again), and Download on another row replaces it. A stopped
@@ -227,6 +238,16 @@ Launch Hex, setup incomplete              // setup.tour; every build and OS, ful
 │   ├── Continue without a model (quiet, from the start) // setup.without-model
 │   │   ├── Stops whatever was downloading; the permissions are still asked
 │   │   │   for; then records completion and closes onboarding
+│   │   ├── Keeps the dictation language chosen on the step, so Settings and
+│   │   │   the picker open on it: with no model here, the saved preselection
+│   │   │   becomes that language's recommended model (English system,
+│   │   │   Russian chosen -> GigaAM v3 for Russian, as a new install on a
+│   │   │   Russian system starts), because the language alone could name a
+│   │   │   model that does not speak it. A model already here stays and takes
+│   │   │   the language only where it speaks it; a saved model file is never
+│   │   │   rewritten. Only settings.json is written: no download starts, and
+│   │   │   nothing is saved when the language was not changed. Check:
+│   │   │   `continue_without_a_model_keeps_the_language_chosen_on_the_step`
 │   │   ├── Settings › General's Speech model row says no model is installed
 │   │   │   (with the download's error, if one failed), + Download + Add
 │   │   │   model file…. Check: golden `onboarding-no-model`,
@@ -240,7 +261,8 @@ Launch Hex, setup incomplete              // setup.tour; every build and OS, ful
 │   │   markers) until its model is installed: a launch that interrupts the
 │   │   download (macOS's Quit & Reopen, a quit after onboarding closed)
 │   │   goes on with it, and a run without a model stays without one. The
-│   │   saved selection changes only when the service has the model ready
+│   │   saved selection changes only when the service has the model ready,
+│   │   or for the language kept by Continue without a model
 │   ├── A run that opens with a model installed has no model step
 │   ├── Default behaviour on every OS, not a Labs switch (AGENTS.md names the
 │   │   exception): the old page downloaded a guessed model without asking
@@ -517,7 +539,8 @@ itself is [rune_ui/onboarding_kit/choice.rs](../../src/rune_ui/onboarding_kit/ch
 over `desktop::onboarding::ModelChoice`
 ([model_choice.rs](../../src/desktop/onboarding/model_choice.rs)), with the
 scenes `onboarding`, `mac-onboarding`, `onboarding-choice-russian`,
-`-in-russian`, `-in-german`, `-downloading`, and `-failed`.
+`-russian-found` (the most rows the step shows), `-in-russian`, `-in-german`,
+`-downloading`, and `-failed`, and `picker-first-run` for All models….
 
 The tour state is the pure `desktop::onboarding::Flow` (steps, row states,
 the person's model choice and its download, practice outcomes, one-relaunch
@@ -563,7 +586,8 @@ first run (`a_new_install_opens_the_first_run`,
 `the_model_step_offers_the_chosen_language_and_starts_only_the_row_pressed`,
 `a_download_is_cancelled_on_the_list_and_another_model_started`,
 `the_story_goes_on_while_the_model_downloads_and_back_returns_to_the_list`,
-`all_models_opens_the_picker_for_the_chosen_language_and_its_pick_comes_back`,
+`all_models_opens_the_picker_for_the_chosen_language_and_its_pick_is_only_selected`,
+`continue_without_a_model_keeps_the_language_chosen_on_the_step`,
 `a_found_model_is_used_without_a_download_and_back_returns_to_the_list`), and every
 page is a scene whose goldens `scripts/check-onboarding.sh` checks (its
 `SCENES` list in `rune_ui/tests/onboarding_check.rs`). Scenes are fixtures

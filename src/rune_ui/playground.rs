@@ -129,6 +129,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Transcription model/Found on this computer",
     ),
     (
+        "picker-first-run",
+        "Linux & Windows/Model picker from the first run",
+    ),
+    (
         "picker-japanese",
         "Window/Transcription model/Japanese saved",
     ),
@@ -362,6 +366,10 @@ const PATHS: &[(&str, &str)] = &[
     (
         "onboarding-choice-russian",
         "Linux & Windows/Onboarding model step, Russian chosen",
+    ),
+    (
+        "onboarding-choice-russian-found",
+        "Linux & Windows/Onboarding model step, Russian with a model found",
     ),
     (
         "onboarding-choice-in-russian",

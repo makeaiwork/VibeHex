@@ -2547,16 +2547,52 @@ fn the_model_step_offers_the_chosen_language_and_starts_only_the_row_pressed() {
         Some("Russian")
     );
     let shown = texts(&rt);
-    for name in ["GigaAM v3", "Whisper large-v3-turbo", "Parakeet v3"] {
-        assert!(shown.contains(&name.to_owned()), "{name}: {shown:?}");
-    }
     let listed: Vec<String> = rt
         .elements()
         .into_iter()
         .filter(|e| e.path.contains("/model-list/"))
         .filter_map(|e| e.text)
         .collect();
-    assert!(listed.contains(&"GigaAM v3".to_owned()), "{listed:?}");
+    // Russian's three, then Orukeet, in that order.
+    let names: Vec<&str> = listed
+        .iter()
+        .map(String::as_str)
+        .filter(|text| {
+            [
+                "GigaAM v3",
+                "Whisper large-v3-turbo",
+                "Parakeet v3",
+                "Orukeet",
+            ]
+            .contains(text)
+        })
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "GigaAM v3",
+            "Whisper large-v3-turbo",
+            "Parakeet v3",
+            "Orukeet"
+        ],
+        "{listed:?}"
+    );
+    // Orukeet's row says what the model is, with no badge and no claim of
+    // accuracy Hex has not measured.
+    assert!(
+        listed
+            .contains(&"A Parakeet v3 fine-tune, trained on many languages and accents".to_owned()),
+        "{listed:?}"
+    );
+    assert_eq!(
+        listed.iter().filter(|text| *text == "Recommended").count(),
+        1,
+        "one badge, GigaAM v3's: {listed:?}"
+    );
+    assert!(
+        !listed.iter().any(|text| text.contains("more accurate")),
+        "{listed:?}"
+    );
     assert!(
         !listed.contains(&"Parakeet Unified English".to_owned()),
         "an English-only model is not offered for Russian: {listed:?}"
@@ -2577,6 +2613,9 @@ fn the_model_step_offers_the_chosen_language_and_starts_only_the_row_pressed() {
         chosen(&rt),
         [(TranscriptionModelId::WhisperLargeV3Turbo, "ru".to_owned())]
     );
+    // English has no fourth row.
+    let rt = runtime("onboarding", false, PANE_SIZE);
+    assert!(!texts(&rt).contains(&"Orukeet".to_owned()));
 }
 
 #[test]
@@ -2694,7 +2733,7 @@ fn a_found_model_is_used_without_a_download_and_back_returns_to_the_list() {
 }
 
 #[test]
-fn all_models_opens_the_picker_for_the_chosen_language_and_its_pick_comes_back() {
+fn all_models_opens_the_picker_for_the_chosen_language_and_its_pick_is_only_selected() {
     let mut rt = runtime("onboarding", false, PANE_SIZE);
     rt.update(|ui, _| onboarding_kit::choice::choose_language(ui, "ru"));
     settle(&mut rt);
@@ -2702,23 +2741,154 @@ fn all_models_opens_the_picker_for_the_chosen_language_and_its_pick_comes_back()
     assert!(rt.state.picker.open);
     assert_eq!(rt.state.picker.setup_language, Some("ru"));
     assert!(sent(&rt).is_empty());
-    // A model chosen there is the person's pick: started for the language
-    // chosen on the step, with the picker closed and its row on the list.
+    // There a model is chosen for the step, not downloaded: no button says
+    // Download, whatever is installed.
+    let shown = texts(&rt);
+    assert!(shown.contains(&"Choose".to_owned()), "{shown:?}");
+    assert!(
+        !shown.iter().any(|text| text.starts_with("Download ")),
+        "{shown:?}"
+    );
+    // A model chosen there only becomes the step's selected row: the picker
+    // closes, its row shows with its size, and nothing is asked or saved.
     let nemotron = crate::transcription::models::definition(TranscriptionModelId::Nemotron35Asr);
     assert!(nemotron.supports_language("ru"));
+    let saved_before = saved(&rt);
     rt.update(|ui, _| picker::choose(ui, nemotron));
     settle(&mut rt);
     assert!(!rt.state.picker.open);
+    assert!(sent(&rt).is_empty(), "choosing downloads nothing");
+    assert_eq!(saved(&rt), saved_before, "and saves nothing");
+    let choice = |rt: &Runtime<Ui>| rt.state.tour.as_ref().unwrap().flow.choice().clone();
+    assert_eq!(
+        choice(&rt).selected(),
+        Some(crate::desktop::onboarding::Pick::Model(
+            TranscriptionModelId::Nemotron35Asr
+        ))
+    );
+    assert_eq!(
+        choice(&rt).decision(),
+        crate::desktop::onboarding::Decision::Undecided
+    );
+    let listed: Vec<String> = rt
+        .elements()
+        .into_iter()
+        .filter(|e| e.path.contains("/model-list/"))
+        .filter_map(|e| e.text)
+        .collect();
+    assert!(listed.contains(&nemotron.name.to_owned()), "{listed:?}");
+    assert!(listed.contains(&nemotron.size_label()), "{listed:?}");
+    // Russian's four offers stay above it.
+    for name in [
+        "GigaAM v3",
+        "Whisper large-v3-turbo",
+        "Parakeet v3",
+        "Orukeet",
+    ] {
+        assert!(listed.contains(&name.to_owned()), "{name}: {listed:?}");
+    }
+    // Download on the step starts it, for the language chosen there.
+    tap(&mut rt, "continue");
     assert_eq!(
         chosen(&rt),
         [(TranscriptionModelId::Nemotron35Asr, "ru".to_owned())]
     );
-    let shown = texts(&rt);
-    assert!(shown.contains(&nemotron.name.to_owned()), "{shown:?}");
-    assert!(
-        rt.find("model-list").is_some(),
-        "the person stays on the list"
+
+    // A model that does not speak the step's language brings its own, as
+    // the picker's card says: still nothing downloads.
+    let mut rt = runtime("onboarding", false, PANE_SIZE);
+    rt.update(|ui, _| onboarding_kit::choice::choose_language(ui, "ru"));
+    settle(&mut rt);
+    tap(&mut rt, "all-models");
+    let english =
+        crate::transcription::models::definition(TranscriptionModelId::ParakeetUnifiedEnglish);
+    assert!(!english.supports_language("ru"));
+    rt.update(|ui, _| picker::choose(ui, english));
+    settle(&mut rt);
+    assert!(sent(&rt).is_empty());
+    assert_eq!(choice(&rt).language(), "en");
+    assert_eq!(
+        choice(&rt).selected(),
+        Some(crate::desktop::onboarding::Pick::Model(
+            TranscriptionModelId::ParakeetUnifiedEnglish
+        ))
     );
+    assert_eq!(
+        a11y_value(&rt, "setup-language-trigger").as_deref(),
+        Some("English")
+    );
+}
+
+#[test]
+fn continue_without_a_model_keeps_the_language_chosen_on_the_step() {
+    use crate::transcription::models;
+    // An English system, nothing installed: Russian is chosen, then no model.
+    let mut rt = runtime("onboarding", false, PANE_SIZE);
+    let english = rt.state.settings.transcription.clone();
+    assert_eq!(english.language, "en");
+    rt.update(|ui, _| onboarding_kit::choice::choose_language(ui, "ru"));
+    settle(&mut rt);
+    assert_eq!(saved(&rt), 0, "choosing a language saves nothing");
+    tap(&mut rt, "continue-without-model");
+    settle(&mut rt);
+    assert!(rt.state.first_run.is_none(), "onboarding closed");
+    // The saved preselection is Russian's recommended model: a pair that is
+    // valid, where the language alone would name an English-only model.
+    let kept = rt.state.settings.transcription.clone();
+    assert_eq!(kept, models::recommended_selection("ru"));
+    assert_eq!(kept.language, "ru");
+    assert!(models::validate_saved(&kept).is_ok());
+    assert!(
+        models::validate_saved(&TranscriptionSelection {
+            model: english.model,
+            language: "ru".into()
+        })
+        .is_err(),
+        "the language alone would not be a valid pair"
+    );
+    assert_eq!(saved(&rt), 1, "saved once");
+    assert!(sent(&rt).is_empty(), "nothing downloads: {:?}", sent(&rt));
+    // Settings says no model is installed, and the picker opens on Russian.
+    assert!(
+        texts(&rt)
+            .contains(&"No speech model installed. Download one or add a model file.".to_owned()),
+        "{:?}",
+        texts(&rt)
+    );
+    rt.update(|ui, _| picker::open(ui));
+    assert_eq!(picker::shown_language(&rt.state), "ru");
+
+    // The language left as it was: nothing is written.
+    let mut rt = runtime("onboarding", false, PANE_SIZE);
+    tap(&mut rt, "continue-without-model");
+    settle(&mut rt);
+    assert_eq!(saved(&rt), 0);
+    assert_eq!(rt.state.settings.transcription, english);
+
+    // A model that is here stays the saved one. It takes the language where
+    // it speaks it, and is left alone where it does not.
+    for (model, language, expected) in [
+        (TranscriptionModelId::ParakeetV3, "ru", "ru"),
+        (TranscriptionModelId::ParakeetUnifiedEnglish, "ru", "en"),
+    ] {
+        let mut rt = runtime("onboarding", false, PANE_SIZE);
+        rt.state.settings.transcription = TranscriptionSelection {
+            model,
+            language: "en".into(),
+        };
+        rt.state.picker.installed = Some(vec![model]);
+        rt.update(|ui, _| onboarding_kit::choice::choose_language(ui, language));
+        rt.update(|ui, _| onboarding::keep_language(ui));
+        assert_eq!(
+            rt.state.settings.transcription,
+            TranscriptionSelection {
+                model,
+                language: expected.into()
+            },
+            "{model:?}"
+        );
+        assert!(sent(&rt).is_empty());
+    }
 }
 
 #[test]
@@ -3059,6 +3229,7 @@ fn goldens() {
     check_golden("output-trust", false, PANE_SIZE);
     check_golden("picker-custom-models", false, PANE_SIZE);
     check_golden("picker-found", false, PANE_SIZE);
+    check_golden("picker-first-run", false, PANE_SIZE);
     check_golden("vocabulary-budget", false, PANE_SIZE);
     check_golden("windows-labs", false, PANE_SIZE);
     check_golden("linux-labs", false, PANE_SIZE);

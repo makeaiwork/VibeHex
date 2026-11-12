@@ -129,6 +129,8 @@ const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Dictation language", ["Język dyktowania", "听写语言", "音声入力の言語", "Diktiersprache", "Idioma de dictado", "Мова диктування"]),
     ("All models…", ["Wszystkie modele…", "所有模型…", "すべてのモデル…", "Alle Modelle…", "Todos los modelos…", "Усі моделі…"]),
     ("Use this model", ["Użyj tego modelu", "使用此模型", "このモデルを使う", "Dieses Modell verwenden", "Usar este modelo", "Використати цю модель"]),
+    ("Choose", ["Wybierz", "选择", "選ぶ", "Auswählen", "Elegir", "Вибрати"]),
+    ("A Parakeet v3 fine-tune, trained on many languages and accents", ["Parakeet v3 dostrojony na wielu językach i akcentach", "Parakeet v3 的微调版，用多种语言和口音训练", "Parakeet v3 の微調整版。多くの言語とアクセントで学習", "Parakeet-v3-Feinabstimmung mit vielen Sprachen und Akzenten", "Ajuste fino de Parakeet v3 con muchos idiomas y acentos", "Parakeet v3, донавчена на багатьох мовах і акцентах"]),
     ("Dictation won't work until you choose a model in Settings.", ["Dyktowanie nie zadziała, dopóki nie wybierzesz modelu w Ustawieniach.", "在设置中选择模型之前无法听写。", "設定でモデルを選ぶまで、音声入力は使えません。", "Diktieren funktioniert erst, wenn du in den Einstellungen ein Modell wählst.", "El dictado no funcionará hasta que elijas un modelo en Ajustes.", "Диктування не працюватиме, доки ви не виберете модель у Налаштуваннях."]),
 ];
 
@@ -426,6 +428,8 @@ pub(super) const FRENCH: &[(&str, &str)] = &[
     ("Dictation language", "Langue de dictée"),
     ("All models…", "Tous les modèles…"),
     ("Use this model", "Utiliser ce modèle"),
+    ("Choose", "Choisir"),
+    ("A Parakeet v3 fine-tune, trained on many languages and accents", "Parakeet v3 affiné sur de nombreuses langues et accents"),
     ("Dictation won't work until you choose a model in Settings.", "La dictée ne fonctionnera pas tant que vous n'aurez pas choisi un modèle dans les Réglages."),
 ];
 
@@ -723,5 +727,7 @@ pub(super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Dictation language", "Idioma do ditado"),
     ("All models…", "Todos os modelos…"),
     ("Use this model", "Usar este modelo"),
+    ("Choose", "Escolher"),
+    ("A Parakeet v3 fine-tune, trained on many languages and accents", "Ajuste fino do Parakeet v3 com muitos idiomas e sotaques"),
     ("Dictation won't work until you choose a model in Settings.", "O ditado não funcionará até você escolher um modelo nos Ajustes."),
 ];
