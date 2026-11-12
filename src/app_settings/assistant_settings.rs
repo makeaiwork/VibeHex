@@ -36,6 +36,12 @@ pub struct AssistantSettings {
     /// person's ChatGPT plan; a conversation's Web toggle overrides it.
     /// Built-in models never go online.
     pub web: bool,
+    /// Which remote engines answer as an agent, the model asking the app
+    /// what to read (`assistant::agent`): empty for the engines it is
+    /// verified on, `off`, `all`, or a list (`codex,openrouter,custom,
+    /// opencode`). Built-in models never do. No row in the window.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub agent: String,
 }
 
 impl Default for AssistantSettings {
@@ -48,6 +54,7 @@ impl Default for AssistantSettings {
             read_recordings: None,
             send_settings: true,
             web: true,
+            agent: String::new(),
         }
     }
 }

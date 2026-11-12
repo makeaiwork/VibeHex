@@ -20,6 +20,11 @@ pub(super) const ASSISTANT_KEYS: &[Key] = &[
         "Assistant: how hard a Codex model thinks: low, medium, or high; empty for medium",
     ),
     key(
+        "assistant.agent",
+        Kind::Text,
+        "Assistant: which remote engines answer as an agent, the model asking the app what to read: empty for the engines it is verified on, off, all, or a list of codex, openrouter, custom, opencode. Built-in models never do",
+    ),
+    key(
         "assistant.keep_conversations",
         Kind::Bool,
         "Assistant: conversations are saved on this computer; off, they last until VibeHex quits",
