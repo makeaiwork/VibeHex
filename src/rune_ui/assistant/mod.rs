@@ -22,7 +22,8 @@ mod facts_tests;
 mod feed;
 pub(super) mod fixture;
 pub(super) mod fixture_cards;
-#[cfg(test)]
+// Pinned on a Mac: the follow-ups and the preset's rows are this OS's.
+#[cfg(all(test, target_os = "macos"))]
 mod flow_pins;
 pub(super) mod jump;
 mod knew;

@@ -3,6 +3,10 @@
 //! conversation and the kept setups hold after every one. The lines were
 //! written down from the pane before setup became one state machine
 //! (`assistant::setup::flow`); a line that changes is a behaviour change.
+//!
+//! They hold on a Mac alone: which follow-ups are asked and which of the
+//! preset's rows exist depend on the OS. The machine's own tables
+//! (`setup/flow/tests.rs`) hold on every OS.
 
 use super::super::Ui;
 use super::ask::{self, At};
