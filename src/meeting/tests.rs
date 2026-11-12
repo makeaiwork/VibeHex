@@ -52,6 +52,33 @@ fn transcript_entries_coalesce_into_source_turns_without_hiding_long_pauses() {
 }
 
 #[test]
+fn each_entry_knows_where_its_words_are_in_the_joined_turns() {
+    let entry = |source, start_ms, text: &str| TranscriptEntry {
+        words: Vec::new(),
+        source,
+        start_ms,
+        end_ms: start_ms + 900,
+        text: text.into(),
+    };
+    let entries = [
+        entry(MeetingSource::Microphone, 0, " First."),
+        entry(MeetingSource::Microphone, 1_000, "Second. "),
+        entry(MeetingSource::System, 2_000, "  Да, ответ."),
+        entry(MeetingSource::System, 2_500, "Ещё."),
+    ];
+    let joined = coalesce_transcript(entries.clone())
+        .into_iter()
+        .map(|turn| turn.text)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let words: Vec<&str> = super::coalesced_ranges(&entries)
+        .into_iter()
+        .map(|at| &joined[at])
+        .collect();
+    assert_eq!(words, ["First.", "Second.", "Да, ответ.", "Ещё."]);
+}
+
+#[test]
 fn turns_keep_their_word_times_only_while_every_entry_has_them() {
     let entry = |start_ms, text: &str, words: Vec<u64>| TranscriptEntry {
         words,

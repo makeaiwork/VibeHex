@@ -14,6 +14,7 @@
 pub mod codex;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub mod engine;
+mod isolation;
 pub(crate) mod keys;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub mod local_models;

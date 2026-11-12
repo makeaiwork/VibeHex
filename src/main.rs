@@ -16,6 +16,8 @@ mod apple_intelligence;
 #[cfg(target_os = "macos")]
 mod apple_speech;
 mod application_catalog;
+// The pane that uses it lands in the next steps.
+mod assistant;
 #[cfg_attr(any(target_os = "linux", target_os = "windows"), allow(dead_code))]
 mod audio;
 #[cfg_attr(any(target_os = "linux", target_os = "windows"), allow(dead_code))]

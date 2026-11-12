@@ -1,0 +1,3 @@
+{"source": "system", "start_ms": 0, "end_ms": 7780, "text": "Anna here. The release date has to move, QA found two blockers."}
+{"source": "microphone", "start_ms": 22780, "end_ms": 29540, "text": "Let's move the release to December third then."}
+{"source": "system", "start_ms": 44540, "end_ms": 51180, "text": "QA needs two more days for the payment flow."}

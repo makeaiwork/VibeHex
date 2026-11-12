@@ -162,7 +162,7 @@ pub(super) fn unused_note(ui: &Ui) -> Option<String> {
 /// How many terms the selected model reads, when that is fewer than the
 /// list holds: Parakeet's bias cap, or Whisper's and Qwen3-ASR's prompt
 /// budget, as transcription applies them.
-fn budget_note(ui: &Ui) -> Option<String> {
+pub(super) fn budget_note(ui: &Ui) -> Option<String> {
     let entries = ui.vocabulary.project();
     let read = crate::transcription::models::definition(ui.settings.transcription.model)
         .vocabulary_terms_read(&entries);

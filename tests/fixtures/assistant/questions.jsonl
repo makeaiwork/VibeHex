@@ -1,0 +1,51 @@
+{"id":"zoom-auto-record","q":"Хочу, чтобы созвоны в Zoom записывались сами, без вопросов. Так можно?","articles":["labs/meetings","topics/meetings"],"changes":[{"key":"meetings.enabled","value":true},{"key":"meetings.providers"}],"web":false}
+{"id":"chatgpt-cleanup","q":"Можно ли чистить диктовку через мой ChatGPT?","articles":["topics/ai-cleanup","topics/codex","labs/ai-cleanup-server"],"changes":[{"key":"labs.ai_cleanup_server","value":true},{"key":"dictation_processing.server.runs_on","value":"codex"}],"web":false}
+{"id":"best-russian-model","q":"Какая модель распознавания лучше всего для русского?","articles":["topics/speech-models"],"changes":[{"key":"transcription.model"}],"note":"plain Russian or Russian with English terms: GigaAM v3 or Orukeet/Parakeet v3, asked or offered as options","web":false}
+{"id":"term-misheard","q":"Kubernetes всё время пишется как «кубернетес», я добавил его в словарь, но не помогает","articles":["topics/vocabulary","labs/vocabulary-biasing"],"changes":[{"key":"labs.vocabulary_biasing","value":true}],"web":false,"note":"depends on the speech model: biasing helps only Parakeet-family models; GigaAM needs AI cleanup instead"}
+{"id":"words-stick","q":"Когда диктую после напечатанного слова, текст слипается с ним без пробела","articles":["labs/smart-spacing"],"changes":[{"key":"labs.smart_spacing","value":true}],"web":false}
+{"id":"fully-offline","q":"Можно пользоваться вообще без интернета, чтобы ничего не уходило в облако?","articles":["topics/privacy","topics/ai-cleanup"],"changes":[{"key":"dictation_processing.server.runs_on","value":"local"}],"web":false}
+{"id":"lm-studio","q":"У меня стоит LM Studio. Как сделать, чтобы VibeHex чистил текст через него?","articles":["topics/ai-cleanup","labs/ai-cleanup-server"],"changes":[{"key":"labs.ai_cleanup_server","value":true},{"key":"dictation_processing.server.runs_on","value":"custom"},{"key":"dictation_processing.server.url","value":"http://127.0.0.1:1234/v1"}],"web":true,"note":"starting LM Studio's server is not in the guide"}
+{"id":"russian-fillers","q":"Как убрать «э-э», «ну», «как бы» из текста?","articles":["labs/filler-words","topics/ai-cleanup"],"changes":[],"web":false,"note":"Remove filler words knows only English fillers; Russian ones need AI cleanup instructions"}
+{"id":"spoken-newline","q":"Можно сказать «новая строка», чтобы был перенос строки?","articles":["labs/spoken-formatting"],"changes":[{"key":"labs.spoken_formatting","value":true}],"web":false}
+{"id":"mouse-button","q":"Хочу начинать диктовку боковой кнопкой мыши","articles":["labs/mouse-shortcuts"],"changes":[{"key":"labs.mouse_shortcuts","value":true}],"web":false}
+{"id":"enter-to-finish","q":"Можно заканчивать диктовку клавишей Enter, чтобы сразу вставилось?","articles":["labs/stop-shortcut"],"changes":[{"key":"labs.stop_shortcut","value":true}],"web":false}
+{"id":"tap-or-hold","q":"Хочу и держать клавишу, и коротко нажимать для старта и стопа","articles":["labs/tap-or-hold","topics/dictation-shortcuts"],"changes":[{"key":"labs.tap_or_hold","value":true}],"web":false}
+{"id":"memory-idle","q":"VibeHex держит много памяти, даже когда я не диктую","articles":["labs/unload-idle"],"changes":[{"key":"labs.unload_idle","value":true}],"web":false}
+{"id":"lecture-file","q":"Как расшифровать запись лекции в mp4?","articles":["labs/files","topics/files"],"changes":[{"key":"labs.files","value":true}],"web":false}
+{"id":"listen-meeting","q":"Хочу прослушать запись встречи и сверить с текстом","articles":["labs/playback"],"changes":[{"key":"labs.playback","value":true}],"web":false}
+{"id":"menu-bar-icon","q":"Can I hide the menu bar icon?","articles":["labs/hide-menu-bar-icon"],"changes":[{"key":"labs.hide_menu_bar_icon","value":true}],"web":false}
+{"id":"paste-again","q":"Текст надиктовал, но он не вставился. Как его вернуть?","articles":["topics/history","topics/dictation-shortcuts"],"changes":[],"web":false}
+{"id":"nothing-pasted","q":"Диктую, а текст вообще не появляется в приложении","articles":["topics/troubleshooting","topics/getting-started"],"changes":[],"web":false}
+{"id":"opencode-down","q":"Пишет OpenCode isn't running. Что делать?","articles":["topics/opencode","topics/troubleshooting"],"changes":[],"web":false}
+{"id":"codex-limit","q":"Codex пишет, что лимит исчерпан. Диктовка сломалась?","articles":["topics/codex"],"changes":[],"web":false}
+{"id":"one-side-recorded","q":"Встреча записала только мой голос, собеседника нет","articles":["topics/meetings","topics/troubleshooting"],"changes":[],"web":false}
+{"id":"russian-dev","q":"Я программист, говорю по-русски вперемешку с английскими терминами. Что включить?","articles":["labs/russian-vibe-coding"],"changes":[{"key":"labs.russian_vibe_coding","value":true}],"web":false}
+{"id":"add-from-selection","q":"Хочу добавлять неправильно распознанное слово в словарь прямо из выделения","articles":["labs/vocabulary-quick-add"],"changes":[{"key":"labs.vocabulary_quick_add","value":true}],"web":false}
+{"id":"vocabulary-as-text","q":"Можно редактировать весь словарь сразу текстом?","articles":["labs/vocabulary-paste-list","topics/vocabulary"],"changes":[{"key":"labs.vocabulary_paste_list","value":true}],"web":false}
+{"id":"notes-russian","q":"Конспекты встреч по-русски получаются плохо","articles":["topics/meetings","topics/codex"],"changes":[{"key":"meetings.notes.writer"}],"web":false}
+{"id":"ask-meeting","q":"Можно задавать вопросы по записанной встрече?","articles":["topics/meetings"],"changes":[{"key":"meetings.questions.enabled","value":true}],"web":false}
+{"id":"chapters","q":"Хочу, чтобы длинная встреча делилась на главы","articles":["labs/live-chapters"],"changes":[{"key":"labs.live_chapters","value":true}],"web":false}
+{"id":"subtitles","q":"Можно получить субтитры SRT из записи встречи?","articles":["labs/subtitle-export"],"changes":[{"key":"labs.subtitle_export","value":true}],"web":false}
+{"id":"stop-after-call","q":"Запись встречи продолжается, когда звонок уже закончился","articles":["labs/stop-when-call-ends"],"changes":[{"key":"labs.stop_when_call_ends","value":true}],"web":false}
+{"id":"see-words-live","q":"Хочу видеть слова, пока говорю","articles":["labs/live-text"],"changes":[{"key":"labs.live_text","value":true}],"web":false}
+{"id":"keep-clipboard","q":"После вставки надиктованного буфер обмена возвращается к старому. Можно оставить текст в буфере?","articles":["labs/keep-on-clipboard"],"changes":[{"key":"labs.keep_on_clipboard","value":true}],"web":false}
+{"id":"copy-only","q":"Не вставляй текст сам, просто копируй его","articles":["labs/copy-only"],"changes":[{"key":"labs.copy_only","value":true}],"web":false}
+{"id":"stats","q":"Сколько я надиктовал за неделю?","articles":["labs/history-stats","topics/history"],"changes":[{"key":"labs.history_stats","value":true}],"web":false}
+{"id":"keep-audio","q":"Хочу сохранять аудио диктовок, чтобы потом распознать другой моделью","articles":["labs/keep-recordings"],"changes":[{"key":"labs.keep_recordings","value":true}],"web":false}
+{"id":"history-longer","q":"История диктовок хранится слишком мало. Можно дольше?","articles":["topics/history"],"changes":[{"key":"history_retention"}],"web":false}
+{"id":"meetings-windows","q":"Запись встреч работает на Windows?","articles":["topics/platforms","labs/meetings"],"changes":[],"web":false}
+{"id":"update","q":"Как обновить VibeHex?","articles":["topics/updates"],"changes":[],"web":false}
+{"id":"what-leaves","q":"Что из моих данных уходит в интернет?","articles":["topics/privacy"],"changes":[],"web":false}
+{"id":"claude-code-meetings","q":"Как дать Claude Code доступ к моим встречам?","articles":["topics/cli-and-agents"],"changes":[],"web":false}
+{"id":"what-is-labs","q":"Что такое Labs и зачем там столько всего?","articles":["topics/getting-started"],"changes":[],"web":false}
+{"id":"noisy-mic","q":"У меня шумный микрофон, есть какой-то фильтр?","articles":["labs/voice-filter"],"changes":[{"key":"experimental.hex_microphone","value":true}],"web":false}
+{"id":"pause-youtube","q":"Пусть YouTube в браузере встаёт на паузу, пока я диктую","articles":["labs/pause-browser"],"changes":[{"key":"recording_audio_behavior","value":"pause_media"},{"key":"pause_browser_media","value":true}],"web":false}
+{"id":"layout-model","q":"Можно, чтобы модель распознавания менялась вместе с раскладкой клавиатуры?","articles":["labs/keyboard-model-switching"],"changes":[{"key":"keyboard_model_switching.enabled","value":true}],"web":false}
+{"id":"annotate","q":"Как сделать скриншот и надиктовать к нему пометки?","articles":["topics/annotate"],"changes":[],"web":false}
+{"id":"telegram-calls","q":"Can VibeHex record Telegram calls?","articles":["topics/meetings"],"changes":[],"web":false}
+{"id":"codex-reasoning","q":"Что значит Reasoning у Codex и что выбрать для диктовки?","articles":["topics/codex","topics/ai-cleanup"],"changes":[{"key":"dictation_processing.server.codex_effort"}],"web":false}
+{"id":"fold-sidebar","q":"Боковая панель занимает много места","articles":["labs/collapsible-sidebar"],"changes":[{"key":"labs.collapsible_sidebar","value":true}],"web":false}
+{"id":"change-hotkey","q":"Как поменять сочетание клавиш для диктовки?","articles":["topics/dictation-shortcuts"],"changes":[{"key":"dictation_hotkey"}],"web":false}
+{"id":"own-gguf","q":"Можно подключить свою модель распознавания в формате GGUF?","articles":["topics/speech-models"],"changes":[],"web":false}
+{"id":"ollama-model-pick","q":"Какую модель скачать в Ollama для чистки русской диктовки?","articles":["topics/ai-cleanup"],"changes":[],"web":true,"note":"which Ollama model to pull is outside the guide"}
+{"id":"wrong-words-yours","q":"Some words come out wrong. How do I fix that?","articles":["topics/vocabulary","labs/vocabulary-quick-add"],"changes":[{"key":"labs.vocabulary_quick_add","value":true}],"web":false,"note":"with the settings sent, the answer is theirs: quick add first with their own shortcut when it is on (macOS), a card to turn it on when it is off"}

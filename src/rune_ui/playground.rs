@@ -179,6 +179,192 @@ const PATHS: &[(&str, &str)] = &[
         "mac-input-source-models",
         "Window/General/Input source models",
     ),
+    ("assistant", "Window/Assistant/Conversation"),
+    ("assistant-answering", "Window/Assistant/Answering"),
+    ("assistant-places", "Window/Assistant/Places named"),
+    ("assistant-place-opened", "Window/Assistant/Place opened"),
+    ("assistant-start", "Window/Assistant/New conversation"),
+    (
+        "assistant-start-russian",
+        "Window/Assistant/New conversation, dictating Russian",
+    ),
+    ("assistant-connect", "Window/Assistant/Connect a model"),
+    ("assistant-settings", "Window/Assistant/Settings"),
+    (
+        "assistant-consent",
+        "Window/Assistant/Asks to read recordings",
+    ),
+    ("assistant-steps", "Window/Assistant/Searching recordings"),
+    (
+        "assistant-recordings",
+        "Window/Assistant/Answer from recordings",
+    ),
+    (
+        "assistant-steps-open",
+        "Window/Assistant/Answer with its steps open",
+    ),
+    (
+        "assistant-knew",
+        "Window/Assistant/Answer with what Assistant knew",
+    ),
+    (
+        "assistant-web",
+        "Window/Assistant/Answer from the guide and the web",
+    ),
+    ("assistant-web-off", "Window/Assistant/Web off in the field"),
+    (
+        "assistant-web-held",
+        "Window/Assistant/Web held back after recordings",
+    ),
+    (
+        "assistant-web-answering",
+        "Window/Assistant/Searching the web",
+    ),
+    (
+        "assistant-cards",
+        "Window/Assistant/Cards/Suggested and decided",
+    ),
+    (
+        "assistant-cards-more",
+        "Window/Assistant/Cards/A choice and a download",
+    ),
+    (
+        "assistant-cards-held",
+        "Window/Assistant/Cards/Permission, sign-in, and held",
+    ),
+    (
+        "assistant-cards-prompt",
+        "Window/Assistant/Cards/Instructions and a shorter retention",
+    ),
+    (
+        "assistant-cards-prompt-edit",
+        "Window/Assistant/Cards/Instructions, edited first",
+    ),
+    (
+        "assistant-applied",
+        "Window/Assistant/Cards/Applied with Undo",
+    ),
+    (
+        "assistant-whats-new",
+        "Window/Assistant/What's new, with For you cards",
+    ),
+    (
+        "assistant-updated",
+        "Window/Assistant/New conversation after an update",
+    ),
+    (
+        "assistant-vocab-card",
+        "Window/Assistant/Cards/Vocabulary terms",
+    ),
+    (
+        "assistant-vocab-applied",
+        "Window/Assistant/Cards/Vocabulary added, and a term in Edit",
+    ),
+    (
+        "assistant-vocab-edit",
+        "Window/Assistant/Cards/Vocabulary entries changed",
+    ),
+    (
+        "assistant-change-both",
+        "Window/Assistant/Cards/Change both",
+    ),
+    (
+        "assistant-change-coming",
+        "Window/Assistant/Cards/Preparing a change",
+    ),
+    (
+        "assistant-setup-ask",
+        "Window/Assistant/Setup/What is set now, and round one preselected",
+    ),
+    (
+        "assistant-setup-follow",
+        "Window/Assistant/Setup/A follow-up round",
+    ),
+    (
+        "assistant-setup-follow-ru",
+        "Window/Assistant/Setup/A follow-up round in Russian, a long question",
+    ),
+    (
+        "assistant-setup-kept",
+        "Window/Assistant/Setup/Already set, unfolded",
+    ),
+    (
+        "assistant-setup-preset",
+        "Window/Assistant/Setup/Set up like Denis",
+    ),
+    (
+        "assistant-setup-preset-shortcuts",
+        "Window/Assistant/Setup/Denis's shortcuts",
+    ),
+    (
+        "assistant-setup-preset-terms",
+        "Window/Assistant/Setup/Set up like Denis, the terms unfolded",
+    ),
+    (
+        "assistant-plan-terms",
+        "Window/Assistant/Setup/A plan's terms as one row",
+    ),
+    (
+        "assistant-plan-terms-open",
+        "Window/Assistant/Setup/A plan's terms unfolded, long ones wrapped",
+    ),
+    (
+        "assistant-setup-returning",
+        "Window/Assistant/Setup/Returning",
+    ),
+    (
+        "assistant-setup-returning-plan",
+        "Window/Assistant/Setup/Returning, its terms in the plan",
+    ),
+    (
+        "assistant-setup-plan",
+        "Window/Assistant/Setup/Suggested changes",
+    ),
+    (
+        "assistant-long-follow-german",
+        "Window/Assistant/Long/A follow-up round in German",
+    ),
+    (
+        "assistant-long-plan-russian",
+        "Window/Assistant/Long/A plan in Russian with 95 terms",
+    ),
+    (
+        "assistant-long-choice-russian",
+        "Window/Assistant/Long/A choice of long model names in Russian",
+    ),
+    (
+        "assistant-long-values",
+        "Window/Assistant/Long/Long values in a plan, three lines each",
+    ),
+    (
+        "assistant-long-values-open",
+        "Window/Assistant/Long/Long values in a plan, the instructions unfolded",
+    ),
+    (
+        "assistant-setup-result",
+        "Window/Assistant/Setup/Applied, one failed, one downloading",
+    ),
+    (
+        "meetings-cited",
+        "Window/Assistant/Meeting opened from an answer",
+    ),
+    (
+        "meetings-cited-notes",
+        "Window/Assistant/Meeting opened on its notes from an answer",
+    ),
+    (
+        "meetings-cited-long",
+        "Window/Assistant/Meeting opened from an answer, long passage",
+    ),
+    ("files-cited", "Window/Assistant/File opened from an answer"),
+    (
+        "files-cited-listening",
+        "Window/Assistant/File opened from an answer, listening",
+    ),
+    (
+        "history-cited",
+        "Window/Assistant/Dictation opened from an answer",
+    ),
     ("files", "Window/Files/Files"),
     (
         "files-engine-menu",
@@ -222,6 +408,10 @@ const PATHS: &[(&str, &str)] = &[
     ("files-settings-prompt", "Window/Files/Settings, own prompt"),
     ("files-quick", "Window/Files/Settings, quick requests"),
     ("files-settings", "Window/Files/Settings"),
+    (
+        "files-settings-codex",
+        "Window/Files/Settings, cleanup on Codex",
+    ),
     ("meetings", "Window/Meetings/Meetings"),
     ("meetings-recording", "Window/Meetings/Recording"),
     ("meetings-chapters", "Window/Meetings/Chapters"),
@@ -265,6 +455,18 @@ const PATHS: &[(&str, &str)] = &[
     (
         "meetings-requests-sessions",
         "Window/Meetings/Sessions about a meeting",
+    ),
+    (
+        "meetings-requests-linked",
+        "Window/Meetings/Requests citing other recordings",
+    ),
+    (
+        "meetings-requests-consent",
+        "Window/Meetings/Requests asking to read other recordings",
+    ),
+    (
+        "meetings-cited-requests",
+        "Window/Meetings/A cited place opened from Requests",
     ),
     ("meetings-summaries", "Window/Meetings/Summaries"),
     (

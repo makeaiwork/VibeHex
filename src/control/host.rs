@@ -236,15 +236,15 @@ fn command(host: &dyn Host, command: ControlCommand) -> ControlReply {
         ControlCommand::VocabularyList => reply(load().map(|settings| ControlReply::Vocabulary {
             entries: settings.vocabulary,
         })),
-        ControlCommand::VocabularyAdd { .. } | ControlCommand::VocabularyRemove { .. } => {
-            reply(load().and_then(|mut settings| {
-                let reply = super::edit_vocabulary(&mut settings.vocabulary, &command)?;
-                if matches!(reply, ControlReply::Done { changed: true, .. }) {
-                    host.save(settings)?;
-                }
-                Ok(reply)
-            }))
-        }
+        ControlCommand::VocabularyAdd { .. }
+        | ControlCommand::VocabularyRemove { .. }
+        | ControlCommand::VocabularyEdit { .. } => reply(load().and_then(|mut settings| {
+            let reply = super::edit_vocabulary(&mut settings.vocabulary, &command)?;
+            if matches!(reply, ControlReply::Done { changed: true, .. }) {
+                host.save(settings)?;
+            }
+            Ok(reply)
+        })),
         ControlCommand::Screenshot { .. } => reply(Err(ControlError::new(
             "unsupported",
             "screenshots are macOS only",
@@ -360,11 +360,8 @@ fn set_setting(host: &dyn Host, key: &str, value: &str) -> Result<ControlReply, 
     if let Some(saved) = settings::set_api_key(key, value) {
         return saved;
     }
-    if let Some(error) = settings::unavailable(key) {
-        return Err(error);
-    }
     let before = load()?;
-    let change = settings::apply(&before, key, value, &host.shortcut_rules())?;
+    let change = settings::check_one(&before, key, value, &host.shortcut_rules())?;
     commit(host, &before, change, || {
         format!("{key} is already {value}")
     })
@@ -376,7 +373,7 @@ fn apply_settings(
     values: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<ControlReply, ControlError> {
     let before = load()?;
-    let change = settings::apply_all(&before, values, &host.shortcut_rules())?;
+    let change = settings::check(&before, values, &host.shortcut_rules())?;
     commit(host, &before, change, || {
         "Every setting already has its value".into()
     })

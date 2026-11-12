@@ -85,12 +85,13 @@ impl Paint {
     /// A section label: above its card, on the page's text edge. Screen
     /// readers move between sections by it.
     pub(super) fn section_label(self, title: &str) -> El {
-        text(title)
+        let label = text(title)
             .key("header")
             .role("heading")
             .level(2)
             .font(self.k.ty.ui_medium.lh(SECTION_LABEL_LINE))
-            .color(self.k.c.text_muted)
+            .color(self.k.c.text_muted);
+        super::assistant::places::lit(self, title, label)
     }
     pub(super) fn text(self) -> Color {
         self.k.c.text_base
@@ -510,11 +511,12 @@ pub(super) fn copy_row_tagged(
     // The row is named by its title, so the title's text stays out of the
     // accessibility tree.
     let title_text = || {
-        text(title)
+        let label = text(title)
             .key("label")
             .font(p.k.ty.ui)
             .color(p.text())
-            .a11y_hidden()
+            .a11y_hidden();
+        super::assistant::places::lit(p, title, label)
     };
     let copy = col()
         .key("copy")

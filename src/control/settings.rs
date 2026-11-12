@@ -10,10 +10,14 @@ use crate::app_settings::{
     AppSettings, CALENDAR_LEAD_MINUTES, HotkeyBinding, HotkeyKey, HotkeySlot,
 };
 
+mod check;
 mod hotkeys;
+mod requires;
 
+pub use check::{bounds, check, check_one, diff, kinds, values};
 use hotkeys::special_key_refusal;
 pub use hotkeys::{format_hotkey, parse_hotkey};
+pub use requires::{missing, requires};
 
 /// One setting as `hex settings get` reports it.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -36,6 +40,7 @@ fn available() -> bool {
     true
 }
 
+mod assistant_keys;
 mod codex_keys;
 mod files_keys;
 mod meeting_notes_keys;
@@ -688,7 +693,7 @@ const KEYS: &[Key] = &[
     key(
         "meetings.summaries",
         SUMMARIES,
-        "Who titles and summarizes meetings: off, mac (Apple Intelligence, nothing leaves this Mac), or opencode (sends the transcript to the OpenCode model)",
+        "Who titles and summarizes meetings while meetings.notes.writer names no writer (a writer there decides instead): off, mac (Apple Intelligence, nothing leaves this Mac), or opencode (sends the transcript to the OpenCode model)",
     ),
     optional(
         "meetings.opencode_model",
@@ -981,6 +986,7 @@ fn keys() -> impl Iterator<Item = &'static Key> {
         .chain(codex_keys::CODEX_KEYS)
         .chain(meeting_notes_keys::MEETING_NOTES_KEYS)
         .chain(files_keys::FILES_KEYS)
+        .chain(assistant_keys::ASSISTANT_KEYS)
         .chain(sidebar_keys::SIDEBAR_KEYS)
 }
 
@@ -1585,6 +1591,57 @@ mod tests {
     use super::*;
     use crate::app_settings::ModifierSide;
 
+    /// Assistant proposes changes by the keys docs/guide and VibeHex's
+    /// release notes (docs/releases) name, so every key in their front
+    /// matter is one `hex settings` knows.
+    #[test]
+    fn every_key_the_guide_names_is_a_setting() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs");
+        let known: Vec<&str> = keys()
+            .map(|key| key.key)
+            .chain(OWN_COMMAND.iter().copied())
+            .collect();
+        let mut unknown = Vec::new();
+        for folder in ["guide/labs", "guide/topics", "releases"] {
+            for entry in std::fs::read_dir(root.join(folder)).unwrap() {
+                let path = entry.unwrap().path();
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("");
+                if folder == "releases" && !(name == "next.md" || name.contains("-vibe.")) {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).unwrap();
+                let named = text
+                    .lines()
+                    .take_while(|line| !line.starts_with("# "))
+                    .flat_map(|line| {
+                        let list = line
+                            .strip_prefix("key:")
+                            .or_else(|| line.strip_prefix("keys:"))
+                            .unwrap_or("");
+                        list.trim_matches(|c: char| c.is_whitespace() || c == '[' || c == ']')
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|key| !key.is_empty())
+                            .map(str::to_owned)
+                            .collect::<Vec<_>>()
+                    });
+                for key in named {
+                    if !known.contains(&key.as_str()) {
+                        unknown.push(format!("{}: {key}", path.display()));
+                    }
+                }
+            }
+        }
+        assert!(
+            unknown.is_empty(),
+            "not `hex settings` keys:\n{}",
+            unknown.join("\n")
+        );
+    }
+
     #[test]
     fn a_managed_setting_is_refused() {
         use crate::policy::{Lock, Policy};
@@ -1695,9 +1752,16 @@ mod tests {
                 transcription: Some(Default::default()),
                 language: Some("ru".into()),
                 cleanup_engine: Some("opencode".into()),
+                cleanup_effort: "low".into(),
                 request_engine: Some("openrouter".into()),
                 request_effort: "high".into(),
                 last_folder: Some("/tmp".into()),
+                ..Default::default()
+            },
+            assistant: crate::app_settings::AssistantSettings {
+                engine: Some("codex".into()),
+                effort: "high".into(),
+                read_recordings: Some(true),
                 ..Default::default()
             },
             ..Default::default()

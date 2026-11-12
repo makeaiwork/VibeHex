@@ -18,6 +18,7 @@ use super::super::controls::Paint;
 use super::actions::{menu_open, toggle};
 use super::detail::{self, current};
 use super::{Tab, settings, submit};
+use crate::assistant::worker::Recall;
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::codex;
 use crate::files::rewrite::Engine;
@@ -358,7 +359,8 @@ pub(in super::super) fn model_menu(
         .group_label(group);
     let server = &ui.settings.dictation_processing.server;
     let codex_set_up = server.runs_on == crate::app_settings::CleanupRunsOn::Codex
-        || !server.codex_model.trim().is_empty();
+        || !server.codex_model.trim().is_empty()
+        || codex.is_some();
     if codex_set_up {
         for model in &ui.files.codex_models {
             let value = format!("codex:{}", model.id);
@@ -569,16 +571,31 @@ fn send(ui: &mut Ui, target: Target, question: String) {
     let Some(record) = ui.files.selected().cloned() else {
         return;
     };
+    ui.files.consent = None;
     match target {
         Target::Session(session) => {
-            submit(ui, &record.id, Job::FollowUp { session, question });
-            ui.files.stale = true;
+            let from = super::linked::source(&record, session);
+            let reach = (Some(session), from);
+            if let Some(recall) = super::linked::files_recall(ui, &record, reach, &question) {
+                let job = Job::FollowUp {
+                    session,
+                    question,
+                    recall,
+                };
+                submit(ui, &record.id, job);
+                ui.files.stale = true;
+            }
         }
         Target::New => {
             let Some(Tab::Version(from)) = current(ui, &record) else {
                 return;
             };
-            start(ui, &record, from, question, None);
+            let reach = (None, super::linked::source(&record, from));
+            match super::linked::files_recall(ui, &record, reach, &question) {
+                Some(recall) => start_reaching(ui, &record, from, (question, None), recall),
+                // The question stays in the field while the card asks.
+                None => return,
+            }
         }
     }
     ui.files.ask = TextEdit::default();
@@ -592,6 +609,18 @@ pub(super) fn start(
     from: u32,
     prompt: String,
     chip: Option<String>,
+) {
+    start_reaching(ui, record, from, (prompt, chip), Recall::Guide);
+}
+
+/// Starts a session as [`start`] does, reading what `recall` allows past
+/// the file.
+pub(super) fn start_reaching(
+    ui: &mut Ui,
+    record: &store::FileRecord,
+    from: u32,
+    (prompt, chip): (String, Option<String>),
+    recall: Recall,
 ) {
     let typed = chip.is_none();
     let name = record.unique_name(&chip.unwrap_or_else(|| worker::request_name(&prompt)));
@@ -617,6 +646,7 @@ pub(super) fn start(
         titled: typed,
         engine: ui.files.ask_engine.clone(),
         effort: ui.files.ask_effort.clone(),
+        recall,
     };
     if let Some(task) = submit(ui, &record.id, job) {
         ui.files.tab = Some(Tab::Task(task));

@@ -9,6 +9,7 @@ use std::ops::Range;
 use rune::{El, Link, LinkPaint, Span, col, rich, row, text};
 
 use super::super::Ui;
+use super::super::assistant::jump::{self, Mark};
 use super::super::controls::Paint;
 use super::bar::accent_fill;
 use super::timing::{self, Word};
@@ -129,27 +130,32 @@ fn paragraph_row(p: Paint, index: usize, clock_at: Option<(u64, bool)>, words: E
         .wrap();
     let mut line = row().key(format!("paragraph{index}")).gap(12.0);
     if let Some((start, here)) = clock_at {
-        line = line.child(
-            text(clock(start))
-                .key("clock")
-                .font(p.k.ty.text_xsmall_medium)
-                .color(if here { p.accent() } else { p.faint() })
-                .w(40.0)
-                .pt(1.0),
-        );
+        line = line.child(clock_el(p, start, here));
     }
     line.child(words)
 }
 
+/// A paragraph's time, in the accent while it plays.
+fn clock_el(p: Paint, start: u64, here: bool) -> El {
+    text(clock(start))
+        .key("clock")
+        .font(p.k.ty.text_xsmall_medium)
+        .color(if here { p.accent() } else { p.faint() })
+        .w(40.0)
+        .pt(1.0)
+}
+
 /// A file's Original while it can be listened to: its paragraphs as
 /// `detail` draws them, every segment a link, the word playing lit and the
-/// time of its paragraph in the accent.
+/// time of its paragraph in the accent. Opened from an answer, the
+/// paragraphs it cites (`marks`) are tinted with their lines lit as well.
 pub(in super::super) fn file_original(
     p: Paint,
     of: &Of,
     segments: &[Segment],
     heard: Heard,
     timestamps: bool,
+    marks: &[Option<Mark>],
 ) -> El {
     let shown = file_paragraphs(segments);
     let playing = heard.at_ms.and_then(|at| {
@@ -165,22 +171,38 @@ pub(in super::super) fn file_original(
         let here = ranges
             .iter()
             .find(|(_, segment)| Some(segment.start_ms) == playing);
+        // Over cited words, the word playing is underlined to stand out.
+        let marked = heard.marked || marks.get(index).is_some_and(Option::is_some);
         let spans = here
             .zip(heard.at_ms)
             .and_then(|((range, segment), at)| {
                 let line_ms = (segment.start_ms, segment.end_ms);
                 let timed = timing::timed(&words, range.clone(), line_ms, &segment.words);
-                timing::heard_at(&timed, at).map(|word| lit(p, word, heard.marked))
+                timing::heard_at(&timed, at).map(|word| lit(p, word, marked))
             })
-            .into_iter()
-            .collect();
+            .into_iter();
+        // The word playing over the cited phrases' underlines.
+        let under = marks.get(index).and_then(Option::as_ref);
+        let under = under
+            .map(|mark| jump::underlines(p, mark))
+            .unwrap_or_default();
+        let spans = under.into_iter().chain(spans).collect();
         let links: Vec<_> = ranges
             .iter()
             .map(|(range, segment)| (range.clone(), segment.start_ms))
             .collect();
         let words = linked(p, of, words, spans, links);
+        if let Some(Some(mark)) = marks.get(index) {
+            let lead = timestamps.then(|| clock_el(p, start, here.is_some()));
+            let key = format!("paragraph{index}");
+            lines = lines.child(jump::line(p, key, mark, (None, lead), words));
+            continue;
+        }
         let clock_at = timestamps.then_some((start, here.is_some()));
         lines = lines.child(paragraph_row(p, index, clock_at, words));
+    }
+    if marks.iter().any(Option::is_some) {
+        lines = lines.px(jump::INSET);
     }
     lines
 }
@@ -255,16 +277,15 @@ pub(in super::super) fn meeting_turn(
     of: &Of,
     (words, starts): (String, &[u64]),
     (start_ms, end_ms): (u64, u64),
-    lit_now: Option<(u64, bool)>,
+    (lit_now, under): (Option<(u64, bool)>, Vec<Span>),
 ) -> El {
     let all = 0..words.len();
-    let spans = lit_now
-        .and_then(|(at, marked)| {
-            let timed = timing::timed(&words, all.clone(), (start_ms, end_ms), starts);
-            timing::heard_at(&timed, at).map(|word| lit(p, word, marked))
-        })
-        .into_iter()
-        .collect();
+    let playing = lit_now.and_then(|(at, marked)| {
+        let timed = timing::timed(&words, all.clone(), (start_ms, end_ms), starts);
+        timing::heard_at(&timed, at).map(|word| lit(p, word, marked))
+    });
+    // The word playing over the cited phrases' underlines.
+    let spans = under.into_iter().chain(playing).collect();
     linked(p, of, words, spans, [(all, start_ms)])
 }
 

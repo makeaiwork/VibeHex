@@ -1,13 +1,15 @@
 //! Labs › Russian vibe coding: one switch that writes the Russian
-//! vibe-coding preset in `docs/vocabulary/` into the person's own settings
-//! (shared vocabulary, Global's word fixes, Global's cleanup instructions,
-//! and Clean up with AI on), turns on every other Lab VibeHex added (the
+//! vibe-coding preset into the person's own settings (the shared
+//! vocabulary: the owner's own list, `presets/deniskey.json`; Global's
+//! word fixes and cleanup instructions from `docs/vocabulary/`; and Clean
+//! up with AI on), turns on every other Lab VibeHex added (the
 //! starred rows: Clean up on your own server, Vocabulary text view, Add to
 //! vocabulary, Cleanup progress, Files, those this Hex has; not Stop
 //! shortcut, which takes a key and is left to the person) and Hex's
 //! Vocabulary in meeting notes,
 //! and takes back, when turned off, only what still reads as the preset
-//! wrote it; those Labs stay on, since a server, key, or shortcut set up
+//! wrote it (today's list, or the one it wrote through 3.3.0); those Labs
+//! stay on, since a server, key, or shortcut set up
 //! there is the person's own. Everything it writes stays editable
 //! in Vocabulary and Output like anything typed there.
 
@@ -16,7 +18,12 @@ use crate::dictation::text_replacements::TextReplacement;
 use crate::dictation::vocabulary::{self, VocabularyEntry};
 use crate::labs::Feature;
 
-const VOCABULARY: &str = include_str!("../../docs/vocabulary/vibe-coding-ru.txt");
+/// The owner's preset (`scripts/export-preset`). Its Vocabulary is the
+/// starter list, the same terms "Set me up like Denis" offers
+/// (`assistant::setup::preset`): one file, so the two can't differ.
+const PRESET: &str = include_str!("../../presets/deniskey.json");
+/// The starter list before it became the preset's, for [`take_back`].
+const EARLIER: &str = include_str!("presets/starter-through-3.3.0.txt");
 const REPLACEMENTS: &str = include_str!("../../docs/vocabulary/replacements-ru.json");
 const INSTRUCTIONS: &str = include_str!("../../docs/vocabulary/cleanup-instructions-ru.txt");
 
@@ -29,9 +36,20 @@ pub fn russian_vibe_coding(settings: &mut AppSettings, on: bool) {
     }
 }
 
+/// The starter list: the preset's Vocabulary, in its order.
+pub fn starter() -> Vec<VocabularyEntry> {
+    #[derive(serde::Deserialize)]
+    struct Shipped {
+        vocabulary: Vec<VocabularyEntry>,
+    }
+    serde_json::from_str::<Shipped>(PRESET)
+        .expect("presets/deniskey.json is valid")
+        .vocabulary
+}
+
 fn add(settings: &mut AppSettings) {
-    for (term, sounds_like) in vocabulary::parse_list(VOCABULARY) {
-        vocabulary::add_clamped(&mut settings.vocabulary, &term, &sounds_like);
+    for entry in starter() {
+        vocabulary::add_clamped(&mut settings.vocabulary, &entry.term, &entry.sounds_like);
     }
     let mode = &mut settings.dictation_processing.default_mode;
     for fix in replacements() {
@@ -70,8 +88,16 @@ fn vibehex_labs() -> impl Iterator<Item = Feature> {
     })
 }
 
+/// Takes back what the preset wrote and the person didn't change: an
+/// entry exactly as the starter list writes it, today's or the one before
+/// it (someone who turned this on then has those). An entry they edited,
+/// or added themselves, stays.
 fn take_back(settings: &mut AppSettings) {
-    let preset = preset_entries();
+    let mut preset = written(starter());
+    let earlier = vocabulary::parse_list(EARLIER)
+        .into_iter()
+        .map(|(term, sounds_like)| VocabularyEntry { term, sounds_like });
+    preset.extend(written(earlier));
     settings.vocabulary.retain(|entry| !preset.contains(entry));
     let mode = &mut settings.dictation_processing.default_mode;
     let fixes = replacements();
@@ -89,13 +115,13 @@ fn take_back(settings: &mut AppSettings) {
     }
 }
 
-/// The preset's vocabulary as `add` writes it into an empty list.
-fn preset_entries() -> Vec<VocabularyEntry> {
-    let mut list = Vec::new();
-    for (term, sounds_like) in vocabulary::parse_list(VOCABULARY) {
-        vocabulary::add_clamped(&mut list, &term, &sounds_like);
+/// A starter list as `add` writes it into an empty list.
+fn written(list: impl IntoIterator<Item = VocabularyEntry>) -> Vec<VocabularyEntry> {
+    let mut all = Vec::new();
+    for entry in list {
+        vocabulary::add_clamped(&mut all, &entry.term, &entry.sounds_like);
     }
-    list
+    all
 }
 
 fn replacements() -> Vec<TextReplacement> {
@@ -221,9 +247,102 @@ mod tests {
         assert_eq!(terms, ["Kit", "GitHub"]);
     }
 
+    fn terms(settings: &AppSettings) -> Vec<&str> {
+        settings
+            .vocabulary
+            .iter()
+            .map(|entry| entry.term.as_str())
+            .collect()
+    }
+
+    fn listed(text: &str) -> Vec<VocabularyEntry> {
+        vocabulary::parse_list(text)
+            .into_iter()
+            .map(|(term, sounds_like)| VocabularyEntry { term, sounds_like })
+            .collect()
+    }
+
+    /// One list, read from one file: what the switch writes on a fresh
+    /// install is the Vocabulary "Set me up like Denis" offers, term for
+    /// term with its spellings, and the docs' copy to paste reads the same.
+    #[test]
+    fn the_starter_list_is_the_presets_vocabulary() {
+        let starter = starter();
+        // The count the Labs row, the guide, and docs/features state.
+        assert_eq!(starter.len(), 90);
+        let mut settings = AppSettings::default();
+        russian_vibe_coding(&mut settings, true);
+        assert_eq!(settings.vocabulary, starter);
+        let offered: Vec<VocabularyEntry> = crate::assistant::setup::preset::denis()
+            .vocabulary
+            .into_iter()
+            .map(|term| serde_json::from_value(term).unwrap())
+            .collect();
+        assert_eq!(offered, starter);
+        // Names that read as ordinary words install as they are; the
+        // owner's own app never ships (`scripts/export-preset`).
+        for term in ["New Session", "AskTool", "Cancel", "Labs"] {
+            assert!(vocabulary::contains(&settings.vocabulary, term), "{term}");
+        }
+        assert!(!vocabulary::contains(&settings.vocabulary, "Monki"));
+        assert_eq!(
+            listed(include_str!("../../docs/vocabulary/vibe-coding-ru.txt")),
+            starter,
+            "docs/vocabulary/vibe-coding-ru.txt: scripts/export-preset writes it"
+        );
+    }
+
+    /// Someone who turned it on through 3.3.0 has the 80 terms it wrote
+    /// then. Off takes back the ones they left alone, those today's list
+    /// no longer has among them, and keeps what they added or edited; on
+    /// again writes today's list beside those.
+    #[test]
+    fn the_list_it_wrote_before_is_still_taken_back() {
+        let earlier = written(listed(EARLIER));
+        assert_eq!(earlier.len(), 80);
+        let mut settings = AppSettings::default();
+        russian_vibe_coding(&mut settings, true);
+        settings.vocabulary = earlier.clone();
+        // A term of their own, and a starter term given a spelling.
+        vocabulary::add(&mut settings.vocabulary, "Kit", &[]).unwrap();
+        vocabulary::add(&mut settings.vocabulary, "Trello", &["трелло борд".into()]).unwrap();
+        assert!(vocabulary::contains(&settings.vocabulary, "Postman"));
+
+        russian_vibe_coding(&mut settings, false);
+        assert_eq!(terms(&settings), ["Trello", "Kit"]);
+
+        russian_vibe_coding(&mut settings, true);
+        assert_eq!(settings.vocabulary.len(), 92);
+        for term in ["Trello", "Kit", "Claude Code", "New Session", "AskTool"] {
+            assert!(vocabulary::contains(&settings.vocabulary, term), "{term}");
+        }
+        assert!(!vocabulary::contains(&settings.vocabulary, "Postman"));
+
+        russian_vibe_coding(&mut settings, false);
+        assert_eq!(terms(&settings), ["Trello", "Kit"]);
+    }
+
+    /// With both lists in Vocabulary (the earlier one, then the preset's
+    /// terms added by Assistant), off takes back both and nothing else.
+    #[test]
+    fn both_lists_side_by_side_are_taken_back() {
+        let mut settings = AppSettings::default();
+        russian_vibe_coding(&mut settings, true);
+        settings.vocabulary = written(listed(EARLIER));
+        vocabulary::add(&mut settings.vocabulary, "Kit", &[]).unwrap();
+        for entry in starter() {
+            if !vocabulary::contains(&settings.vocabulary, &entry.term) {
+                settings.vocabulary.push(entry);
+            }
+        }
+        assert_eq!(settings.vocabulary.len(), 80 + 1 + 16);
+        russian_vibe_coding(&mut settings, false);
+        assert_eq!(terms(&settings), ["Kit"]);
+    }
+
     #[test]
     fn the_preset_files_load() {
-        assert!(preset_entries().len() >= 60);
+        assert!(written(starter()).len() >= 60);
         assert!(
             replacements()
                 .iter()

@@ -161,6 +161,7 @@ fn pane_meeting(
         },
         day: crate::meeting::day_label(meeting.start_ms(), now_ms),
         clock: crate::meeting::clock(meeting.start_ms()),
+        start_ms: meeting.start_ms(),
         duration_ms: meeting.duration_ms(now_ms),
         app: manifest.app.clone(),
         summary: manifest

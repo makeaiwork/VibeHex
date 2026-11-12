@@ -669,6 +669,23 @@ pub(super) const SCENES: &[Scene] = &[
         ui.open = Some(super::Menu::Pick("meeting-sessions"));
         ui.pane = Pane::Meetings;
     }),
+    // A question that read other recordings, and one waiting for leave.
+    ("meetings-requests-linked", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::linked::fixture(ui, "preview-notes", false);
+        ui.pane = Pane::Meetings;
+    }),
+    ("meetings-requests-consent", |ui| {
+        *ui = mac_fixture();
+        meetings_on_codex(ui);
+        ui.meetings.select("preview-notes".into());
+        ui.meetings.tab = Some(super::meeting_tabs::MeetingTab::Requests);
+        super::meeting_tabs::linked::fixture(ui, "preview-notes", true);
+        ui.pane = Pane::Meetings;
+    }),
     ("meetings-prompt", |ui| {
         *ui = mac_fixture();
         meetings_on_codex(ui);
@@ -722,6 +739,134 @@ pub(super) const SCENES: &[Scene] = &[
         ui.pane = Pane::Meetings;
     }),
     ("files", |ui| files_scene(ui, files::FilesPane::fixture())),
+    ("assistant", assistant::fixture::conversation),
+    ("assistant-answering", assistant::fixture::answering),
+    ("assistant-places", assistant::fixture::places),
+    ("assistant-place-opened", assistant::fixture::place_opened),
+    ("assistant-start", assistant::fixture::start),
+    ("assistant-start-russian", assistant::fixture::start_russian),
+    ("assistant-connect", assistant::fixture::connect),
+    ("assistant-settings", assistant::fixture::settings),
+    ("assistant-consent", assistant::fixture::consent),
+    ("assistant-steps", assistant::fixture::steps),
+    ("assistant-recordings", assistant::fixture::recordings),
+    ("assistant-steps-open", assistant::fixture::steps_open),
+    ("assistant-knew", assistant::fixture::knew),
+    ("assistant-web", assistant::fixture::web_answer),
+    ("assistant-web-off", assistant::fixture::web_off),
+    ("assistant-web-held", assistant::fixture::web_held),
+    ("assistant-web-answering", assistant::fixture::web_answering),
+    ("assistant-cards", assistant::fixture_cards::cards),
+    ("assistant-cards-more", assistant::fixture_cards::cards_more),
+    ("assistant-cards-held", assistant::fixture_cards::cards_held),
+    (
+        "assistant-cards-prompt",
+        assistant::fixture_cards::cards_prompt,
+    ),
+    (
+        "assistant-cards-prompt-edit",
+        assistant::fixture_cards::cards_prompt_edit,
+    ),
+    ("assistant-applied", assistant::fixture_cards::applied),
+    ("assistant-whats-new", assistant::fixture_cards::whats_new),
+    ("assistant-updated", assistant::fixture_cards::updated),
+    ("assistant-vocab-card", assistant::fixture_cards::vocab_card),
+    (
+        "assistant-vocab-applied",
+        assistant::fixture_cards::vocab_applied,
+    ),
+    ("assistant-vocab-edit", assistant::fixture_cards::vocab_edit),
+    (
+        "assistant-change-both",
+        assistant::fixture_cards::change_both,
+    ),
+    (
+        "assistant-change-coming",
+        assistant::fixture_cards::change_coming,
+    ),
+    ("assistant-setup-ask", assistant::setup_fixture::setup_ask),
+    (
+        "assistant-setup-follow",
+        assistant::setup_fixture::setup_follow,
+    ),
+    (
+        "assistant-setup-follow-ru",
+        assistant::setup_fixture::setup_follow_ru,
+    ),
+    ("assistant-setup-plan", assistant::setup_fixture::setup_plan),
+    ("assistant-setup-kept", assistant::setup_fixture::setup_kept),
+    (
+        "assistant-setup-result",
+        assistant::setup_fixture::setup_result,
+    ),
+    (
+        "assistant-setup-preset",
+        assistant::setup_fixture::setup_preset,
+    ),
+    (
+        "assistant-setup-preset-shortcuts",
+        assistant::setup_fixture::setup_preset_shortcuts,
+    ),
+    (
+        "assistant-setup-preset-terms",
+        assistant::terms_fixture::preset_terms_open,
+    ),
+    ("assistant-plan-terms", assistant::terms_fixture::plan_terms),
+    (
+        "assistant-plan-terms-open",
+        assistant::terms_fixture::plan_terms_open,
+    ),
+    (
+        "assistant-setup-returning",
+        assistant::setup_fixture::setup_returning,
+    ),
+    (
+        "assistant-setup-returning-plan",
+        assistant::setup_fixture::setup_returning_plan,
+    ),
+    (
+        "assistant-long-follow-german",
+        assistant::long_fixture::follow_german,
+    ),
+    (
+        "assistant-long-plan-russian",
+        assistant::long_fixture::plan_russian,
+    ),
+    (
+        "assistant-long-choice-russian",
+        assistant::long_fixture::choice_russian,
+    ),
+    ("assistant-long-values", assistant::long_fixture::values),
+    (
+        "assistant-long-values-open",
+        assistant::long_fixture::values_open,
+    ),
+    ("meetings-cited", assistant::fixture::meeting_cited),
+    // Opened from a meeting's Requests: Back to Requests.
+    ("meetings-cited-requests", |ui| {
+        assistant::fixture::meeting_cited(ui);
+        if let Some(from) = ui.came_from.as_mut() {
+            from.origin = assistant::jump::Origin::Requests {
+                kind: crate::assistant::recordings::Kind::Meeting,
+                id: "preview-arcade".into(),
+                session: 3,
+            };
+        }
+    }),
+    (
+        "meetings-cited-notes",
+        assistant::fixture::meeting_notes_cited,
+    ),
+    (
+        "meetings-cited-long",
+        assistant::fixture::meeting_cited_long,
+    ),
+    ("files-cited", assistant::fixture::file_cited),
+    (
+        "files-cited-listening",
+        assistant::fixture::file_cited_listening,
+    ),
+    ("history-cited", assistant::fixture::history_cited),
     ("files-playback", |ui| files_playback(ui, true)),
     ("files-playback-folded", |ui| files_playback(ui, false)),
     ("files-playback-cleanup", |ui| {
@@ -837,6 +982,17 @@ pub(super) const SCENES: &[Scene] = &[
         ui.files.codex_models = files::FilesPane::fixture_codex_models();
         ui.files.view = files::View::Settings;
         ui.open = Some(Menu::Pick("files-request-engine"));
+    }),
+    // Cleanup on dictation's Codex, its Reasoning following dictation's.
+    ("files-settings-codex", |ui| {
+        files_scene(ui, files::FilesPane::fixture());
+        ui.settings.labs.ai_cleanup_server = true;
+        let server = &mut ui.settings.dictation_processing.server;
+        server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        server.codex_model = "gpt-6-luna".into();
+        server.codex_effort = "high".into();
+        ui.files.codex_models = files::FilesPane::fixture_codex_models();
+        ui.files.view = files::View::Settings;
     }),
     ("files-settings-prompt", |ui| {
         files_scene(ui, files::FilesPane::fixture());

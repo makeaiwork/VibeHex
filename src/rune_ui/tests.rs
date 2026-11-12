@@ -1013,9 +1013,11 @@ fn element(rt: &Runtime<Ui>, key: &str) -> rune::ElementInfo {
 
 /// The sidebar's items, top to bottom, with their drawn rects.
 fn nav_items(rt: &Runtime<Ui>) -> Vec<(Pane, [f32; 4])> {
+    // Assistant's row sits apart at the sidebar's bottom, past the spacer.
     let mut items: Vec<_> = Pane::ALL
         .iter()
         .copied()
+        .filter(|pane| *pane != Pane::Assistant)
         .filter_map(|pane| rt.presented(pane.key()).map(|(rect, _)| (pane, rect)))
         .collect();
     items.sort_by(|a, b| a.1[1].total_cmp(&b.1[1]));
@@ -3234,8 +3236,104 @@ fn goldens() {
     check_golden("windows-labs", false, PANE_SIZE);
     check_golden("linux-labs", false, PANE_SIZE);
     check_golden("history-menu", true, PANE_SIZE);
+    // Assistant: a conversation in both themes, then one of each view.
+    check_golden("assistant", false, PANE_SIZE);
+    for scene in [
+        "assistant-answering",
+        "assistant-start",
+        "assistant-start-russian",
+        "assistant-connect",
+        "assistant-settings",
+        "assistant-consent",
+        "assistant-steps",
+        "assistant-steps-open",
+        "assistant-knew",
+    ] {
+        check_golden(scene, true, PANE_SIZE);
+    }
+    // Setting-change cards: every state, in both themes.
+    for scene in [
+        "assistant-cards",
+        "assistant-cards-more",
+        "assistant-cards-held",
+        "assistant-cards-prompt",
+        "assistant-cards-prompt-edit",
+        "assistant-applied",
+        "assistant-vocab-card",
+        "assistant-vocab-applied",
+        "assistant-vocab-edit",
+        "assistant-change-both",
+        "assistant-change-coming",
+        "assistant-setup-ask",
+        "assistant-setup-follow",
+        "assistant-setup-follow-ru",
+        "assistant-setup-plan",
+        "assistant-setup-kept",
+        "assistant-setup-result",
+        "assistant-setup-preset-shortcuts",
+        "assistant-setup-returning",
+        "assistant-setup-returning-plan",
+        "assistant-plan-terms",
+        "assistant-plan-terms-open",
+    ] {
+        check_golden(scene, false, PANE_SIZE);
+        check_golden(scene, true, PANE_SIZE);
+    }
+    // Cells of the layout matrix with long content (`long_fixture`), two of
+    // them at the narrowest width, each tall enough to show its card.
+    for (scene, size) in [
+        ("assistant-long-follow-german", (860.0, 1100.0)),
+        ("assistant-long-plan-russian", (980.0, 1100.0)),
+        ("assistant-long-choice-russian", (860.0, 1100.0)),
+        // Long values in their chips: folded to three lines, and one unfolded.
+        ("assistant-long-values", (980.0, 1100.0)),
+        ("assistant-long-values-open", (980.0, 1100.0)),
+    ] {
+        check_golden(scene, false, size);
+        check_golden(scene, true, size);
+    }
+    // Denis's preset is taller than the window: tall enough here that its
+    // Vocabulary row shows, folded and with the last of its terms.
+    for scene in ["assistant-setup-preset", "assistant-setup-preset-terms"] {
+        check_golden(scene, false, GOLDEN_SIZE);
+        check_golden(scene, true, GOLDEN_SIZE);
+    }
+    // Answers from recordings, and the places one opens, in both themes.
+    for scene in [
+        "assistant-recordings",
+        "meetings-cited",
+        "files-cited",
+        "files-cited-listening",
+        "history-cited",
+    ] {
+        check_golden(scene, false, PANE_SIZE);
+        check_golden(scene, true, PANE_SIZE);
+    }
+    // What's new, places named in an answer, the web, and Requests that
+    // read other recordings, in both themes.
+    for scene in [
+        "assistant-whats-new",
+        "assistant-updated",
+        "assistant-places",
+        "assistant-place-opened",
+        "assistant-web",
+        "assistant-web-off",
+        "assistant-web-answering",
+        "assistant-web-held",
+        "meetings-cited-notes",
+        "meetings-cited-long",
+        "meetings-requests-linked",
+        "meetings-requests-consent",
+        "meetings-cited-requests",
+    ] {
+        check_golden(scene, false, PANE_SIZE);
+        check_golden(scene, true, PANE_SIZE);
+    }
 }
 
+mod assistant_coming;
+mod assistant_jump;
+mod assistant_terms;
 mod onboarding_check;
 mod panes;
 
@@ -3338,4 +3436,56 @@ fn output_fixes_show_only_with_their_lab_and_fix_this_copies_for_the_sentence() 
     );
     tap(&mut on, "output-vocabulary");
     assert!(on.state.vocabulary.open);
+}
+
+/// A Russian setup round speaks Russian throughout: its controls (Continue,
+/// Skip to the plan, Change answers, a plan's buttons), the plan's
+/// reasons and term rows, and a returning setup's opener, step, and
+/// "Answered before". Settings' and Labs' names stay in the window's
+/// English.
+#[test]
+fn a_russian_setup_round_has_no_english_controls() {
+    const ENGLISH: &[&str] = &[
+        "Continue",
+        "Skip to the plan",
+        "Change answers",
+        "Not now",
+        "Suggested changes",
+        "Undo",
+        "Try again",
+        "Hold to talk suits short commands to an agent",
+        "You said yes to this",
+        "Cleanup keeps fixing how these are heard",
+        "You say these, and Vocabulary doesn't have them",
+        "Here is what fits how you work. Untick what you don't need.",
+    ];
+    // A returning setup's opener, its step, and "Answered before".
+    const STARTS: &[&str] = &[
+        "Answered before",
+        "What your use shows",
+        "Read your settings",
+        "Half of your dictations",
+    ];
+    for scene in [
+        "assistant-setup-ask",
+        "assistant-setup-follow",
+        "assistant-setup-plan",
+        "assistant-setup-kept",
+        "assistant-setup-result",
+        "assistant-setup-returning",
+        "assistant-setup-returning-plan",
+    ] {
+        let rt = runtime(scene, false, PANE_SIZE);
+        let shown = texts(&rt);
+        let english: Vec<&String> = shown
+            .iter()
+            .filter(|text| {
+                ENGLISH.contains(&text.as_str())
+                    || text.contains("isn't installed")
+                    || STARTS.iter().any(|start| text.starts_with(start))
+                    || text.contains("updates since your last setup")
+            })
+            .collect();
+        assert!(english.is_empty(), "{scene} shows {english:?}");
+    }
 }

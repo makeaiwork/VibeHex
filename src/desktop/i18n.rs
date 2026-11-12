@@ -6,8 +6,6 @@
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
-#[cfg(not(test))]
-use std::sync::atomic::{AtomicU8, Ordering};
 
 mod failures;
 mod french;
@@ -15,6 +13,7 @@ mod labs;
 mod meetings;
 mod portuguese;
 mod russian;
+mod speaking;
 mod text_language;
 mod traditional_chinese;
 pub(crate) mod vibehex;
@@ -42,36 +41,8 @@ pub(crate) const LANGUAGE_CHOICES: &[LanguageChoice] = &[
     (Some("ru"), "Русский"),
 ];
 
-/// Active language column into [`TRANSLATIONS`]; 255 means English.
-#[cfg(not(test))]
-static CURRENT: AtomicU8 = AtomicU8::new(255);
-
-// Tests render scenes in different languages concurrently, so each test
-// thread has its own language.
-#[cfg(test)]
-thread_local! {
-    static CURRENT: std::cell::Cell<u8> = const { std::cell::Cell::new(ENGLISH) };
-}
-
-#[cfg(not(test))]
-fn current() -> u8 {
-    CURRENT.load(Ordering::Relaxed)
-}
-
-#[cfg(test)]
-fn current() -> u8 {
-    CURRENT.get()
-}
-
-#[cfg(not(test))]
-fn set_current(code: u8) {
-    CURRENT.store(code, Ordering::Relaxed);
-}
-
-#[cfg(test)]
-fn set_current(code: u8) {
-    CURRENT.set(code);
-}
+pub(crate) use speaking::{Speaking, speak, speaking, tr_window, window_code};
+use speaking::{current, set_current};
 
 const ENGLISH: u8 = 255;
 /// Brazilian Portuguese, kept in its own table ([`portuguese::TRANSLATIONS`]).
@@ -1675,6 +1646,30 @@ mod tests {
         include_str!("../rune_ui/meeting_notes.rs"),
         include_str!("../rune_ui/meeting_tabs/mod.rs"),
         include_str!("../rune_ui/meeting_tabs/requests.rs"),
+        include_str!("../rune_ui/assistant/mod.rs"),
+        include_str!("../rune_ui/assistant/ask.rs"),
+        include_str!("../rune_ui/assistant/card.rs"),
+        include_str!("../rune_ui/assistant/card_diff.rs"),
+        include_str!("../rune_ui/assistant/verbs.rs"),
+        include_str!("../rune_ui/assistant/plan.rs"),
+        include_str!("../assistant/setup/mod.rs"),
+        include_str!("../assistant/setup/engines.rs"),
+        include_str!("../assistant/setup/follow.rs"),
+        include_str!("../assistant/setup/now.rs"),
+        include_str!("../assistant/setup/plan.rs"),
+        include_str!("../rune_ui/assistant/preset.rs"),
+        include_str!("../rune_ui/assistant/returning.rs"),
+        include_str!("../rune_ui/assistant/changes.rs"),
+        include_str!("../rune_ui/assistant/composer.rs"),
+        include_str!("../rune_ui/assistant/connect.rs"),
+        include_str!("../rune_ui/assistant/whats_new.rs"),
+        include_str!("../rune_ui/assistant/feed.rs"),
+        include_str!("../rune_ui/assistant/jump.rs"),
+        include_str!("../rune_ui/assistant/nav.rs"),
+        include_str!("../rune_ui/assistant/picker.rs"),
+        include_str!("../rune_ui/assistant/recall.rs"),
+        include_str!("../rune_ui/assistant/settings.rs"),
+        include_str!("../rune_ui/assistant/vocab.rs"),
         include_str!("../rune_ui/hud_lab.rs"),
         include_str!("../rune_ui/labs.rs"),
         include_str!("../rune_ui/labs/group.rs"),
@@ -1816,6 +1811,57 @@ mod tests {
             .flat_map(|set| [set.name(), set.character()])
             .chain(Cue::ALL.into_iter().map(Cue::name));
         for english in strings {
+            let translations = table
+                .get(english)
+                .unwrap_or_else(|| panic!("{english:?} has no translations"));
+            assert!(
+                translations
+                    .iter()
+                    .all(|translation| !translation.is_empty())
+            );
+        }
+    }
+
+    /// Setup's follow-up questions are the Labs articles' `ask:` lines,
+    /// shown in Assistant's language like its other words.
+    #[test]
+    fn every_follow_up_question_has_every_language() {
+        let table: std::collections::HashMap<_, _> = all_translations().copied().collect();
+        let questions = crate::assistant::guide::articles()
+            .iter()
+            .flat_map(|article| [article.ask.as_str(), article.ask_if.as_str()]);
+        for question in questions.filter(|question| !question.is_empty()) {
+            let translations = table
+                .get(question)
+                .unwrap_or_else(|| panic!("{question:?} has no translations"));
+            assert!(
+                translations
+                    .iter()
+                    .all(|translation| !translation.is_empty())
+            );
+        }
+    }
+
+    /// A card's values ("On", "Toggle", "A week") are Assistant's words.
+    #[test]
+    fn every_card_value_word_has_every_language() {
+        let table: std::collections::HashMap<_, _> = all_translations().copied().collect();
+        let missing: Vec<&str> = crate::assistant::changes::names::words()
+            .into_iter()
+            .filter(|english| {
+                table
+                    .get(english)
+                    .is_none_or(|row| row.iter().any(|translation| translation.is_empty()))
+            })
+            .collect();
+        assert!(missing.is_empty(), "no translations for {missing:?}");
+    }
+
+    /// Setup's own questions name their words in a table, not at `tr`.
+    #[test]
+    fn every_setup_question_word_has_every_language() {
+        let table: std::collections::HashMap<_, _> = all_translations().copied().collect();
+        for english in crate::assistant::setup::own_words() {
             let translations = table
                 .get(english)
                 .unwrap_or_else(|| panic!("{english:?} has no translations"));

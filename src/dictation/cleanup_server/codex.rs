@@ -8,8 +8,13 @@
 //! new ephemeral, read-only thread whose base instructions are Hex's; Hex's
 //! process switches off the person's hooks, MCP servers, memories, plugins,
 //! apps, shell, web search, project instructions, and `notify` command
-//! ([`ISOLATION`]), so Codex sees only the text and keeps nothing of it. Hex
+//! ([`isolation`]), so Codex sees only the text and keeps nothing of it. Hex
 //! never sees a password or key: Codex keeps its own sign-in in `~/.codex`.
+//!
+//! One exception: Assistant's answers, while its Web is on, run on a second
+//! app-server of their own with live web search and the code mode it
+//! searches through ([`generate_searching`]); dictation cleanup, Files,
+//! meeting notes, and Assistant's other answers never do.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -23,6 +28,7 @@ use color_eyre::eyre::{Result, eyre};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::isolation;
 use crate::dictation::cleanup_pieces::Streamed;
 
 /// How long the app-server stays running after its last request.
@@ -40,31 +46,6 @@ pub const INSTALL_COMMAND: &str = if cfg!(target_os = "macos") {
 } else {
     "npm install -g @openai/codex"
 };
-
-/// Overrides for Hex's own app-server: nothing of the person's Codex setup
-/// that could act, remember, read a project, or make a sound. Feature flags
-/// go through `-c` because `--disable` refuses a flag a Codex version
-/// doesn't know.
-const ISOLATION: &[&str] = &[
-    "notify=[]",
-    "mcp_servers={}",
-    "project_doc_max_bytes=0",
-    "web_search=\"disabled\"",
-    "features.hooks=false",
-    "features.memories=false",
-    "features.apps=false",
-    "features.plugins=false",
-    "features.multi_agent=false",
-    "features.shell_tool=false",
-    "features.unified_exec=false",
-    "features.computer_use=false",
-    "features.browser_use=false",
-    "features.in_app_browser=false",
-    "features.image_generation=false",
-    "features.goals=false",
-    "features.code_mode_host=false",
-    "features.js_repl=false",
-];
 
 /// The signed-in account, as Codex reports it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -245,8 +226,26 @@ pub fn model_name(id: &str) -> String {
     match (found, id.trim()) {
         (Some(model), _) => model.name.clone(),
         (None, "") => "Codex".into(),
-        (None, id) => id.into(),
+        (None, id) => named(id),
     }
+}
+
+/// A model Codex hasn't listed yet, named as it names its own: `gpt-6.1-sol`
+/// reads GPT-6.1-Sol, `o4-mini` O4-Mini.
+fn named(id: &str) -> String {
+    id.split('-')
+        .map(|part| match part {
+            "gpt" => "GPT".to_owned(),
+            part => {
+                let mut chars = part.chars();
+                chars
+                    .next()
+                    .map(|first| first.to_uppercase().chain(chars).collect())
+                    .unwrap_or_default()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("-")
 }
 
 /// Account, models, and plan usage, starting Codex if it isn't running.
@@ -310,6 +309,10 @@ pub fn sign_in(cancelled: &AtomicBool) -> Result<String> {
         .ok_or_else(|| eyre!("Codex didn't offer a sign-in page"))
 }
 
+/// Hears each web search Codex makes while it answers: its `webSearch`
+/// item, and whether the search or page is done.
+pub type Searched<'a> = &'a dyn Fn(&Value, bool);
+
 /// One answer: `instructions` as the thread's base instructions, `input` as
 /// the message, on `model` (empty: Codex's default) thinking at `effort`
 /// (empty: the model's default). The answer streams to `streamed`.
@@ -322,18 +325,71 @@ pub fn generate(
     cancelled: &AtomicBool,
     streamed: Option<Streamed>,
 ) -> Result<String> {
+    answer(
+        (model, effort),
+        instructions,
+        input,
+        deadline,
+        cancelled,
+        streamed,
+        None,
+    )
+}
+
+/// [`generate`] with live web search allowed on this one thread, for
+/// Assistant's answers while its Web is on; `searched` hears each search.
+/// Everything else in [`isolation::ISOLATION`] stays.
+#[allow(clippy::too_many_arguments)]
+pub fn generate_searching(
+    model: &str,
+    effort: &str,
+    instructions: &str,
+    input: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
+    searched: Searched,
+) -> Result<String> {
+    answer(
+        (model, effort),
+        instructions,
+        input,
+        deadline,
+        cancelled,
+        streamed,
+        Some(searched),
+    )
+}
+
+/// `thread/start`'s parameters: ephemeral and read-only in `cwd`, with
+/// Hex's instructions. Whether it may search is its process's
+/// ([`isolation::overrides`]): Codex runs code mode's host per process, so
+/// a thread's own `config` can't turn it on.
+fn thread_params(model: &str, instructions: &str, cwd: &Path) -> Value {
+    json!({
+        "model": non_empty(model),
+        "cwd": cwd,
+        "approvalPolicy": "never",
+        "sandbox": "read-only",
+        "ephemeral": true,
+        "baseInstructions": instructions,
+    })
+}
+
+fn answer(
+    (model, effort): (&str, &str),
+    instructions: &str,
+    input: &str,
+    deadline: Duration,
+    cancelled: &AtomicBool,
+    streamed: Option<Streamed>,
+    searched: Option<Searched>,
+) -> Result<String> {
     let until = Instant::now() + deadline;
-    let process = running(until, cancelled)?;
+    let process = running_as(searched.is_some(), until, cancelled)?;
     let started = process.request(
         "thread/start",
-        json!({
-            "model": non_empty(model),
-            "cwd": workspace()?,
-            "approvalPolicy": "never",
-            "sandbox": "read-only",
-            "ephemeral": true,
-            "baseInstructions": instructions,
-        }),
+        thread_params(model, instructions, &workspace()?),
         until,
         cancelled,
     )?;
@@ -379,6 +435,19 @@ pub fn generate(
                 text.push_str(&piece);
                 if let Some(streamed) = &streamed {
                     streamed(chars, &text);
+                }
+            }
+            Ok(Event::Web(item, done)) => {
+                tracing::debug!(%item, done, "Codex web search");
+                if let Some(searched) = searched {
+                    searched(&item, done);
+                }
+            }
+            // Before the answer's first words, its listener hears that
+            // the model is at work (Assistant's first-event watchdog).
+            Ok(Event::Alive) => {
+                if let Some(streamed) = streamed.as_ref().filter(|_| text.is_empty()) {
+                    streamed(0, "");
                 }
             }
             Ok(Event::Completed(turn)) => return finished(&turn, &text),
@@ -548,8 +617,13 @@ fn read_limits(response: &Value) -> (Vec<Limit>, bool) {
 /// What the reader passes to a request waiting on a thread.
 enum Event {
     Delta(String),
+    /// A `webSearch` item started, or done.
+    Web(Value, bool),
     Completed(Value),
     Failed(String),
+    /// The model is at work on the turn (reasoning, a tool, an item of its
+    /// own) without words of the answer yet.
+    Alive,
 }
 
 /// A thread's events while a request follows it; dropping it unsubscribes.
@@ -574,10 +648,22 @@ impl Drop for Following {
 }
 
 static RUNNING: Mutex<Option<Arc<Process>>> = Mutex::new(None);
+/// The app-server Assistant's web answers run on, and nothing else.
+static SEARCHING: Mutex<Option<Arc<Process>>> = Mutex::new(None);
+
+fn slot(searching: bool) -> &'static Mutex<Option<Arc<Process>>> {
+    if searching { &SEARCHING } else { &RUNNING }
+}
 
 /// The warm app-server, started when there is none.
 fn running(until: Instant, cancelled: &AtomicBool) -> Result<Arc<Process>> {
-    let mut running = RUNNING
+    running_as(false, until, cancelled)
+}
+
+/// The warm app-server, or with `searching` the one that may search the
+/// web, started when there is none.
+fn running_as(searching: bool, until: Instant, cancelled: &AtomicBool) -> Result<Arc<Process>> {
+    let mut running = slot(searching)
         .lock()
         .map_err(|_| eyre!("Codex's connection is unavailable"))?;
     if let Some(process) = running
@@ -587,7 +673,7 @@ fn running(until: Instant, cancelled: &AtomicBool) -> Result<Arc<Process>> {
         process.touch();
         return Ok(process.clone());
     }
-    let process = Process::start(until, cancelled)?;
+    let process = Process::start(searching, until, cancelled)?;
     *running = Some(process.clone());
     Ok(process)
 }
@@ -606,14 +692,72 @@ struct Process {
     executable: PathBuf,
     /// Codex's version, from the handshake.
     version: OnceLock<String>,
+    /// Web search and code mode are on: Assistant's web answers only.
+    searching: bool,
 }
 
 impl Process {
-    fn start(until: Instant, cancelled: &AtomicBool) -> Result<Arc<Self>> {
+    /// Starts an app-server none of the person's MCP servers can run in:
+    /// it turns off those it knows of, asks Codex which are still on, and
+    /// starts again with those off too ([`isolation`]). With `searching`,
+    /// web search and code mode are on as well.
+    fn start(searching: bool, until: Instant, cancelled: &AtomicBool) -> Result<Arc<Self>> {
+        let mut forgot = false;
+        loop {
+            let known = isolation::known();
+            let overrides = isolation::overrides(&known, searching);
+            let process = match Self::launch(&overrides, searching, until, cancelled) {
+                Ok(process) => process,
+                // A server Hex turns off may have left their config since,
+                // and Codex won't start over a server it can't find.
+                Err(error) if !known.is_empty() && !forgot => {
+                    tracing::info!(%error, "Codex refused the MCP servers Hex turns off; asking again");
+                    isolation::forget();
+                    forgot = true;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let read = process.request(
+                "config/read",
+                json!({ "cwd": workspace()? }),
+                until,
+                cancelled,
+            );
+            let on = match read {
+                Ok(read) => isolation::still_on(&read),
+                Err(error) => {
+                    process.stop();
+                    return Err(eyre!("couldn't check Codex's MCP servers are off: {error}"));
+                }
+            };
+            if on.is_empty() {
+                spawn_idle_check(&process);
+                tracing::info!(executable = %process.executable.display(), "Codex app-server started");
+                return Ok(process);
+            }
+            process.stop();
+            if !isolation::learn(&on) {
+                return Err(eyre!(
+                    "Codex kept MCP servers on that Hex turns off: {}",
+                    on.join(", ")
+                ));
+            }
+            tracing::info!(servers = %on.join(", "), "turning the person's MCP servers off for Hex's Codex");
+        }
+    }
+
+    /// One `codex app-server` with `overrides`, past its handshake.
+    fn launch(
+        overrides: &[String],
+        searching: bool,
+        until: Instant,
+        cancelled: &AtomicBool,
+    ) -> Result<Arc<Self>> {
         let executable = find().ok_or_else(|| eyre!(NOT_INSTALLED))?;
         let mut command = crate::desktop::background_process::command(&executable);
         command.arg("app-server");
-        for setting in ISOLATION {
+        for setting in overrides {
             command.arg("-c").arg(setting);
         }
         let mut child = command
@@ -638,6 +782,7 @@ impl Process {
             alive: AtomicBool::new(true),
             executable,
             version: OnceLock::new(),
+            searching,
         });
         spawn_reader(&process, stdout)?;
         let initialized = process
@@ -673,8 +818,6 @@ impl Process {
             .map(|(_, rest)| rest.split(' ').next().unwrap_or_default().to_owned())
             .unwrap_or_default();
         let _ = process.version.set(version);
-        spawn_idle_check(&process);
-        tracing::info!(executable = %process.executable.display(), "Codex app-server started");
         Ok(process)
     }
 
@@ -806,30 +949,8 @@ impl Process {
     }
 
     fn notified(&self, method: &str, params: Option<&Value>) {
-        let Some(params) = params else { return };
-        let event = match method {
-            "item/agentMessage/delta" => params
-                .get("delta")
-                .and_then(Value::as_str)
-                .map(|delta| Event::Delta(delta.to_owned())),
-            "turn/completed" => params.get("turn").cloned().map(Event::Completed),
-            // An error Codex retries by itself is only a warning.
-            "error" if params.get("willRetry").and_then(Value::as_bool) != Some(true) => params
-                .get("error")
-                .map(|error| Event::Failed(error_message(error))),
-            _ => None,
-        };
-        let (Some(event), Some(thread)) = (event, params.get("threadId").and_then(Value::as_str))
-        else {
-            return;
-        };
-        if let Some(sender) = self
-            .threads
-            .lock()
-            .ok()
-            .and_then(|t| t.get(thread).cloned())
-        {
-            let _ = sender.send(event);
+        if let Some(params) = params {
+            route_to(&self.threads, method, params);
         }
     }
 
@@ -846,6 +967,41 @@ impl Process {
         if let Ok(mut threads) = self.threads.lock() {
             threads.clear();
         }
+    }
+}
+
+/// Passes one notification to the thread it is about, when a request
+/// follows that thread.
+fn route_to(threads: &Mutex<HashMap<String, mpsc::Sender<Event>>>, method: &str, params: &Value) {
+    let event = match method {
+        "item/agentMessage/delta" => params
+            .get("delta")
+            .and_then(Value::as_str)
+            .map(|delta| Event::Delta(delta.to_owned())),
+        "item/started" | "item/completed" => params.get("item").and_then(|item| {
+            match item.get("type").and_then(Value::as_str) {
+                Some("webSearch") => Some(Event::Web(item.clone(), method == "item/completed")),
+                // The person's own words come back first; they say nothing
+                // of the model.
+                Some("userMessage") | None => None,
+                Some(_) => Some(Event::Alive),
+            }
+        }),
+        // Reasoning and other items' deltas.
+        method if method.starts_with("item/") => Some(Event::Alive),
+        "turn/completed" => params.get("turn").cloned().map(Event::Completed),
+        // An error Codex retries by itself is only a warning.
+        "error" if params.get("willRetry").and_then(Value::as_bool) != Some(true) => params
+            .get("error")
+            .map(|error| Event::Failed(error_message(error))),
+        _ => None,
+    };
+    let (Some(event), Some(thread)) = (event, params.get("threadId").and_then(Value::as_str))
+    else {
+        return;
+    };
+    if let Some(sender) = threads.lock().ok().and_then(|t| t.get(thread).cloned()) {
+        let _ = sender.send(event);
     }
 }
 
@@ -889,7 +1045,7 @@ fn spawn_idle_check(process: &Arc<Process>) {
                     .is_ok_and(|threads| !threads.is_empty());
                 if idle && !following {
                     tracing::info!("Codex app-server stopped after idling");
-                    if let Ok(mut running) = RUNNING.lock()
+                    if let Ok(mut running) = slot(process.searching).lock()
                         && running
                             .as_ref()
                             .is_some_and(|running| Arc::ptr_eq(running, &process))
@@ -946,6 +1102,160 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// The Codex installed here, started as Hex starts it, runs none of the
+    /// person's MCP servers (here Codex app's `node_repl`), even with a
+    /// thread open, in either app-server; only the searching one has code
+    /// mode. No model is asked anything:
+    /// `cargo test --bin hex -- --ignored --nocapture the_persons_mcp_servers_never_start`.
+    #[test]
+    #[ignore = "needs the Codex CLI; starts it, makes no model call"]
+    fn the_persons_mcp_servers_never_start() {
+        for searching in [false, true] {
+            let until = Instant::now() + Duration::from_secs(60);
+            let cancelled = AtomicBool::new(false);
+            let process = running_as(searching, until, &cancelled).unwrap();
+            let cwd = workspace().unwrap();
+            let read = process
+                .request("config/read", json!({ "cwd": cwd }), until, &cancelled)
+                .unwrap();
+            eprintln!(
+                "searching {searching}: servers Hex turns off: {:?}",
+                isolation::known()
+            );
+            assert!(isolation::still_on(&read).is_empty());
+            let web = read.pointer("/config/web_search").cloned();
+            let code_mode = read.pointer("/config/features/code_mode_host").cloned();
+            eprintln!("searching {searching}: web_search {web:?}, code_mode_host {code_mode:?}");
+            assert_eq!(code_mode, Some(json!(searching)));
+            let thread = process
+                .request(
+                    "thread/start",
+                    thread_params("", "Say nothing.", &cwd),
+                    until,
+                    &cancelled,
+                )
+                .unwrap();
+            assert!(thread.pointer("/thread/id").is_some(), "{thread}");
+            std::thread::sleep(Duration::from_secs(8));
+            let pid = process.child.lock().unwrap().id().to_string();
+            let children = std::process::Command::new("pgrep")
+                .args(["-fl", "-P", &pid])
+                .output()
+                .unwrap();
+            let children = String::from_utf8_lossy(&children.stdout);
+            eprintln!("searching {searching}: app-server's children: {children:?}");
+            assert!(children.trim().is_empty(), "{children}");
+            process.stop();
+        }
+    }
+
+    /// Web search and code mode belong to a process: Assistant's web
+    /// answers run on one of their own, every other thread on the one that
+    /// keeps both off, and no thread asks for more.
+    #[test]
+    fn web_search_is_allowed_only_on_the_searching_process() {
+        let cwd = Path::new("/tmp/codex");
+        let params = thread_params("gpt-6.1-sol", "x", cwd);
+        assert!(params.get("config").is_none(), "no thread opens anything");
+        assert_eq!(params["sandbox"], "read-only");
+        assert_eq!(params["ephemeral"], true);
+        assert_eq!(params["approvalPolicy"], "never");
+        let plain = isolation::overrides(&[], false);
+        assert!(plain.contains(&"web_search=\"disabled\"".to_owned()));
+        assert!(plain.contains(&"features.code_mode_host=false".to_owned()));
+        assert!(!std::ptr::eq(slot(true), slot(false)));
+    }
+
+    /// A web search's items reach the thread that follows it; other items
+    /// don't.
+    #[test]
+    fn web_search_items_reach_their_thread() {
+        let (sender, receiver) = mpsc::channel();
+        let threads = Mutex::new(HashMap::from([("t".to_owned(), sender)]));
+        let item = json!({ "type": "webSearch", "id": "ws_1", "query": "lm studio server",
+            "action": { "type": "search", "query": "lm studio server", "queries": null } });
+        for (method, item) in [
+            (
+                "item/started",
+                json!({ "type": "webSearch", "id": "ws_1", "query": "", "action": null }),
+            ),
+            ("item/completed", item.clone()),
+            (
+                "item/completed",
+                json!({ "type": "agentMessage", "id": "m", "text": "hi" }),
+            ),
+        ] {
+            route_to(
+                &threads,
+                method,
+                &json!({ "threadId": "t", "turnId": "u", "item": item }),
+            );
+        }
+        let got: Vec<(Value, bool)> = receiver
+            .try_iter()
+            .filter_map(|event| match event {
+                Event::Web(item, done) => Some((item, done)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(got.len(), 2);
+        assert!(!got[0].1 && got[1].1);
+        assert_eq!(got[1].0, item);
+    }
+
+    /// The model's own work before its words counts as a sign of life; the
+    /// person's message coming back does not.
+    #[test]
+    fn the_models_work_reaches_its_thread_as_alive() {
+        let (sender, receiver) = mpsc::channel();
+        let threads = Mutex::new(HashMap::from([("t".to_owned(), sender)]));
+        let alive = |method: &str, params: Value| {
+            route_to(&threads, method, &params);
+            receiver
+                .try_iter()
+                .any(|event| matches!(event, Event::Alive))
+        };
+        let user = json!({ "threadId": "t", "item": { "type": "userMessage", "id": "u" } });
+        assert!(!alive("item/started", user));
+        let reasoning = json!({ "threadId": "t", "item": { "type": "reasoning", "id": "r" } });
+        assert!(alive("item/started", reasoning));
+        let delta = json!({ "threadId": "t", "itemId": "r", "delta": "thinking" });
+        assert!(alive("item/reasoning/summaryTextDelta", delta));
+        assert!(!alive("turn/started", json!({ "threadId": "t" })));
+    }
+
+    /// A whole answer's stream with web searches, as the reader routes it:
+    /// each search's start and end, the answer's words, the turn's end.
+    #[test]
+    fn a_web_answers_stream_routes_its_searches() {
+        let (sender, receiver) = mpsc::channel();
+        let threads = Mutex::new(HashMap::from([("t".to_owned(), sender)]));
+        let stream = include_str!("../../../tests/fixtures/assistant/codex-web-search.jsonl");
+        for line in stream.lines().filter(|line| !line.trim().is_empty()) {
+            let message: Value = serde_json::from_str(line).unwrap();
+            let method = message["method"].as_str().unwrap();
+            route_to(&threads, method, &message["params"]);
+        }
+        let (mut started, mut done, mut words, mut ended) = (0, 0, 0, 0);
+        for event in receiver.try_iter() {
+            match event {
+                Event::Web(_, false) => started += 1,
+                Event::Web(_, true) => done += 1,
+                Event::Delta(_) => words += 1,
+                Event::Completed(_) => ended += 1,
+                Event::Failed(why) => panic!("{why}"),
+                Event::Alive => {}
+            }
+        }
+        assert_eq!((started, done, words, ended), (3, 3, 1, 1));
+    }
+
+    #[test]
+    fn a_model_not_listed_yet_is_named_as_codex_names_its_own() {
+        assert_eq!(named("gpt-6.1-sol"), "GPT-6.1-Sol");
+        assert_eq!(named("o4-mini"), "O4-Mini");
     }
 
     #[test]

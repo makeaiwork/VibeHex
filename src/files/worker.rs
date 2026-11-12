@@ -16,6 +16,8 @@ use super::rewrite::{self, DraftKind, Drafts, Engine};
 use super::store::{self, Segment, Version, VersionKind};
 use super::text;
 use crate::app_settings::{AppSettings, CleanupServerSettings, DictationMode, FilesSettings};
+use crate::assistant::recordings::Step;
+use crate::assistant::worker::Recall;
 use crate::dictation::vocabulary::VocabularyEntry;
 use crate::transcription::models::TranscriptionSelection;
 
@@ -69,6 +71,13 @@ impl Config {
         )
     }
 
+    /// Where cleanup runs and how hard Codex thinks for it: Files' own
+    /// reasoning, else dictation's AI cleanup's; `choice` overrides
+    /// Settings' engine.
+    pub fn cleanup_engine(&self, choice: Option<&str>) -> Engine {
+        self.engine(choice).with_effort(&self.files.cleanup_effort)
+    }
+
     /// Where a request runs and how hard Codex thinks: `engine` and
     /// `effort` override Settings' choice.
     pub fn request_engine(&self, engine: Option<&str>, effort: Option<&str>) -> Engine {
@@ -119,10 +128,16 @@ pub enum Job {
         titled: bool,
         engine: Option<String>,
         effort: Option<String>,
+        /// What it reads past the version: other recordings, or none.
+        recall: Recall,
     },
     /// Asks `question` in request `session`'s conversation, on the
     /// session's engine.
-    FollowUp { session: u32, question: String },
+    FollowUp {
+        session: u32,
+        question: String,
+        recall: Recall,
+    },
     /// Asks `question` in session `session` about a meeting, whose
     /// transcript (with its title and times) is `transcript`; the record is
     /// `meeting::requests::record`. Runs while Labs › AI cleanup server is
@@ -136,7 +151,21 @@ pub enum Job {
         prompt: Option<String>,
         transcript: String,
         tidy: Option<Vec<super::tidy::Line>>,
+        /// What it reads past the meeting: other recordings, or none.
+        recall: Recall,
     },
+}
+
+impl Job {
+    /// What a question reads past its own text.
+    fn recall(&self) -> Option<&Recall> {
+        match self {
+            Self::Request { recall, .. }
+            | Self::FollowUp { recall, .. }
+            | Self::Meeting { recall, .. } => Some(recall),
+            _ => None,
+        }
+    }
 }
 
 /// Where a job is.
@@ -176,6 +205,10 @@ pub struct Task {
     /// A follow-up's session and question.
     pub session: Option<u32>,
     pub question: Option<String>,
+    /// A question reaching past its text: the search of the person's
+    /// other recordings, step by step, and whether it still runs.
+    pub steps: Vec<Step>,
+    pub searching: bool,
 }
 
 /// The end of what a running cleanup or request has written.
@@ -304,7 +337,9 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
     let id = state.next;
     state.next += 1;
     let (session, question) = match &job {
-        Job::FollowUp { session, question }
+        Job::FollowUp {
+            session, question, ..
+        }
         | Job::Meeting {
             session, question, ..
         } => (Some(*session), Some(question.clone())),
@@ -331,6 +366,8 @@ pub fn submit(record: &str, job: Job, config: Config, next: bool) -> u64 {
             draft: None,
             session,
             question,
+            steps: Vec::new(),
+            searching: matches!(job.recall(), Some(Recall::Search(_))),
         },
         job,
         config,
@@ -448,6 +485,7 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
             titled,
             engine,
             effort,
+            recall,
         } => super::requests::request(
             task,
             super::requests::Asked {
@@ -458,23 +496,28 @@ fn run_job(task: &Task, job: &Job, config: &Config, cancel: &AtomicBool) -> Resu
                 engine: engine.as_deref(),
                 effort: effort.as_deref(),
             },
+            recall,
             config,
             cancel,
         ),
-        Job::FollowUp { session, question } => {
-            super::requests::follow_up(task, *session, question, config, cancel)
-        }
+        Job::FollowUp {
+            session,
+            question,
+            recall,
+        } => super::requests::follow_up(task, *session, question, recall, config, cancel),
         Job::Meeting {
             session,
             question,
             prompt,
             transcript,
             tidy,
+            recall,
         } => super::requests::meeting(
             task,
             *session,
             (question, prompt.as_deref()),
             (transcript, tidy.as_deref()),
+            recall,
             config,
             cancel,
         ),
@@ -609,7 +652,7 @@ fn cleanup(
 ) -> Result<()> {
     let record = store::load(&task.record)?;
     let input = source(&record, from)?;
-    let engine = config.engine(choice);
+    let engine = config.cleanup_engine(choice);
     update_task(task.id, |task| {
         task.stage = Stage::CleaningUp;
         task.model = Some(engine.model_name());
@@ -681,6 +724,48 @@ mod tests {
         );
         assert_eq!(request_name("переведи"), "Переведи");
         assert_eq!(request_name("  "), "Request");
+    }
+
+    fn on_codex(effort: &str) -> AppSettings {
+        let mut settings = AppSettings::default();
+        settings.labs.ai_cleanup_server = true;
+        settings.dictation_processing.server.runs_on = crate::app_settings::CleanupRunsOn::Codex;
+        settings.dictation_processing.server.codex_effort = effort.into();
+        settings
+    }
+
+    #[test]
+    fn cleanup_reasons_as_dictation_until_files_chooses() {
+        let mut settings = on_codex("high");
+        let config = Config::from_settings(&settings);
+        assert_eq!(config.cleanup_engine(None).effort(), Some("high"));
+        assert_eq!(config.cleanup_engine(Some("codex")).effort(), Some("high"));
+
+        settings.files.cleanup_effort = "low".into();
+        let config = Config::from_settings(&settings);
+        assert_eq!(config.cleanup_engine(None).effort(), Some("low"));
+        assert_eq!(
+            config.cleanup_engine(Some("codex:gpt-6-luna")).effort(),
+            Some("low")
+        );
+        // Requests keep their own reasoning, medium until chosen.
+        assert_eq!(config.request_engine(None, None).effort(), Some("medium"));
+    }
+
+    #[test]
+    fn cleanup_reasoning_leaves_other_engines_alone() {
+        let mut settings = on_codex("");
+        settings.files.cleanup_effort = "high".into();
+        let config = Config::from_settings(&settings);
+        for choice in ["opencode", "openrouter", "custom", "local:qwen"] {
+            let engine = config.cleanup_engine(Some(choice));
+            assert_eq!(engine.effort(), None, "{choice}");
+            assert_eq!(
+                engine.model_name(),
+                config.engine(Some(choice)).model_name(),
+                "{choice}"
+            );
+        }
     }
 
     #[test]

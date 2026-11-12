@@ -25,6 +25,7 @@ use crate::transcription::models::TranscriptionModelId;
 pub(super) mod actions;
 pub(super) mod composer;
 mod detail;
+pub(super) mod linked;
 mod quick;
 pub(super) mod session;
 pub(super) mod settings;
@@ -128,6 +129,13 @@ pub(super) struct FilesPane {
     pub(super) quick: Option<quick::QuickPage>,
     /// The worker wakes this window.
     woken: bool,
+    /// A question reaching past the file, waiting for leave to read the
+    /// person's other recordings.
+    pub(super) consent: Option<linked::Pending>,
+    /// Answers whose search steps are open, by session and turn.
+    pub(super) unfolded: Vec<(u32, usize)>,
+    /// How far the text is scrolled, to come back to from a cited place.
+    pub(super) scroll_y: super::assistant::ScrollAt,
     /// A scene: nothing reads or writes the store.
     fixture: bool,
 }
@@ -164,6 +172,15 @@ impl FilesPane {
     /// Jobs on `record`, the running one first.
     pub(super) fn tasks_of<'a>(&'a self, record: &'a str) -> impl Iterator<Item = &'a Task> {
         self.tasks.iter().filter(move |task| task.record == record)
+    }
+
+    /// The first Original version of record `id`.
+    pub(super) fn original(&self, id: &str) -> Option<u32> {
+        let record = self.record(id)?;
+        let mut versions = record.versions.iter();
+        let original =
+            versions.find(|version| version.kind == crate::files::store::VersionKind::Original)?;
+        Some(original.id)
     }
 
     pub(super) fn select(&mut self, id: String) {
@@ -354,6 +371,8 @@ impl FilesPane {
             draft: None,
             session: None,
             question: None,
+            steps: Vec::new(),
+            searching: false,
         };
         Self {
             records: vec![
@@ -425,6 +444,7 @@ impl FilesPane {
                 seconds: 14,
                 created_ms: FIXTURE_NOW_MS - 20 * 60_000,
                 stopped: false,
+                ..FollowUp::default()
             });
         }
         pane.tasks.insert(
@@ -447,6 +467,8 @@ impl FilesPane {
                 }),
                 session: Some(3),
                 question: Some("Which numbers did they disagree on?".into()),
+                steps: Vec::new(),
+                searching: false,
             },
         );
         pane
@@ -485,6 +507,8 @@ impl FilesPane {
                 }),
                 session: None,
                 question: None,
+                steps: Vec::new(),
+                searching: false,
             },
         );
         pane.tab = Some(Tab::Task(3));
@@ -913,6 +937,7 @@ fn list_row(pane: &FilesPane, p: Paint, listed: &Listed) -> El {
             selected: pane.selected.as_deref() == Some(record.id.as_str()),
             title_lines: 2,
             bar,
+            mark: None,
         },
         move |ui: &mut Ui| ui.files.select(id.clone()),
     )

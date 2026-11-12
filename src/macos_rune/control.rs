@@ -310,7 +310,9 @@ impl Pump {
                     entries: settings.vocabulary,
                 }
             }))),
-            ControlCommand::VocabularyAdd { .. } | ControlCommand::VocabularyRemove { .. } => {
+            ControlCommand::VocabularyAdd { .. }
+            | ControlCommand::VocabularyRemove { .. }
+            | ControlCommand::VocabularyEdit { .. } => {
                 Some(reply_with(self.edit_vocabulary(&command)))
             }
         }
@@ -420,11 +422,8 @@ impl Pump {
         if let Some(saved) = settings::set_api_key(key, value) {
             return saved;
         }
-        if let Some(error) = settings::unavailable(key) {
-            return Err(error);
-        }
         let before = load()?;
-        let change = settings::apply(&before, key, value, &crate::rune_ui::shortcut_rules())?;
+        let change = settings::check_one(&before, key, value, &crate::rune_ui::shortcut_rules())?;
         self.commit(&before, change, || format!("{key} is already {value}"))
     }
 
@@ -433,7 +432,7 @@ impl Pump {
         values: &serde_json::Map<String, serde_json::Value>,
     ) -> Result<ControlReply, ControlError> {
         let before = load()?;
-        let change = settings::apply_all(&before, values, &crate::rune_ui::shortcut_rules())?;
+        let change = settings::check(&before, values, &crate::rune_ui::shortcut_rules())?;
         self.commit(&before, change, || {
             "Every setting already has its value".into()
         })

@@ -96,6 +96,21 @@ pub struct Version {
     /// `None` follows Settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<String>,
+    /// A request's first answer: the other recordings it read and cites.
+    #[serde(flatten)]
+    pub linked: Linked,
+}
+
+/// What an answer read past its own text (a question that reached the
+/// person's other recordings): the places it cites, opened from its `[n]`
+/// and chips, and the search's steps, folded over it.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Linked {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refs: Vec<crate::assistant::recordings::Ref>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub steps: Vec<crate::assistant::recordings::Step>,
 }
 
 /// One question asked later in a request's session, and its answer.
@@ -112,6 +127,9 @@ pub struct FollowUp {
     /// Stopped before it finished: `answer` is what came.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub stopped: bool,
+    /// The other recordings it read and cites.
+    #[serde(flatten)]
+    pub linked: Linked,
 }
 
 /// One file added to Files.
@@ -215,10 +233,15 @@ fn record_path(dir: &Path, id: &str) -> Result<PathBuf> {
 
 /// Every record, newest first. Unreadable records are skipped and logged.
 pub fn list() -> Vec<FileRecord> {
-    let Ok(dir) = dir() else {
-        return Vec::new();
-    };
-    let Ok(entries) = fs::read_dir(&dir) else {
+    match dir() {
+        Ok(dir) => list_in(&dir),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Every record in `dir`, newest first, read without creating anything.
+pub fn list_in(dir: &Path) -> Vec<FileRecord> {
+    let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
     let mut records: Vec<FileRecord> = entries

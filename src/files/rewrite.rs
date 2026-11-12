@@ -183,6 +183,19 @@ impl Engine {
         }
     }
 
+    /// Built in: a model on this Mac with a small window, so Assistant
+    /// gives it fewer guide articles and widens the window while it asks.
+    /// Whether it streams from a cloud service (Codex, OpenRouter): one
+    /// whose long silence is a stall, not work.
+    pub fn streams_from_the_cloud(&self) -> bool {
+        matches!(self, Self::Server(server)
+            if matches!(server.provider, Provider::Codex | Provider::OpenRouter))
+    }
+
+    pub fn is_local(&self) -> bool {
+        self.local().is_some()
+    }
+
     fn local(&self) -> Option<&'static LocalModel> {
         match self {
             Self::Server(server) if server.provider == Provider::Local => {
@@ -246,7 +259,8 @@ impl Engine {
         Ok(text.to_owned())
     }
 
-    pub(super) fn generate(
+    /// One streamed answer, within Files' deadline; Assistant asks with it too.
+    pub(crate) fn generate(
         &self,
         context: u32,
         instructions: &str,
@@ -275,6 +289,48 @@ impl Engine {
                 cancelled,
             ),
         }
+        .map(|text| text.trim().to_string())
+    }
+}
+
+impl Engine {
+    /// Whether this engine may search the web: Codex alone, on the
+    /// person's ChatGPT plan. A built-in model never goes online.
+    pub fn searches_web(&self) -> bool {
+        matches!(self, Self::Server(server) if server.provider == Provider::Codex)
+    }
+
+    /// [`Self::generate`] with Codex's live web search allowed, for
+    /// Assistant's answers only; `searched` hears each search. Another
+    /// engine answers without one.
+    pub(crate) fn generate_searching(
+        &self,
+        instructions: &str,
+        input: &str,
+        cancelled: &AtomicBool,
+        streamed: Option<Streamed>,
+        searched: cleanup_server::codex::Searched,
+    ) -> Result<String> {
+        let codex = match self {
+            Self::Server(server) if server.provider == Provider::Codex => server,
+            _ => {
+                let context = engine::CONTEXT_TOKENS;
+                return self.generate(context, instructions, input, cancelled, streamed);
+            }
+        };
+        if cancelled.load(Ordering::Acquire) {
+            return Err(eyre!("stopped"));
+        }
+        cleanup_server::codex::generate_searching(
+            &codex.model,
+            &codex.effort,
+            instructions,
+            input,
+            DEADLINE,
+            cancelled,
+            streamed,
+            searched,
+        )
         .map(|text| text.trim().to_string())
     }
 }

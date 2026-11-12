@@ -34,6 +34,8 @@ pub(in super::super) struct Answered<'a> {
     pub(in super::super) answer: &'a str,
     pub(in super::super) model: &'a str,
     pub(in super::super) created_ms: u64,
+    /// What `created_ms` is told against.
+    pub(in super::super) now_ms: u64,
     pub(in super::super) stopped: bool,
 }
 
@@ -46,30 +48,55 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
         chat = chat.child(bubble(p, "asked0", first));
     }
     let session = version.id;
-    chat = chat.child(answer(
-        p,
-        Answered {
-            key: "answer0".into(),
-            question: first,
-            answer: &version.text,
-            model: &version.model,
-            created_ms: version.created_ms,
-            stopped: version.stopped,
-        },
-        move |ui: &mut Ui, question| ask_again(ui, session, question),
-    ));
-    for (index, asked) in version.follow_ups.iter().enumerate() {
-        chat = chat.child(bubble(p, &format!("asked{}", index + 1), &asked.question));
-        chat = chat.child(answer(
+    let first_turn = (first, &version.text, &version.model, version.created_ms);
+    let turns = std::iter::once((
+        first_turn,
+        version.stopped,
+        &version.linked,
+        version.seconds,
+    ))
+    .chain(version.follow_ups.iter().map(|asked| {
+        let turn = (
+            asked.question.as_str(),
+            &asked.answer,
+            &asked.model,
+            asked.created_ms,
+        );
+        (turn, asked.stopped, &asked.linked, asked.seconds)
+    }));
+    for (index, ((question, answer, model, created_ms), stopped, reached, seconds)) in
+        turns.enumerate()
+    {
+        if index > 0 {
+            chat = chat.child(bubble(p, &format!("asked{index}"), question));
+        }
+        let origin = super::super::assistant::jump::Origin::Requests {
+            kind: crate::assistant::recordings::Kind::File,
+            id: record.id.clone(),
+            session,
+        };
+        let unfolded = ui.files.unfolded.contains(&(session, index));
+        chat = chat.child(super::linked::answer(
             p,
             Answered {
-                key: format!("answer{}", index + 1),
-                question: &asked.question,
-                answer: &asked.answer,
-                model: &asked.model,
-                created_ms: asked.created_ms,
-                stopped: asked.stopped,
+                key: format!("answer{index}"),
+                question,
+                answer,
+                model,
+                created_ms,
+                now_ms: crate::files::store::now_ms(),
+                stopped,
             },
+            (reached, seconds),
+            ((origin, index), unfolded, move |ui: &mut Ui| {
+                let unfolded = &mut ui.files.unfolded;
+                match unfolded.iter().position(|at| *at == (session, index)) {
+                    Some(at) => {
+                        unfolded.remove(at);
+                    }
+                    None => unfolded.push((session, index)),
+                }
+            }),
             move |ui: &mut Ui, question| ask_again(ui, session, question),
         ));
     }
@@ -78,42 +105,67 @@ pub(super) fn chat(ui: &Ui, p: Paint, record: &FileRecord, version: &Version, ty
         .tasks_of(&record.id)
         .find(|task| task.session == Some(version.id))
     {
-        chat = chat.children(answering(p, task));
+        let coming = super::linked::coming(p, task, ui.assistant.dots.phase());
+        chat = chat.children(coming.unwrap_or_else(|| answering(p, task)));
     }
-    chat
+    chat.children(super::linked::waiting(ui, p, Some(session)))
 }
 
 /// Room a question's bubble always leaves on its left, so in a narrow
 /// window it still reads as the person's side of the chat.
 const BUBBLE_INDENT: f32 = 72.0;
 
-/// A question, right-aligned in a quiet bubble.
+/// The widest a question's bubble gets, its padding included.
+const BUBBLE_MAX: f32 = 460.0;
+const BUBBLE_PAD_X: f32 = 12.0;
+
+/// A question, right-aligned in a quiet bubble that hugs its longest line:
+/// wrapped text alone would keep the bubble at its widest, leaving a gap on
+/// the right of a question that breaks onto a second line.
 pub(in super::super) fn bubble(p: Paint, key: &str, question: &str) -> El {
     let c = &p.k.c;
+    let question = question.trim().to_owned();
+    let (lines_w, _) = rune::text::measure(
+        &question,
+        &[],
+        p.k.ty.ui,
+        Some(BUBBLE_MAX - 2.0 * BUBBLE_PAD_X),
+    );
+    let width = (lines_w + 2.0 * BUBBLE_PAD_X + 1.0).min(BUBBLE_MAX);
     row()
         .key(key.to_owned())
         .child(rune::el().key("push").grow(1.0).min_w(BUBBLE_INDENT))
         .child(
-            text(question.trim().to_owned())
+            text(question)
                 .key("question")
                 .font(p.k.ty.ui)
                 .color(c.text_base)
                 .wrap()
                 .shrink()
-                .max_w(460.0)
-                .px(12.0)
+                .max_w(width)
+                .px(BUBBLE_PAD_X)
                 .py(8.0)
                 .radius(12.0)
                 .fill(c.layer_02),
         )
 }
 
-fn markdown(p: Paint, source: String, muted: bool, streaming: bool) -> El {
+pub(in super::super) fn markdown(p: Paint, source: String, muted: bool, streaming: bool) -> El {
     let style = rune_kit::MarkdownStyle::from_kit(p.k)
         .body_font(p.k.ty.ui)
         .text(if muted { p.muted() } else { p.reading() });
+    // Bold words stand out at full brightness; a draft stays muted whole.
+    let bright = if muted {
+        Vec::new()
+    } else {
+        super::super::assistant::strong::bright(&source)
+    };
+    let strong = rune_kit::markdown::Highlight::new()
+        .bg(rune::Color::TRANSPARENT)
+        .fg(p.k.c.text_base);
     rune_kit::Markdown::new(source)
         .style(style)
+        .highlights(bright.into_iter().map(|at| (at, strong.clone())))
         .selectable(!streaming)
         .streaming(streaming)
         .tasks_read_only()
@@ -143,7 +195,11 @@ pub(in super::super) fn answer(
 }
 
 /// Copy and Ask again, the model, Stopped, and the time.
-fn answer_row(p: Paint, answered: &Answered<'_>, again: impl Fn(&mut Ui, String) + 'static) -> El {
+pub(in super::super) fn answer_row(
+    p: Paint,
+    answered: &Answered<'_>,
+    again: impl Fn(&mut Ui, String) + 'static,
+) -> El {
     let copied = answered.answer.to_owned();
     let question = answered.question.to_owned();
     let small = rune::TextStyle {
@@ -186,7 +242,7 @@ fn answer_row(p: Paint, answered: &Answered<'_>, again: impl Fn(&mut Ui, String)
         }))
         .child(rune::el().key("push").grow(1.0))
         .child(
-            text(when(answered.created_ms))
+            text(when(answered.created_ms, answered.now_ms))
                 .key("time")
                 .font(small)
                 .color(p.faint()),
@@ -218,11 +274,27 @@ fn quiet_icon(
         .on_press_tx(press)
 }
 
-/// "Today, 11:21", as the list names days.
-pub(in super::super) fn when(ms: u64) -> String {
-    let now = crate::files::store::now_ms();
+/// "Today, 11:21", "Yesterday, 18:05", the weekday within the last week
+/// ("Tuesday, 9:30"), else the full date, as of `now`.
+pub(in super::super) fn when(ms: u64, now: u64) -> String {
+    const DAY: u64 = 86_400_000;
     let day = crate::meeting::day_label(ms, now);
-    format!("{}, {}", super::day_label(&day), crate::meeting::clock(ms))
+    let day = match day.as_str() {
+        "Today" | "Yesterday" => super::day_label(&day).to_owned(),
+        // `Friday, March 14, 2025`: the weekday when it is one of the
+        // last seven days, else the date.
+        date => {
+            let recent = (2..7).any(|days| {
+                crate::meeting::day_label(ms, now.saturating_sub(days * DAY)) == "Today"
+            });
+            match date.split_once(", ") {
+                Some((weekday, _)) if recent => weekday.to_owned(),
+                Some((_, rest)) => rest.to_owned(),
+                None => date.to_owned(),
+            }
+        }
+    };
+    format!("{day}, {}", crate::meeting::clock(ms))
 }
 
 /// Asks a question of the session again, as its next question.
@@ -230,10 +302,20 @@ fn ask_again(ui: &mut Ui, session: u32, question: String) {
     if super::composer::running(ui, Target::Session(session)).is_some() {
         return;
     }
-    let Some(record) = ui.files.selected.clone() else {
+    let Some(record) = ui.files.selected().cloned() else {
         return;
     };
-    submit(ui, &record, Job::FollowUp { session, question });
+    let from = super::linked::source(&record, session);
+    let Some(recall) = super::linked::files_recall(ui, &record, (Some(session), from), &question)
+    else {
+        return;
+    };
+    let job = Job::FollowUp {
+        session,
+        question,
+        recall,
+    };
+    submit(ui, &record.id, job);
     ui.files.stale = true;
 }
 
@@ -275,4 +357,28 @@ pub(in super::super) fn answering(p: Paint, task: &Task) -> Vec<El> {
         _ => shown.push(status),
     }
     shown
+}
+
+#[cfg(test)]
+mod tests {
+    use super::when;
+
+    /// Noon on Saturday 14 March 2026, local time near enough: days are
+    /// told by the local calendar, so the test steps whole days from noon.
+    const NOW: u64 = 1_773_489_600_000;
+    const DAY: u64 = 86_400_000;
+
+    #[test]
+    fn dates_read_today_yesterday_a_weekday_then_the_date() {
+        let clock = crate::meeting::clock(NOW);
+        assert_eq!(when(NOW, NOW), format!("Today, {clock}"));
+        assert_eq!(when(NOW - DAY, NOW), format!("Yesterday, {clock}"));
+        let weekday = crate::meeting::day_label(NOW - 3 * DAY, NOW);
+        let weekday = weekday.split(", ").next().unwrap();
+        assert_eq!(when(NOW - 3 * DAY, NOW), format!("{weekday}, {clock}"));
+        let date = crate::meeting::day_label(NOW - 30 * DAY, NOW);
+        let date = date.split_once(", ").unwrap().1;
+        assert_eq!(when(NOW - 30 * DAY, NOW), format!("{date}, {clock}"));
+        assert!(date.ends_with("2026"), "{date}");
+    }
 }

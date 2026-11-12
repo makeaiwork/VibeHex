@@ -344,8 +344,25 @@ pub struct TranscriptEntry {
 pub fn coalesce_transcript(
     entries: impl IntoIterator<Item = TranscriptEntry>,
 ) -> Vec<TranscriptEntry> {
+    coalesce(entries).0
+}
+
+/// Where each entry's words (trimmed) land in the transcript as the window
+/// shows it: [`coalesce_transcript`]'s turns joined by a line break.
+pub fn coalesced_ranges(entries: &[TranscriptEntry]) -> Vec<std::ops::Range<usize>> {
+    coalesce(entries.iter().cloned()).1
+}
+
+fn coalesce(
+    entries: impl IntoIterator<Item = TranscriptEntry>,
+) -> (Vec<TranscriptEntry>, Vec<std::ops::Range<usize>>) {
     let mut turns: Vec<TranscriptEntry> = Vec::new();
+    let mut ranges = Vec::new();
+    // Where the last turn starts in the joined text.
+    let mut base = 0;
     for entry in entries {
+        let lead = entry.text.len() - entry.text.trim_start().len();
+        let words = entry.text.trim().len();
         if let Some(turn) = turns.last_mut()
             && turn.source == entry.source
             && entry.start_ms.saturating_sub(turn.end_ms) <= TRANSCRIPT_TURN_GAP_MS
@@ -353,6 +370,8 @@ pub fn coalesce_transcript(
             if !turn.text.ends_with(char::is_whitespace) {
                 turn.text.push(' ');
             }
+            let at = base + turn.text.len();
+            ranges.push(at..at + words);
             let timed = word_starts(&turn.text, &turn.words).is_some()
                 && word_starts(&entry.text, &entry.words).is_some();
             if timed {
@@ -363,10 +382,14 @@ pub fn coalesce_transcript(
             turn.text.push_str(entry.text.trim());
             turn.end_ms = turn.end_ms.max(entry.end_ms);
         } else {
+            if let Some(last) = turns.last() {
+                base += last.text.len() + 1;
+            }
+            ranges.push(base + lead..base + lead + words);
             turns.push(entry);
         }
     }
-    turns
+    (turns, ranges)
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]

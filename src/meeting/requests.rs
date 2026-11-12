@@ -157,5 +157,61 @@ mod tests {
         assert_eq!(session.turns[0].answer, "Design.");
         assert_eq!(session.updated_ms(), 20);
         assert_eq!(session.engine, None);
+        assert!(session.turns[0].linked.refs.is_empty(), "kept from before");
+    }
+
+    /// An answer that read other recordings keeps its places and steps, so
+    /// a reopened session shows its chips and its links still open.
+    #[test]
+    fn an_answer_keeps_the_other_recordings_it_cites() {
+        use crate::assistant::recordings::{Kind, Lines, Ref, Step};
+        let turn = FollowUp {
+            question: "Как решили на прошлой встрече?".into(),
+            answer: "Лимит утвердили [1].".into(),
+            linked: crate::files::store::Linked {
+                refs: vec![Ref {
+                    n: 1,
+                    kind: Kind::Meeting,
+                    id: "1700-budget".into(),
+                    title: "Бюджет Q1".into(),
+                    at_ms: 1_700,
+                    offset_ms: Some(40_000),
+                    lines: vec![Lines {
+                        mark: 0,
+                        first: 2,
+                        last: 3,
+                        start_ms: 40_000,
+                        end_ms: 52_000,
+                        at: 120..190,
+                    }],
+                    notes: false,
+                }],
+                steps: vec![
+                    Step::Meetings {
+                        searched: 6,
+                        found: 1,
+                    },
+                    Step::Dictations {
+                        searched: 3,
+                        found: 1,
+                    },
+                ],
+            },
+            ..FollowUp::default()
+        };
+        let sessions = Sessions {
+            sessions: vec![Session {
+                id: 1,
+                turns: vec![turn.clone()],
+                ..Session::default()
+            }],
+        };
+        let json = serde_json::to_string(&sessions).unwrap();
+        assert!(json.contains("\"refs\"") && json.contains("\"steps\""));
+        let back: Sessions = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.sessions[0].turns[0], turn);
+        // A turn that read nothing else writes neither.
+        let plain = serde_json::to_string(&FollowUp::default()).unwrap();
+        assert!(!plain.contains("refs") && !plain.contains("steps"));
     }
 }

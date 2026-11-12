@@ -103,6 +103,31 @@ pub(super) enum Pane {
     Activity,
     /// VibeHex, its source, and its developer: after Labs.
     About,
+    /// Questions about VibeHex, answered from its guide: at the bottom,
+    /// apart from the navigation (on by default, not in Labs).
+    Assistant,
+}
+
+/// The open pane's actions for its title bar, and its body.
+pub(super) fn body(ui: &Ui, p: Paint, reduced: bool, layer: &mut Vec<El>) -> (Vec<El>, El) {
+    match ui.pane {
+        _ if ui.labs_open => (vec![labs::tabs(ui, p)], labs::page(ui, p)),
+        Pane::General => (Vec::new(), general::pane(ui, p, layer)),
+        Pane::Output => (Vec::new(), output::pane(ui, p, reduced, layer)),
+        Pane::Modes => modes::pane(ui, p, layer),
+        Pane::History => history::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Captures => (Vec::new(), captures::pane(ui, p)),
+        Pane::Meetings => meetings::pane(ui, p, layer),
+        Pane::Files => files::pane(ui, p, layer),
+        #[cfg(hex_capture)]
+        Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, layer)),
+        Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
+        Pane::HudLab => hud_lab::pane(ui, p),
+        Pane::Activity => activity::pane(ui, p),
+        Pane::About => (Vec::new(), about::pane(ui, p)),
+        Pane::Assistant => assistant::pane(ui, p, reduced, layer),
+    }
 }
 
 impl Pane {
@@ -122,6 +147,7 @@ impl Pane {
         Pane::HudLab,
         Pane::Activity,
         Pane::About,
+        Pane::Assistant,
     ];
 
     pub(super) fn shown(self, ui: &Ui) -> bool {
@@ -137,6 +163,7 @@ impl Pane {
             // The Lab turns on only on macOS.
             #[cfg(hex_capture)]
             Pane::Captures => ui.settings.labs.screenshots,
+            Pane::Assistant => ui.settings.assistant.enabled,
             _ => true,
         }
     }
@@ -157,6 +184,7 @@ impl Pane {
             Pane::HudLab => "HUD Lab",
             Pane::Activity => tr("Activity"),
             Pane::About => tr("About"),
+            Pane::Assistant => tr("Assistant"),
         }
     }
 
@@ -176,6 +204,7 @@ impl Pane {
             Pane::HudLab => "nav-hud-lab",
             Pane::Activity => "nav-activity",
             Pane::About => "nav-about",
+            Pane::Assistant => "nav-assistant",
         }
     }
 
@@ -195,6 +224,7 @@ impl Pane {
             Pane::HudLab => &HUD_LAB_ICON,
             Pane::Activity => &ACTIVITY_ICON,
             Pane::About => &super::icons::INFO,
+            Pane::Assistant => &super::assistant::face::FACE,
         }
     }
 }
@@ -211,6 +241,8 @@ const SIDEBAR_TOP: f32 = if cfg!(target_os = "macos") {
 /// with a 4 pt gap, so each row's highlight stays its own.
 pub(super) const NAV_ROW_HEIGHT: f32 = 28.0;
 pub(super) const NAV_ROW_GAP: f32 = 4.0;
+/// Between groups: the brand and the items, Assistant and Quit.
+const GROUP_GAP: f32 = 10.0;
 
 /// On macOS the sidebar and the pane header stand in for the title bar the
 /// window draws none of: pressing their background moves the window.
@@ -224,14 +256,24 @@ pub(super) fn title_bar(element: El) -> El {
 
 /// The title bar of the content panel: the title, a view switch that stays
 /// beside it, and the pane's actions on the right. The title is the pane's
-/// level 1 heading.
-pub(super) fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Vec<El>) -> El {
+/// level 1 heading. `back`: Back to Assistant, before the title, when the
+/// pane was opened from an answer.
+pub(super) fn pane_header(
+    p: Paint,
+    back: Option<El>,
+    title: &str,
+    switch: Option<El>,
+    actions: Vec<El>,
+) -> El {
     title_bar(row())
         .key("pane-header")
         .h(52.0)
         .px(METRICS.gutter)
         .gap(8.0)
         .center_y()
+        // Back to Assistant is a box: it hangs past the gutter as fields
+        // and cards do, so its edge lines up with theirs below it.
+        .children(back.map(|back| back.ml(-METRICS.row_px).mr(4.0)))
         .child(
             text(title)
                 .key("pane-title")
@@ -247,9 +289,10 @@ pub(super) fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Ve
         .children(actions)
 }
 
-pub(super) fn sidebar(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+/// `still`: Reduce Motion is on, so Assistant's face holds still.
+pub(super) fn sidebar(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     if folded(ui) {
-        return rail(ui, p, layer);
+        return rail(ui, p, still, layer);
     }
     let mut nav = lists::source_list(col().key("nav"));
     for pane in labs::main_panes(ui) {
@@ -282,13 +325,14 @@ pub(super) fn sidebar(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         .child(
             row()
                 .key("brand-row")
-                .mb(10.0)
+                .mb(GROUP_GAP)
                 .center_y()
                 .child(super::brand::header(p).grow(1.0).shrink())
                 .children(foldable(ui).then(|| close_button(ui, p, layer))),
         )
         .child(nav)
         .child(el().key("spacer").grow(1.0))
+        .children(super::assistant::nav::item(ui, p, still))
         .children(sidebar_update::control(ui, p))
         .children(sidebar_update::notes(ui, p))
         .children(sidebar_update::blocked(ui, p))
@@ -434,7 +478,7 @@ fn open_button(p: Paint) -> El {
 
 /// The folded sidebar: Open sidebar, every pane, Labs, and About as icons,
 /// and the update check at the bottom.
-fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
+fn rail(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     let right = rune_kit::Placement::Right;
     let mut rail = title_bar(col())
         .key("sidebar")
@@ -474,6 +518,7 @@ fn rail(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
         rail = rail.child(tip(ui, p, pane.key(), pane.title(), right, item, layer));
     }
     rail = rail.child(el().key("spacer").grow(1.0));
+    rail = rail.children(super::assistant::nav::rail_item(ui, p, still, layer));
     rail.children(update_item(ui, p, layer))
 }
 
@@ -845,7 +890,8 @@ fn quit_item(p: Paint) -> El {
         .label(tr("Quit VibeHex"))
         .h(NAV_ROW_HEIGHT)
         .px(6.0)
-        .mt(NAV_ROW_GAP)
+        // Apart from Assistant's row above, so the bottom isn't one block.
+        .mt(GROUP_GAP)
         .center_y()
         .radius(p.k.radius.sm)
         .hover(c.hover)

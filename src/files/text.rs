@@ -19,11 +19,24 @@ pub struct Paragraph {
 /// The timed transcript in paragraphs: a new one after a pause once the
 /// last has run a while, or once it has run long.
 pub fn paragraphs(segments: &[Segment]) -> Vec<Paragraph> {
+    laid_out(segments).0
+}
+
+/// Where each segment's words are in [`plain`]: none for a silent one.
+pub fn segment_ranges(segments: &[Segment]) -> Vec<Option<std::ops::Range<usize>>> {
+    laid_out(segments).1
+}
+
+fn laid_out(segments: &[Segment]) -> (Vec<Paragraph>, Vec<Option<std::ops::Range<usize>>>) {
     let mut paragraphs: Vec<Paragraph> = Vec::new();
+    let mut ranges = Vec::new();
+    // Where the last paragraph starts in the plain text.
+    let mut base = 0;
     let mut last_end = 0;
     for segment in segments {
         let text = segment.text.trim();
         if text.is_empty() {
+            ranges.push(None);
             continue;
         }
         let new = match paragraphs.last() {
@@ -35,18 +48,27 @@ pub fn paragraphs(segments: &[Segment]) -> Vec<Paragraph> {
             }
         };
         if new {
+            if let Some(last) = paragraphs.last() {
+                base += last.text.len() + PARAGRAPH_BREAK.len();
+            }
+            ranges.push(Some(base..base + text.len()));
             paragraphs.push(Paragraph {
                 start_ms: segment.start_ms,
                 text: text.into(),
             });
         } else if let Some(paragraph) = paragraphs.last_mut() {
             paragraph.text.push(' ');
+            let at = base + paragraph.text.len();
+            ranges.push(Some(at..at + text.len()));
             paragraph.text.push_str(text);
         }
         last_end = segment.end_ms;
     }
-    paragraphs
+    (paragraphs, ranges)
 }
+
+/// What [`plain`] puts between paragraphs.
+pub const PARAGRAPH_BREAK: &str = "\n\n";
 
 /// The paragraphs as plain text.
 pub fn plain(segments: &[Segment]) -> String {
@@ -54,7 +76,7 @@ pub fn plain(segments: &[Segment]) -> String {
         .into_iter()
         .map(|paragraph| paragraph.text)
         .collect::<Vec<_>>()
-        .join("\n\n")
+        .join(PARAGRAPH_BREAK)
 }
 
 /// The paragraphs, each after its time: `00:21 text`.
@@ -225,6 +247,24 @@ mod tests {
             "00:00 One.",
             "times lead each paragraph"
         );
+    }
+
+    /// Assistant lights a cited segment by where its words are in the text.
+    #[test]
+    fn each_segment_knows_where_its_words_are_in_the_plain_text() {
+        let segments = vec![
+            segment(0, 5_000, " Один. "),
+            segment(5_200, 10_000, ""),
+            segment(10_100, 16_000, "Two."),
+            segment(20_000, 30_000, "Three."),
+        ];
+        let text = plain(&segments);
+        let read: Vec<Option<&str>> = segment_ranges(&segments)
+            .into_iter()
+            .map(|range| range.map(|range| &text[range]))
+            .collect();
+        assert_eq!(read, [Some("Один."), None, Some("Two."), Some("Three.")]);
+        assert_eq!(text, "Один. Two.\n\nThree.");
     }
 
     #[test]

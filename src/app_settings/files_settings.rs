@@ -25,6 +25,10 @@ pub struct FilesSettings {
     /// `codex`, or `opencode`; `None` follows dictation's AI cleanup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup_engine: Option<String>,
+    /// How hard a Codex model thinks for cleanup: `low`, `medium`, or
+    /// `high`; empty follows dictation's AI cleanup reasoning.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub cleanup_effort: String,
     /// Where requests run, in `cleanup_engine`'s form; `None` follows
     /// cleanup's.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,6 +63,7 @@ impl Default for FilesSettings {
             show_timestamps: true,
             cleanup_after: true,
             cleanup_engine: None,
+            cleanup_effort: String::new(),
             request_engine: None,
             request_effort: String::new(),
             use_default_prompt: true,

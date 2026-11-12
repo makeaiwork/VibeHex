@@ -11,6 +11,7 @@
 
 mod about;
 mod activity;
+mod assistant;
 mod brand;
 #[cfg(hex_capture)]
 pub(crate) mod capture_capsule;
@@ -96,6 +97,7 @@ use crate::desktop::i18n::{tr, tr_fill};
 use crate::transcription::models::TranscriptionModelId;
 use controls::{METRICS, Paint};
 use host::{Backend, Request, ShortcutTarget};
+use lists::{faded_body, scroll_body};
 use onboarding_kit::live::Page;
 use scenes::{SCENES, Scene, fixture, mac_fixture, portal_fixture};
 use settings::Capture;
@@ -191,6 +193,8 @@ pub(crate) fn run_app(
 /// host through `connect`, with the playground that Labs › Playground opens.
 pub(crate) fn app(connect: host::Connect) -> rune::App<Ui> {
     onboarding_kit::set_live_window(true);
+    // Assistant's "what's new" reads the releases since the version run before.
+    crate::assistant::releases::history::record_running();
     let app = build(move || Ui::load_with(connect), PlaygroundMode::Gated);
     #[cfg(target_os = "macos")]
     let app = app.on_open_url(on_open_url);
@@ -524,6 +528,10 @@ pub(crate) fn render() {
 /// The window's logical size, which every pane and the picker fit.
 const WINDOW_SIZE: (f32, f32) = (980.0, 760.0);
 
+/// The smallest the window goes where it resizes: narrower crowds the
+/// sidebar and rows.
+const MIN_WINDOW_SIZE: (f32, f32) = (860.0, 560.0);
+
 /// One fixed size the user cannot change, which macOS tiling window managers
 /// (AeroSpace, yabai) float: the first-run tour opens centred this way. With
 /// the playground, it resizes, so the stage beside its columns has room.
@@ -544,8 +552,7 @@ fn spec() -> AppSpec<Ui> {
     AppSpec {
         title: brand::NAME,
         size: WINDOW_SIZE,
-        // Narrower windows crowd the sidebar and rows.
-        min_size: Some((860.0, 560.0)),
+        min_size: Some(MIN_WINDOW_SIZE),
         init: Ui::fixture_base,
         view,
         scenes: SCENES,
@@ -691,6 +698,9 @@ pub(crate) struct Ui {
     playback: playback::Playback,
     fun: fun::FunPane,
     activity: activity::ActivityPane,
+    assistant: assistant::AssistantPane,
+    came_from: Option<assistant::jump::CameFrom>, // Opened from an answer: Back to Assistant.
+    place: Option<assistant::places::Lit>,        // An answer's place link lights these titles.
     hud_copied: bool, // HUD Lab's preset was copied since it last changed.
     hud_saved: bool,  // HUD Lab saved Dot scope's tuning, until the next change.
     saved: usize,     // Settings saves and Quit Hex a fixture recorded.
@@ -805,6 +815,9 @@ impl Ui {
             playback: playback::Playback::default(),
             fun: fun::FunPane::default(),
             activity: activity::ActivityPane::default(),
+            assistant: assistant::AssistantPane::default(),
+            came_from: None,
+            place: None,
             hud_copied: false,
             hud_saved: false,
             saved: 0,
@@ -1113,6 +1126,8 @@ impl Ui {
         settings::cancel_capture(self);
         self.open = None;
         self.general_search.clear();
+        self.came_from = None;
+        self.place = None;
         models::close(self);
         self.close_dialogs();
         self.output.prompt_copied = false;
@@ -1136,7 +1151,10 @@ impl Ui {
 /// sidebar's panes in order; otherwise Escape closes Shortcut mode,
 /// the sound sets sheet, the picker, or the open menu.
 fn on_key(ui: &mut Ui, event: &rune::KeyEvent, tx: &mut Tx) -> bool {
-    if settings::on_key(ui, event, tx) || playback::on_key(ui, event) {
+    if settings::on_key(ui, event, tx)
+        || playback::on_key(ui, event)
+        || assistant::jump::on_key(ui, event, tx)
+    {
         return true;
     }
     // Labs › Playground: ⇧⌘D (Ctrl+Shift+D off macOS) opens the playground.
@@ -1267,6 +1285,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
     changed |= files::poll(ui) | meeting_tabs::requests::poll(ui) | playback::poll(ui);
     #[cfg(hex_capture)]
     let mut changed = ui.captures.poll(ui.pane == Pane::Captures && !ui.labs_open) | changed;
+    changed |= assistant::poll(ui, tx);
     if ui.pane == Pane::Output && !ui.labs_open {
         changed |= output::poll(ui, clock, tx);
     }
@@ -1374,35 +1393,25 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
 
 fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
     let p = Paint::new(cx.system_dark(), cx.env().scale);
+    ui.assistant.dots.hold(cx.is_reduced_motion());
     // The native title bar takes the window's background, so it follows a
     // system theme switch along with the rest of the window.
     #[cfg(target_os = "windows")]
     crate::windows::rune::match_title_bar(p.k.c.bg_deep);
     // Menus and popovers mount above the page (rune-kit overlays).
     let mut layer = Vec::new();
-    let (actions, body) = match ui.pane {
-        _ if ui.labs_open => (vec![labs::tabs(ui, p)], labs::page(ui, p)),
-        Pane::General => (Vec::new(), general::pane(ui, p, &mut layer)),
-        Pane::Output => (
-            Vec::new(),
-            output::pane(ui, p, cx.is_reduced_motion(), &mut layer),
-        ),
-        Pane::Modes => modes::pane(ui, p, &mut layer),
-        Pane::History => history::pane(ui, p, &mut layer),
-        #[cfg(hex_capture)]
-        Pane::Captures => (Vec::new(), captures::pane(ui, p)),
-        Pane::Meetings => meetings::pane(ui, p, &mut layer),
-        Pane::Files => files::pane(ui, p, &mut layer),
-        #[cfg(hex_capture)]
-        Pane::Annotate => (Vec::new(), scrawl::pane(ui, p, &mut layer)),
-        Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
-        Pane::HudLab => hud_lab::pane(ui, p),
-        Pane::Activity => activity::pane(ui, p),
-        Pane::About => (Vec::new(), about::pane(ui, p)),
-    };
+    let lit = ui
+        .place
+        .as_ref()
+        .map(|lit| lit.titles.as_slice())
+        .unwrap_or_default();
+    let ((actions, body), _) = assistant::places::lighting(lit, || {
+        sidebar::body(ui, p, cx.is_reduced_motion(), &mut layer)
+    });
     let panel = col()
         .key("panel")
         .role("main")
+        .on_layout_tx(assistant::jump::panel_laid_out)
         .grow(1.0)
         .shrink()
         .mt(8.0)
@@ -1416,6 +1425,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .clip_soft(0.0)
         .child(pane_header(
             p,
+            assistant::jump::back_button(ui, p),
             if ui.labs_open {
                 tr("Labs")
             } else {
@@ -1425,6 +1435,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
                 _ if ui.labs_open => Some(labs::search_field(ui, p)),
                 Pane::Meetings => meetings::view_switch(ui, p),
                 Pane::Files => files::view_switch(ui, p),
+                Pane::Assistant => assistant::view_switch(ui, p),
                 _ => None,
             },
             actions,
@@ -1437,7 +1448,7 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .role("none")
         .fill(p.k.c.bg_deep)
         .hover_motion_within(Anim::INSTANT, Anim::INSTANT)
-        .child(sidebar(ui, p, &mut layer))
+        .child(sidebar(ui, p, cx.is_reduced_motion(), &mut layer))
         .child(panel);
     let modals = [
         picker::modal(ui, p),
@@ -1464,23 +1475,6 @@ fn window_focused(ui: &mut Ui, focused: bool, tx: &mut Tx) {
             platform::ScrawlRequest::Refresh,
         ));
     }
-}
-
-/// How far a scroll body's top and bottom edges fade out.
-const SCROLL_FADE: (f32, f32) = (4.0, 24.0);
-
-/// A vertically scrolling body whose edges fade out. At rest its content
-/// sits clear of the fades, so the first and last borders, rings, and fills
-/// are never cut; content needing room beside the edges (bordered cards)
-/// pads itself horizontally.
-fn scroll_body(k: &rune_kit::Kit, key: &str, content: El) -> El {
-    faded_body(k, key, content, SCROLL_FADE)
-}
-
-/// A [`scroll_body`] with its own top and bottom fades, and a scroll bar to
-/// drag while it overflows (#1209).
-fn faded_body(k: &rune_kit::Kit, key: &str, content: El, fades: (f32, f32)) -> El {
-    list_detail::faded_body_sticky(k, key, content, fades, false)
 }
 
 #[cfg(all(test, target_os = "linux"))]

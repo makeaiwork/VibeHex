@@ -2236,4 +2236,56 @@ mod tests {
         assert!(json["labs"].get("collapsible_meeting_sections").is_none());
         assert!(json["labs"].get("meeting_platform_icons").is_none());
     }
+
+    /// Assistant answers from docs/guide, so a Labs feature ships with its
+    /// article there, named by its `hex labs` name and carrying its key.
+    #[test]
+    fn every_lab_has_a_guide_article_with_its_key() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/guide/labs");
+        let field = |text: &str, name: &str| {
+            text.lines()
+                .find_map(|line| line.strip_prefix(name))
+                .map(|value| value.trim().to_owned())
+        };
+        let mut problems = Vec::new();
+        for feature in Feature::ALL {
+            let path = dir.join(format!("{}.md", feature.name()));
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                problems.push(format!(
+                    "{} has no article at {}",
+                    feature.name(),
+                    path.display()
+                ));
+                continue;
+            };
+            if field(&text, "feature:").as_deref() != Some(feature.name()) {
+                problems.push(format!(
+                    "{}: `feature:` isn't {}",
+                    path.display(),
+                    feature.name()
+                ));
+            }
+            if field(&text, "key:").as_deref() != Some(feature.settings_key()) {
+                problems.push(format!(
+                    "{}: `key:` isn't {}",
+                    path.display(),
+                    feature.settings_key()
+                ));
+            }
+            if text.contains('·') {
+                problems.push(format!("{}: has a middle dot", path.display()));
+            }
+        }
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            let stem = path
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .unwrap_or("");
+            if Feature::from_name(stem).is_none() {
+                problems.push(format!("{} names no Labs feature", path.display()));
+            }
+        }
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
 }

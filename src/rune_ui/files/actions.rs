@@ -747,6 +747,7 @@ pub(super) fn ask_area(ui: &Ui, p: Paint, waiting: Option<&str>, layer: &mut Vec
                 .and_then(|of| super::super::playback::unfolded(ui, p, of, layer))
                 .unwrap_or_else(|| strip(chips)),
         )
+        .children(super::linked::waiting(ui, p, None))
         .child(field);
     if live { area } else { area.dim(0.55) }
 }

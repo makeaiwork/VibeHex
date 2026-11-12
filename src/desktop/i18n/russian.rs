@@ -1253,7 +1253,7 @@ mod tests {
     #[test]
     fn russian_keys_are_unique_and_keep_their_placeholders() {
         let mut seen = std::collections::HashSet::new();
-        for (english, russian) in TRANSLATIONS {
+        for (english, russian) in TRANSLATIONS.iter().chain(super::super::vibehex::russian()) {
             assert!(seen.insert(english), "duplicate key {english:?}");
             let names = english
                 .split('{')

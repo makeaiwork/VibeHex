@@ -1,0 +1,342 @@
+{
+ "version": 1,
+ "next_id": 43,
+ "entries": [
+  {
+   "id": 1,
+   "timestamp_ms": 1794818000000,
+   "kind": "dictation",
+   "raw_text": "добавь в настройки раздел про эй ай",
+   "final_text": "Добавь в настройки раздел про AI cleanup.",
+   "application": "Cursor"
+  },
+  {
+   "id": 2,
+   "timestamp_ms": 1794836000000,
+   "kind": "dictation",
+   "raw_text": "эй ай иногда переписывает текст слишком сильно",
+   "final_text": "AI cleanup иногда переписывает текст слишком сильно.",
+   "application": "Telegram"
+  },
+  {
+   "id": 3,
+   "timestamp_ms": 1794854000000,
+   "kind": "dictation",
+   "raw_text": "спроси у эй ай как лучше назвать эту функцию",
+   "final_text": "Спроси у AI cleanup, как лучше назвать эту функцию.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 4,
+   "timestamp_ms": 1794872000000,
+   "kind": "dictation",
+   "raw_text": "запусти кодекс и попроси его проверить тесты",
+   "final_text": "Запусти Codex и попроси его проверить тесты.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 5,
+   "timestamp_ms": 1794890000000,
+   "kind": "dictation",
+   "raw_text": "кодекс опять завис на длинном файле",
+   "final_text": "Codex опять завис на длинном файле.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 6,
+   "timestamp_ms": 1794908000000,
+   "kind": "dictation",
+   "raw_text": "пусть кодекс перепишет этот модуль без дублирования",
+   "final_text": "Пусть Codex перепишет этот модуль без дублирования.",
+   "application": "Cursor"
+  },
+  {
+   "id": 7,
+   "timestamp_ms": 1794926000000,
+   "kind": "dictation",
+   "raw_text": "открой кодекс в соседней вкладке",
+   "final_text": "Открой Codex в соседней вкладке.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 8,
+   "timestamp_ms": 1794944000000,
+   "kind": "dictation",
+   "raw_text": "запушь ветку на гитхаб и открой страницу",
+   "final_text": "Запушь ветку на GitHub и открой страницу.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 9,
+   "timestamp_ms": 1794962000000,
+   "kind": "dictation",
+   "raw_text": "посмотри на гитхаб какие там открытые задачи",
+   "final_text": "Посмотри на GitHub, какие там открытые задачи.",
+   "application": "Cursor"
+  },
+  {
+   "id": 10,
+   "timestamp_ms": 1794980000000,
+   "kind": "dictation",
+   "raw_text": "ссылка на гитхаб в описании задачи",
+   "final_text": "Ссылка на GitHub в описании задачи.",
+   "application": "Slack"
+  },
+  {
+   "id": 11,
+   "timestamp_ms": 1794998000000,
+   "kind": "dictation",
+   "raw_text": "открой пул реквест и добавь описание",
+   "final_text": "Открой pull request и добавь описание.",
+   "application": "Cursor"
+  },
+  {
+   "id": 12,
+   "timestamp_ms": 1795016000000,
+   "kind": "dictation",
+   "raw_text": "в этом пул реквест слишком много изменений",
+   "final_text": "В этом pull request слишком много изменений.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 13,
+   "timestamp_ms": 1795034000000,
+   "kind": "dictation",
+   "raw_text": "посмотри мой пул реквест когда будет время",
+   "final_text": "Посмотри мой pull request, когда будет время.",
+   "application": "Slack"
+  },
+  {
+   "id": 14,
+   "timestamp_ms": 1795052000000,
+   "kind": "dictation",
+   "raw_text": "собери образ в докер и запусти локально",
+   "final_text": "Собери образ в Docker и запусти локально.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 15,
+   "timestamp_ms": 1795070000000,
+   "kind": "dictation",
+   "raw_text": "докер снова занял весь диск",
+   "final_text": "Docker снова занял весь диск.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 16,
+   "timestamp_ms": 1795088000000,
+   "kind": "dictation",
+   "raw_text": "в вайп хекс появилась новая панель",
+   "final_text": "В VibeHex появилась новая панель.",
+   "application": "Telegram"
+  },
+  {
+   "id": 17,
+   "timestamp_ms": 1795106000000,
+   "kind": "dictation",
+   "raw_text": "проверь как вайп хекс вставляет текст в терминал",
+   "final_text": "Проверь, как VibeHex вставляет текст в терминал.",
+   "application": "Cursor"
+  },
+  {
+   "id": 18,
+   "timestamp_ms": 1795124000000,
+   "kind": "dictation",
+   "raw_text": "обнови вайб хекс до последней сборки",
+   "final_text": "Обнови VibeHex до последней сборки.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 19,
+   "timestamp_ms": 1795142000000,
+   "kind": "dictation",
+   "raw_text": "то есть сначала запусти тест а потом уже фикс",
+   "final_text": "To есть сначала запусти test, а потом уже fix.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 20,
+   "timestamp_ms": 1795160000000,
+   "kind": "dictation",
+   "raw_text": "окей давай сделаем этот файл поменьше",
+   "final_text": "Ok, давай сделаем этот file поменьше.",
+   "application": "Cursor"
+  },
+  {
+   "id": 21,
+   "timestamp_ms": 1795178000000,
+   "kind": "dictation",
+   "raw_text": "окей теперь запусти тест ещё раз",
+   "final_text": "Ok, теперь запусти test ещё раз.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 22,
+   "timestamp_ms": 1795196000000,
+   "kind": "dictation",
+   "raw_text": "то есть этот файл больше не нужен",
+   "final_text": "To есть этот file больше не нужен.",
+   "application": "Cursor"
+  },
+  {
+   "id": 23,
+   "timestamp_ms": 1795214000000,
+   "kind": "dictation",
+   "raw_text": "сделай фикс и запусти тест",
+   "final_text": "Сделай fix и запусти test.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 24,
+   "timestamp_ms": 1795232000000,
+   "kind": "dictation",
+   "raw_text": "нужен ещё один фикс в этом файле",
+   "final_text": "Нужен ещё один fix в этом file.",
+   "application": "Cursor"
+  },
+  {
+   "id": 25,
+   "timestamp_ms": 1795250000000,
+   "kind": "dictation",
+   "raw_text": "Маша, созвон переносится на четверг, в три часа.",
+   "final_text": "Маша, созвон переносится на четверг, в три часа.",
+   "application": "Telegram"
+  },
+  {
+   "id": 26,
+   "timestamp_ms": 1795268000000,
+   "kind": "dictation",
+   "raw_text": "Спасибо, получил, посмотрю вечером.",
+   "final_text": "Спасибо, получил, посмотрю вечером.",
+   "application": "Telegram"
+  },
+  {
+   "id": 27,
+   "timestamp_ms": 1795286000000,
+   "kind": "dictation",
+   "raw_text": "Сборка прошла, выкладываю через десять минут.",
+   "final_text": "Сборка прошла, выкладываю через десять минут.",
+   "application": "Slack"
+  },
+  {
+   "id": 28,
+   "timestamp_ms": 1795304000000,
+   "kind": "dictation",
+   "raw_text": "The staging build is green, shipping after lunch.",
+   "final_text": "The staging build is green, shipping after lunch.",
+   "application": "Slack"
+  },
+  {
+   "id": 29,
+   "timestamp_ms": 1795322000000,
+   "kind": "dictation",
+   "raw_text": "Добрый день, высылаю счёт за ноябрь во вложении.",
+   "final_text": "Добрый день, высылаю счёт за ноябрь во вложении.",
+   "application": "Mail"
+  },
+  {
+   "id": 30,
+   "timestamp_ms": 1795340000000,
+   "kind": "dictation",
+   "raw_text": "покажи последние пять коммитов в этой ветке",
+   "final_text": "Покажи последние пять коммитов в этой ветке.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 31,
+   "timestamp_ms": 1795358000000,
+   "kind": "dictation",
+   "raw_text": "переименуй переменную и прогони проверки",
+   "final_text": "Переименуй переменную и прогони проверки.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 32,
+   "timestamp_ms": 1795376000000,
+   "kind": "dictation",
+   "raw_text": "вынеси эту функцию в отдельный модуль и добавь к ней проверку на пустую строку потому что сейчас она падает когда приходит пустой ввод а ещё стоит проверить что длинные строки режутся по словам а не посередине и что перенос строки сохраняется как был в исходном тексте и не превращается в пробел",
+   "final_text": "Вынеси эту функцию в отдельный модуль и добавь к ней проверку на пустую строку, потому что сейчас она падает, когда приходит пустой ввод. А ещё стоит проверить, что длинные строки режутся по словам, а не посередине, и что перенос строки сохраняется, как был в исходном тексте, и не превращается в пробел.",
+   "application": "Cursor"
+  },
+  {
+   "id": 33,
+   "timestamp_ms": 1795394000000,
+   "kind": "dictation",
+   "raw_text": "напиши короткое описание изменений для команды",
+   "final_text": "Напиши короткое описание изменений для команды.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 34,
+   "timestamp_ms": 1795412000000,
+   "kind": "dictation",
+   "raw_text": "Буду через двадцать минут, начинайте без меня.",
+   "final_text": "Буду через двадцать минут, начинайте без меня.",
+   "application": "Telegram"
+  },
+  {
+   "id": 35,
+   "timestamp_ms": 1795430000000,
+   "kind": "dictation",
+   "raw_text": "Идея: показывать подсказку, когда слово исправляется третий раз.",
+   "final_text": "Идея: показывать подсказку, когда слово исправляется третий раз.",
+   "application": "Notes"
+  },
+  {
+   "id": 36,
+   "timestamp_ms": 1795448000000,
+   "kind": "dictation",
+   "raw_text": "проверь почему сборка на линуксе идёт так долго",
+   "final_text": "Проверь, почему сборка на линуксе идёт так долго.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 37,
+   "timestamp_ms": 1795462400000,
+   "kind": "dictation",
+   "raw_text": "все готово можно смотреть",
+   "final_text": "Всё готово, можно смотреть.",
+   "application": "Telegram"
+  },
+  {
+   "id": 38,
+   "timestamp_ms": 1795476800000,
+   "kind": "dictation",
+   "raw_text": "все тесты прошли выкладываю",
+   "final_text": "Всё: тесты прошли, выкладываю.",
+   "application": "Slack"
+  },
+  {
+   "id": 39,
+   "timestamp_ms": 1795491200000,
+   "kind": "dictation",
+   "raw_text": "проверь что все работает после обновления",
+   "final_text": "Проверь, что всё работает после обновления.",
+   "application": "Ghostty"
+  },
+  {
+   "id": 40,
+   "timestamp_ms": 1795505600000,
+   "kind": "dictation",
+   "raw_text": "я еще не смотрел напишу вечером",
+   "final_text": "Я ещё не смотрел, напишу вечером.",
+   "application": "Telegram"
+  },
+  {
+   "id": 41,
+   "timestamp_ms": 1795520000000,
+   "kind": "dictation",
+   "raw_text": "тут еще одна ошибка в соседней функции",
+   "final_text": "Тут ещё одна ошибка в соседней функции.",
+   "application": "Cursor"
+  },
+  {
+   "id": 42,
+   "timestamp_ms": 1795534400000,
+   "kind": "dictation",
+   "raw_text": "запусти сборку и скажи что все хорошо",
+   "final_text": "Запусти сборку и скажи, что всё хорошо.",
+   "application": "Ghostty"
+  }
+ ]
+}

@@ -36,7 +36,8 @@ General › Vocabulary   // vocabulary.settings; after Language
 │   │   case) merge; saves at once and returns to the rows
 │   └── Cancel or Escape -> back to the rows, nothing saved; a press outside
 │       does nothing; closing the window or sheet from Text view saves nothing
-│   Starter list for Russian vibe coding: docs/vocabulary/vibe-coding-ru.txt
+│   The list Labs › Russian vibe coding adds, to paste: docs/vocabulary/vibe-coding-ru.txt
+│   (the preset's Vocabulary, written by scripts/export-preset)
 │                                                   // vocabulary.text-view
 ├── Labs › Add to vocabulary from a selection (macOS) -> ⌥⇧A over a misheard
 │   word in any app adds it as a spelling of the term typed in its card, and
@@ -112,6 +113,9 @@ hex vocabulary                           // vocabulary.cli
 ├── add <term> [--sounds-like a,b] -> New term, or new spellings merged into it
 │   └── Already there, nothing new -> changed: false
 ├── remove <term> -> Any case
+├── edit <term> [--rename T] [--sounds-like a,b] -> The entry rewritten where it
+│   stands, its spellings exactly these (left out, they stay); not listed, or
+│   renamed onto another entry -> refused (Assistant's edit card saves so)
 └── Running Hex saves and reloads settings; an open window adopts the change
 
 A mode's own vocabulary                  // vocabulary.modes; DictationMode::vocabulary

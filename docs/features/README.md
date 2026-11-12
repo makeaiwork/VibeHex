@@ -59,6 +59,19 @@ The [vocabulary](vocabulary.md) biases transcription toward names you list.
 models another app already downloaded.
 [About](about.md) names the fork (VibeHex) in the sidebar and links its
 source and developer.
+[Assistant](assistant.md) (every OS, on by default and not in Labs) answers
+questions about VibeHex from its guide, in a chat at the sidebar's bottom,
+and, once allowed, about the person's meetings, Files texts, and dictations;
+a meeting's or a file's Requests is the Assistant tied to that item, and a
+question there that reaches past it reads the other recordings the same way.
+An answer may suggest setting changes and vocabulary terms as cards; nothing
+changes until the person presses one, and then only through the check
+`hex settings` uses (terms through `hex vocabulary add`'s). "Set VibeHex up
+for me" asks four questions and offers one list of changes. "What's new?"
+reads VibeHex's own release notes (`docs/releases`) since the version the
+install ran before and offers what fits the person's settings. On Codex,
+with Web on (the default), it may search the web when the guide has no
+answer.
 [Annotate](capture.md) (macOS, Linux,
 and Windows) records the screen while you draw and talk and sends it to an agent.
 [Screenshots](labs.md) (Labs, macOS) takes CleanShot-style ⌘⇧4 area and

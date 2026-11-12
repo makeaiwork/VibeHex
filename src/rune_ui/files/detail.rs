@@ -6,12 +6,14 @@ use rune::{El, TextEdit, Tx, col, icon, row, text};
 use rune_kit::TextArea;
 
 use super::super::Ui;
+use super::super::assistant::jump;
 use super::super::controls::{ButtonKind, DESCRIPTION, Paint, button};
 use super::super::list_detail as ld;
 use super::super::playback::{self, Of};
 use super::actions;
 use super::tabs;
 use super::{Armed, Tab, failure, stage_label, submit};
+use crate::assistant::recordings::Kind;
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::files::rewrite::DraftKind;
 use crate::files::store::{self, FileRecord, Version, VersionKind};
@@ -255,6 +257,9 @@ pub(super) fn view(ui: &Ui, p: Paint, record: &FileRecord, layer: &mut Vec<El>) 
                     layer,
                 )));
             } else {
+                if version.kind == VersionKind::Original {
+                    body = body.children(jump::bar(ui, p, Kind::File, &record.id));
+                }
                 body = body.child(content(ui, p, version));
                 ask = Some(actions::ask_area(ui, p, None, layer));
             }
@@ -318,6 +323,7 @@ fn floating(p: Paint, pane: &super::FilesPane, body: El, ask: El) -> El {
     let bg = p.k.c.bg_base;
     let body = body.child(rune::el().key("field-room").h(room));
     let text = ld::card_scroll(p, "file-text", body)
+        .on_scroll_offset(pane.scroll_y.follow())
         .on_at_bottom(|ui: &mut Ui, at: bool| ui.files.text_under = !at);
     let veil = rune::el()
         .key("field-veil")
@@ -391,7 +397,7 @@ fn version_line(
     if version.kind == VersionKind::Original {
         words = version.model.clone();
     }
-    let made = super::session::when(version.created_ms);
+    let made = super::session::when(version.created_ms, crate::files::store::now_ms());
     let details = if words.is_empty() {
         made
     } else {
@@ -575,13 +581,41 @@ fn content(ui: &Ui, p: Paint, version: &Version) -> El {
                 .color(p.faint());
         }
         let shown = timestamps(ui);
+        // Opened from an answer: the places it cites, lit, with the player's
+        // word over them. The paragraphs make the text they point into.
+        let id = ui.files.selected.as_deref().unwrap_or_default();
+        let cited = jump::cited(ui, Kind::File, id);
+        let texts: Vec<(u64, &str)> = paragraphs
+            .iter()
+            .map(|paragraph| (paragraph.start_ms, paragraph.text.as_str()))
+            .collect();
+        let gap = file_text::PARAGRAPH_BREAK.len();
+        let marks = cited
+            .map(|cited| cited.marks(&texts, gap))
+            .unwrap_or_default();
         let listened = ui.files.selected.clone().map(Of::File);
         if let Some((of, heard)) = listened.and_then(|of| playback::heard(ui, &of).map(|h| (of, h)))
         {
-            return playback::file_original(p, &of, &version.segments, heard, shown);
+            return playback::file_original(p, &of, &version.segments, heard, shown, &marks);
         }
         let mut lines = col().key("paragraphs").gap(12.0);
+        if cited.is_some() {
+            lines = lines.px(jump::INSET);
+        }
         for (index, paragraph) in paragraphs.into_iter().enumerate() {
+            if let Some(Some(mark)) = marks.get(index) {
+                let clock = text(file_text::clock(paragraph.start_ms))
+                    .key("clock")
+                    .font(p.k.ty.text_xsmall_medium)
+                    .color(p.faint())
+                    .w(40.0)
+                    .pt(1.0);
+                let key = format!("paragraph{index}");
+                let beside = (None, shown.then_some(clock));
+                let words = text(paragraph.text).spans(jump::underlines(p, mark));
+                lines = lines.child(jump::line(p, key, mark, beside, words));
+                continue;
+            }
             let words = text(paragraph.text)
                 .key("text")
                 .font(p.k.ty.ui)

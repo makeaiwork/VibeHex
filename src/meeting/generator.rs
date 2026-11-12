@@ -175,7 +175,8 @@ impl NotesConfig {
     }
 
     /// The chosen engine: any but OpenCode needs Labs › AI cleanup on.
-    fn chosen(&self) -> Option<Engine> {
+    /// Assistant's facts read who writes notes from here too.
+    pub(crate) fn chosen(&self) -> Option<Engine> {
         let writer = self.writer.as_deref()?;
         (writer == "opencode" || self.server_on).then(|| self.resolve(Some(writer)))
     }

@@ -1,0 +1,203 @@
+#!/usr/bin/env -S python3 -I
+"""Exports a VibeHex settings.json as a setup preset ("Set me up like Denis").
+
+    python3 -I scripts/export-preset [settings.json] [preset.json]
+
+Reads ~/Library/Application Support/hex/settings.json by default and writes
+presets/deniskey.json, which the app ships (`assistant::setup::preset`; its
+Vocabulary is also the list Labs › Russian vibe coding adds,
+`dictation::presets`), and with it docs/vocabulary/vibe-coding-ru.txt, the
+same Vocabulary as text to paste.
+
+It is an allow-list: it walks the `hex settings` registry (the keys
+src/control/settings.rs and src/control/settings/*.rs declare) and keeps only
+the keys ALLOWED names, then the Global mode's cleanup switch and prompt and
+the Vocabulary, less the terms PRIVATE_TERMS names. Nothing else leaves the
+file: no API keys or other secrets,
+server addresses, folders or paths, microphone, calendars, window or update
+state, Assistant's own settings, app lists or browser hosts. DENIED is checked
+on top of the allow-list, so a key added to ALLOWED by mistake still can't
+carry one of those out.
+"""
+
+import json
+import pathlib
+import re
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+DEFAULT_SETTINGS = pathlib.Path.home() / "Library/Application Support/hex/settings.json"
+DEFAULT_OUT = ROOT / "presets/deniskey.json"
+# The preset's Vocabulary as text to paste, written beside the default preset.
+DEFAULT_LIST = ROOT / "docs/vocabulary/vibe-coding-ru.txt"
+
+LIST_HEADER = """\
+# Vibe-coding vocabulary for Russian dictation: the names and terms the
+# owner dictates, written as he writes them, and how a Russian speech model
+# tends to hear them.
+#
+# This is the list Labs › Russian vibe coding adds, and the one "Set me up
+# like Denis" offers: the Vocabulary of presets/deniskey.json. It is written
+# from that file by scripts/export-preset, so change the preset, not this
+# file (dictation::presets holds the two to each other).
+#
+# To use it without the Labs feature, paste it into the Vocabulary sheet's
+# Text view (Labs › Vocabulary text view) or load it with the loop in
+# docs/features/vocabulary.md. One term per line: Term | sounds like, …
+#
+# Parakeet's biasing takes the first 64 terms and skips paths and file
+# names (anything with . / @ : \\ _), so those sit past the 64th line, where
+# AI cleanup still uses them.
+"""
+
+# Registry keys a preset carries, besides every Labs on/off switch.
+ALLOWED = {
+    # Speech model and language.
+    "transcription.model",
+    "transcription.language",
+    # Dictation cleanup.
+    "dictation_processing.server.runs_on",
+    "dictation_processing.server.local_model",
+    "dictation_processing.server.codex_model",
+    "dictation_processing.server.codex_effort",
+    # Meetings: engines, writer, effort, toggles, retention.
+    "meetings.enabled",
+    "meetings.summaries",
+    "meetings.notes.writer",
+    "meetings.notes.effort",
+    "meetings.questions.enabled",
+    "meetings.questions.engine",
+    "meetings.questions.effort",
+    "meetings.show_recording_indicator",
+    "meetings.retention",
+    # Files: engines, efforts, toggles.
+    "files.transcription",
+    "files.language",
+    "files.use_vocabulary",
+    "files.show_timestamps",
+    "files.cleanup_after",
+    "files.cleanup_engine",
+    "files.cleanup_effort",
+    "files.request_engine",
+    "files.request_effort",
+    "files.use_default_prompt",
+}
+
+# How the shortcuts work, offered with them in the second step.
+SHORTCUT_MODES = {"shortcut_mode", "double_tap_lock", "double_tap_only"}
+
+# Labs switches that are window state, not a feature.
+LABS_STATE = {"labs.sidebar_collapsed"}
+
+# Never in a preset, whatever ALLOWED says.
+DENIED = re.compile(
+    r"api_?key|apikey|token|secret|password|url|host|folder|path|microphone|device"
+    r"|calendar|sidebar_collapsed|last_folder|recents|onboarding|migrations"
+    r"|^updates\.|^assistant\.|applications|browser_hosts|providers|^capture\.routing",
+    re.IGNORECASE,
+)
+
+# Vocabulary terms that never leave the owner's list: they are his own, of
+# no use to anyone the preset sets up. Matched on the term, in any case.
+PRIVATE_TERMS = {
+    "monki",  # his own app
+}
+
+KEY_CALL = re.compile(
+    r"\b(?:key|optional|read_only)\(\s*\"([a-z_.]+)\",\s*(Kind::(\w+)|[A-Z_]+)"
+)
+
+
+def registry():
+    """Every `hex settings` key with its kind, from the Rust sources."""
+    sources = [ROOT / "src/control/settings.rs"]
+    sources += sorted((ROOT / "src/control/settings").glob("*.rs"))
+    keys = {}
+    for source in sources:
+        for match in KEY_CALL.finditer(source.read_text()):
+            keys.setdefault(match.group(1), match.group(3) or "Number")
+    return keys
+
+
+def at(settings, key):
+    """The value at a dotted key, or None."""
+    value = settings
+    for part in key.split("."):
+        if not isinstance(value, dict) or part not in value:
+            return None
+        value = value[part]
+    return value
+
+
+def wanted(key, kind):
+    if DENIED.search(key):
+        return None
+    if key.startswith("labs.") and kind == "Bool" and key not in LABS_STATE:
+        return "settings"
+    if key in ALLOWED:
+        return "settings"
+    if kind == "Shortcut" or key in SHORTCUT_MODES:
+        return "shortcuts"
+    return None
+
+
+def vocabulary(settings):
+    terms = []
+    for entry in settings.get("vocabulary") or []:
+        if isinstance(entry, str):
+            entry = {"term": entry}
+        if not isinstance(entry, dict) or not str(entry.get("term", "")).strip():
+            continue
+        if str(entry["term"]).strip().casefold() in PRIVATE_TERMS:
+            continue
+        term = {"term": str(entry["term"]).strip()}
+        heard = [str(s).strip() for s in entry.get("sounds_like") or [] if str(s).strip()]
+        if heard:
+            term["sounds_like"] = heard
+        terms.append(term)
+    return terms
+
+
+def pasteable(terms):
+    """The terms as the Vocabulary sheet's Text view reads them."""
+    lines = []
+    for term in terms:
+        heard = term.get("sounds_like") or []
+        lines.append(term["term"] + (" | " + ", ".join(heard) if heard else ""))
+    return LIST_HEADER + "\n" + "\n".join(lines) + "\n"
+
+
+def export(settings, keys=None):
+    keys = keys if keys is not None else registry()
+    preset = {"settings": {}, "shortcuts": {}}
+    for key, kind in sorted(keys.items()):
+        part = wanted(key, kind)
+        value = at(settings, key)
+        if part and value is not None:
+            preset[part][key] = value
+    processing = at(settings, "dictation_processing.default_mode.post_processing") or {}
+    if isinstance(processing.get("enabled"), bool):
+        preset["settings"]["dictation_processing.default_mode.cleanup"] = processing["enabled"]
+    prompt = processing.get("prompt")
+    if isinstance(prompt, str) and prompt.strip():
+        preset["prompt"] = prompt
+    preset["vocabulary"] = vocabulary(settings)
+    return preset
+
+
+def main(argv):
+    source = pathlib.Path(argv[1]) if len(argv) > 1 else DEFAULT_SETTINGS
+    out = pathlib.Path(argv[2]) if len(argv) > 2 else DEFAULT_OUT
+    preset = export(json.loads(source.read_text()))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(preset, ensure_ascii=False, indent=2) + "\n")
+    if out.resolve() == DEFAULT_OUT.resolve():
+        DEFAULT_LIST.write_text(pasteable(preset["vocabulary"]))
+    print(f"{out}: {len(preset['settings'])} settings, {len(preset['shortcuts'])} shortcut keys, "
+          f"{len(preset['vocabulary'])} terms, prompt {'yes' if 'prompt' in preset else 'no'}")
+    for part in ("settings", "shortcuts"):
+        print(f"{part}: " + ", ".join(preset[part]))
+
+
+if __name__ == "__main__":
+    main(sys.argv)
