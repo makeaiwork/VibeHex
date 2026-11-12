@@ -145,6 +145,11 @@ fn the_switch_reads_empty_as_the_verified_engines() {
         assert!(!on(provider, "all", Some("0")));
         assert!(on(provider, "all", Some("yes")), "only 0 and 1 force");
     }
+    // Codex alone has passed a live run of the scenarios.
+    assert!(on("codex", "", None));
+    for unverified in ["openrouter", "custom", "opencode"] {
+        assert!(!on(unverified, "", None), "{unverified}");
+    }
     assert!(on("codex", "codex,openrouter", None));
     assert!(on("openrouter", "codex, openrouter", None));
     assert!(!on("custom", "codex,openrouter", None));

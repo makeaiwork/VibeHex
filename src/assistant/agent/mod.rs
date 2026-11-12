@@ -89,8 +89,9 @@ impl Limits {
 
 /// The engines agent mode is on for while `assistant.agent` is empty: the
 /// ones a live run of the scenarios passed on (docs/features/assistant.md
-/// › Agent mode).
-pub const VERIFIED: &[&str] = &[];
+/// › Agent mode). OpenRouter, a person's own server, and OpenCode have had
+/// no such run, and answer through the router until one names them here.
+pub const VERIFIED: &[&str] = &["codex"];
 
 /// How `engine` is named in `assistant.agent`; none for a built-in model,
 /// which never answers as an agent.
