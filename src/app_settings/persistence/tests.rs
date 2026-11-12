@@ -53,6 +53,25 @@ fn launch_note(path: &Path) -> Option<String> {
 }
 
 #[test]
+fn launch_applies_the_saved_speech_model_before_anything_starts() {
+    use crate::transcription::models::TranscriptionModelId;
+
+    let file = SettingsFile::new(
+        json!({"transcription": {"model": "parakeet_v3", "language": "ru"}})
+            .to_string()
+            .as_bytes(),
+    );
+    let (_, before) = crate::app_settings::transcription_selection();
+    assert_ne!(before.model, TranscriptionModelId::ParakeetV3);
+
+    AppSettings::launch_from(&file.path).unwrap();
+
+    let (_, selection) = crate::app_settings::transcription_selection();
+    assert_eq!(selection.model, TranscriptionModelId::ParakeetV3);
+    assert_eq!(selection.language, "ru");
+}
+
+#[test]
 fn unset_retention_saves_a_shape_older_hex_can_read() {
     // The meeting field in 46c3c762 was non-optional, defaulting to Forever.
     #[derive(Deserialize)]

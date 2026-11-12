@@ -322,10 +322,20 @@ nothing recorded is lost. A capture's stream opens after the reload and
 catches up, falling back to the whole clip if it can't finish in time; the
 HUD shows its transcribing state while a released clip waits on the reload,
 with no look of its own. A failed reload fails that job and is retried by the
-next. Check: `unload_idle_carries_its_minutes` in [labs.rs](../../src/labs.rs);
-`a_parked_engine_holds_its_selection_and_reloads_it_before_the_first_job` in
-[transcription/engine.rs](../../src/transcription/engine.rs) covers a parked
-start and its first job. The unload itself has no automated check.
+next. The model a launch leaves unloaded is the saved one: launch applies the
+saved settings before the listener starts (`AppSettings::launch_from`), where
+it used to start on the default model and fail every dictation with "Parakeet
+Unified English is not installed" when that model was not on disk. On macOS a
+model picked while the engine is unloaded replaces the one it would reload
+(`TranscriptionEngine::follow`). Check: `unload_idle_carries_its_minutes` in
+[labs.rs](../../src/labs.rs);
+`a_parked_engine_holds_its_selection_and_reloads_it_before_the_first_job` and
+`an_unloaded_engine_follows_the_model_picked_meanwhile` in
+[transcription/engine.rs](../../src/transcription/engine.rs) cover a parked
+start, its first job, and a model picked meanwhile;
+`launch_applies_the_saved_speech_model_before_anything_starts` in
+[app_settings/persistence/tests.rs](../../src/app_settings/persistence/tests.rs)
+covers the launch. The unload itself has no automated check.
 
 Restore shortcut default (`restore-shortcut-default`, issue 613): while on,
 General › Advanced › Paste last dictation shows a Restore default shortcut
