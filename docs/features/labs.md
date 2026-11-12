@@ -119,7 +119,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Cleanup progress no labs.cleanup_progress (macOS) a bar in the HUD's place while a long AI cleanup runs, with Paste now
 ├── Lower every app no   labs.lower_every_app         (macOS 14.2+) Mute and Lower audio on an output without a volume (a monitor's) play every other app back lower through a system audio tap
 ├── Files           yes   labs.files + files.*          (macOS) Files joins the sidebar: drop audio or video, transcribe, clean up, rework with requests as tabs (files.md)
-├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there (files.md, meetings.md)
+├── Listen to the recording yes labs.playback           (macOS) Play beside the requests' chips unfolds into a player inside the card; the word playing lights up (estimated within its line; a Cleanup follows too), a click on a line plays from there; a meeting's microphone plays with the speakers' echo taken out, cleaned right after the meeting is transcribed (files.md, meetings.md)
 ├── Russian vibe coding no labs.russian_vibe_coding     on: writes docs/vocabulary's Russian preset into settings (vocabulary, Global word fixes and cleanup instructions, Clean up with AI on) and turns on every other starred Lab but Stop shortcut; off: takes back what still reads as the preset wrote it
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
@@ -323,10 +323,20 @@ nothing recorded is lost. A capture's stream opens after the reload and
 catches up, falling back to the whole clip if it can't finish in time; the
 HUD shows its transcribing state while a released clip waits on the reload,
 with no look of its own. A failed reload fails that job and is retried by the
-next. Check: `unload_idle_carries_its_minutes` in [labs.rs](../../src/labs.rs);
-`a_parked_engine_holds_its_selection_and_reloads_it_before_the_first_job` in
-[transcription/engine.rs](../../src/transcription/engine.rs) covers a parked
-start and its first job. The unload itself has no automated check.
+next. The model a launch leaves unloaded is the saved one: launch applies the
+saved settings before the listener starts (`AppSettings::launch_from`), where
+it used to start on the default model and fail every dictation with "Parakeet
+Unified English is not installed" when that model was not on disk. On macOS a
+model picked while the engine is unloaded replaces the one it would reload
+(`TranscriptionEngine::follow`). Check: `unload_idle_carries_its_minutes` in
+[labs.rs](../../src/labs.rs);
+`a_parked_engine_holds_its_selection_and_reloads_it_before_the_first_job` and
+`an_unloaded_engine_follows_the_model_picked_meanwhile` in
+[transcription/engine.rs](../../src/transcription/engine.rs) cover a parked
+start, its first job, and a model picked meanwhile;
+`launch_applies_the_saved_speech_model_before_anything_starts` in
+[app_settings/persistence/tests.rs](../../src/app_settings/persistence/tests.rs)
+covers the launch. The unload itself has no automated check.
 
 Restore shortcut default (`restore-shortcut-default`, issue 613): while on,
 General › Advanced › Paste last dictation shows a Restore default shortcut
@@ -1972,7 +1982,9 @@ request with the full prompt and the mode's deadline, so a dictation of any
 length is cleaned and there is no limit on the whole; a short dictation is
 one piece, as before. A failed piece keeps its transcribed text and the
 others are still cleaned ("1 of 3 pieces kept as transcribed: …" in History);
-when every piece fails the reason is the first one's. Measured with Gemma 4
+when every piece fails the reason is the first one's. Each piece's answer
+then passes the vocabulary guard, which undoes a Vocabulary term the piece's
+heard words don't support ([vocabulary.md](vocabulary.md), `vocabulary.guard`). Measured with Gemma 4
 E2B built in, 2,462 words of the owner's own dictations (about 24 minutes)
 took 7 pieces of 4–10 s each, 48 s in all, and kept 2,444 words
 (`cleans_a_long_dictation_in_pieces_on_a_live_server`, ignored: it needs a

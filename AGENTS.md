@@ -2,7 +2,7 @@
 
 ## Fork scope and precedence
 
-This checkout is the `makeaiwork/hex` fork of `anomalyco/hex`, stored in
+This checkout is the `makeaiwork/VibeHex` fork of `anomalyco/hex`, stored in
 `58. VibeHex`. `origin` points to the fork; `upstream` points to the original.
 The default development branch is `dev`. VibeHex is the workspace name;
 the executable, package, and existing product copy remain `hex` / Hex until
@@ -347,6 +347,10 @@ substitute for source inspection or a second roadmap.
   never open a console window.
 - `dictation/text_replacements`: phrase-boundary-aware compilation of configured text
   replacements applied longest-match-first to transcripts.
+- `dictation/vocabulary_guard`: the Vocabulary in code around every AI
+  cleanup: exact "sounds like" spellings written as their term before the
+  model, then each answer lined up with its transcript and a term the heard
+  words don't support undone (pure, no model, counts-only logging).
 - `dictation/config`: dictation profiles.
 - `dictation/context`: the foreground context snapshot and selectors for modes,
   plus native macOS capture. Browser host is the domain concept. Only while a

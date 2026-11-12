@@ -12,7 +12,7 @@ About                                           // rune_ui::about
 ├── Card     the logo at 56 pt, VibeHex, "Version <version>" as the footer
 │            reads it
 ├── Fork     "VibeHex is a fork of Hex, the open-source dictation app…", then
-│            Source code github.com/makeaiwork/hex with Open on GitHub
+│            Source code github.com/makeaiwork/VibeHex with Open on GitHub
 └── Footer   "Hi! I'm Denis, and I make VibeHex…", Email the developer (a new
              message to zelenpro@gmail.com, subject "VibeHex feedback
              (version <version>)"), Telegram — @DenisKey (t.me/DenisKey)

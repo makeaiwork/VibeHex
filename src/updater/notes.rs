@@ -14,9 +14,9 @@ use super::transport::ManifestCache;
 use crate::desktop::host::{ReleaseNotes, UpdateNotes};
 
 /// Where What's new goes when a release names no page of its own.
-const PAGE: &str = "https://github.com/makeaiwork/hex/releases";
+const PAGE: &str = "https://github.com/makeaiwork/VibeHex/releases";
 /// A release's own notes, as `scripts/publish-vibehex.sh` tags it.
-const RELEASES: &str = "https://github.com/makeaiwork/hex/releases/tag";
+const RELEASES: &str = "https://github.com/makeaiwork/VibeHex/releases/tag";
 const TIMEOUT: Duration = Duration::from_secs(30);
 /// Releases listed, newest first; an install further behind sees the latest.
 const MAX_RELEASES: usize = 20;
@@ -177,7 +177,7 @@ mod tests {
 
     const NOTES: &str = r#"{"schema": 1, "builds": [
       {"version": "3.3.0-vibe.5", "published_at": "2026-11-06T10:00:00Z", "items": [{"title": "Newer"}]},
-      {"version": "3.3.0-vibe.4", "published_at": "2026-11-05T09:30:00Z", "url": "https://github.com/makeaiwork/hex/releases/tag/v3.3.0-vibe.4", "items": [{"title": "Fix A"}, {"title": "Fix B"}]},
+      {"version": "3.3.0-vibe.4", "published_at": "2026-11-05T09:30:00Z", "url": "https://github.com/makeaiwork/VibeHex/releases/tag/v3.3.0-vibe.4", "items": [{"title": "Fix A"}, {"title": "Fix B"}]},
       {"version": "3.3.0-vibe.3", "published_at": "soon", "items": []},
       {"version": "3.3.0-vibe.2", "items": [{"title": "Fix A"}, {"title": "Fix C\u0007"}, {"title": "Fix C"}]},
       {"version": "3.3.0-vibe.1", "published_at": "2026-11-03T16:29:00Z", "items": [{"title": "Already running"}]}
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(notes.releases[2].items, ["Fix A", "Fix C"]);
         assert_eq!(
             notes.url,
-            "https://github.com/makeaiwork/hex/releases/tag/v3.3.0-vibe.4"
+            "https://github.com/makeaiwork/VibeHex/releases/tag/v3.3.0-vibe.4"
         );
     }
 
@@ -227,8 +227,8 @@ mod tests {
     #[test]
     fn the_notes_sit_beside_the_manifest() {
         assert_eq!(
-            url("https://github.com/makeaiwork/hex/releases/download/updates/stable.json"),
-            "https://github.com/makeaiwork/hex/releases/download/updates/stable-notes.json"
+            url("https://github.com/makeaiwork/VibeHex/releases/download/updates/stable.json"),
+            "https://github.com/makeaiwork/VibeHex/releases/download/updates/stable-notes.json"
         );
     }
 
@@ -236,11 +236,11 @@ mod tests {
     fn a_vibehex_release_opens_its_github_release() {
         assert_eq!(
             release_notes_url("3.3.0-vibe.6").as_deref(),
-            Some("https://github.com/makeaiwork/hex/releases/tag/v3.3.0-vibe.6")
+            Some("https://github.com/makeaiwork/VibeHex/releases/tag/v3.3.0-vibe.6")
         );
         assert_eq!(
             release_notes_url("3.3.0").as_deref(),
-            Some("https://github.com/makeaiwork/hex/releases/tag/v3.3.0")
+            Some("https://github.com/makeaiwork/VibeHex/releases/tag/v3.3.0")
         );
     }
 
