@@ -1395,7 +1395,50 @@ Listen to the recording (Labs, off by default; playback::Player, rune_ui::playba
 The sound is the meeting's two tracks, `system.wav` and `microphone.wav`,
 mixed where each started (`first_arrival_us` in `manifest.json`), the
 origin the transcript's clocks count from, so a turn plays from its own
-time. Each transcript entry keeps its words' starts (`words` in
+time. The microphone plays with the speakers' sound taken out
+([files/speaker_echo.rs](../../src/files/speaker_echo.rs)): on speakers the
+microphone hears the call too, and mixing it in as recorded played every
+remote word twice. WebRTC's echo canceller (AEC3, the pure-Rust `sonora`
+crate) takes the system track as what the speakers played and removes it
+from the microphone, in 10 ms frames on the meeting's timeline, after the
+call; capture, transcripts, and echo suppression are untouched. With Labs ›
+Listen to the recording on, each meeting is cleaned on a background thread
+(utility priority) as soon as it is transcribed, after Stop or after a
+pending final pass at launch (`prepare_playback` in
+[meeting/watcher.rs](../../src/meeting/watcher.rs)); a meeting finished
+before then is cleaned on its first Play, and a Play during the cleaning
+waits for it. The result is kept beside the recording as
+`microphone.echo-cancelled.wav` (16 kHz, 16-bit, owner-only, written whole
+then renamed; a copy of another length is redone); Delete and retention
+take it with the folder. A meeting without a system track plays its
+microphone as recorded.
+
+Observed 2026-11-11 on the Pro with the opt-in
+`a_recorded_meeting_plays_with_the_echo_taken_out` on a copy of an 88-minute
+call on external speakers (the microphone heard the remote side about 250 ms
+late and only about 4 dB quieter than the system track): cleaning took
+18.6 s, and a Play with the cleaned copy loaded in 1.3 s; the copy is 169 MB. Measured
+against that call's transcript in 20 ms frames:
+
+```text
+                         microphone as recorded -> cleaned
+Only the remote side     -17.1 dB -> -33.0 dB   (12.3 min; the echo)
+Only the user            -17.9 dB -> -18.1 dB   (51.8 min)
+Both at once             -16.6 dB -> -18.5 dB   (3.2 min)
+```
+
+Parakeet on a 10-minute stretch of the cleaned microphone (`hex meeting
+echo --transcribe`) gave 91 You sentences, none echo, against 161 (50 echo)
+as recorded and 92 (1 echo) after echo suppression; in four places where both
+spoke it lost the user's words ("Я уже, знаешь, я показываю" became "Я уже,
+знаешь,"). So transcripts keep the recorded microphone; the cleaned one is
+for listening. The suppressor's tuning for the user's speech (nearend) was
+loosened in a probe and changed nothing measurable. Checks:
+`the_speakers_echo_goes_and_the_users_voice_stays`,
+`a_meeting_is_cleaned_once_and_read_back_after`. Cleaning after the call
+has not been seen in the running app yet.
+
+Each transcript entry keeps its words' starts (`words` in
 `TranscriptEntry`, from the sentence's timed words, `meeting::sentence_entry`);
 a turn joins them while every entry it joins has them, else its words
 spread over its start and end. Models that time words: Parakeet (word times) and

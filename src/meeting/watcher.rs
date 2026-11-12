@@ -348,6 +348,7 @@ impl PendingFinals {
                             if manifest.status == meeting::MeetingStatus::Complete =>
                         {
                             tracing::info!(meeting = id, "finished a pending meeting transcript");
+                            prepare_playback(&manifest.id);
                             if meeting::notes_wanted() {
                                 start_notes(manifest.id, &events);
                             }
@@ -843,8 +844,11 @@ fn poll_recording(
             .ok_or_else(|| eyre!("recording disappeared"))?;
         let event = match active.worker.join() {
             Ok(Ok(manifest)) => {
-                if manifest.status == meeting::MeetingStatus::Complete && meeting::notes_wanted() {
-                    start_notes(manifest.id.clone(), events);
+                if manifest.status == meeting::MeetingStatus::Complete {
+                    if meeting::notes_wanted() {
+                        start_notes(manifest.id.clone(), events);
+                    }
+                    prepare_playback(&manifest.id);
                 }
                 ControllerEvent::Finished(Box::new(manifest))
             }
@@ -1195,6 +1199,34 @@ fn detect_meeting(
         );
     }
     Ok(detection)
+}
+
+/// Labs › Listen to the recording: cleans a finished meeting's microphone
+/// of the speakers' echo on a background thread (about 20 s for 90 min),
+/// so its first Play loads in about a second.
+fn prepare_playback(id: &str) {
+    // Read from the saved settings, as the player's own switch is.
+    if !crate::app_settings::AppSettings::saved_labs().playback {
+        return;
+    }
+    let directory = match meeting::root() {
+        Ok(root) => root.join(id),
+        Err(error) => {
+            tracing::warn!("couldn't find the meetings folder to clean the microphone: {error:#}");
+            return;
+        }
+    };
+    let spawned = thread::Builder::new()
+        .name("meeting-speaker-echo".into())
+        .spawn(move || {
+            crate::transcription::background_priority::deprioritize_background_thread();
+            if let Err(error) = crate::files::playback::prepare_meeting(&directory) {
+                tracing::warn!("couldn't clean the meeting's microphone: {error:#}");
+            }
+        });
+    if let Err(error) = spawned {
+        tracing::warn!("couldn't start cleaning the meeting's microphone: {error}");
+    }
 }
 
 /// Writes notes on a background thread; the UI refreshes from the manifest
