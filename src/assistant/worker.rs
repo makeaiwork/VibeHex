@@ -4,6 +4,7 @@
 //! pane takes finished turns into its store. With Web on, a Codex answer
 //! may search the web, each search reaching the pane as a step.
 
+use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -271,111 +272,15 @@ pub(super) fn start_with(
                 .as_ref()
                 .map(|context| context.settings.clone());
             super::language::within_maybe(settings.as_ref(), || {
-                let earlier: Vec<prompt::Turn> = question
-                    .earlier
-                    .iter()
-                    .map(|earlier| prompt::Turn {
-                        question: &earlier.question,
-                        answer: &earlier.answer,
-                        changes: &earlier.changes,
-                    })
-                    .collect();
-                let found = match &question.recall {
-                    Recall::Search(search) => read(search, room),
-                    _ => None,
+                let asker = Asker {
+                    generate: &generate,
+                    search: search.as_ref(),
+                    cancel: &cancel,
+                    silence,
+                    retries: Cell::new(1),
                 };
-                let notes = match &question.recall {
-                    Recall::Releases(asked) => {
-                        Some(releases::select(asked, releases::Running::here()))
-                    }
-                    _ => None,
-                };
-                let reach = match (&question.recall, &found, &notes) {
-                    (Recall::Declined, ..) => Reach::Declined,
-                    (Recall::Search(search), Some(found), _) => {
-                        Reach::Recordings(found, search.now_ms)
-                    }
-                    (_, _, Some(notes)) => Reach::Releases(notes),
-                    _ => Reach::Guide,
-                };
-                let mut prompt = prompt::build(
-                    &question.question,
-                    &earlier,
-                    room,
-                    reach,
-                    question.changes.as_ref(),
-                    &question.setup,
-                );
-                let search =
-                    match search
-                        .as_ref()
-                        .and(offline(&question, found.as_ref(), prompt.vocabulary))
-                    {
-                        None => search,
-                        Some(why) => {
-                            if why == Offline::Earlier {
-                                let mut state = state();
-                                if let Some(answering) = &mut state.answering {
-                                    answering.web.held_back = true;
-                                }
-                            }
-                            None
-                        }
-                    };
-                if search.is_some() {
-                    prompt.instructions.push_str(super::web::RULES);
-                }
-                #[cfg(test)]
-                super::eval::sent(&prompt, search.is_some());
-                let ask = |stop: &AtomicBool, heard: &Arc<AtomicBool>| {
-                    let streamed: Streamed = {
-                        let (heard, drafts) = (heard.clone(), drafts());
-                        Arc::new(move |chars, text| {
-                            heard.store(true, Ordering::Release);
-                            drafts(chars, text);
-                        })
-                    };
-                    match &search {
-                        Some(search) => {
-                            let seen = |item: &Value, done: bool| {
-                                heard.store(true, Ordering::Release);
-                                seen(item, done);
-                            };
-                            search(
-                                &prompt.instructions,
-                                &prompt.input,
-                                stop,
-                                Some(streamed),
-                                &seen,
-                            )
-                        }
-                        None => generate(&prompt.instructions, &prompt.input, stop, Some(streamed)),
-                    }
-                };
-                let first = match silence {
-                    Some(silence) => match watched(&cancel, silence, ask) {
-                        Some(result) => result,
-                        None => {
-                            tracing::warn!(
-                                "Assistant's model said nothing in {} s; asking again",
-                                silence.as_secs()
-                            );
-                            retrying();
-                            ask(&cancel, &Arc::new(AtomicBool::new(false)))
-                        }
-                    },
-                    None => ask(&cancel, &Arc::new(AtomicBool::new(false))),
-                };
-                let result = first.map(|reply| {
-                    let again = (!local).then_some(asking_again as fn());
-                    settle(&question, &prompt, reply, &generate, &cancel, again)
-                });
-                let what = Read {
-                    found: found.as_ref(),
-                    articles: &prompt.articles,
-                    knew: &prompt.knew,
-                };
-                finish(&question, &model, started, result, &cancel, what);
+                let answered = one_shot(&question, room, &asker, local);
+                finish(&question, &model, started, answered, &cancel);
                 if local {
                     engine::narrow();
                 }
@@ -396,6 +301,158 @@ pub(super) fn start_with(
         return false;
     }
     true
+}
+
+/// How a turn asks its model: the engine's plain call and, when the answer
+/// may search the web, its searching one; the person's Stop; and how long
+/// a cloud model may stay silent before it is asked again.
+pub(super) struct Asker<'a> {
+    pub generate: &'a Generate,
+    pub search: Option<&'a Searching>,
+    pub cancel: &'a AtomicBool,
+    pub silence: Option<Duration>,
+    /// How many silent requests may still be asked again.
+    pub retries: Cell<u32>,
+}
+
+impl Asker<'_> {
+    /// One streamed reply to `prompt`, its draft reaching the pane; with
+    /// `web`, through the searching call. A request silent past
+    /// [`FIRST_EVENT`] is stopped and asked once more while a retry is left.
+    pub(super) fn ask(&self, prompt: &prompt::Prompt, web: bool) -> Result<String> {
+        let search = self.search.filter(|_| web);
+        let ask = |stop: &AtomicBool, heard: &Arc<AtomicBool>| {
+            let streamed: Streamed = {
+                let (heard, drafts) = (heard.clone(), drafts());
+                Arc::new(move |chars, text| {
+                    heard.store(true, Ordering::Release);
+                    drafts(chars, text);
+                })
+            };
+            match search {
+                Some(search) => {
+                    let seen = |item: &Value, done: bool| {
+                        heard.store(true, Ordering::Release);
+                        seen(item, done);
+                    };
+                    search(
+                        &prompt.instructions,
+                        &prompt.input,
+                        stop,
+                        Some(streamed),
+                        &seen,
+                    )
+                }
+                None => (self.generate)(&prompt.instructions, &prompt.input, stop, Some(streamed)),
+            }
+        };
+        let unheard = || Arc::new(AtomicBool::new(false));
+        match self.silence.filter(|_| self.retries.get() > 0) {
+            Some(silence) => match watched(self.cancel, silence, ask) {
+                Some(result) => result,
+                None => {
+                    tracing::warn!(
+                        "Assistant's model said nothing in {} s; asking again",
+                        silence.as_secs()
+                    );
+                    self.retries.set(self.retries.get() - 1);
+                    retrying();
+                    ask(self.cancel, &unheard())
+                }
+            },
+            None => ask(self.cancel, &unheard()),
+        }
+    }
+}
+
+/// What a turn's thread made: the reply settled, and what it read.
+pub(super) struct Answered {
+    pub result: Result<Settled>,
+    /// The recordings excerpts the model read, which its `[n]` cite.
+    pub found: Option<Found>,
+    /// The guide articles it read, by id.
+    pub articles: Vec<&'static str>,
+    /// What the model was told of this install (`facts::text::knew`).
+    pub knew: String,
+}
+
+/// One request, with what the router chose for it to read: what a search
+/// of the recordings found, the release notes, or the guide alone.
+fn one_shot(question: &Question, room: Room, asker: &Asker, local: bool) -> Answered {
+    let earlier: Vec<prompt::Turn> = question
+        .earlier
+        .iter()
+        .map(|earlier| prompt::Turn {
+            question: &earlier.question,
+            answer: &earlier.answer,
+            changes: &earlier.changes,
+        })
+        .collect();
+    let found = match &question.recall {
+        Recall::Search(search) => read(search, room),
+        _ => None,
+    };
+    let notes = match &question.recall {
+        Recall::Releases(asked) => Some(releases::select(asked, releases::Running::here())),
+        _ => None,
+    };
+    let reach = match (&question.recall, &found, &notes) {
+        (Recall::Declined, ..) => Reach::Declined,
+        (Recall::Search(search), Some(found), _) => Reach::Recordings(found, search.now_ms),
+        (_, _, Some(notes)) => Reach::Releases(notes),
+        _ => Reach::Guide,
+    };
+    let mut prompt = prompt::build(
+        &question.question,
+        &earlier,
+        room,
+        reach,
+        question.changes.as_ref(),
+        &question.setup,
+    );
+    let web = match asker
+        .search
+        .and(offline(question, found.as_ref(), prompt.vocabulary))
+    {
+        None => asker.search.is_some(),
+        Some(why) => {
+            if why == Offline::Earlier {
+                held_back();
+            }
+            false
+        }
+    };
+    if web {
+        prompt.instructions.push_str(super::web::RULES);
+    }
+    #[cfg(test)]
+    super::eval::sent(&prompt, web);
+    let result = asker.ask(&prompt, web).map(|reply| {
+        let again = (!local).then_some(asking_again as fn());
+        settle(
+            question,
+            &prompt,
+            reply,
+            asker.generate,
+            asker.cancel,
+            again,
+        )
+    });
+    Answered {
+        result,
+        found,
+        articles: prompt.articles,
+        knew: prompt.knew,
+    }
+}
+
+/// Web is on for the conversation, and this answer stays off it.
+pub(super) fn held_back() {
+    let mut state = state();
+    if let Some(answering) = &mut state.answering {
+        answering.web.held_back = true;
+    }
+    changed(state);
 }
 
 /// Searches the recordings, each step reaching the pane as it lands. A
@@ -487,14 +544,6 @@ fn seen(item: &Value, done: bool) {
     changed(state);
 }
 
-/// What an answer read: the recordings search found, the guide articles.
-struct Read<'a> {
-    found: Option<&'a Found>,
-    articles: &'a [&'static str],
-    /// What the model was told of this install (`facts::text::knew`).
-    knew: &'a str,
-}
-
 /// Shows "Preparing a change" while a remote model is asked once more.
 fn asking_again() {
     let mut state = state();
@@ -529,11 +578,16 @@ fn finish(
     question: &Question,
     model: &str,
     started: Instant,
-    result: Result<Settled>,
+    answered: Answered,
     cancel: &AtomicBool,
-    read: Read,
 ) {
-    let found = read.found;
+    let Answered {
+        result,
+        found,
+        articles,
+        knew,
+    } = answered;
+    let found = found.as_ref();
     let mut state = state();
     let (draft, web) = state
         .answering
@@ -547,12 +601,12 @@ fn finish(
         seconds: started.elapsed().as_secs_f32(),
         created_ms: now_ms(),
         steps: found.map(|found| found.steps.clone()).unwrap_or_default(),
-        knew: read.knew.to_owned(),
+        knew: knew.clone(),
         ..Turn::default()
     };
     // What the gate dropped is part of what the turn keeps; the log gets
     // it without the terms, which may be the person's own words.
-    let mut logged = read.knew.to_owned();
+    let mut logged = knew;
     if let Ok(settled) = &result {
         turn.knew.push_str(&super::offer::record(&settled.dropped));
         let settings: Vec<_> = settled
@@ -613,7 +667,7 @@ fn finish(
     // The guide it read first, and the pages its answer cites.
     if !web.is_empty() {
         turn.web = web;
-        turn.web.guide = read.articles.iter().map(|id| (*id).to_owned()).collect();
+        turn.web.guide = articles.iter().map(|id| (*id).to_owned()).collect();
         turn.web.cite(&turn.answer);
     }
     state.finished.push((question.conversation, turn));
