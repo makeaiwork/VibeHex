@@ -368,6 +368,7 @@ fn start_with(
                 let what = Read {
                     found: found.as_ref(),
                     articles: &prompt.articles,
+                    knew: &prompt.knew,
                 };
                 finish(&question, &model, started, result, &cancel, what);
                 if local {
@@ -485,6 +486,8 @@ fn seen(item: &Value, done: bool) {
 struct Read<'a> {
     found: Option<&'a Found>,
     articles: &'a [&'static str],
+    /// What the model was told of this install (`facts::text::knew`).
+    knew: &'a str,
 }
 
 /// A reply with its change lines read and checked.
@@ -560,11 +563,11 @@ fn settle(
     };
     // Setup's answer is one list, whichever fence each line came in.
     if plan {
-        plan_lines(&mut parsed.proposals);
+        changes::parse::as_plan(&mut parsed.proposals);
     }
     let rules = crate::rune_ui::shortcut_rules();
     let (mut cards, mut refused) = changes::resolve(&parsed.proposals, &context.settings, &rules);
-    refused.extend(malformed(&parsed.malformed));
+    refused.extend(Refused::malformed(&parsed.malformed));
     // A change to the value there is now never becomes a card; a plan's
     // rules fold such lines into "Already set" themselves.
     let already = if plan {
@@ -598,7 +601,7 @@ fn settle(
             let parsed = changes::parse::parse(&fixed);
             let (mut more, mut more_refused) =
                 changes::resolve(&parsed.proposals, &context.settings, &rules);
-            more_refused.extend(malformed(&parsed.malformed));
+            more_refused.extend(Refused::malformed(&parsed.malformed));
             changes::already_set(&mut more, &context.settings);
             cards = more;
             refused = more_refused;
@@ -609,7 +612,7 @@ fn settle(
         if let Ok(fixed) = generate(&again.instructions, &again.input, cancel, None) {
             let mut parsed = changes::parse::parse(&fixed);
             if plan {
-                plan_lines(&mut parsed.proposals);
+                changes::parse::as_plan(&mut parsed.proposals);
             }
             let (more, _) = changes::resolve(&parsed.proposals, &context.settings, &rules);
             let fixed: Vec<String> = more
@@ -630,7 +633,7 @@ fn settle(
                         .find(|known| known.kind == CardKind::VocabularyEdit)
                 {
                     changes::vocab_edit::merge(edits, card);
-                } else if !cards.iter().any(|known| same_keys(known, &card)) {
+                } else if !cards.iter().any(|known| known.same_keys(&card)) {
                     cards.push(card);
                 }
             }
@@ -665,28 +668,6 @@ fn settle(
         refused,
         asks,
     }
-}
-
-/// Every line a plan's reply holds, as a line of its one list.
-fn plan_lines(proposals: &mut [changes::parse::Proposal]) {
-    for proposal in proposals {
-        proposal.plan = true;
-    }
-}
-
-fn same_keys(one: &Card, other: &Card) -> bool {
-    one.items
-        .iter()
-        .map(|item| &item.key)
-        .eq(other.items.iter().map(|item| &item.key))
-}
-
-fn malformed(lines: &[String]) -> impl Iterator<Item = Refused> + '_ {
-    lines.iter().map(|line| Refused {
-        line: line.clone(),
-        key: None,
-        why: Why::Malformed,
-    })
 }
 
 /// The streamed reply into the draft, at most once each [`DRAFT_EVERY`].
@@ -734,8 +715,10 @@ fn finish(
         steps: found.map(|found| found.steps.clone()).unwrap_or_default(),
         answers: question.setup.answers().to_vec(),
         follow: matches!(question.setup, Stage::Follow { .. }),
+        knew: read.knew.to_owned(),
         ..Turn::default()
     };
+    super::facts::text::log(question.conversation, read.knew);
     match result {
         Ok(settled) => {
             let parsed = changes::parse::parse(&settled.reply);
@@ -757,7 +740,7 @@ fn finish(
             if question.setup == Stage::Ask
                 && let Some(context) = &question.changes
             {
-                turn.now = setup::now::now(&context.settings);
+                turn.now = setup::now::now(&context.facts());
             }
             turn.answer = body.to_owned();
             turn.sources = sources.into_iter().map(str::to_owned).collect();
@@ -869,8 +852,7 @@ mod tests {
         Question {
             changes: Some(changes::Context {
                 settings,
-                send: true,
-                state: changes::catalog::State::default(),
+                state: crate::assistant::facts::State::default(),
             }),
             ..question(text)
         }

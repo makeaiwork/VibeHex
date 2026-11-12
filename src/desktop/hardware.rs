@@ -83,51 +83,6 @@ impl Hardware {
     pub fn allows(&self, needs: &[Need]) -> bool {
         needs.iter().all(|need| self.has(*need) != Some(false))
     }
-
-    /// The state line's words: "screens: 1 external, no notch; pointing:
-    /// Magic Mouse, no extra buttons"; empty when nothing is known.
-    pub fn line(&self) -> String {
-        let mut parts = Vec::new();
-        if let Some(model) = &self.model {
-            parts.push(format!("model: {model}"));
-        }
-        if let Some(screens) = &self.screens {
-            let mut kinds = Vec::new();
-            if screens.built_in {
-                kinds.push("built-in".to_owned());
-            }
-            if screens.external > 0 {
-                kinds.push(format!("{} external", screens.external));
-            }
-            if kinds.is_empty() {
-                kinds.push("none".to_owned());
-            }
-            let notch = if screens.notch {
-                "with a notch"
-            } else {
-                "no notch"
-            };
-            parts.push(format!("screens: {}, {notch}", kinds.join(" and ")));
-        }
-        if let Some(pointers) = &self.pointers {
-            let named: Vec<String> = pointers
-                .iter()
-                .map(|pointer| {
-                    let buttons = if pointer.extra_buttons {
-                        "may have extra buttons"
-                    } else {
-                        "no extra buttons"
-                    };
-                    format!("{}, {buttons}", pointer.name)
-                })
-                .collect();
-            parts.push(match named.is_empty() {
-                true => "pointing: none found".to_owned(),
-                false => format!("pointing: {}", named.join("; ")),
-            });
-        }
-        parts.join("; ")
-    }
 }
 
 /// Whether a pointing device may have buttons past the two main ones:
@@ -385,7 +340,7 @@ mod tests {
     #[test]
     #[ignore = "reads this computer's devices"]
     fn this_computer() {
-        println!("{:#?}\n{}", detect(), detect().line());
+        println!("{:#?}", detect());
     }
 
     #[test]
@@ -402,10 +357,9 @@ mod tests {
     }
 
     #[test]
-    fn unknown_hardware_allows_everything_and_the_line_says_what_is_known() {
+    fn unknown_hardware_allows_everything_and_known_hardware_what_it_has() {
         let unknown = Hardware::default();
         assert!(unknown.allows(&[Need::Notch, Need::MouseButtons]));
-        assert_eq!(unknown.line(), "");
         let mini = Hardware {
             screens: Some(Screens {
                 built_in: false,
@@ -420,10 +374,6 @@ mod tests {
         };
         assert!(!mini.allows(&[Need::Notch]));
         assert!(!mini.allows(&[Need::MouseButtons]));
-        assert_eq!(
-            mini.line(),
-            "screens: 1 external, no notch; pointing: Magic Mouse, no extra buttons"
-        );
         assert_eq!(Need::parse("notch"), Some(Need::Notch));
         assert_eq!(Need::parse("touch_id"), None);
     }

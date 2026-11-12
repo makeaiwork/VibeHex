@@ -11,10 +11,11 @@ use serde_json::{Map, Value};
 
 use super::super::sidebar::Pane;
 use super::super::{Ui, history, labs, picker, platform};
-use crate::assistant::changes::catalog::{self, Class};
+use crate::assistant::changes::catalog::Class;
 use crate::assistant::changes::names::{self, Home};
 use crate::assistant::changes::state::{self, Live, Shown};
 use crate::assistant::changes::{self, Card, CardKind, Context, Decision, vocab};
+use crate::assistant::facts;
 use crate::control::settings::{self, Effect};
 use crate::desktop::i18n::tr;
 use crate::transcription::models::{self as transcription_models, TranscriptionModelId};
@@ -28,61 +29,32 @@ pub(in super::super) struct At {
 }
 
 /// What a question's suggestions are offered and checked against: the
-/// settings now and what the pane knows of this computer.
+/// settings now, with what is being typed, and what `facts::gather` reads
+/// off this computer. The pane passes only what lives in its own state:
+/// the setups its store keeps, what Output and the pane last heard of
+/// Codex and OpenCode, and a scene's stand-ins.
 pub(super) fn context(ui: &Ui) -> Context {
     let settings = ui.drafted();
-    let setups = ui.assistant.store.setups();
-    let answered = crate::assistant::setup::past::answered_before(setups, &settings, |key, at| {
-        crate::assistant::setup::since::changed_since(key, at)
+    let state = facts::gather(facts::Seen {
+        settings: &settings,
+        setups: ui.assistant.store.setups(),
+        codex_signed_in: super::super::output::codex_signed_in(ui),
+        opencode_running: ui.assistant.reach.opencode,
+        scene: scene(ui),
     });
-    // A scene's own list, else the disk, as the picker asks it: called
-    // when a question is sent or setup moves on, never per frame.
-    let installed = Some(installed(&transcription_models::all_models(), |model| {
-        let language = ui.settings.transcription_for_model(model.id).language;
-        ui.picker.installed(model, &language)
-    }));
-    Context {
-        settings,
-        send: ui.settings.assistant.send_settings,
-        state: catalog::State {
-            os: super::ask::os(ui),
-            installed,
-            codex_signed_in: super::super::output::codex_signed_in(ui),
-            opencode_running: ui.assistant.reach.opencode,
-            // The keychain and the Applications folder: never in a scene.
-            openrouter_key: (!ui.assistant.fixture).then(|| {
-                crate::dictation::cleanup_server::keys::has(
-                    crate::dictation::cleanup_server::Provider::OpenRouter,
-                )
-            }),
-            servers: if ui.assistant.fixture {
-                Vec::new()
-            } else {
-                crate::assistant::setup::engines::installed_servers()
-            },
-            declined: crate::assistant::setup::past::declined(setups),
-            answered,
-            // Read when a question is sent or setup moves on; a scene's own.
-            hardware: if ui.assistant.fixture {
-                ui.assistant.hardware.clone()
-            } else {
-                crate::desktop::hardware::detect()
-            },
-        },
-    }
+    Context { settings, state }
 }
 
-/// The ids of the `models` this computer can run that `has` finds
-/// downloaded.
-fn installed(
-    models: &[&transcription_models::ModelDefinition],
-    has: impl Fn(&transcription_models::ModelDefinition) -> bool,
-) -> Vec<String> {
-    models
-        .iter()
-        .filter(|model| model.available() && has(model))
-        .map(|model| model.id.as_str().to_owned())
-        .collect()
+/// A scene's stand-ins for this computer; `None` in the real window.
+fn scene(ui: &Ui) -> Option<facts::Scene> {
+    ui.assistant.fixture.then(|| facts::Scene {
+        installed: ui
+            .picker
+            .installed
+            .as_ref()
+            .map(|installed| installed.iter().map(|id| id.as_str().to_owned()).collect()),
+        hardware: ui.assistant.hardware.clone(),
+    })
 }
 
 /// The card at `at`.
@@ -547,34 +519,28 @@ mod tests {
     /// and the model reads them by name, the one in use marked.
     #[test]
     fn a_live_window_reports_the_models_on_disk() {
-        let models = transcription_models::all_models();
-        let on_disk = |model: &transcription_models::ModelDefinition| {
-            model.id == TranscriptionModelId::ParakeetV3
-        };
-        let ids = installed(&models, on_disk);
-        assert_eq!(ids, ["parakeet_v3"]);
-
         let mut ui = super::super::super::scenes::mac_fixture();
         ui.picker.installed = None;
-        assert!(context(&ui).state.installed.is_some(), "read from disk");
+        assert!(
+            context(&ui).state.installed.known().is_some(),
+            "read from disk"
+        );
 
+        ui.assistant.fixture = true;
         ui.picker.installed = Some(vec![TranscriptionModelId::ParakeetV3]);
         let mut context = context(&ui);
         context.settings.transcription.model = TranscriptionModelId::ParakeetV3;
-        let reading = catalog::Reading {
-            every: false,
-            keys: Vec::new(),
-            send: true,
-            instructions: false,
-        };
-        let section = catalog::section(&context.settings, &reading, &context.state);
+        let told = facts::text::told(&context.facts());
         assert!(
-            section.contains("speech models downloaded: Parakeet v3 (parakeet_v3, in use);"),
-            "{section}"
+            told.contains("Speech models downloaded: Parakeet v3 (parakeet_v3, in use)\n"),
+            "{told}"
         );
-        context.state.installed = None;
-        let section = catalog::section(&context.settings, &reading, &context.state);
-        assert!(section.contains("speech models downloaded: unknown;"));
+        context.state.installed = facts::Fact::Unknown;
+        let told = facts::text::told(&context.facts());
+        assert!(
+            told.contains("Speech models downloaded: unknown\n"),
+            "{told}"
+        );
     }
 
     /// A scene's pane with one card in an open conversation.

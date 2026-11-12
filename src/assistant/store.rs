@@ -96,6 +96,11 @@ pub struct Turn {
     /// never went online.
     #[serde(skip_serializing_if = "Web::is_empty")]
     pub web: Web,
+    /// What its model was told of this install (`facts::text::knew`):
+    /// settings' effective values and this computer, never a recording.
+    /// Kept in memory for the session only, for "What Assistant knew".
+    #[serde(skip)]
+    pub knew: String,
 }
 
 impl Turn {

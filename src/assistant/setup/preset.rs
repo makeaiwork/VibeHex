@@ -15,9 +15,10 @@ use serde_json::{Map, Value};
 use super::engines;
 use super::plan::{area, line_key};
 use crate::app_settings::{AppSettings, HotkeyBinding};
-use crate::assistant::changes::catalog::{self, State};
+use crate::assistant::changes::catalog;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::{self, Card, CardKind, Item, names, parts, vocab};
+use crate::assistant::facts::State;
 use crate::control::settings;
 
 /// The owner's preset, as `scripts/export-preset` wrote it.
@@ -231,8 +232,7 @@ fn ready(mut item: Item, settings: &AppSettings, state: &State) -> Item {
             item.note = note.to_owned();
         }
     }
-    let signed_out =
-        catalog::needs_codex(&item.key, &item.to) && state.codex_signed_in == Some(false);
+    let signed_out = catalog::needs_codex(&item.key, &item.to) && state.codex_signed_in.is(&false);
     if item.key == RETENTION || signed_out {
         item.included = false;
     }
@@ -247,13 +247,14 @@ fn name(key: &str, settings: &AppSettings) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assistant::facts::Fact;
 
     fn mac() -> State {
         State {
             os: "macos",
-            codex_signed_in: Some(true),
-            opencode_running: Some(true),
-            openrouter_key: Some(true),
+            codex_signed_in: Fact::Known(true),
+            opencode_running: Fact::Known(true),
+            openrouter_key: Fact::Known(true),
             ..State::default()
         }
     }
@@ -389,8 +390,8 @@ mod tests {
                 .any(|item| item.key == "labs.russian_vibe_coding")
         );
         let no_key = State {
-            openrouter_key: Some(false),
-            codex_signed_in: Some(false),
+            openrouter_key: Fact::Known(false),
+            codex_signed_in: Fact::Known(false),
             ..mac()
         };
         let card = plan(&preset, &AppSettings::default(), &no_key)

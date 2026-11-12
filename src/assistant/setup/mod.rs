@@ -291,7 +291,7 @@ pub fn own_words() -> Vec<&'static str> {
 /// language the speech model is set to, where cleanup runs now, and who
 /// writes notes. A question the person touched keeps their pick; Russian
 /// with code picked is Russian with English tech terms, with a hint why.
-pub fn preselect(asks: &mut [Ask], settings: &AppSettings, state: &super::changes::catalog::State) {
+pub fn preselect(asks: &mut [Ask], settings: &AppSettings, state: &super::facts::State) {
     if let Some(ask) = asks.iter_mut().find(|ask| ask.id == "use" && !ask.touched) {
         ask.chosen = uses_now(settings)
             .iter()
@@ -321,7 +321,7 @@ pub fn preselect(asks: &mut [Ask], settings: &AppSettings, state: &super::change
             };
         }
     }
-    let server = engines::own_server(&settings.dictation_processing.server.url, &state.servers);
+    let server = engines::own_server(&settings.dictation_processing.server.url, state.servers());
     for ask in asks.iter_mut() {
         for option in ask
             .options

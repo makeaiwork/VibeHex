@@ -17,6 +17,7 @@
 pub mod changes;
 #[cfg(test)]
 mod eval;
+pub mod facts;
 pub mod guide;
 pub mod intent;
 pub mod language;

@@ -22,10 +22,11 @@ use serde_json::Value;
 use super::since::Candidate;
 use super::{Answer, engines, follow, past, picked};
 use crate::app_settings::AppSettings;
-use crate::assistant::changes::catalog::{self, State};
+use crate::assistant::changes::catalog;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::vocab;
 use crate::assistant::changes::{self, Card, CardKind, Item, names, parts};
+use crate::assistant::facts::State;
 use crate::assistant::recordings::terms;
 use crate::control::settings;
 use crate::desktop::i18n::tr;
@@ -428,7 +429,7 @@ pub fn with_terms(
     for item in &mut items {
         let shorter = catalog::shorter(&item.key, &item.from, &item.to);
         let signed_out =
-            catalog::needs_codex(&item.key, &item.to) && state.codex_signed_in == Some(false);
+            catalog::needs_codex(&item.key, &item.to) && state.codex_signed_in.is(&false);
         if shorter.is_some() || signed_out {
             item.included = false;
         }

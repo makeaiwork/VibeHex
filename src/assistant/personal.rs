@@ -111,8 +111,9 @@ fn names(entry: &VocabularyEntry, text: &str, said: &[String]) -> bool {
 }
 
 /// The Vocabulary entries `texts` (the question, then the turns before it)
-/// name, at most 30, the question's first, and how many there are in all.
-pub fn vocabulary(settings: &AppSettings, texts: &[&str]) -> String {
+/// name, at most 30, the question's first, with how many there are in all;
+/// and how many of them it holds.
+pub fn vocabulary(settings: &AppSettings, texts: &[&str]) -> (String, usize) {
     let all = &settings.vocabulary;
     let mut found: Vec<&VocabularyEntry> = Vec::new();
     for text in texts {
@@ -134,6 +135,7 @@ pub fn vocabulary(settings: &AppSettings, texts: &[&str]) -> String {
     if found.is_empty() {
         block.push_str("None of the entries is named.\n");
     }
+    let named = found.len();
     for entry in found {
         block.push_str(entry.term.trim());
         if !entry.sounds_like.is_empty() {
@@ -142,7 +144,7 @@ pub fn vocabulary(settings: &AppSettings, texts: &[&str]) -> String {
         block.push('\n');
     }
     block.push_str("</vocabulary>\n");
-    block
+    (block, named)
 }
 
 #[cfg(test)]
@@ -166,15 +168,16 @@ mod tests {
             ],
             ..AppSettings::default()
         };
-        let block = vocabulary(
+        let (block, named) = vocabulary(
             &settings,
             &["Если я просто скажу AI, он может AI cleanup вставить"],
         );
+        assert_eq!(named, 1);
         assert!(block.starts_with("<vocabulary total=\"3\">"));
         assert!(block.contains("AI cleanup (sounds like: эй ай клинап, AI)\n"));
         assert!(!block.contains("Kubernetes"));
         assert!(!block.contains("Claude Code"));
-        let none = vocabulary(&settings, &["почему так"]);
+        let (none, _) = vocabulary(&settings, &["почему так"]);
         assert!(none.contains("None of the entries is named."));
     }
 

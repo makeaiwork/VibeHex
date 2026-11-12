@@ -17,7 +17,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use super::changes::{self, CardKind, catalog, vocab};
+use super::changes::{self, CardKind, vocab};
+use super::facts;
 use super::setup::{self, Answer, Stage};
 use super::store::Turn;
 use super::worker::{self, Question, Recall};
@@ -80,9 +81,9 @@ fn cases() -> Vec<Case> {
             ..Default::default()
         },
     ];
-    let state = catalog::State {
+    let state = facts::State {
         os: std::env::consts::OS,
-        ..catalog::State::default()
+        ..facts::State::default()
     };
     let candidates = setup::follow::candidates(&answers, &AppSettings::default(), &state);
     cases.extend([
@@ -156,10 +157,9 @@ fn ask(case: &Case, engine: &Engine) -> Option<(Turn, f32)> {
     let settings = AppSettings::default();
     let context = changes::Context {
         settings: settings.clone(),
-        send: true,
-        state: catalog::State {
+        state: facts::State {
             os: std::env::consts::OS,
-            ..catalog::State::default()
+            ..facts::State::default()
         },
     };
     let question = Question {

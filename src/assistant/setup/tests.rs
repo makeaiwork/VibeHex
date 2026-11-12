@@ -2,9 +2,9 @@ use serde_json::{Value, json};
 
 use super::plan::{Area, area};
 use super::*;
-use crate::assistant::changes::catalog::State;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::{self, Card, current, parts};
+use crate::assistant::facts::{Fact, State};
 use crate::control::settings;
 
 fn answer(id: &str, chosen: &[&str]) -> Answer {
@@ -38,9 +38,9 @@ fn owners() -> AppSettings {
 fn mac() -> State {
     State {
         os: "macos",
-        codex_signed_in: Some(true),
-        opencode_running: Some(true),
-        openrouter_key: Some(true),
+        codex_signed_in: Fact::Known(true),
+        opencode_running: Fact::Known(true),
+        openrouter_key: Fact::Known(true),
         ..State::default()
     }
 }
@@ -228,7 +228,7 @@ fn an_engine_not_ready_starts_unchecked() {
             .unwrap()
     };
     let no_key = State {
-        openrouter_key: Some(false),
+        openrouter_key: Fact::Known(false),
         ..mac()
     };
     let line = runs_on(plan::plan(Vec::new(), &answers("openrouter"), &settings, &no_key).unwrap());
@@ -239,7 +239,7 @@ fn an_engine_not_ready_starts_unchecked() {
     let line = runs_on(plan::plan(Vec::new(), &answers("custom"), &no_url, &mac()).unwrap());
     assert!(!line.included && line.note.contains("address"));
     let signed_out = State {
-        codex_signed_in: Some(false),
+        codex_signed_in: Fact::Known(false),
         ..mac()
     };
     let line = runs_on(plan::plan(Vec::new(), &answers("codex"), &settings, &signed_out).unwrap());
@@ -584,7 +584,7 @@ fn the_answers_read_as_ids_and_the_labels_seen() {
 /// and terms.
 #[test]
 fn now_says_what_is_set() {
-    let now = now::now(&owners());
+    let now = now::now(&crate::assistant::facts::Facts::of(&owners(), &mac()));
     for words in [
         "Orukeet",
         "Russian",

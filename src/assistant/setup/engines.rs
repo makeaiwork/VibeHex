@@ -13,9 +13,9 @@
 use serde_json::Value;
 
 use super::plan::Line;
-use crate::app_settings::{AppSettings, CleanupRunsOn, MeetingSummaries};
-use crate::assistant::changes::catalog::State;
+use crate::app_settings::{AppSettings, MeetingSummaries};
 use crate::assistant::changes::{current, parts};
+use crate::assistant::facts::{self, Cleanup, Fallback, FilesCleanup, Kind, State};
 use crate::dictation::cleanup_server::local_models;
 
 const RUNS_ON: &str = "dictation_processing.server.runs_on";
@@ -23,54 +23,44 @@ const WRITER: &str = "meetings.notes.writer";
 const FILES: &str = "files.cleanup_engine";
 const SERVER_LAB: &str = "labs.ai_cleanup_server";
 
-/// Where dictation is cleaned up now, as round one's `cleanup` ids it:
-/// `none` while Clean up with AI is off, `opencode` without the lab.
+/// An engine as round one ids it.
+fn kind_id(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Codex => "codex",
+        Kind::BuiltIn => "local",
+        Kind::OpenRouter => "openrouter",
+        Kind::Server => "custom",
+        Kind::OpenCode => "opencode",
+    }
+}
+
+/// Where dictation is cleaned up now (`facts::cleanup`), as round one's
+/// `cleanup` ids it: `none` while Clean up with AI is off, `opencode`
+/// without the lab.
 pub fn dictation_now(settings: &AppSettings) -> &'static str {
-    if parts::Part::Cleanup.value(settings) != Value::Bool(true) {
-        return "none";
-    }
-    if !settings.labs.ai_cleanup_server {
-        return "opencode";
-    }
-    match settings.dictation_processing.server.runs_on {
-        CleanupRunsOn::Opencode => "opencode",
-        CleanupRunsOn::Openrouter => "openrouter",
-        CleanupRunsOn::Custom => "custom",
-        CleanupRunsOn::Local => "local",
-        CleanupRunsOn::Codex => "codex",
+    match facts::cleanup(settings) {
+        Cleanup::Off => "none",
+        Cleanup::On(runs) => kind_id(runs.kind),
     }
 }
 
-/// An engine as Files and notes write it (`codex:gpt-6`, `local:qwen3`),
-/// as round one ids it.
-fn engine_id(engine: &str) -> &'static str {
-    match engine.trim() {
-        "" => "",
-        "opencode" => "opencode",
-        "openrouter" => "openrouter",
-        "custom" => "custom",
-        engine if engine == "codex" || engine.starts_with("codex:") => "codex",
-        _ => "local",
-    }
-}
-
-/// Who writes meeting notes now, or `""` for none: the writer chosen,
-/// else Summaries' Apple Intelligence or OpenCode.
+/// Who writes meeting notes now (`facts::notes`), or `""` for none: the
+/// writer in use, else Summaries' Apple Intelligence or OpenCode.
 fn notes_engine(settings: &AppSettings) -> &'static str {
-    match settings.meetings.notes.writer.as_deref().map(engine_id) {
-        Some(id) if !id.is_empty() => id,
-        _ => match settings.meetings.summaries {
-            MeetingSummaries::Mac => "apple",
-            MeetingSummaries::OpenCode => "opencode",
-            MeetingSummaries::Off => "",
-        },
+    let notes = facts::notes(settings);
+    match (notes.writer, notes.fallback) {
+        (Some(writer), _) => kind_id(writer.kind),
+        (None, Fallback::AppleIntelligence) => "apple",
+        (None, Fallback::OpenCode) => "opencode",
+        (None, Fallback::Off) => "",
     }
 }
 
-/// Where Files' cleanup runs now: its own engine, else dictation's.
+/// Where Files' cleanup runs now (`facts::files`): its own engine, else
+/// dictation's.
 fn files_engine(settings: &AppSettings) -> &'static str {
-    match settings.files.cleanup_engine.as_deref().map(engine_id) {
-        Some(id) if !id.is_empty() => id,
+    match facts::files(settings) {
+        FilesCleanup::Own(runs) => kind_id(runs.kind),
         _ => dictation_now(settings),
     }
 }
@@ -125,14 +115,14 @@ pub fn installed_servers() -> Vec<&'static str> {
 /// signed out has its own sign-in row.
 pub fn not_ready(id: &str, settings: &AppSettings, state: &State) -> Option<&'static str> {
     match id {
-        "openrouter" if state.openrouter_key == Some(false) => {
+        "openrouter" if state.openrouter_key.is(&false) => {
             Some("Add an OpenRouter key in Output › AI cleanup first")
         }
         "custom" if settings.dictation_processing.server.url.trim().is_empty() => {
             Some("Add your server's address in Output › AI cleanup first")
         }
-        "opencode" if state.opencode_running == Some(false) => Some("Start the OpenCode app first"),
-        "codex" if state.codex_signed_in == Some(false) => Some(""),
+        "opencode" if state.opencode_running.is(&false) => Some("Start the OpenCode app first"),
+        "codex" if state.codex_signed_in.is(&false) => Some(""),
         _ => None,
     }
 }

@@ -30,9 +30,20 @@ use parse::Proposal;
 pub struct Context {
     /// The settings when it was asked.
     pub settings: AppSettings,
+    /// What was read off this install then (`facts::gather`).
+    pub state: crate::assistant::facts::State,
+}
+
+impl Context {
     /// The model may read the current values (`assistant.send_settings`).
-    pub send: bool,
-    pub state: catalog::State,
+    pub fn send(&self) -> bool {
+        self.settings.assistant.send_settings
+    }
+
+    /// Everything Assistant knows of this install for these settings.
+    pub fn facts(&self) -> crate::assistant::facts::Facts {
+        crate::assistant::facts::Facts::of(&self.settings, &self.state)
+    }
 }
 
 /// One suggestion the person decides on.
@@ -49,6 +60,16 @@ pub struct Card {
     /// an item whose `from` is its value now.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub kept: Vec<Item>,
+}
+
+impl Card {
+    /// Whether `other` changes the same settings, in the same order.
+    pub fn same_keys(&self, other: &Self) -> bool {
+        self.items
+            .iter()
+            .map(|item| &item.key)
+            .eq(other.items.iter().map(|item| &item.key))
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -134,6 +155,17 @@ pub struct Refused {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
     pub why: Why,
+}
+
+impl Refused {
+    /// `lines` the app couldn't read as change lines, each refused.
+    pub fn malformed(lines: &[String]) -> impl Iterator<Item = Self> + '_ {
+        lines.iter().map(|line| Self {
+            line: line.clone(),
+            key: None,
+            why: Why::Malformed,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]

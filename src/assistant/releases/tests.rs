@@ -299,13 +299,12 @@ fn a_note_names_the_keys_of_its_labs_then_its_own() {
 /// them on a card.
 #[test]
 fn the_prompt_carries_the_notes_picked_and_their_keys() {
-    use crate::assistant::changes::{self, catalog};
+    use crate::assistant::changes;
     use crate::assistant::prompt::{Reach, Room, build};
     use crate::assistant::setup::Stage;
     let context = changes::Context {
         settings: crate::app_settings::AppSettings::default(),
-        send: true,
-        state: catalog::State::default(),
+        state: crate::assistant::facts::State::default(),
     };
     let selection = select(
         &Asked::default(),

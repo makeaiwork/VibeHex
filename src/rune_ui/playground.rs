@@ -200,6 +200,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Answer with its steps open",
     ),
     (
+        "assistant-knew",
+        "Window/Assistant/Answer with what Assistant knew",
+    ),
+    (
         "assistant-web",
         "Window/Assistant/Answer from the guide and the web",
     ),

@@ -623,7 +623,7 @@ mod tests {
         let (settings, _) =
             crate::app_settings::AppSettings::read_from(std::path::Path::new(&path)).unwrap();
         let candidates = crate::assistant::setup::since::candidates(&usage);
-        let state = crate::assistant::changes::catalog::State::default();
+        let state = crate::assistant::facts::State::default();
         let plan = crate::assistant::setup::plan::with_terms(
             Vec::new(),
             &[],

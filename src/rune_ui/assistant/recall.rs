@@ -409,34 +409,6 @@ fn dictations(count: usize) -> String {
     counted(count, "1 dictation", "{} dictations")
 }
 
-/// "Read 4 meetings and 1 file in 9 s ›": the steps folded, which a click
-/// opens. None for a guide answer.
-pub(super) fn folded(
-    ui: &Ui,
-    p: Paint,
-    conversation: u32,
-    index: usize,
-    turn: &Turn,
-) -> Option<El> {
-    let open = ui.assistant.unfolded.contains(&(conversation, index));
-    steps_folded(
-        p,
-        (&turn.steps, false),
-        Some(turn),
-        turn.seconds,
-        open,
-        move |ui: &mut Ui| {
-            let unfolded = &mut ui.assistant.unfolded;
-            match unfolded.iter().position(|at| *at == (conversation, index)) {
-                Some(at) => {
-                    unfolded.remove(at);
-                }
-                None => unfolded.push((conversation, index)),
-            }
-        },
-    )
-}
-
 /// `steps` folded into one line, "Read 4 meetings and 1 file in 9 s ›"
 /// ("2 other meetings" when they are `other` than the item asked about),
 /// listed under it while `open`; a press calls `toggle`. `web`: the turn
@@ -452,8 +424,31 @@ pub(in super::super) fn steps_folded(
     if steps.is_empty() && web.is_none_or(|turn| turn.web.is_empty()) {
         return None;
     }
-    let c = &p.k.c;
     let line = summary((steps, other), web, seconds);
+    let mut list = step_lines(p, steps);
+    list.extend(web.into_iter().flat_map(|turn| super::web::steps(p, turn)));
+    Some(fold(p, line, open, toggle, list))
+}
+
+/// Each of `steps` as a done line.
+pub(super) fn step_lines(p: Paint, steps: &[Step]) -> Vec<El> {
+    steps
+        .iter()
+        .enumerate()
+        .map(|(index, step)| step_line(p, &format!("step{index}"), true, &say(step), None))
+        .collect()
+}
+
+/// One folded `line` with a chevron, and `list` under it while `open`; a
+/// press calls `toggle`.
+pub(super) fn fold(
+    p: Paint,
+    line: String,
+    open: bool,
+    toggle: impl Fn(&mut Ui) + 'static,
+    list: Vec<El>,
+) -> El {
+    let c = &p.k.c;
     let toggle = row()
         .key("folded")
         .role("button")
@@ -485,20 +480,9 @@ pub(in super::super) fn steps_folded(
         .on_press(toggle);
     let mut shown = col().key("searched").gap(6.0).child(toggle);
     if open {
-        let mut list = col().key("steps").gap(6.0).pl(2.0);
-        for (index, step) in steps.iter().enumerate() {
-            list = list.child(step_line(
-                p,
-                &format!("step{index}"),
-                true,
-                &say(step),
-                None,
-            ));
-        }
-        list = list.children(web.into_iter().flat_map(|turn| super::web::steps(p, turn)));
-        shown = shown.child(list);
+        shown = shown.child(col().key("steps").gap(6.0).pl(2.0).children(list));
     }
-    Some(shown)
+    shown
 }
 
 /// The answer, its `[n]` as small numbered marks that open their place,
@@ -758,7 +742,7 @@ pub(in super::super) fn chips_with(
 }
 
 /// The folded line: what the steps read, and in how long.
-fn summary((steps, other): (&[Step], bool), web: Option<&Turn>, seconds: f32) -> String {
+pub(super) fn summary((steps, other): (&[Step], bool), web: Option<&Turn>, seconds: f32) -> String {
     let mut read = Vec::new();
     for step in steps {
         if let Step::Guide { articles } = step {

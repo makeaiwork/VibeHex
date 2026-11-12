@@ -28,6 +28,13 @@ enum Fence {
     Vocab,
 }
 
+/// Every line a plan's reply holds, as a line of its one list.
+pub fn as_plan(proposals: &mut [Proposal]) {
+    for proposal in proposals {
+        proposal.plan = true;
+    }
+}
+
 /// One change line, as the model wrote it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Proposal {

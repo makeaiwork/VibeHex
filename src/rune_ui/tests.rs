@@ -2898,6 +2898,7 @@ fn goldens() {
         "assistant-consent",
         "assistant-steps",
         "assistant-steps-open",
+        "assistant-knew",
     ] {
         check_golden(scene, true, PANE_SIZE);
     }

@@ -13,8 +13,9 @@ use super::super::Ui;
 use super::changes::At;
 use super::fixture::{AT, MINUTE, open};
 use super::fixture_cards::{conversation, item};
-use crate::assistant::changes::catalog::{Class, State};
+use crate::assistant::changes::catalog::Class;
 use crate::assistant::changes::{Card, CardKind, Decision, Item, current, parts};
+use crate::assistant::facts::{Fact, Facts, State};
 use crate::assistant::recordings::Step;
 use crate::assistant::recordings::usage::{self, Usage};
 use crate::assistant::setup::past::Setup;
@@ -32,9 +33,9 @@ fn sample(ui: &mut Ui) -> State {
     ui.settings.shortcut_mode = ShortcutMode::Toggle;
     State {
         os: "macos",
-        codex_signed_in: Some(true),
-        opencode_running: Some(false),
-        openrouter_key: Some(false),
+        codex_signed_in: Fact::Known(true),
+        opencode_running: Fact::Known(false),
+        openrouter_key: Fact::Known(false),
         ..State::default()
     }
 }
@@ -49,7 +50,7 @@ fn first(ui: &Ui, state: &State) -> Vec<Ask> {
 /// Round one's turn: what is set now above it.
 fn opening(ui: &Ui, asks: Vec<Ask>) -> Turn {
     Turn {
-        now: setup::now::now(&ui.settings),
+        now: setup::now::now(&Facts::of(&ui.settings, &State::default())),
         asks,
         created_ms: AT,
         ..Turn::default()
@@ -624,7 +625,7 @@ fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
     let usage = since.usage.as_ref();
     let turns = vec![
         Turn {
-            now: setup::now::now(&ui.settings),
+            now: setup::now::now(&Facts::of(&ui.settings, &State::default())),
             since: since::paragraph(&since),
             created_ms: AT,
             ..Turn::default()

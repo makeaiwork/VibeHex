@@ -17,10 +17,13 @@ mod composer;
 mod connect;
 pub(super) mod dots;
 pub(super) mod face;
+#[cfg(test)]
+mod facts_tests;
 mod feed;
 pub(super) mod fixture;
 pub(super) mod fixture_cards;
 pub(super) mod jump;
+mod knew;
 pub(super) mod nav;
 mod picker;
 pub(super) mod places;
@@ -86,6 +89,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) consent: Option<recall::Pending>,
     /// Answers whose search steps are open, by conversation and turn.
     pub(super) unfolded: Vec<(u32, usize)>,
+    /// Answers whose "What Assistant knew" is open under their steps.
+    pub(super) knew_open: Vec<(u32, usize)>,
     /// How far the conversation is scrolled, to come back to.
     pub(super) scroll_y: ScrollAt,
     /// The pane's height as last laid out, where a cited place lands by.
@@ -176,20 +181,7 @@ impl AssistantPane {
 /// The engine a conversation asks on: its own choice (`engine`, `effort`),
 /// else Assistant's settings, else what dictation's AI cleanup uses.
 pub(super) fn engine(settings: &AppSettings, engine: Option<&str>, effort: Option<&str>) -> Engine {
-    let effort = effort.filter(|effort| !effort.trim().is_empty()).unwrap_or(
-        match settings.assistant.effort.trim() {
-            "" => "medium",
-            effort => effort,
-        },
-    );
-    let processing = &settings.dictation_processing;
-    Engine::resolve(
-        engine.or(settings.assistant.engine.as_deref()),
-        &processing.server,
-        settings.labs.ai_cleanup_server,
-        &processing.default_mode,
-    )
-    .with_effort(effort)
+    crate::assistant::facts::assistant_engine(settings, engine, effort)
 }
 
 /// The engine and reasoning the field asks with next: the open

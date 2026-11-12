@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use super::{names, parts};
 use crate::app_settings::AppSettings;
-use crate::app_settings::HotkeyBinding;
+use crate::assistant::facts::{self, Facts};
 use crate::control::settings;
 
 /// How a card carries a change out.
@@ -190,30 +190,6 @@ const CORE: [&str; 16] = [
     "ui_language",
 ];
 
-/// What the snapshot says besides the settings, read by the pane.
-#[derive(Clone, Debug, Default)]
-pub struct State {
-    pub os: &'static str,
-    /// Speech model ids downloaded; `None` when it couldn't be told, so
-    /// the model reads "unknown", never that none are.
-    pub installed: Option<Vec<String>>,
-    pub codex_signed_in: Option<bool>,
-    pub opencode_running: Option<bool>,
-    /// Whether an OpenRouter key is saved; `None` while unknown. Only the
-    /// app reads it: no model is told.
-    pub openrouter_key: Option<bool>,
-    /// The local servers installed (LM Studio, Ollama), for setup to name.
-    pub servers: Vec<&'static str>,
-    /// What earlier setups offered and the person declined: not offered
-    /// again while the setting is as it was (`setup::past`).
-    pub declined: Vec<crate::assistant::setup::past::Line>,
-    /// The follow-ups answered in an earlier setup and not asked again
-    /// (`setup::past::answered_before`), as answered then.
-    pub answered: Vec<crate::assistant::setup::Ask>,
-    /// The screens and pointing devices, for Labs features that need them.
-    pub hardware: crate::desktop::hardware::Hardware,
-}
-
 /// How much of the catalog a model reads.
 #[derive(Clone, Debug)]
 pub struct Reading<'a> {
@@ -221,20 +197,18 @@ pub struct Reading<'a> {
     pub every: bool,
     /// The keys the articles found name.
     pub keys: Vec<&'a str>,
-    /// The person's values may go in (`assistant.send_settings`).
-    pub send: bool,
     /// The Global mode's instructions go in too (an instructions question).
     pub instructions: bool,
 }
 
 /// The settings a card may change, as the prompt carries them: one line
-/// each, `key | values | where | now`.
-pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> String {
+/// each, `key | values | where | now`, then what Assistant knows of this
+/// install (`facts::text::told`, the one place that writes it).
+pub fn section(settings: &AppSettings, reading: &Reading, facts: &Facts) -> String {
+    // The person's values go in only while they let them be read.
+    let send = facts.consent.send_settings;
     let shown = settings::values(settings);
-    let stored = reading
-        .send
-        .then(|| serde_json::to_value(settings).ok())
-        .flatten();
+    let stored = send.then(|| serde_json::to_value(settings).ok()).flatten();
     let wanted = |key: &str| {
         reading.every
             || CORE.contains(&key)
@@ -250,7 +224,7 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
                 .any(|(needs, _)| reading.keys.contains(needs))
     };
     let mut out = String::from("<changeable_settings>\nkey | values | where in the window");
-    out.push_str(if reading.send { " | now\n" } else { "\n" });
+    out.push_str(if send { " | now\n" } else { "\n" });
     for (key, kind, choices, _) in settings::kinds() {
         if never(key) || settings::unavailable(key).is_some() || !wanted(key) {
             continue;
@@ -264,9 +238,11 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
             place.path,
             place.name
         ));
-        if reading.send {
+        if send {
             let now = if kind == "shortcut" {
-                stored.as_ref().map(|stored| shortcut(stored, key))
+                stored
+                    .as_ref()
+                    .map(|stored| facts::keycaps(stored, key).unwrap_or_else(|| "none".into()))
             } else {
                 shown
                     .iter()
@@ -277,7 +253,7 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
             match key {
                 // Summaries only decides while no writer is chosen: said
                 // where its value stands, so it never reads as who writes.
-                "meetings.summaries" if notes_writer(settings).is_some() => out.push_str(&format!(
+                "meetings.summaries" if facts.notes.writer.is_some() => out.push_str(&format!(
                     " | {now} (fallback, not used now: meetings.notes.writer decides)"
                 )),
                 _ => out.push_str(&format!(" | {now}")),
@@ -289,12 +265,12 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
         out.push_str(
             "meetings.providers.<app>.policy | ask/always_record/never_offer | Meetings › Detected calls › <app>",
         );
-        out.push_str(if reading.send { " |\n" } else { "\n" });
+        out.push_str(if send { " |\n" } else { "\n" });
     }
     out.push_str(&format!(
         "{} | on/off | Output › AI cleanup › Clean up with AI{}\n",
         parts::CLEANUP,
-        if reading.send {
+        if send {
             match parts::Part::Cleanup.value(settings) {
                 Value::Bool(true) => " | on",
                 _ => " | off",
@@ -306,7 +282,7 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
     out.push_str(&format!(
         "{} | the Global mode's whole instructions, as text | Output › AI cleanup › Instructions{}\n",
         parts::PROMPT,
-        if reading.send { " |" } else { "" },
+        if send { " |" } else { "" },
     ));
     out.push_str("</changeable_settings>\n");
     out.push_str(&format!(
@@ -321,20 +297,9 @@ pub fn section(settings: &AppSettings, reading: &Reading, state: &State) -> Stri
         "Never through a card: sign-ins, API keys, folders, microphones, app lists, the update \
          channel, Assistant's own settings.\n",
     );
-    out.push_str(&unfit_line(state));
-    if reading.send {
-        out.push_str(&notes_line(settings));
-        out.push_str(&state_line(state, settings));
-        if reading.instructions {
-            out.push_str(&crate::assistant::personal::instructions(settings));
-        }
-    } else {
-        out.push_str(
-            "You don't know the person's current values, cleanup instructions, or Vocabulary; \
-             the app shows each value on its card. When an answer needs them, say in one \
-             sentence that **Assistant › Settings › Your current settings** lets you read them, \
-             with no card.\n",
-        );
+    out.push_str(&facts::text::told(facts));
+    if send && reading.instructions {
+        out.push_str(&crate::assistant::personal::instructions(settings));
     }
     out
 }
@@ -360,22 +325,6 @@ fn values(key: &str, kind: &str, choices: &[&str]) -> String {
             _ => "text".into(),
         },
     }
-}
-
-/// A shortcut as the window's keycaps show it: `⌥⇧A` on macOS,
-/// `Ctrl+Alt+Space` elsewhere; `none` when it is off.
-fn shortcut(stored: &Value, key: &str) -> String {
-    let binding = stored
-        .pointer(&format!("/{}", key.replace('.', "/")))
-        .cloned()
-        .and_then(|raw| serde_json::from_value::<Option<HotkeyBinding>>(raw).ok())
-        .flatten();
-    let Some(binding) = binding else {
-        return "none".into();
-    };
-    let caps = binding.keycaps();
-    let glyphs = caps.iter().all(|cap| cap.chars().count() == 1);
-    caps.join(if glyphs { "" } else { "+" })
 }
 
 /// The value a model may read: a switch's, a choice's, a number, or a
@@ -417,134 +366,28 @@ fn sendable(key: &str, kind: &str, value: &Value) -> Option<String> {
     }
 }
 
-/// The engine writing meeting notes, when one is chosen and in use, as
-/// the window names it: `Codex (GPT-6.1 Terra)`. Mirrors
-/// `meeting::generator`: a writer other than OpenCode needs Labs › AI
-/// cleanup server on, else Summaries decides.
-fn notes_writer(settings: &AppSettings) -> Option<String> {
-    let writer = settings.meetings.notes.writer.as_deref()?.trim();
-    if writer.is_empty() || (writer != "opencode" && !settings.labs.ai_cleanup_server) {
-        return None;
-    }
-    // `codex` alone is Codex on AI cleanup's model.
-    let model = settings.dictation_processing.server.codex_model.trim();
-    let writer = match writer {
-        "codex" if !model.is_empty() => format!("codex:{model}"),
-        writer => writer.to_owned(),
-    };
-    Some(names::label(
-        "meetings.notes.writer",
-        &Value::String(writer),
-    ))
-}
-
-/// Who writes meeting notes, in one sentence, so `meetings.summaries` (a
-/// fallback) never reads as the writer.
-fn notes_line(settings: &AppSettings) -> String {
-    use crate::app_settings::MeetingSummaries;
-    let fallback = match settings.meetings.summaries {
-        MeetingSummaries::Mac => "On this Mac (Apple Intelligence)",
-        MeetingSummaries::OpenCode => "OpenCode",
-        MeetingSummaries::Off => "Off",
-    };
-    match notes_writer(settings) {
-        Some(writer) => format!(
-            "Meeting notes: written by {writer} (meetings.notes.writer); the meetings.summaries \
-             fallback ({fallback}) is only for when no writer is chosen, and is not used now.\n"
-        ),
-        None => format!(
-            "Meeting notes: no writer chosen in meetings.notes.writer, so meetings.summaries \
-             decides: {fallback}.\n"
-        ),
-    }
-}
-
-/// The speech models downloaded, by the names the window shows, each
-/// with its id, the one in use marked: `Orukeet (orukeet, in use),
-/// Parakeet v3 (parakeet_v3)`.
-fn downloaded(state: &State, settings: &AppSettings) -> String {
-    let Some(installed) = &state.installed else {
-        return "unknown".into();
-    };
-    if installed.is_empty() {
-        return "none".into();
-    }
-    let models = crate::transcription::models::all_models();
-    let in_use = settings.transcription.model.as_str();
-    installed
-        .iter()
-        .map(|id| {
-            let name = models
-                .iter()
-                .find(|model| model.id.as_str() == id.as_str())
-                .map_or(id.as_str(), |model| model.name);
-            match id.as_str() == in_use {
-                true => format!("{name} ({id}, in use)"),
-                false => format!("{name} ({id})"),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-fn state_line(state: &State, settings: &AppSettings) -> String {
-    let known = |known: Option<bool>| match known {
-        Some(true) => "yes",
-        Some(false) => "no",
-        None => "unknown",
-    };
-    let hardware = state.hardware.line();
-    format!(
-        "<state>OS: {}; speech models downloaded: {}; Codex signed in: {}; OpenCode running: {}{}</state>\n",
-        state.os,
-        downloaded(state, settings),
-        known(state.codex_signed_in),
-        known(state.opencode_running),
-        match hardware.is_empty() {
-            true => String::new(),
-            false => format!("; {hardware}"),
-        },
-    )
-}
-
-/// The Labs features this computer can't use (no notch, no mouse with
-/// extra buttons), so an answer never suggests one and, asked about one,
-/// says what it needs; empty while the hardware is unknown.
-fn unfit_line(state: &State) -> String {
-    let unfit: Vec<String> = crate::assistant::guide::articles()
-        .iter()
-        .filter(|article| article.is_lab() && !article.fits(&state.hardware))
-        .map(|article| {
-            let needs: Vec<&str> = article
-                .needs
-                .iter()
-                .filter(|need| state.hardware.has(**need) == Some(false))
-                .map(|need| need.words())
-                .collect();
-            format!("{} (needs {})", article.title, needs.join(" and "))
-        })
-        .collect();
-    match unfit.is_empty() {
-        true => String::new(),
-        false => format!(
-            "Not on this Mac: {}. Don't suggest them or offer their cards; asked about one \
-             directly, say what it needs and that this Mac doesn't have it.\n",
-            unfit.join(", ")
-        ),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_settings::HotkeyBinding;
+    use crate::assistant::facts::State;
 
-    fn reading(every: bool, keys: Vec<&str>, send: bool) -> Reading<'_> {
-        Reading {
+    /// How much is read, and whether the person's values are sent.
+    fn reading(every: bool, keys: Vec<&str>, send: bool) -> (Reading<'_>, bool) {
+        let reading = Reading {
             every,
             keys,
-            send,
             instructions: false,
-        }
+        };
+        (reading, send)
+    }
+
+    /// The section for `settings` on the install `state` describes, with
+    /// Your current settings on or off.
+    fn built(settings: &AppSettings, (reading, send): &(Reading, bool), state: &State) -> String {
+        let mut settings = settings.clone();
+        settings.assistant.send_settings = *send;
+        super::section(&settings, reading, &Facts::of(&settings, state))
     }
 
     /// The keys a built catalog advertises, as written.
@@ -603,7 +446,7 @@ mod tests {
     #[test]
     fn every_advertised_line_resolves() {
         let settings = AppSettings::default();
-        let section = section(
+        let section = built(
             &settings,
             &reading(true, Vec::new(), true),
             &State::default(),
@@ -629,7 +472,7 @@ mod tests {
     #[test]
     fn the_question_sets_changes_are_advertised() {
         let settings = AppSettings::default();
-        let large = advertised(&section(
+        let large = advertised(&built(
             &settings,
             &reading(true, Vec::new(), true),
             &State::default(),
@@ -651,7 +494,7 @@ mod tests {
                 .iter()
                 .flat_map(|article| article.keys.iter().map(String::as_str))
                 .collect();
-            let small = advertised(&section(
+            let small = advertised(&built(
                 &settings,
                 &reading(false, keys, true),
                 &State::default(),
@@ -696,19 +539,19 @@ mod tests {
             },
             ..State::default()
         };
-        let section = section(&AppSettings::default(), &every, &mini);
+        let section = built(&AppSettings::default(), &every, &mini);
         let unfit = section
             .lines()
             .find(|line| line.starts_with("Not on this Mac: "))
             .unwrap();
         assert!(unfit.contains("Notch indicator (needs a screen with a notch)"));
         assert!(unfit.contains("Mouse shortcuts (needs a mouse with extra buttons)"));
+        assert!(section.contains("OpenCode running: unknown\n"));
         assert!(section.contains(
-            "OpenCode running: unknown; screens: 1 external, no notch; pointing: Magic Mouse, \
-             no extra buttons</state>"
+            "Screens: 1 external, no notch\nPointing devices: Magic Mouse, no extra buttons\n</state>"
         ));
         // Unknown hardware leaves nothing out.
-        let unknown = super::section(&AppSettings::default(), &every, &State::default());
+        let unknown = built(&AppSettings::default(), &every, &State::default());
         assert!(!unknown.contains("Not on this Mac"));
     }
 
@@ -734,7 +577,7 @@ mod tests {
         settings.meetings.calendar.excluded_calendars = vec!["CAL-SECRET-ID".into()];
         settings.microphone = Some("Someone's AirPods".into());
         let every = reading(true, Vec::new(), true);
-        let section = section(&settings, &every, &State::default());
+        let section = built(&settings, &every, &State::default());
         for secret in [
             "/Users/someone",
             "secret-host",
@@ -747,13 +590,16 @@ mod tests {
         ] {
             assert!(!section.contains(secret), "the snapshot holds {secret}");
         }
-        let asked = Reading {
-            instructions: true,
-            ..every
-        };
-        assert!(super::section(&settings, &asked, &State::default()).contains("Nightjar"));
+        let asked = (
+            Reading {
+                instructions: true,
+                ..every.0
+            },
+            true,
+        );
+        assert!(built(&settings, &asked, &State::default()).contains("Nightjar"));
         // Off: no values at all.
-        let off = super::section(
+        let off = built(
             &settings,
             &reading(true, Vec::new(), false),
             &State::default(),
@@ -776,7 +622,7 @@ mod tests {
                 .find(|line| line.starts_with(&format!("{key} |")))
                 .map(str::to_owned)
         };
-        let every = section(
+        let every = built(
             &settings,
             &reading(true, Vec::new(), true),
             &State::default(),
@@ -806,7 +652,7 @@ mod tests {
             let add = line(&every, "vocabulary_add_hotkey").unwrap();
             assert!(add.ends_with(" | ⌥⇧A"), "{add}");
             // A small model reading the feature's article gets its shortcut.
-            let small = section(
+            let small = built(
                 &settings,
                 &reading(false, vec!["labs.vocabulary_quick_add"], true),
                 &State::default(),
@@ -814,7 +660,7 @@ mod tests {
             assert!(line(&small, "vocabulary_add_hotkey").is_some(), "{small}");
         }
         // Off: no shortcut either.
-        let off = section(
+        let off = built(
             &settings,
             &reading(true, Vec::new(), false),
             &State::default(),
@@ -872,7 +718,7 @@ mod tests {
         settings.meetings.summaries = crate::app_settings::MeetingSummaries::Mac;
         settings.meetings.notes.writer = Some("codex:gpt-6.1-terra".into());
         let every = reading(true, Vec::new(), true);
-        let section = section(&settings, &every, &State::default());
+        let section = built(&settings, &every, &State::default());
         let line = |key: &str| {
             section
                 .lines()
@@ -907,7 +753,7 @@ mod tests {
 
         // No writer: Summaries decides, and says so.
         settings.meetings.notes.writer = None;
-        let section = super::section(&settings, &every, &State::default());
+        let section = built(&settings, &every, &State::default());
         assert!(section.contains(
             "Meeting notes: no writer chosen in meetings.notes.writer, so meetings.summaries \
              decides: On this Mac (Apple Intelligence)."

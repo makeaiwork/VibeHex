@@ -275,7 +275,7 @@ fn reply(
 ) -> El {
     let now_ms = ui.assistant.now_ms();
     let mut words = col().key("words").grow(1.0).shrink().min_w(0.0).gap(8.0);
-    words = words.children(super::recall::folded(ui, p, conversation, index, turn));
+    words = words.children(super::knew::folded(ui, p, conversation, index, turn));
     if !turn.answer.trim().is_empty() {
         words = words.child(super::recall::answer(
             p,

@@ -355,6 +355,55 @@ pub(in super::super) fn steps_open(ui: &mut Ui) {
     ui.assistant.unfolded.push((id, 0));
 }
 
+/// A guide answer of this session with its fold open and, under it, "What
+/// Assistant knew" open too: the facts its model read of the owner's
+/// setup on a Mac mini with a Magic Mouse, and what else went along.
+pub(in super::super) fn knew(ui: &mut Ui) {
+    use crate::assistant::facts::{self, Fact, Facts, State};
+    use crate::desktop::hardware::{Hardware, Pointer, Screens};
+    open(ui);
+    crate::assistant::setup::sample(&mut ui.settings);
+    let state = State {
+        os: "macos",
+        installed: Fact::Known(vec!["orukeet".into(), "parakeet_v3".into()]),
+        codex_signed_in: Fact::Known(true),
+        hardware: Hardware {
+            screens: Some(Screens {
+                built_in: false,
+                external: 1,
+                notch: false,
+            }),
+            pointers: Some(vec![Pointer {
+                name: "Magic Mouse".into(),
+                extra_buttons: false,
+            }]),
+            model: Some("Mac16,11".into()),
+        },
+        ..State::default()
+    };
+    let sent = facts::text::Sent {
+        articles: 6,
+        ..facts::text::Sent::default()
+    };
+    let question = "Какие модели распознавания у меня скачаны?";
+    let id = ui.assistant.store.start(question, None, None);
+    ui.assistant.store.push(
+        id,
+        Turn {
+            knew: facts::text::knew(&Facts::of(&ui.settings, &state), &sent),
+            ..turn(
+                question,
+                "Скачаны две модели: **Orukeet**, она сейчас используется, и **Parakeet v3**. Список с размерами есть в **General › Speech model**.",
+                &["topics/speech-models"],
+                1,
+            )
+        },
+    );
+    ui.assistant.open = Some(id);
+    ui.assistant.unfolded.push((id, 0));
+    ui.assistant.knew_open.push((id, 0));
+}
+
 /// Where `said` is in `text`, cited by `[n]` at `start_ms`, as a scene's
 /// place: the bytes an answer's cited lines map to.
 fn said(n: u32, start_ms: u64, text: &str, said: &str) -> (u32, Option<u64>, Option<Range<usize>>) {

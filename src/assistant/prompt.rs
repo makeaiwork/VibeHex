@@ -8,6 +8,7 @@
 //! the pane turns into cards.
 
 use super::changes::{self, Refused, catalog};
+use super::facts;
 use super::guide::{self, Article};
 use super::intent;
 use super::recordings::{Excerpt, Found, Kind, cite};
@@ -67,6 +68,9 @@ pub struct Prompt {
     pub articles: Vec<&'static str>,
     /// It carries Vocabulary entries: personal, so no web search.
     pub vocabulary: bool,
+    /// What it tells the model of this install, for the turn to keep
+    /// (`facts::text::knew`); empty when it tells nothing.
+    pub knew: String,
 }
 
 const INSTRUCTIONS: &str = "You are Assistant, the help built into VibeHex, a dictation app \
@@ -400,6 +404,7 @@ pub fn build(
             }),
         });
     let mut vocabulary = false;
+    let mut knew = String::new();
     let mut instructions = INSTRUCTIONS.to_owned();
     instructions.push_str(&default_language(changes.map(|context| &context.settings)));
     if *stage == Stage::Ask {
@@ -425,7 +430,7 @@ pub fn build(
         {
             instructions.push_str(SETUP_SINCE);
         }
-        if context.send && !plan {
+        if context.send() && !plan {
             instructions.push_str(PERSONAL);
         }
         // What the releases asked about changed may be offered too.
@@ -441,16 +446,20 @@ pub fn build(
                 .flat_map(|article| article.keys.iter().map(String::as_str))
                 .chain(released)
                 .collect(),
-            send: context.send,
             instructions: wants.instructions,
         };
+        let facts = context.facts();
+        let mut sent = facts::text::Sent {
+            articles: found.len(),
+            instructions: context.send() && wants.instructions,
+            ..facts::text::Sent::default()
+        };
+        if let Reach::Recordings(found, _) = &reach {
+            sent.recordings = found.excerpts.len();
+        }
         input.push('\n');
-        input.push_str(&catalog::section(
-            &context.settings,
-            &reading,
-            &context.state,
-        ));
-        if context.send && wants.vocabulary && !plan {
+        input.push_str(&catalog::section(&context.settings, &reading, &facts));
+        if context.send() && wants.vocabulary && !plan {
             let mut texts = vec![question];
             for turn in earlier.iter().rev().take(2) {
                 texts.extend([turn.question, turn.answer]);
@@ -459,10 +468,13 @@ pub fn build(
             if let Reach::Recordings(found, _) = &reach {
                 texts.extend(found.excerpts.iter().map(|excerpt| excerpt.text.as_str()));
             }
-            input.push_str(&super::personal::vocabulary(&context.settings, &texts));
+            let (block, named) = super::personal::vocabulary(&context.settings, &texts);
+            input.push_str(&block);
+            sent.vocabulary = Some((named, context.settings.vocabulary.len()));
             vocabulary = true;
             instructions.push_str(DIAGNOSE);
         }
+        knew = facts::text::knew(&facts, &sent);
     }
     match reach {
         Reach::Guide => {}
@@ -517,6 +529,7 @@ pub fn build(
         input,
         articles: found.iter().map(|article| article.id).collect(),
         vocabulary,
+        knew,
     }
 }
 
@@ -544,6 +557,7 @@ pub fn repair(prompt: &Prompt, reply: &str, refused: &[Refused]) -> Prompt {
         input,
         articles: prompt.articles.clone(),
         vocabulary: prompt.vocabulary,
+        knew: prompt.knew.clone(),
     }
 }
 
@@ -577,6 +591,7 @@ pub fn rewrite(prompt: &Prompt, reply: &str, already: &[String], refused: &[Refu
         input,
         articles: prompt.articles.clone(),
         vocabulary: prompt.vocabulary,
+        knew: prompt.knew.clone(),
     }
 }
 
@@ -993,10 +1008,11 @@ mod tests {
     }
 
     fn context(send: bool) -> changes::Context {
+        let mut settings = crate::app_settings::AppSettings::default();
+        settings.assistant.send_settings = send;
         changes::Context {
-            settings: crate::app_settings::AppSettings::default(),
-            send,
-            state: catalog::State::default(),
+            settings,
+            state: facts::State::default(),
         }
     }
 
@@ -1206,7 +1222,7 @@ mod tests {
     #[test]
     fn no_card_stands_in_for_what_the_model_doesnt_know() {
         let mut context = context(true);
-        context.state.installed = Some(vec!["parakeet_v3".into()]);
+        context.state.installed = facts::Fact::Known(vec!["parakeet_v3".into()]);
         let prompt = build(
             "Tell me which models I have downloaded",
             &[],
@@ -1224,7 +1240,7 @@ mod tests {
         assert!(
             prompt
                 .input
-                .contains("speech models downloaded: Parakeet v3 (parakeet_v3")
+                .contains("Speech models downloaded: Parakeet v3 (parakeet_v3")
         );
     }
 

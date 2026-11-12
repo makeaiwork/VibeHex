@@ -62,7 +62,7 @@ pub(super) fn begin(ui: &mut Ui) {
 pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
     let _speaking = crate::assistant::language::speak(&ui.settings);
     let context = super::changes::context(ui);
-    let mut asks = setup::questions(os(ui));
+    let mut asks = setup::questions(context.state.os);
     setup::preselect(&mut asks, &context.settings, &context.state);
     if let Some(since) = &since {
         since::preselect(&mut asks, since);
@@ -95,7 +95,7 @@ pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
         })
         .filter(|_| !on_device(ui, id));
     let opening = Turn {
-        now: setup::now::now(&context.settings),
+        now: setup::now::now(&context.facts()),
         since: shown.clone(),
         created_ms: now,
         ..Turn::default()

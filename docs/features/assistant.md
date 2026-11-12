@@ -217,23 +217,52 @@ Opened from a place link                         // rune_ui::assistant::places
   in `<already_set>` that the value is set, so its words claim no
   difference; a built-in model's card just goes. A card's from side names
   the engine with its model (Codex (GPT-6.1 Terra)).
-- The snapshot says who writes meeting notes (`catalog::notes_line`):
-  with `meetings.notes.writer` in use, `meetings.summaries` reads as the
-  fallback, not used now; engine ids and Codex efforts go in the now
-  column as stored. `<state>` names the speech models downloaded as the
-  window does, the one in use marked (`Parakeet v3 (parakeet_v3, in
-  use)`), read from disk when a question is sent (a scene's list in
-  scenes); "unknown" when it couldn't be told, never "none". It also
-  names the hardware (`desktop::hardware`, read when a question is sent or
-  setup moves on, never per frame; a scene's own, unknown by default):
-  `screens: 1 external, no notch; pointing: Magic Mouse, no extra
-  buttons`, with `model: Mac16,11` (`hw.model`, raw: a `MacNN,N` id
-  doesn't say MacBook or desktop). Screens come from `NSScreen` on the
-  main thread (a notch is a top safe-area inset, built in by
-  `CGDisplayIsBuiltin`); pointing devices from IOKit's HID registry
-  without opening one (no Input Monitoring), the owner's name dropped
-  ("Anna's Magic Mouse" is Magic Mouse). Apple's mice and trackpads have
-  no extra buttons; another reporting more than two, or not saying, may.
+- What the model is told of this install is one typed value,
+  `assistant::facts::Facts`, made in one place (`Facts::of`) from the
+  settings and what `facts::gather` read off the computer when the
+  question was sent or setup moved on (never per frame; a scene's own
+  stand-ins in scenes). Every fact is the effective value, from the
+  resolver the window and the runtime use, never a raw key: the speech
+  models downloaded (`transcription::models::is_installed`, by the
+  picker's names, the one in use marked), the recognition language, the
+  engine dictation's cleanup, Files, and Assistant run on
+  (`files::rewrite::Engine::resolve`), who writes meeting notes
+  (`meeting::generator`'s choice: with `meetings.notes.writer` in use,
+  `meetings.summaries` reads as the fallback, not used now; a writer
+  saved while Labs › Clean up on your own server is off isn't the
+  writer), Codex's sign-in, whether OpenCode runs, the Labs on, each
+  shortcut set as its keycaps show it, how many Vocabulary terms there
+  are, and the hardware. A fact that couldn't be read is `Fact::Unknown`
+  and reads "unknown", never "none" or "no". Whether an OpenRouter key is
+  saved and which local servers are installed are for the app's own rules
+  (setup) and are never written for a model. The window passes only what
+  lives in its state (`facts::Seen`: the settings being typed, the setups
+  kept, what Output and the pane last heard of Codex and OpenCode).
+- One formatter writes them (`facts::text::told`): the `<state>` block, a
+  fact a line, only with `assistant.send_settings` on, and "Not on this
+  Mac: …" either way. Engine ids and Codex efforts go in the catalog's now
+  column as stored. `rune_ui::assistant::facts_tests` holds each fact that
+  mirrors a row (models, notes writer, engines, shortcuts) to what the
+  window's own code shows for the same settings.
+- The hardware comes from `desktop::hardware`: `Screens: 1 external, no
+  notch`, `Pointing devices: Magic Mouse, no extra buttons`, `Computer
+  model: Mac16,11` (`hw.model`, raw: a `MacNN,N` id doesn't say MacBook or
+  desktop). Screens come from `NSScreen` on the main thread (a notch is a
+  top safe-area inset, built in by `CGDisplayIsBuiltin`); pointing devices
+  from IOKit's HID registry without opening one (no Input Monitoring), the
+  owner's name dropped ("Anna's Magic Mouse" is Magic Mouse). Apple's mice
+  and trackpads have no extra buttons; another reporting more than two, or
+  not saying, may.
+- Each answer keeps what its model was told (`Turn::knew`, from
+  `facts::text::knew`): the same lines, and what else went along by name
+  only ("6 guide articles; your cleanup instructions; 2 of 94 Vocabulary
+  entries; 3 excerpts of your recordings"), never the instructions,
+  entries, or recordings themselves. It lives in memory for the session
+  (never saved with the conversation), goes to the debug log, and shows
+  under the answer's steps as one more fold, "What Assistant knew ›",
+  plain selectable text. A guide answer of this session gets the fold
+  line "Read the guide in 7 s ›" to hold it; an answer from an earlier
+  session has no record.
 - A Labs article may say what it needs (`needs: [notch]`,
   `[mouse_buttons]`): one known unmet keeps the feature out of setup's
   follow-ups (the app's and a model's), the plan (the rules' lines and a
@@ -410,7 +439,7 @@ Opened from a place link                         // rune_ui::assistant::places
   a follow-up's No; "Not now" declines only the Nos). A declined line
   (key and value) isn't offered again, by the rules, a model, or a
   follow-up, while the setting is still what it was then
-  (`catalog::State::declined`, `past::held`).
+  (`facts::State::declined`, `past::held`).
 - A setup is kept from its first answered round on (each Continue or
   Skip), so one left half-way, or whose plan is put off, keeps its
   answers; a later round or the plan's decision updates the same record
@@ -750,6 +779,7 @@ by this account, the 50 most recently used; with keeping off they last until
 VibeHex quits. Clear conversations deletes them all.
 
 Checks: `scripts/check assistant` (store, worker, retrieve, prompt, intent,
+facts and the window's rows they mirror,
 releases and their notes,
 recordings and its eval, jump, settings keys, changes and their cards,
 setup, vocabulary terms, and the reply corpus
@@ -757,7 +787,7 @@ setup, vocabulary terms, and the reply corpus
 each with the parse it must make); scenes `assistant`,
 `assistant-answering`, `assistant-start`, `assistant-start-russian`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
-`assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
+`assistant-recordings`, `assistant-steps-open`, `assistant-knew`, `meetings-cited`,
 `meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`,
 `assistant-places`, `assistant-place-opened`, the cards'
 `assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,

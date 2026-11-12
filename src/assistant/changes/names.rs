@@ -622,7 +622,7 @@ pub fn label(key: &str, value: &Value) -> String {
 }
 
 /// `Codex (GPT-6 Luna)`; `Codex` when the model has no name of its own.
-fn engine_with(engine: &str, model: &str) -> String {
+pub fn engine_with(engine: &str, model: &str) -> String {
     match model.trim() {
         "" => engine.to_owned(),
         model if model == engine => engine.to_owned(),
