@@ -265,6 +265,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/A follow-up round",
     ),
     (
+        "assistant-setup-follow-ru",
+        "Window/Assistant/Setup/A follow-up round in Russian, a long question",
+    ),
+    (
         "assistant-setup-kept",
         "Window/Assistant/Setup/Already set, unfolded",
     ),

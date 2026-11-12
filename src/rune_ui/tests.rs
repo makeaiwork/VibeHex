@@ -2914,6 +2914,7 @@ fn goldens() {
         "assistant-change-coming",
         "assistant-setup-ask",
         "assistant-setup-follow",
+        "assistant-setup-follow-ru",
         "assistant-setup-plan",
         "assistant-setup-kept",
         "assistant-setup-result",

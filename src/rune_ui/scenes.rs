@@ -754,6 +754,10 @@ pub(super) const SCENES: &[Scene] = &[
         "assistant-setup-follow",
         assistant::setup_fixture::setup_follow,
     ),
+    (
+        "assistant-setup-follow-ru",
+        assistant::setup_fixture::setup_follow_ru,
+    ),
     ("assistant-setup-plan", assistant::setup_fixture::setup_plan),
     ("assistant-setup-kept", assistant::setup_fixture::setup_kept),
     (

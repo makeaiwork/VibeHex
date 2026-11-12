@@ -157,6 +157,47 @@ pub(in super::super) fn setup_follow(ui: &mut Ui) {
     conversation(ui, "Set up for me", turns, &[]);
 }
 
+/// A follow-up round in Russian, as a model asks it: a long question
+/// wraps inside the card, and every hint sits on its own line under its
+/// question.
+pub(in super::super) fn setup_follow_ru(ui: &mut Ui) {
+    open(ui);
+    let state = sample(ui);
+    ui.settings.ui_language = Some("ru".into());
+    crate::desktop::i18n::apply(Some("ru"));
+    let mut asks = round(false);
+    asks.truncate(2);
+    for (ask, (key, q, hint)) in asks.iter_mut().zip([
+        (
+            "labs.screenshots",
+            "Делать скриншоты, на которых можно рисовать и которые можно комментировать голосом?",
+            "Screenshots",
+        ),
+        (
+            "labs.caps_lock_dictation",
+            "Запускать диктовку одним нажатием Caps Lock?",
+            "Caps Lock dictation",
+        ),
+    ]) {
+        ask.id = key.into();
+        ask.q = q.into();
+        ask.hint = hint.into();
+        ask.own = false;
+        ask.options[0].label = "Да".into();
+        ask.options[0].changes = vec![(key.into(), Value::Bool(true))];
+        ask.options[1].label = "Нет".into();
+    }
+    let turns = vec![
+        opening(ui, answered(ui, &state, "codex")),
+        Turn {
+            asks,
+            created_ms: AT + MINUTE,
+            ..Turn::default()
+        },
+    ];
+    conversation(ui, "Настрой меня", turns, &[]);
+}
+
 /// The plan's rows: two follow-ups said yes to, the writer and Files on
 /// OpenRouter without a key, and a model's line over a choice the person
 /// made, unchecked. What fits stays under "Already set".
@@ -580,11 +621,12 @@ mod tests {
 
     #[test]
     fn every_setup_scene_has_nothing_left_to_save() {
-        let scenes: [Scene; 9] = [
+        let scenes: [Scene; 10] = [
             ("setup-ask", setup_ask),
             ("setup-preset", setup_preset),
             ("setup-preset-shortcuts", setup_preset_shortcuts),
             ("setup-follow", setup_follow),
+            ("setup-follow-ru", setup_follow_ru),
             ("setup-plan", setup_plan),
             ("setup-kept", setup_kept),
             ("setup-result", setup_result),

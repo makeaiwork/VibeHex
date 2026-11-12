@@ -255,19 +255,24 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
     } else {
         p.k.ty.body_medium
     };
-    let mut line = row().key("title").gap(8.0).center_y().flex_wrap().child(
+    // The question fills the card's width and wraps; its hint always sits
+    // on its own line under it, whatever the question's length.
+    let mut line = col().key("title").w_full().min_w(0.0).gap(2.0).child(
         text(words(ask, &ask.q).to_owned())
             .key("q")
             .font(font)
             .color(p.text())
-            .wrap(),
+            .wrap()
+            .w_full(),
     );
     if !ask.hint.is_empty() && !small {
         line = line.child(
             text(words(ask, &ask.hint).to_owned())
                 .key("hint")
                 .font(p.k.ty.small)
-                .color(p.faint()),
+                .color(p.faint())
+                .wrap()
+                .w_full(),
         );
     }
     line
