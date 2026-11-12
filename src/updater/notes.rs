@@ -60,6 +60,12 @@ pub fn bare(offered: &str) -> UpdateNotes {
     }
 }
 
+/// Where Download update goes when the release names neither a file for
+/// this install nor a page of its own: the fork's releases, not Hex's site.
+pub fn download_page() -> String {
+    PAGE.into()
+}
+
 fn version(build: &Value) -> Option<&str> {
     build.get("version").and_then(Value::as_str)
 }
@@ -210,6 +216,12 @@ mod tests {
         let bare = bare("3.3.0-vibe.99");
         assert_eq!(bare.version, "3.3.0-vibe.99");
         assert!(bare.releases.is_empty() && bare.items.is_empty());
+    }
+
+    #[test]
+    fn a_download_without_a_page_opens_the_forks_releases() {
+        assert_eq!(download_page(), PAGE);
+        assert!(download_page().starts_with("https://github.com/makeaiwork/"));
     }
 
     #[test]

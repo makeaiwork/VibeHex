@@ -49,7 +49,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Failure notices no    labs.failure_notices                   when a dictation fails, its explanation sits beside the HUD for about 6 s, or until the next capture starts
 ├── Live typing     no    labs.live_typing                       (Linux Wayland) provisional words as an underlined input-method preedit in the focused field; the final text is committed there instead of pasted
 ├── Settings search no    labs.settings_search                  a search field atop General filters its rows, Advanced's included
-├── Release notes link no labs.release_notes_link               the sidebar footer links this build's release notes: the dev changelog on a dev build, GitHub's release on a stable version
+├── Release notes link no labs.release_notes_link               the sidebar footer links this build's release notes: the fork's GitHub release for a VibeHex (`X.Y.Z-vibe.N`) or plain `X.Y.Z` version, nothing for any other
 ├── Live chapters   no    labs.live_chapters           (macOS)   chapters a meeting while it records, boundary pass after Stop
 ├── Vocabulary biasing no labs.vocabulary_biasing                Parakeet transcription biased toward the vocabulary (#452/#457)
 ├── Switch model with keyboard language  no  keyboard_model_switching.enabled  (macOS, Windows, X11)
@@ -238,7 +238,8 @@ Settings › Labs                          // labs.page, a store (labs/store.rs)
 │   Links over 2048 bytes are ignored; a test build's scheme is hex-test://
 ├── Annotate is listed as a lab (Annotate group) wherever Hex has the Annotate pane; its switch flips capture.enabled
 └── Footer -> "Unfinished features. They may change or break.", Run setup again (replays the onboarding,
-    below), Send feedback -> https://github.com/anomalyco/hex/issues/new
+    below), Send feedback -> a new email to the developer (`labs::feedback_mailto`: zelenpro@gmail.com,
+    subject "VibeHex feedback (version <version>)"), as About's Email the developer
 
 hex labs                                 // labs.cli; edits settings.json, no running Hex
 ├── (list) -> every feature this build has: name, on/off, audience, description, its hex settings key
@@ -365,16 +366,16 @@ footer shows a small Release notes link under the version and update status.
 Only a release build shows it, and that exclusion is by build kind, not
 version string: local and test builds (`HEX_LOCAL_BUILD=1`,
 `HEX_TEST_BUILD=1`) get no link even when their version is plain. Then
-`updater::notes::release_notes_url` chooses from `crate::VERSION`: a dev
-version (`0.0.0-dev-N`) opens `https://anoma.ly/hex/dev#<version>`, a plain
-`major.minor.patch` opens
-`https://github.com/anomalyco/hex/releases/tag/v<version>`, and an odd
-version shows no link. The gate is the footer row
+`updater::notes::release_notes_url` chooses from `crate::VERSION`: a VibeHex
+version (`major.minor.patch-vibe.N`) or a plain `major.minor.patch` opens the
+fork's own GitHub release, `<RELEASES>/v<version>` (`RELEASES` in
+[notes.rs](../../src/updater/notes.rs), the fork repository's
+`/releases/tag`), and any other version, a dev one (`0.0.0-dev-N`) included,
+shows no link. The gate is the footer row
 ([sidebar.rs](../../src/rune_ui/sidebar.rs) reads
 `labs::Feature::ReleaseNotesLink`), so off, the footer is exactly as before
 and What's new keeps its place under a staged update. Checks:
-`a_dev_build_opens_the_changelog_at_itself`,
-`a_stable_build_opens_its_github_release`, and
+`a_vibehex_release_opens_its_github_release` and
 `an_odd_version_has_no_release_notes` in
 [notes.rs](../../src/updater/notes.rs), and
 `release_notes_link_shows_only_with_its_lab` in
