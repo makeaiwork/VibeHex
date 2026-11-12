@@ -367,6 +367,72 @@ mod tests {
         assert!(!named.iter().any(|term| term.eq_ignore_ascii_case("monki")));
     }
 
+    /// The Labs switches the owner had turned on by 2026-11-12, when the
+    /// preset was written again from his settings, go through the gate
+    /// like every other line: a row exactly where this VibeHex and this
+    /// computer can take the feature, a name under "Not available here"
+    /// where they can't, and on a computer the feature doesn't fit (a
+    /// notch, a mouse with side buttons), no row either.
+    #[test]
+    fn the_switches_turned_on_since_pass_the_same_gate() {
+        const SINCE: [&str; 8] = [
+            "labs.failure_notices",
+            "labs.filler_words",
+            "labs.follow_live_transcript",
+            "labs.meeting_descriptive_filenames",
+            "labs.more_call_apps",
+            "labs.movable_meeting_capsules",
+            "labs.spoken_symbols",
+            "labs.stop_when_call_ends",
+        ];
+        let preset = denis();
+        let settings = AppSettings::default();
+        let state = mac();
+        let planned = plan(&preset, &settings, &state);
+        let card = planned.card.unwrap();
+        let gate = Gate::new(&settings, &state);
+        for key in SINCE {
+            assert_eq!(preset.settings.get(key), Some(&Value::Bool(true)), "{key}");
+            let row = card.items.iter().find(|item| item.key == key);
+            match gate.here(key) {
+                Ok(()) => assert!(row.is_some_and(|row| row.included), "{key}"),
+                Err(_) => {
+                    assert!(row.is_none(), "{key} is offered where it isn't available");
+                    assert!(planned.missing.contains(&name(key, &settings)), "{key}");
+                }
+            }
+        }
+        // A switch the preset turns on that this computer can't use is no
+        // row, whichever switch it is: a Mac mini has no notch.
+        use crate::desktop::hardware::{Hardware, Screens};
+        let mini = State {
+            hardware: Hardware {
+                screens: Some(Screens {
+                    built_in: false,
+                    external: 1,
+                    notch: false,
+                }),
+                ..Hardware::default()
+            },
+            ..mac()
+        };
+        let mut with_notch = preset.clone();
+        let notch = "labs.notch_indicator";
+        with_notch.settings.insert(notch.into(), Value::Bool(true));
+        let planned = plan(&with_notch, &settings, &mini);
+        let card = planned.card.unwrap();
+        assert!(card.items.iter().all(|item| item.key != notch));
+        assert!(planned.missing.contains(&name(notch, &settings)));
+        let gate = Gate::new(&settings, &mini);
+        for item in card
+            .items
+            .iter()
+            .filter(|item| item.key.starts_with("labs."))
+        {
+            assert!(gate.here(&item.key).is_ok(), "{}", item.key);
+        }
+    }
+
     /// What is the same is "Already set"; terms the person has are left
     /// out; an engine not ready starts unchecked with where to finish.
     #[test]

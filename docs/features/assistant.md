@@ -713,7 +713,9 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   (`intent::preset_not_offered`), so no model can stand in for it. The
   guide's article says whom it is for, so the answer is honest.
 - `presets/deniskey.json` is written by `scripts/export-preset` from the
-  owner's settings.json and shipped with `include_str!`. It is an
+  owner's settings.json and shipped with `include_str!` (last written
+  2026-11-12, whole: 91 settings keys, 10 shortcut keys, the prompt, 90
+  terms). It is an
   allow-list over the `hex settings` registry: every Labs switch, the
   speech model and language, dictation cleanup (on/off, `runs_on`, local
   and Codex model, Codex effort), Meetings' engines, writer, efforts and
