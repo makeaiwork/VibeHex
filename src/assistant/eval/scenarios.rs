@@ -17,10 +17,16 @@ use super::{answers, report, setups};
 use crate::app_settings::AppSettings;
 use crate::files::rewrite::Engine;
 
-/// Every scenario, in the order of their ids.
+/// Scenarios about what only a Mac has (Add to vocabulary from a selection
+/// and its shortcut). The catalog a prompt carries is this OS's, so
+/// elsewhere there is nothing for them to hold.
+const MAC_ONLY: &[&str] = &["07-words-wrong"];
+
+/// Every scenario this OS can hold, in the order of their ids.
 pub fn all() -> Vec<Scenario> {
     let mut all = answers::scenarios();
     all.extend(setups::scenarios());
+    all.retain(|scenario| cfg!(target_os = "macos") || !MAC_ONLY.contains(&scenario.id));
     all.sort_by_key(|scenario| scenario.id);
     all
 }

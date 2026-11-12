@@ -93,6 +93,26 @@ pub fn owner() -> Fixture {
     }
 }
 
+/// The owner's install with Vocabulary biasing on: 97 terms, of which
+/// Orukeet takes the first 64 while it transcribes, and AI cleanup on,
+/// reading them all.
+pub fn owner_biased() -> Fixture {
+    let mut fixture = owner();
+    fixture.settings.labs.vocabulary_biasing = true;
+    let cleanup = &mut fixture.settings.dictation_processing.default_mode;
+    cleanup.post_processing.enabled = true;
+    fixture
+}
+
+/// The same with Clean up with AI off: the terms past the first 64 are
+/// used nowhere.
+pub fn owner_biased_no_cleanup() -> Fixture {
+    let mut fixture = owner_biased();
+    let cleanup = &mut fixture.settings.dictation_processing.default_mode;
+    cleanup.post_processing.enabled = false;
+    fixture
+}
+
 /// The owner's install reading the recordings eval's meetings, Files
 /// texts, and dictations.
 pub fn owner_with_meetings() -> Fixture {

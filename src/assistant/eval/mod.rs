@@ -26,4 +26,4 @@ mod scenarios;
 mod setups;
 mod stages;
 
-pub use harness::sent;
+pub use harness::{SERIAL, sent};

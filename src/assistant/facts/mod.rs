@@ -20,6 +20,7 @@
 
 mod gather;
 pub mod text;
+mod vocabulary;
 
 #[cfg(test)]
 mod tests;
@@ -39,6 +40,7 @@ use crate::transcription::models;
 #[cfg(test)]
 pub use gather::on_disk;
 pub use gather::{Scene, Seen, gather};
+pub use vocabulary::{Reads, Vocabulary};
 
 /// One thing read off this install: its value, or that it couldn't be told.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -318,8 +320,8 @@ pub struct Facts {
     pub shortcuts: Vec<Shortcut>,
     /// The Labs features on, by title.
     pub labs_on: Vec<String>,
-    /// How many terms Vocabulary holds.
-    pub vocabulary: usize,
+    /// How many terms Vocabulary holds, and who reads how many of them.
+    pub vocabulary: Vocabulary,
     /// The Labs features this computer is known not to fit.
     pub unfit: Vec<Unfit>,
     pub consent: Consent,
@@ -424,7 +426,7 @@ impl Facts {
             assistant: Runs::of(&assistant_engine(settings, None, None)),
             shortcuts: shortcuts(settings),
             labs_on: labs_on(settings),
-            vocabulary: settings.vocabulary.len(),
+            vocabulary: Vocabulary::of(settings),
             unfit: unfit(&state.hardware),
             consent: Consent {
                 send_settings: settings.assistant.send_settings,

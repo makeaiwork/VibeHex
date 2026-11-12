@@ -62,6 +62,10 @@ impl Sent {
 
 static SENT: Mutex<Option<Sent>> = Mutex::new(None);
 
+/// The worker is one per process: its tests and the scenarios take turns
+/// when a run keeps them in one (`cargo test`; nextest gives each its own).
+pub static SERIAL: Mutex<()> = Mutex::new(());
+
 /// The worker's word of what it sends, as it sends it.
 pub fn sent(prompt: &Prompt, web: bool) {
     *SENT.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Sent {
@@ -439,6 +443,9 @@ fn run_step(fixture: &Fixture, turns: &[Turn], step: &Step, mode: &Mode) -> Step
 /// Runs `scenario` in `mode`: its app checks, then its steps as one
 /// conversation.
 pub fn run(scenario: &Scenario, mode: &Mode) -> Ran {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let fixture = (scenario.fixture)();
     // The app's own words (setup's questions, a plan's reasons) in
     // Assistant's language for this install, as the pane makes them.

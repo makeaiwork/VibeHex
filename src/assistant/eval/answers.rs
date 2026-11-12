@@ -7,7 +7,9 @@ use super::checks::{
     answer_in_russian, answer_names, card_for, check, ensure, live, marks, names_before,
     no_card_for, no_cards, no_labs_card, offline, routed, sent_has, sent_lacks, web_off,
 };
-use super::fixtures::{folder, newcomer, owner, owner_with_meetings};
+use super::fixtures::{
+    folder, newcomer, owner, owner_biased, owner_biased_no_cleanup, owner_with_meetings,
+};
 use super::harness::{Check, Fixture, Said, Scenario, Step};
 use crate::assistant::changes::CardKind;
 use crate::assistant::intent::Route;
@@ -42,6 +44,15 @@ fn recordings() -> Check {
         )
     })
 }
+
+/// Lowercased `text` holds one of `words`.
+fn says(text: &str, words: &[&str]) -> bool {
+    let text = text.to_lowercase();
+    words.iter().any(|word| text.contains(word))
+}
+
+/// It names AI cleanup: the feature, or the switch.
+const CLEANUP_WORDS: &[&str] = &["cleanup", "clean up with ai", "очистк", "чистк"];
 
 /// The dictations a search found.
 fn dictations_found(steps: &[Read]) -> usize {
@@ -540,6 +551,109 @@ pub fn scenarios() -> Vec<Scenario> {
                         )
                     }),
                     citations_resolve(),
+                    answer_in_russian(),
+                ],
+            )],
+        },
+        Scenario {
+            id: "18-vocabulary-limit",
+            about: "«Некоторые слова распознаются неправильно. Как это исправить?»: it said the \
+                    speech model reads only the first 64 of 97 Vocabulary terms and stopped \
+                    there, while Clean up with AI was on and reads the whole list.",
+            fixture: owner_biased,
+            app: Vec::new(),
+            steps: vec![message(
+                "Некоторые слова распознаются неправильно. Как это исправить?",
+                &[
+                    "Добавьте слово в **General › Vocabulary** с тем, как оно слышится. Orukeet при \
+                   распознавании учитывает первые 64 термина из 97, но у вас включена очистка: \
+                   **Clean up with AI** читает весь список и исправляет остальные уже после \
+                   распознавания.\n\nSources: topics/vocabulary, labs/vocabulary-biasing",
+                ],
+                vec![
+                    guide(),
+                    sent_has(
+                        "who reads how much of Vocabulary",
+                        &[
+                            "Vocabulary: 97 terms; while transcribing, Orukeet is biased toward \
+                             only the first 64 (Labs › Vocabulary biasing is on)",
+                            "AI cleanup is on and reads all 97",
+                        ],
+                    ),
+                    sent_has(
+                        "the guide's limit with cleanup beside it",
+                        &["reads the whole list with every \"sounds like\" spelling"],
+                    ),
+                    check(
+                        "the 64 limit comes with cleanup reading the whole list",
+                        |outcome| {
+                            let answer = &outcome.turn.answer;
+                            let whole = says(
+                                answer,
+                                &["97", "весь", "все ", "всех", "целиком", "whole", "entire"],
+                            );
+                            ensure(
+                                !answer.contains("64") || (says(answer, CLEANUP_WORDS) && whole),
+                                || answer.clone(),
+                            )
+                        },
+                    ),
+                    // On already: nothing to turn on.
+                    no_card_for("labs.vocabulary_biasing"),
+                    no_card_for("dictation_processing.default_mode.cleanup"),
+                    answer_in_russian(),
+                ],
+            )],
+        },
+        Scenario {
+            id: "18b-vocabulary-limit-no-cleanup",
+            about: "The same question with Clean up with AI off: the terms past the first 64 are \
+                    used nowhere, and the answer has to say what to do about it.",
+            fixture: owner_biased_no_cleanup,
+            app: Vec::new(),
+            steps: vec![message(
+                "Некоторые слова распознаются неправильно. Как это исправить?",
+                &[
+                    "Orukeet при распознавании учитывает только первые 64 термина из 97, а очистка \
+                   выключена, так что остальные 33 не используются. Поднимите важные термины выше \
+                   в **General › Vocabulary** или включите очистку.\n\n\
+                   ```hex-change\n\
+                   {\"key\":\"dictation_processing.default_mode.cleanup\",\"value\":true,\"why\":\"очистка читает весь словарь\"}\n\
+                   ```\n\nSources: topics/vocabulary",
+                ],
+                vec![
+                    guide(),
+                    sent_has(
+                        "that the rest is used nowhere",
+                        &[
+                            "only the first 64",
+                            "AI cleanup is off, so the other 33 are not used in dictation",
+                        ],
+                    ),
+                    check(
+                        "the 64 limit comes with what to do: move terms up, or cleanup on",
+                        |outcome| {
+                            let answer = &outcome.turn.answer;
+                            let card = outcome.turn.cards.iter().flat_map(|card| &card.items).any(
+                                |item| item.key == "dictation_processing.default_mode.cleanup",
+                            );
+                            let up = says(
+                                answer,
+                                &["выше", "наверх", "вверх", "в начало", "move ", " top"],
+                            );
+                            ensure(
+                                !answer.contains("64") || card || up || says(answer, CLEANUP_WORDS),
+                                || answer.clone(),
+                            )
+                        },
+                    ),
+                    offline("cleanup is offered as a card", |outcome| {
+                        (card_for(
+                            "dictation_processing.default_mode.cleanup",
+                            Some(json!(true)),
+                        )
+                        .test)(outcome)
+                    }),
                     answer_in_russian(),
                 ],
             )],

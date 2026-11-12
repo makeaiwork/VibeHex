@@ -43,10 +43,16 @@ keep spellings distinctive. AI cleanup also sees each spelling next to its term.
 
 ## Limits
 
-- Parakeet-based models take the first 64 terms. Whisper-based models take as
-  many terms as fit in about 500 characters, and Qwen3-ASR and QwenCleo about
-  1,000, counting from the top of the list. When the model reads fewer terms
-  than the list holds, the sheet says "This model reads the first N of M terms".
+- What the speech model reads while it transcribes: Parakeet-based models
+  take the first 64 terms. Whisper-based models take as many terms as fit in
+  about 500 characters, and Qwen3-ASR and QwenCleo about 1,000, counting from
+  the top of the list. When the model reads fewer terms than the list holds,
+  the sheet says "This model reads the first N of M terms".
+- That limit is only the speech model's. Clean up with AI, when it is on,
+  reads the whole list, every term with its "sounds like" spellings, so terms
+  past the limit are still corrected after transcription. With cleanup off,
+  terms past the limit aren't used in dictation: move the ones you say most
+  to the top, or turn Clean up with AI on.
 - The list holds up to 500 terms, with 64 characters per term or spelling and
   16 spellings per term.
 - A term with spaces ("Dax Rad") matches only when said in full. If you also

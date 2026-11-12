@@ -160,7 +160,7 @@ pub fn scenarios() -> Vec<Scenario> {
                                     .turn
                                     .asks
                                     .iter()
-                                    .any(|ask| ask.id == "labs.smart_spacing"),
+                                    .any(|ask| ask.id == "labs.filler_words"),
                                 || {
                                     format!(
                                         "{:?}",
@@ -192,7 +192,7 @@ pub fn scenarios() -> Vec<Scenario> {
                             ensure(
                                 plan_items(&outcome.turn.cards)
                                     .iter()
-                                    .any(|item| item.key == "labs.smart_spacing"),
+                                    .any(|item| item.key == "labs.filler_words"),
                                 || format!("{:?}", outcome.turn.cards),
                             )
                         }),
@@ -536,10 +536,10 @@ pub fn scenarios() -> Vec<Scenario> {
             steps: vec![stage(
                 plan_stage,
                 &["Вот что подходит.\n\n```hex-plan\n\
-                   {\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"пробел после слова\"}\n\
+                   {\"key\":\"labs.failure_notices\",\"value\":true,\"why\":\"видно, когда не вышло\"}\n\
                    {\"key\":\"labs.spoken_symbols\",\"value\":true,\"why\":\"знаки голосом\"}\n\
                    {\"key\":\"labs.filler_words\",\"value\":true,\"why\":\"без «эээ»\"}\n\
-                   {\"key\":\"labs.stop_when_call_ends\",\"value\":true,\"why\":\"запись не тянется\"}\n\
+                   {\"key\":\"labs.history_stats\",\"value\":true,\"why\":\"сколько надиктовано\"}\n\
                    {\"key\":\"labs.vocabulary_biasing\",\"value\":true,\"why\":\"термины из словаря\"}\n\
                    ```\n\nSources: none"],
                 vec![
@@ -557,10 +557,10 @@ pub fn scenarios() -> Vec<Scenario> {
                             .map(|item| item.key.as_str())
                             .filter(|key| {
                                 [
-                                    "labs.smart_spacing",
+                                    "labs.failure_notices",
                                     "labs.spoken_symbols",
                                     "labs.filler_words",
-                                    "labs.stop_when_call_ends",
+                                    "labs.history_stats",
                                     "labs.vocabulary_biasing",
                                 ]
                                 .contains(key)

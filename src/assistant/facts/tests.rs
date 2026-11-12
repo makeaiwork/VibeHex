@@ -1,7 +1,7 @@
 //! Tests of the facts and their one formatter.
 
 use super::text::{self, Sent};
-use super::{Cleanup, Fact, Facts, Fallback, FilesCleanup, Kind, State};
+use super::{Cleanup, Fact, Facts, Fallback, FilesCleanup, Kind, Reads, State};
 use crate::app_settings::{AppSettings, CleanupRunsOn, MeetingSummaries};
 use crate::desktop::hardware::{Hardware, Pointer, Screens};
 use crate::dictation::vocabulary::VocabularyEntry;
@@ -201,7 +201,15 @@ fn a_shortcut_is_listed_with_its_keycaps_while_its_feature_is_on() {
         .map(|shortcut| shortcut.key)
         .collect();
     assert!(keys.contains(&"dictation_hotkey"), "{keys:?}");
-    assert!(keys.contains(&"vocabulary_add_hotkey"), "{keys:?}");
+    // Add to vocabulary from a selection is a Mac feature: elsewhere its
+    // shortcut isn't one the person has.
+    let here = |key: &str| crate::control::settings::unavailable(key).is_none();
+    let quick_add = here("labs.vocabulary_quick_add") && here("vocabulary_add_hotkey");
+    assert_eq!(
+        keys.contains(&"vocabulary_add_hotkey"),
+        quick_add,
+        "{keys:?}"
+    );
     let stored = serde_json::to_value(&settings).expect("settings");
     for shortcut in &facts.shortcuts {
         assert_eq!(
@@ -250,7 +258,7 @@ fn a_shortcut_is_listed_with_its_keycaps_while_its_feature_is_on() {
 fn labs_and_vocabulary_are_counted_from_the_settings() {
     let settings = sample();
     let facts = Facts::of(&settings, &State::default());
-    assert_eq!(facts.vocabulary, 94);
+    assert_eq!(facts.vocabulary.terms, 94);
     let on = crate::labs::Feature::ALL
         .into_iter()
         .filter(|feature| feature.on(&settings))
@@ -258,7 +266,7 @@ fn labs_and_vocabulary_are_counted_from_the_settings() {
     assert_eq!(facts.labs_on.len(), on);
     assert!(on >= 4, "{:?}", facts.labs_on);
     let told = text::told(&facts);
-    assert!(told.contains("Vocabulary: 94 terms\n"), "{told}");
+    assert!(told.contains("Vocabulary: 94 terms; "), "{told}");
     assert!(
         told.contains(&format!("Labs on: {}\n", facts.labs_on.join(", "))),
         "{told}"
@@ -271,6 +279,93 @@ fn labs_and_vocabulary_are_counted_from_the_settings() {
     let none = self::told(&bare, &State::default());
     assert!(none.contains("Vocabulary: 0 terms\n"), "{none}");
     assert!(none.contains("Labs on: none\n"), "{none}");
+}
+
+/// The Vocabulary line says who reads how much: the speech model only its
+/// first terms while it transcribes, AI cleanup the whole list. Told only
+/// "the first 64", a model answered that the other terms are lost.
+#[test]
+fn the_vocabulary_line_says_what_the_model_and_cleanup_each_read() {
+    use crate::transcription::models::TranscriptionModelId;
+    let mut settings = sent();
+    settings.vocabulary = (0..97)
+        .map(|n| VocabularyEntry {
+            term: format!("Term {n}"),
+            sounds_like: Vec::new(),
+        })
+        .collect();
+    settings.transcription.model = TranscriptionModelId::Orukeet;
+    settings.labs.vocabulary_biasing = true;
+    let cleanup = |settings: &mut AppSettings, on: bool| {
+        settings
+            .dictation_processing
+            .default_mode
+            .post_processing
+            .enabled = on;
+    };
+    let line = |settings: &AppSettings| {
+        told(settings, &State::default())
+            .lines()
+            .find(|line| line.starts_with("Vocabulary: "))
+            .expect("a Vocabulary line")
+            .to_owned()
+    };
+
+    cleanup(&mut settings, true);
+    let facts = Facts::of(&settings, &State::default());
+    // The number the Vocabulary sheet shows for this model.
+    let read = crate::dictation::vocabulary::terms_read(&settings.vocabulary, "parakeet");
+    assert_eq!(read, 64);
+    assert_eq!(facts.vocabulary.speech, Reads::Bias { read, on: true });
+    assert_eq!(facts.vocabulary.unused(), 0);
+    assert_eq!(
+        line(&settings),
+        "Vocabulary: 97 terms; while transcribing, Orukeet is biased toward only the first 64 \
+         (Labs › Vocabulary biasing is on); AI cleanup is on and reads all 97 with their \
+         sounds-like spellings, so every term is still corrected after transcription"
+    );
+
+    // Cleanup off: what the model doesn't take is used nowhere.
+    cleanup(&mut settings, false);
+    assert_eq!(
+        Facts::of(&settings, &State::default()).vocabulary.unused(),
+        33
+    );
+    let off = line(&settings);
+    assert!(off.contains("only the first 64"), "{off}");
+    assert!(
+        off.ends_with("AI cleanup is off, so the other 33 are not used in dictation"),
+        "{off}"
+    );
+
+    // Biasing off: a Parakeet-family model takes none.
+    settings.labs.vocabulary_biasing = false;
+    let unbiased = line(&settings);
+    assert!(
+        unbiased.contains("Orukeet uses none of them (Labs › Vocabulary biasing is off"),
+        "{unbiased}"
+    );
+    assert!(unbiased.contains("the other 97 are not used"), "{unbiased}");
+
+    // A short list fits whole; Whisper reads a hint with no switch; GigaAM
+    // reads nothing.
+    settings.labs.vocabulary_biasing = true;
+    settings.vocabulary.truncate(10);
+    let short = line(&settings);
+    assert!(short.contains("biased toward all of them"), "{short}");
+    assert!(short.ends_with("AI cleanup is off"), "{short}");
+    settings.transcription.model = TranscriptionModelId::WhisperLargeV3Turbo;
+    assert_eq!(
+        Facts::of(&settings, &State::default()).vocabulary.speech,
+        Reads::Prompt { read: 10 }
+    );
+    assert!(line(&settings).contains("reads all of them as a hint"));
+    settings.transcription.model = TranscriptionModelId::GigaAmV3;
+    assert_eq!(
+        Facts::of(&settings, &State::default()).vocabulary.speech,
+        Reads::None
+    );
+    assert!(line(&settings).contains("doesn't use them while transcribing"));
 }
 
 #[test]

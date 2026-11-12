@@ -35,7 +35,7 @@ pub fn now(facts: &Facts) -> String {
     if let Some(labs) = labs(facts) {
         parts.push(tr_fill("Labs on: {}", &labs));
     }
-    parts.push(match facts.vocabulary {
+    parts.push(match facts.vocabulary.terms {
         0 => tr("Vocabulary is empty").to_owned(),
         1 => tr("1 term in Vocabulary").to_owned(),
         terms => tr_fill("{} terms in Vocabulary", &terms.to_string()),

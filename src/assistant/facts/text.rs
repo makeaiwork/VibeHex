@@ -8,7 +8,7 @@
 //! way, as before, since it names nothing of theirs. Whether an OpenRouter
 //! key is saved and which local servers are installed are never written.
 
-use super::{Cleanup, Fact, Facts, FilesCleanup};
+use super::{Cleanup, Fact, Facts, FilesCleanup, Reads};
 use crate::transcription::languages::language_name;
 use crate::transcription::models::AUTO_LANGUAGE;
 
@@ -117,6 +117,54 @@ fn listed(items: &[String]) -> String {
     }
 }
 
+/// Vocabulary in one line: how many terms, how many of them the speech
+/// model takes while it transcribes, and whether AI cleanup reads the
+/// rest. A model told only "the first 64" answers that the others are
+/// lost; with cleanup on they are not.
+fn vocabulary(facts: &Facts) -> String {
+    let vocabulary = &facts.vocabulary;
+    let count = match vocabulary.terms {
+        1 => "1 term".to_owned(),
+        terms => format!("{terms} terms"),
+    };
+    if vocabulary.terms == 0 {
+        return format!("Vocabulary: {count}");
+    }
+    let model = &facts.speech.model.name;
+    let first = |read: usize| match read >= vocabulary.terms {
+        true => "all of them".to_owned(),
+        false => format!("only the first {read}"),
+    };
+    let speech = match vocabulary.speech {
+        Reads::Bias { read, on: true } => format!(
+            "while transcribing, {model} is biased toward {} (Labs › Vocabulary biasing is on)",
+            first(read)
+        ),
+        Reads::Bias { read, on: false } => format!(
+            "while transcribing, {model} uses none of them (Labs › Vocabulary biasing is off; \
+             on, it would take {})",
+            first(read)
+        ),
+        Reads::Prompt { read } => format!(
+            "while transcribing, {model} reads {} as a hint",
+            first(read)
+        ),
+        Reads::None => format!("{model} doesn't use them while transcribing"),
+    };
+    let cleanup = match (vocabulary.cleanup, vocabulary.unused()) {
+        (true, _) => format!(
+            "AI cleanup is on and reads all {} with their sounds-like spellings, so every \
+             term is still corrected after transcription",
+            vocabulary.terms
+        ),
+        (false, 0) => "AI cleanup is off".to_owned(),
+        (false, unused) => {
+            format!("AI cleanup is off, so the other {unused} are not used in dictation")
+        }
+    };
+    format!("Vocabulary: {count}; {speech}; {cleanup}")
+}
+
 /// The facts a model reads while settings are sent, one a line.
 fn lines(facts: &Facts) -> Vec<String> {
     let shortcuts: Vec<String> = facts
@@ -165,10 +213,7 @@ fn lines(facts: &Facts) -> Vec<String> {
                 false => shortcuts.join("; "),
             }
         ),
-        match facts.vocabulary {
-            1 => "Vocabulary: 1 term".into(),
-            terms => format!("Vocabulary: {terms} terms"),
-        },
+        vocabulary(facts),
         format!(
             "Computer model: {}",
             facts.state.hardware.model.as_deref().unwrap_or(UNKNOWN)

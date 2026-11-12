@@ -112,24 +112,25 @@ pub const ROUND_ONE: &str = "Давайте настроим VibeHex под ва
 {\"id\":\"notes\",\"q\":\"Где писать конспекты и обрабатывать файлы?\",\"options\":[{\"id\":\"codex\",\"label\":\"Codex\"},{\"id\":\"opencode\",\"label\":\"OpenCode\"},{\"id\":\"openrouter\",\"label\":\"OpenRouter\"},{\"id\":\"custom\",\"label\":\"Свой сервер\"},{\"id\":\"local\",\"label\":\"На этом Mac\"},{\"id\":\"apple\",\"label\":\"Apple Intelligence\"}]}\n\
 ```\n\nSources: none";
 
-/// Follow-ups a model is played as writing: two that fit, and the two this
-/// Mac mini can't use.
+/// Follow-ups a model is played as writing: the two this Mac mini can't
+/// use, and one that fits (a feature every OS has, so the scenarios hold
+/// wherever the checks run).
 pub const FOLLOW_UNFIT: &str = "Ещё пара вопросов.\n\n```hex-ask\n\
 {\"id\":\"labs.notch_indicator\",\"q\":\"Показывать индикатор у выреза экрана?\",\"options\":[{\"id\":\"yes\",\"label\":\"Да, включить\"},{\"id\":\"no\",\"label\":\"Нет\"}]}\n\
 {\"id\":\"labs.mouse_shortcuts\",\"q\":\"Диктовать по боковой кнопке мыши?\",\"options\":[{\"id\":\"yes\",\"label\":\"Да, включить\"},{\"id\":\"no\",\"label\":\"Нет\"}]}\n\
-{\"id\":\"labs.smart_spacing\",\"q\":\"Ставить пробел после вставленного слова?\",\"options\":[{\"id\":\"yes\",\"label\":\"Да, включить\"},{\"id\":\"no\",\"label\":\"Нет\"}]}\n\
+{\"id\":\"labs.filler_words\",\"q\":\"Убирать «эээ» и «ну» из диктовки?\",\"options\":[{\"id\":\"yes\",\"label\":\"Да, включить\"},{\"id\":\"no\",\"label\":\"Нет\"}]}\n\
 ```\n\nSources: none";
 
 pub const PLAN_UNFIT: &str = "Вот что подходит к тому, как вы работаете.\n\n```hex-plan\n\
 {\"key\":\"labs.notch_indicator\",\"value\":true,\"why\":\"индикатор у выреза\"}\n\
 {\"key\":\"labs.mouse_shortcuts\",\"value\":true,\"why\":\"диктовка с мыши\"}\n\
-{\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"пробел после слова\"}\n\
+{\"key\":\"labs.filler_words\",\"value\":true,\"why\":\"без «эээ»\"}\n\
 ```\n\nSources: none";
 
 /// A returning plan a model is played as writing: a setting, two terms on
 /// one line each, and an ordinary word as a term.
 pub const PLAN_TERMS: &str = "Вот что стоит поменять.\n\n```hex-plan\n\
-{\"key\":\"labs.smart_spacing\",\"value\":true,\"why\":\"пробел после слова\"}\n\
+{\"key\":\"labs.filler_words\",\"value\":true,\"why\":\"без «эээ»\"}\n\
 {\"term\":\"Codex\",\"sounds_like\":[\"кодекс\"]}\n\
 {\"term\":\"GitHub\",\"sounds_like\":[\"гитхаб\"],\"optional\":true}\n\
 ```\n\nSources: none";

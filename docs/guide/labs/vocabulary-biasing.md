@@ -28,7 +28,12 @@ in transcription at all; for them, fix words with AI cleanup or word fixes.
 
 **Needs.** Terms in General › Vocabulary. A Parakeet-family speech model.
 
-**Good to know.** Only the first 64 terms count. A term with spaces helps
+**Good to know.** The speech model takes only the first 64 terms while it
+transcribes. That limit is the speech model's alone: Clean up with AI, when
+it is on, reads the whole list with every "sounds like" spelling, so a term
+further down is still corrected after transcription. With cleanup off, terms
+past the first 64 aren't used in dictation: keep the ones you say most at
+the top, or turn Clean up with AI on. A term with spaces helps
 only when said in full; give a name said alone its own row. Short terms
 under five letters work better with a "sounds like" spelling. How strongly
 it prefers terms is the `vocabulary_boost` setting (off, light, normal,
@@ -41,4 +46,4 @@ General › Vocabulary (`vocabulary`), `vocabulary_boost`.
 come out wrong"; «Словарь не работает, слова всё равно пишутся неправильно»;
 «Как заставить модель писать мои термины».
 
-<!-- sources: docs/features/vocabulary.md:1-75; docs/features/labs.md:46, docs/features/labs.md:1391-1396; src/rune_ui/labs.rs:268 -->
+<!-- sources: docs/features/vocabulary.md:1-75; docs/features/labs.md:46, docs/features/labs.md:1391-1396; src/rune_ui/labs.rs:268; src/dictation/vocabulary.rs (MAX_BIASED_TERMS); src/dictation/processor.rs (vocabulary_lines) -->

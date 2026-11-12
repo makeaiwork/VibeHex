@@ -110,7 +110,7 @@ pub struct Answering {
     pub steps: Vec<Step>,
     /// Still searching the recordings.
     pub searching: bool,
-    /// A change block has started: the feed shows "Preparing a change…".
+    /// A change block has started: the feed shows "Preparing a change".
     pub cards_coming: bool,
     /// What it has searched on the web so far.
     pub web: Web,
@@ -828,8 +828,9 @@ mod tests {
     use super::*;
     use color_eyre::eyre::eyre;
 
-    /// The worker is one per process; its tests take turns.
-    static SERIAL: Mutex<()> = Mutex::new(());
+    /// The worker is one per process; its tests take turns, the scenarios
+    /// among them.
+    use crate::assistant::eval::SERIAL;
 
     fn question(text: &str) -> Question {
         Question {

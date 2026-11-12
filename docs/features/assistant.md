@@ -73,7 +73,9 @@ Assistant                                        // rune_ui::assistant
 │   │           finished, "Then: …"; a folded "Already set: 6 things ›";
 │   │           Not now and "Apply 5 changes"; after, a mark per row and
 │   │           "4 of 5 changes applied" with Undo
-│   ├── Coming  "Looking in the guide…", then the draft as it streams;
+│   ├── Coming  "Looking in the guide" as a step going on (three moving
+│   │           dots, like a search), then the draft as it streams, and
+│   │           "Preparing a change" the same way while a card is read;
 │   │           the face reads (eyes drift along a line) until it lands
 │   ├── Field   "Ask about VibeHex or your recordings", the model and reasoning menus (for this
 │   │           conversation only), Send, or Stop while answering
@@ -236,18 +238,31 @@ Opened from a place link                         // rune_ui::assistant::places
   `meetings.summaries` reads as the fallback, not used now; a writer
   saved while Labs › Clean up on your own server is off isn't the
   writer), Codex's sign-in, whether OpenCode runs, the Labs on, each
-  shortcut set as its keycaps show it, how many Vocabulary terms there
-  are, and the hardware. A fact that couldn't be read is `Fact::Unknown`
+  shortcut set as its keycaps show it, the Vocabulary (below), and the
+  hardware. A fact that couldn't be read is `Fact::Unknown`
   and reads "unknown", never "none" or "no". Whether an OpenRouter key is
   saved and which local servers are installed are for the app's own rules
   (setup) and are never written for a model. The window passes only what
   lives in its state (`facts::Seen`: the settings being typed, the setups
   kept, what Output and the pane last heard of Codex and OpenCode).
+- The Vocabulary fact (`facts::Vocabulary`) says who reads how much of the
+  list, in one line: how many terms it holds, how many of them the speech
+  model in use takes while it transcribes (`models::vocabulary_terms_read`,
+  the count behind the sheet's "This model reads the first N of M terms";
+  for a Parakeet-family model only with Labs › Vocabulary biasing on), and
+  whether Clean up with AI is on in the Global mode: on, cleanup reads the
+  whole list with its sounds-like spellings (`processor::vocabulary_lines`
+  has no cap), so no term is lost; off, the line says how many terms are
+  used nowhere. `Vocabulary: 97 terms; while transcribing, Orukeet is
+  biased toward only the first 64 (Labs › Vocabulary biasing is on); AI
+  cleanup is on and reads all 97 …`. Told only "the first 64", a model
+  answered that the other terms don't work.
 - One formatter writes them (`facts::text::told`): the `<state>` block, a
   fact a line, only with `assistant.send_settings` on, and "Not on this
   Mac: …" either way. Engine ids and Codex efforts go in the catalog's now
   column as stored. `rune_ui::assistant::facts_tests` holds each fact that
-  mirrors a row (models, notes writer, engines, shortcuts) to what the
+  mirrors a row (models, notes writer, engines, shortcuts, the terms the
+  speech model reads) to what the
   window's own code shows for the same settings.
 - The hardware comes from `desktop::hardware`: `Screens: 1 external, no
   notch`, `Pointing devices: Magic Mouse, no extra buttons`, `Computer
@@ -827,7 +842,10 @@ Cmd+[, and the landing at two window heights.
 ## Quality loop
 
 Every problem reported about Assistant becomes a scenario in the change
-that fixes it: the fix isn't done while no scenario fails without it.
+that fixes it: the fix isn't done while no scenario fails without it. A
+problem in what the pane draws (a step line standing without its dots) is
+held the same way by a pane test or a scene: the scenarios run the core
+path, from the route to the parsed turn.
 
 - **Scenarios** (`src/assistant/eval`, fixtures in
   `tests/fixtures/assistant`): each is a made-up install (settings, facts,
@@ -841,7 +859,11 @@ that fixes it: the fix isn't done while no scenario fails without it.
   `intent::reads`, the same `Question`, the worker with its parse, gates,
   and repair round); which setup stage follows which is still the pane's
   (`rune_ui::assistant::ask`), so a setup step builds its stage with the
-  same core calls.
+  same core calls. The catalog a prompt carries is this OS's, so played
+  replies name features every OS has, and a scenario about a Mac-only
+  feature (`scenarios::MAC_ONLY`) runs on a Mac alone. The worker is one
+  per process: the scenarios and its tests share one lock
+  (`eval::SERIAL`) for runs that keep them in one (`cargo test`).
 - **Offline**, in `scripts/check` (`scripts/check assistant::eval` alone):
   the scenarios with a reply a model is played as writing, often a wrong
   one (a card for a value already set, a question about a notch on a Mac

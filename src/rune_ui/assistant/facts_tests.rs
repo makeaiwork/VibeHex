@@ -257,3 +257,41 @@ fn a_shortcut_reads_as_its_rows_keycaps() {
         }
     }
 }
+
+/// The Vocabulary line's "first N" is the sheet's "This model reads the
+/// first N of M terms", for a list longer than the model takes.
+#[test]
+fn the_terms_the_speech_model_reads_are_the_sheets_count() {
+    use crate::assistant::facts::Reads;
+    for model in [
+        TranscriptionModelId::Orukeet,
+        TranscriptionModelId::ParakeetV3,
+        TranscriptionModelId::WhisperLargeV3Turbo,
+        TranscriptionModelId::GigaAmV3,
+    ] {
+        let mut ui = mac_fixture();
+        ui.settings.transcription.model = model;
+        ui.settings.labs.vocabulary_biasing = true;
+        ui.settings.vocabulary = (0..97)
+            .map(|n| crate::dictation::vocabulary::VocabularyEntry {
+                term: format!("A longer term, number {n}"),
+                sounds_like: Vec::new(),
+            })
+            .collect();
+        ui.vocabulary = super::super::vocabulary::VocabularyEditor::new(&ui.settings.vocabulary);
+        let facts = context(&ui).facts();
+        assert_eq!(facts.vocabulary.terms, 97);
+        let read = facts.vocabulary.speech.read();
+        let note = super::super::vocabulary::budget_note(&ui);
+        match facts.vocabulary.speech {
+            Reads::None => assert_eq!(read, 0, "{model:?}"),
+            _ => {
+                let note = note.unwrap_or_else(|| panic!("{model:?}: the sheet says nothing"));
+                assert!(
+                    note.contains(&format!("first {read} of 97")),
+                    "{model:?}: facts say {read}, the sheet says: {note}"
+                );
+            }
+        }
+    }
+}
