@@ -14,6 +14,7 @@
 //! lets Codex search the web when the guide has no answer, never with
 //! anything of the person's.
 
+pub mod agent;
 pub mod changes;
 #[cfg(test)]
 mod eval;
