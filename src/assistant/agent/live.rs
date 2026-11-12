@@ -84,7 +84,10 @@ impl Live for Pane<'_> {
             if self.cancel.load(Ordering::Acquire) {
                 break Consent::Stopped;
             }
-            match decided().take() {
+            // Taken in a statement of its own: the lock is never held
+            // through the sleep, or the pane's answer would wait on it.
+            let said = decided().take();
+            match said {
                 Some(Some(allowed)) => break Consent::Allowed(allowed),
                 Some(None) => break Consent::Declined,
                 None => std::thread::sleep(LOOK_EVERY),
