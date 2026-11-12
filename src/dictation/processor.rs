@@ -396,6 +396,16 @@ impl Profiles {
             &crate::dictation::vocabulary::entries(),
         );
         let started = Instant::now();
+        // The Vocabulary in code on both sides of the model: its exact
+        // "sounds like" spellings are written as their term before cleanup
+        // (heard speech only), and a term cleanup writes stays only where
+        // what was heard supports it (`vocabulary_guard`).
+        let guard = crate::dictation::vocabulary_guard::Guard::new(&vocabulary);
+        let corrected = match source {
+            Source::Dictation => guard.spell(&corrected),
+            Source::TypedText => corrected,
+        };
+        let mut guarded = crate::dictation::vocabulary_guard::Tally::default();
         // Labs › Clean up on your own server: the same instructions and
         // vocabulary, as chat messages to OpenRouter or the person's server.
         let server = crate::dictation::cleanup_server::active();
@@ -413,28 +423,32 @@ impl Profiles {
         let cleaned = crate::dictation::cleanup_pieces::clean(
             &corrected,
             cancelled,
-            |piece, stop, streamed| match &server {
-                Some(server) => {
-                    let (instructions, transcript) =
-                        prompt_parts(profile, piece, context, &vocabulary);
-                    crate::dictation::cleanup_server::generate(
-                        server,
-                        &instructions,
-                        &transcript,
-                        deadline,
+            |piece, stop, streamed| {
+                let answer = match &server {
+                    Some(server) => {
+                        let (instructions, transcript) =
+                            prompt_parts(profile, piece, context, &vocabulary);
+                        crate::dictation::cleanup_server::generate(
+                            server,
+                            &instructions,
+                            &transcript,
+                            deadline,
+                            stop,
+                            streamed,
+                        )
+                    }
+                    None => generate_cancellable(
+                        &prompt(profile, piece, context, &vocabulary),
+                        profile.model.as_ref(),
+                        profile.deadline,
                         stop,
-                        streamed,
                     )
-                }
-                None => generate_cancellable(
-                    &prompt(profile, piece, context, &vocabulary),
-                    profile.model.as_ref(),
-                    profile.deadline,
-                    stop,
-                )
-                .map(|generated| generated.text),
+                    .map(|generated| generated.text),
+                };
+                answer.map(|answer| guarded.check(&guard, piece, answer))
             },
         );
+        guarded.log(&profile.name);
         if cleaned.early {
             tracing::info!(
                 profile = profile.name,
@@ -996,9 +1010,17 @@ pub(crate) fn vocabulary_lines(vocabulary: &[VocabularyEntry]) -> String {
     format!(
         "Vocabulary: the speaker's names and terms, spelled exactly as they must be written. \
          Where the transcript has a form on the left of \"→\" and the speaker means the term, \
-         write the term on the right instead:\n{terms}\n\n"
+         write the term on the right instead:\n{terms}\n{VOCABULARY_LIMIT}\n\n"
     )
 }
+
+/// What closes the vocabulary's lines: a small model told to spell a term
+/// also wrote it for words that only resemble it and swallowed the word
+/// beside it ("barn owl" as NightOwl). `vocabulary_guard` undoes what still
+/// gets through.
+const VOCABULARY_LIMIT: &str = "Write a vocabulary term only where the transcript has that term \
+     or one of its forms listed above, never in place of other words, and keep the words \
+     around it.";
 
 #[derive(Serialize)]
 struct Request<'a> {
@@ -1526,7 +1548,9 @@ mod tests {
         );
         assert!(prompt.contains(
             "write the term on the right instead:\n- capuchin, cap a chino → cappuccino\n- \
-             Rune\n\nForeground application: Slack"
+             Rune\nWrite a vocabulary term only where the transcript has that term or one of \
+             its forms listed above, never in place of other words, and keep the words around \
+             it.\n\nForeground application: Slack"
         ));
     }
 
@@ -1741,6 +1765,99 @@ mod tests {
             total_ms / cases.len().max(1) as u128
         );
         assert!(passed * 10 >= checks * 9, "{passed}/{checks} checks passed");
+    }
+
+    /// How often cleanup on a running server writes a Vocabulary term the
+    /// transcript doesn't support, over a person's own History (nothing of
+    /// it is committed; the counts go to stderr): the dictations where
+    /// cleanup once wrote a term, sent again as Hex sends them now, each
+    /// answer judged by `vocabulary_guard`. `HEX_USAGE_HISTORY` and
+    /// `HEX_USAGE_SETTINGS` name the files (the Global mode's prompt and
+    /// the vocabulary come from the settings), `HEX_USAGE_LIMIT` how many
+    /// dictations (100 unless set), with the variables of
+    /// `rewrites_on_a_live_server`. `HEX_E2E_WITHOUT_LIMIT=1` leaves the
+    /// vocabulary block's closing sentence out, to compare.
+    #[test]
+    #[ignore = "needs a running OpenAI-compatible server and a History"]
+    fn vocabulary_terms_on_a_live_server() {
+        let var = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("set {name}"));
+        let server = crate::dictation::cleanup_server::Server {
+            provider: crate::dictation::cleanup_server::Provider::Custom,
+            url: var("HEX_E2E_CLEANUP_URL"),
+            model: var("HEX_E2E_CLEANUP_MODEL"),
+            effort: String::new(),
+        };
+        let settings_path = std::path::PathBuf::from(var("HEX_USAGE_SETTINGS"));
+        let read = |path: &std::path::Path| -> serde_json::Value {
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+        };
+        let settings = read(&settings_path);
+        let history = read(std::path::Path::new(&var("HEX_USAGE_HISTORY")));
+        let vocabulary = crate::dictation::vocabulary::read_saved(settings_path.parent().unwrap());
+        let profile = Profile::new(
+            "Global",
+            settings["dictation_processing"]["default_mode"]["post_processing"]["prompt"]
+                .as_str()
+                .unwrap_or_default(),
+        );
+        let limit: usize = std::env::var("HEX_USAGE_LIMIT")
+            .ok()
+            .and_then(|limit| limit.parse().ok())
+            .unwrap_or(100);
+        let without = std::env::var("HEX_E2E_WITHOUT_LIMIT").is_ok_and(|value| value == "1");
+        let guard = crate::dictation::vocabulary_guard::Guard::new(&vocabulary);
+        // The dictations where cleanup wrote a term the transcript lacked.
+        let heard: Vec<String> = history["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|entry| Some((entry["raw_text"].as_str()?, entry["final_text"].as_str()?)))
+            .filter(|(raw, cleaned)| raw != cleaned)
+            .map(|(raw, cleaned)| (guard.spell(raw), cleaned))
+            .filter(|(spelled, cleaned)| {
+                let checked = guard.check(spelled, cleaned);
+                checked.kept + checked.undone > 0
+            })
+            .map(|(spelled, _)| spelled)
+            .collect();
+        let step = (heard.len() / limit.max(1)).max(1);
+        let (mut asked, mut failed, mut total_ms) = (0, 0, 0);
+        let (mut kept, mut undone, mut restored, mut unjudged, mut touched) = (0, 0, 0, 0, 0);
+        for spelled in heard.iter().step_by(step).take(limit) {
+            let (mut instructions, transcript) =
+                prompt_parts(&profile, spelled, &context("Code", None), &vocabulary);
+            if without {
+                instructions = instructions.replace(&format!("\n{VOCABULARY_LIMIT}"), "");
+            }
+            let started = Instant::now();
+            let answer = crate::dictation::cleanup_server::generate(
+                &server,
+                &instructions,
+                &transcript,
+                Duration::from_secs(120),
+                &AtomicBool::new(false),
+                None,
+            );
+            total_ms += started.elapsed().as_millis();
+            asked += 1;
+            let Ok(answer) = answer else {
+                failed += 1;
+                continue;
+            };
+            let checked = guard.check(spelled, &answer);
+            kept += checked.kept;
+            undone += checked.undone;
+            restored += checked.restored;
+            unjudged += checked.unjudged;
+            touched += usize::from(checked.text != answer);
+        }
+        eprintln!(
+            "{} the closing sentence: {asked} dictations ({failed} failed), {} ms each\n\
+             terms written that the transcript lacked: kept {kept}, undone {undone}, \
+             unjudged {unjudged}; words put back {restored}; answers the guard changed {touched}",
+            if without { "without" } else { "with" },
+            total_ms / asked.max(1) as u128,
+        );
     }
 
     /// Labs › Clean up on your own server sends the same prompt as a system
