@@ -44,12 +44,17 @@ Assistant                                        // rune_ui::assistant
 │   │           read: "Read your meetings, files, and dictations?", the model
 │   │           the passages go to, Allow or Answer without recordings
 │   ├── Steps   while it searches: one line per step, a check when done,
-│   │           three dots on the current one, the face reading
+│   │           three dots on the current one, the face reading; the
+│   │           dots wave (the bright one a → b → c, 380 ms a step,
+│   │           `assistant::dots`) in Assistant, Files and Meetings'
+│   │           Requests, still under Reduce Motion and in scenes, no
+│   │           wakeups while nothing is live
 │   ├── Setup   "Now: …" (what is set: speech model and language,
 │   │           dictation cleanup, meeting notes, Files cleanup, Labs on,
 │   │           Vocabulary terms), then round one as one form: four
 │   │           questions, captioned chips in three columns, preselected
-│   │           from the settings, one Continue. Follow-up rounds (Yes /
+│   │           from the settings, one Continue. Each question wraps to
+│   │           the card's width, its hint on its own line under it. Follow-up rounds (Yes /
 │   │           No, at most four a round) with a quiet "Skip to the plan".
 │   │           Answered rounds stay as small chosen chips. Then
 │   │           "Suggested changes, 6 changes, 5 selected": rows grouped
