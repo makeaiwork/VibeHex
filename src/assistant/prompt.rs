@@ -71,7 +71,8 @@ for macOS, Windows, and Linux. Answer the person's question about VibeHex from t
 excerpts you are given.
 
 - Reply in the language of the person's latest question, whatever the language of the guide \
-or of the app. If that question has no clear language, keep the conversation's.
+or of the app. If that question has no clear language (a word or two, a name), keep the \
+conversation's; with nothing of theirs to go by, their default language (below).
 - Name panes, buttons, and settings exactly as the guide writes them, in English, with › \
 between levels (Labs › Meetings), so they can be found on screen. Put a place in the window \
 in bold, its whole path at once (**General › Vocabulary**): it becomes a link that opens it.
@@ -90,6 +91,20 @@ with Russian vibe coding on they dictate English terms in Russian, so not GigaAM
 - For questions that are not about VibeHex, say in one sentence that you help with VibeHex.
 - End with one last line: `Sources:` and the ids of the articles you used, comma-separated \
 (for example `Sources: labs/meetings, topics/codex`), or `Sources: none`.";
+
+/// The language Assistant writes in when the person's own words don't say
+/// (`assistant::language`): their speech recognition language, else the
+/// window's.
+fn default_language(settings: Option<&crate::app_settings::AppSettings>) -> String {
+    let name = super::language::name(settings);
+    format!(
+        "\n\nTheir default language is {name}: the language they dictate in (or, when that \
+         isn't set, the app's). The app shows its own words in it. Write setup's questions, \
+         sentences, and plans in it when they typed no request of their own, and answer in it \
+         until they write in another language. A latest message clearly in another language \
+         gets its answer in that language."
+    )
+}
 
 const CHANGES: &str = "
 
@@ -172,8 +187,8 @@ id is what the app changes on it (yes turns the feature on, no leaves it).
 {candidates}
 ```
 
-- Write one short sentence, in the language of the setup request or, without one, of the \
-words in <answers>, that a few questions about features that fit how they work follow.
+- Write one short sentence, in the language of the setup request or, without one, in their \
+default language, that a few questions about features that fit how they work follow.
 - Then one ```hex-ask block, one JSON object per line, the most useful first, at most 12: \
 the questions above that fit these answers, with `q` and every `label` in that language \
 and every `id` exactly as written. Leave out one that doesn't fit them.
@@ -197,8 +212,8 @@ asks about; `yes` means they want it. The app already builds the list from these
 the speech model, where dictation and notes run, Meetings, Files, Russian vibe coding, and \
 every follow-up they said yes to. Your part is a sentence and what it may have missed.
 
-- First one or two sentences, in the language of the setup request or, without one, of the \
-words in <answers>: what the list is for, and that they can untick what they don't need.
+- First one or two sentences, in the language of the setup request or, without one, in their \
+default language: what the list is for, and that they can untick what they don't need.
 - Then, only if something else clearly fits how they work, one block, one JSON object per \
 line, at most 6:
 
@@ -315,6 +330,7 @@ pub fn build(
         input.push_str(&excerpt(article));
     }
     let mut instructions = INSTRUCTIONS.to_owned();
+    instructions.push_str(&default_language(changes.map(|context| &context.settings)));
     if *stage == Stage::Ask {
         let os = changes.map_or(std::env::consts::OS, |context| context.state.os);
         instructions.push_str(&setup_ask(os));
@@ -915,6 +931,37 @@ mod tests {
             &Stage::None,
         );
         assert!(!unsent.instructions.contains("Answer for them"));
+    }
+
+    /// Dictating Russian in an English window: the model is told Russian is
+    /// the default; with recognition on Auto, the window's language.
+    #[test]
+    fn the_prompt_carries_the_default_language() {
+        crate::desktop::i18n::apply(Some("en"));
+        let mut context = context(true);
+        context.settings.transcription.model =
+            crate::transcription::models::TranscriptionModelId::ParakeetV3;
+        context.settings.transcription.language = "ru".into();
+        let ask = |context: &changes::Context| {
+            build(
+                "ok",
+                &[],
+                Room::Large,
+                Reach::Guide,
+                Some(context),
+                &Stage::None,
+            )
+            .instructions
+        };
+        assert!(ask(&context).contains("Their default language is Russian:"));
+        context.settings.transcription.language = "auto".into();
+        assert!(ask(&context).contains("Their default language is English:"));
+        let setup = build("", &[], Room::Large, Reach::Guide, None, &Stage::None);
+        assert!(
+            setup
+                .instructions
+                .contains("Their default language is English:")
+        );
     }
 
     /// "Which models do I have downloaded?": the snapshot names them, and

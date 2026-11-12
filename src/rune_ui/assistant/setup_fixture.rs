@@ -20,6 +20,7 @@ use crate::assistant::setup::past::Setup;
 use crate::assistant::setup::since::Since;
 use crate::assistant::setup::{self, Ask, follow};
 use crate::assistant::store::Turn;
+use crate::desktop::i18n::tr;
 use crate::dictation::ShortcutMode;
 use crate::transcription::models::{ModelPreparationStage, TranscriptionModelId};
 
@@ -136,6 +137,8 @@ fn round(answered: bool) -> Vec<Ask> {
 pub(in super::super) fn setup_ask(ui: &mut Ui) {
     open(ui);
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let asks = first(ui, &state);
     let turn = opening(ui, asks);
     conversation(ui, "Set up for me", vec![turn], &[]);
@@ -145,6 +148,8 @@ pub(in super::super) fn setup_ask(ui: &mut Ui) {
 pub(in super::super) fn setup_follow(ui: &mut Ui) {
     open(ui);
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let turns = vec![
         opening(ui, answered(ui, &state, "codex")),
         Turn {
@@ -230,7 +235,7 @@ fn rows(ui: &Ui) -> (Vec<Item>, Vec<Item>) {
 /// The answers turn: no bubble, the app's line, and the plan.
 fn answers(asks: &[Ask], plan: Card) -> Turn {
     Turn {
-        answer: "Here is what fits how you work. Untick what you don't need.".into(),
+        answer: tr("Here is what fits how you work. Untick what you don't need.").into(),
         answers: setup::answers(asks),
         cards: vec![plan],
         created_ms: AT + 2 * MINUTE,
@@ -253,6 +258,8 @@ fn plan_scene(ui: &mut Ui, unfolded: bool) {
     open(ui);
     ui.platform.system_audio = true;
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let first = answered(ui, &state, "openrouter");
     let follow = round(true);
     let (items, kept) = rows(ui);
@@ -343,6 +350,8 @@ pub(in super::super) fn setup_result(ui: &mut Ui) {
     open(ui);
     ui.platform.system_audio = true;
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let first = answered(ui, &state, "codex");
     let mut items = fresh_rows(ui);
     items[3].failed = Some("Codex isn't installed on this Mac".into());
@@ -413,6 +422,8 @@ pub(in super::super) fn setup_preset_shortcuts(ui: &mut Ui) {
 pub(in super::super) fn setup_returning(ui: &mut Ui) {
     open(ui);
     let state = sample(ui);
+    // The owner dictates Russian: Assistant's words are Russian.
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     // The pane reads the settings as drafted: its Vocabulary too.
     let terms = ui.settings.vocabulary.clone();
     ui.vocabulary.reload(&terms);

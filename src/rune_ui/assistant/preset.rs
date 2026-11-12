@@ -13,7 +13,7 @@ use super::super::lists::small_button;
 use super::changes::At;
 use crate::assistant::setup::preset;
 use crate::assistant::store::Turn;
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::{tr, tr_fill, tr_window};
 
 /// A preset turn's steps (`Turn::preset`).
 pub(super) const SETTINGS: &str = "settings";
@@ -24,6 +24,7 @@ const DONE: &str = "done";
 /// Starts the preset: in the open conversation when `question` was typed
 /// there, else in a new one.
 pub(super) fn begin(ui: &mut Ui, question: String) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     if ui.assistant.answering.is_some() {
         return;
     }
@@ -74,6 +75,7 @@ pub(super) fn begin(ui: &mut Ui, question: String) {
 /// A card was applied or put off: the preset's plan leads on to its
 /// shortcuts.
 pub(super) fn decided(ui: &mut Ui, at: At) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(conversation) = ui.assistant.store.get(at.conversation) else {
         return;
     };
@@ -94,11 +96,11 @@ fn shortcuts(ui: &mut Ui, id: u32) {
     for (path, name, binding) in list {
         // Two named alike tell themselves apart by where they are.
         let name = if path.is_empty() {
-            tr(&name).to_owned()
+            tr_window(&name).to_owned()
         } else if path.ends_with(name.as_str()) {
-            tr(&path).to_owned()
+            tr_window(&path).to_owned()
         } else {
-            format!("{} › {}", tr(&path), tr(&name))
+            format!("{} › {}", tr_window(&path), tr_window(&name))
         };
         answer.push_str(&format!("\n- {name}: {binding}"));
     }
@@ -150,6 +152,7 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
 
 /// The owner's shortcuts as a plan of their own.
 fn use_these(ui: &mut Ui, id: u32) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let card = preset::shortcuts(&preset::denis(), &ui.settings);
     let answer = if card.is_some() {
         tr("Here they are. Untick any you'd rather keep as they are.")
@@ -171,6 +174,7 @@ fn use_these(ui: &mut Ui, id: u32) {
 }
 
 fn keep_mine(ui: &mut Ui, id: u32) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let now = ui.assistant.now_ms();
     ui.assistant.store.push(
         id,

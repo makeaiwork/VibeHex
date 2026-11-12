@@ -215,6 +215,14 @@ pub(in super::super) fn start(ui: &mut Ui) {
     open(ui);
 }
 
+/// The same in an English window while dictating Russian: Assistant's own
+/// words in Russian, the window's in English.
+pub(in super::super) fn start_russian(ui: &mut Ui) {
+    open(ui);
+    ui.settings.transcription.model = crate::transcription::models::TranscriptionModelId::Orukeet;
+    ui.settings.transcription.language = "ru".into();
+}
+
 /// Assistant › Settings.
 pub(in super::super) fn settings(ui: &mut Ui) {
     conversation(ui);

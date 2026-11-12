@@ -97,6 +97,38 @@ Opened from a place link                         // rune_ui::assistant::places
                 its group, its card's title lit. Lit until another pane
 ```
 
+## Language
+
+- Assistant's default language (`assistant::language`) is the speech
+  recognition language when it is a specific one (`transcription.language`,
+  or the one language its speech model knows, GigaAM's Russian), else the
+  window's. It drives Assistant's own words, never the rest of the window:
+  the Chat view's feed (`rune_ui::assistant::chat` builds it inside
+  `i18n::speaking`): the start page and its example questions, What's new,
+  setup's questions, chips, "Now:", and plan, the consent card, steps,
+  "From the guide", card buttons and statuses, the field's placeholder;
+  and the words presses write into a conversation (setup, the preset,
+  What's new's question, a card's apply), each under `language::speak`.
+  The worker builds setup's words and "Now:" under it too. The header,
+  Settings view, model menus, and the connect panel keep the window's.
+- `i18n::speaking` sets a column for one thread (`i18n::speaking.rs`),
+  read by every `tr`; `tr_window` gives a place's name in the window's
+  words inside it: a card's where and name, "General › Vocabulary", the
+  preset's shortcut places, a pane in "Now set to…, in Output". A language
+  with a table (Polish, Chinese, Japanese, German, Spanish, Ukrainian,
+  French, Portuguese, Russian; Cantonese reads Traditional Chinese) shows
+  its rows; any other (Italian) shows English.
+- The prompt says the default language by name (`prompt::default_language`):
+  setup's questions, sentences, and plans when nothing was typed, and
+  answers until the person writes in another language; a latest message
+  clearly in another language is answered in it; a short unclear one keeps
+  the conversation's.
+- Setup's follow-up questions (each Labs article's `ask:` line) have rows
+  in every language (`i18n/vibehex/follow.rs`, a test holds every `ask:`).
+- Scene `assistant-start-russian`: an English window dictating Russian.
+  The setup scenes play the owner's settings (Orukeet, Russian), so
+  their questions and chips show in Russian too.
+
 ## Behaviour
 
 - One question is answered at a time, on Assistant's own thread
@@ -248,7 +280,7 @@ Opened from a place link                         // rune_ui::assistant::places
   - `notes`, "may take longer", shown only when calls or files are picked:
     `codex`, `opencode`, `openrouter`, `custom`, `local`, and on a Mac
     `apple` (Apple Intelligence, meeting notes only).
-  - The Start row draws them at once, in the window's language, with no
+  - The Start row draws them at once, in Assistant's language, with no
     model. A typed request asks the model (`SETUP_ASK`) to word them as
     `hex-ask` lines in the message's language; missing, broken, or with
     unknown ids, the app's own show.
@@ -387,7 +419,7 @@ Opened from a place link                         // rune_ui::assistant::places
 - After an update (two weeks from the first run of a new release, when an
   earlier one ran here) a new conversation shows "Updated to <version>"
   over Set VibeHex up for me (`rune_ui::assistant::whats_new`). A press
-  asks "What's new since my last version?" in the window's language,
+  asks "What's new since my last version?" in Assistant's language,
   answered from the notes whatever its words; once such a question is asked
   the row goes. There is no speech bubble on the face to put it in.
 
@@ -571,7 +603,7 @@ recordings and its eval, jump, settings keys, changes and their cards,
 setup, vocabulary terms, and the reply corpus
 `tests/fixtures/assistant/replies`: replies strong and weak models write,
 each with the parse it must make); scenes `assistant`,
-`assistant-answering`, `assistant-start`, `assistant-connect`,
+`assistant-answering`, `assistant-start`, `assistant-start-russian`, `assistant-connect`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`,
 `assistant-recordings`, `assistant-steps-open`, `meetings-cited`,
 `meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`,

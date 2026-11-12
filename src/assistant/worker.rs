@@ -244,72 +244,84 @@ fn start_with(
     let spawned = std::thread::Builder::new()
         .name("assistant".into())
         .spawn(move || {
-            let earlier: Vec<prompt::Turn> = question
-                .earlier
-                .iter()
-                .map(|earlier| prompt::Turn {
-                    question: &earlier.question,
-                    answer: &earlier.answer,
-                    changes: &earlier.changes,
-                })
-                .collect();
-            let found = match &question.recall {
-                Recall::Search(search) => read(search, room),
-                _ => None,
-            };
-            let notes = match &question.recall {
-                Recall::Releases(asked) => Some(releases::select(asked, releases::Running::here())),
-                _ => None,
-            };
-            let reach = match (&question.recall, &found, &notes) {
-                (Recall::Declined, ..) => Reach::Declined,
-                (Recall::Search(search), Some(found), _) => Reach::Recordings(found, search.now_ms),
-                (_, _, Some(notes)) => Reach::Releases(notes),
-                _ => Reach::Guide,
-            };
-            let search = match search.as_ref().and(offline(&question, found.as_ref())) {
-                None => search,
-                Some(why) => {
-                    if why == Offline::Earlier {
-                        let mut state = state();
-                        if let Some(answering) = &mut state.answering {
-                            answering.web.held_back = true;
-                        }
+            // Its own words (setup's questions, "Now:", a plan's reasons)
+            // in Assistant's language, as the pane makes them.
+            let settings = question
+                .changes
+                .as_ref()
+                .map(|context| context.settings.clone());
+            super::language::within_maybe(settings.as_ref(), || {
+                let earlier: Vec<prompt::Turn> = question
+                    .earlier
+                    .iter()
+                    .map(|earlier| prompt::Turn {
+                        question: &earlier.question,
+                        answer: &earlier.answer,
+                        changes: &earlier.changes,
+                    })
+                    .collect();
+                let found = match &question.recall {
+                    Recall::Search(search) => read(search, room),
+                    _ => None,
+                };
+                let notes = match &question.recall {
+                    Recall::Releases(asked) => {
+                        Some(releases::select(asked, releases::Running::here()))
                     }
-                    None
+                    _ => None,
+                };
+                let reach = match (&question.recall, &found, &notes) {
+                    (Recall::Declined, ..) => Reach::Declined,
+                    (Recall::Search(search), Some(found), _) => {
+                        Reach::Recordings(found, search.now_ms)
+                    }
+                    (_, _, Some(notes)) => Reach::Releases(notes),
+                    _ => Reach::Guide,
+                };
+                let search = match search.as_ref().and(offline(&question, found.as_ref())) {
+                    None => search,
+                    Some(why) => {
+                        if why == Offline::Earlier {
+                            let mut state = state();
+                            if let Some(answering) = &mut state.answering {
+                                answering.web.held_back = true;
+                            }
+                        }
+                        None
+                    }
+                };
+                let mut prompt = prompt::build(
+                    &question.question,
+                    &earlier,
+                    room,
+                    reach,
+                    question.changes.as_ref(),
+                    &question.setup,
+                );
+                let first = match &search {
+                    Some(search) => {
+                        prompt.instructions.push_str(super::web::RULES);
+                        search(
+                            &prompt.instructions,
+                            &prompt.input,
+                            &cancel,
+                            Some(drafts()),
+                            &seen,
+                        )
+                    }
+                    None => generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts())),
+                };
+                let result = first
+                    .map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
+                let what = Read {
+                    found: found.as_ref(),
+                    articles: &prompt.articles,
+                };
+                finish(&question, &model, started, result, &cancel, what);
+                if local {
+                    engine::narrow();
                 }
-            };
-            let mut prompt = prompt::build(
-                &question.question,
-                &earlier,
-                room,
-                reach,
-                question.changes.as_ref(),
-                &question.setup,
-            );
-            let first = match &search {
-                Some(search) => {
-                    prompt.instructions.push_str(super::web::RULES);
-                    search(
-                        &prompt.instructions,
-                        &prompt.input,
-                        &cancel,
-                        Some(drafts()),
-                        &seen,
-                    )
-                }
-                None => generate(&prompt.instructions, &prompt.input, &cancel, Some(drafts())),
-            };
-            let result =
-                first.map(|reply| settle(&question, &prompt, reply, &generate, &cancel, !local));
-            let what = Read {
-                found: found.as_ref(),
-                articles: &prompt.articles,
-            };
-            finish(&question, &model, started, result, &cancel, what);
-            if local {
-                engine::narrow();
-            }
+            });
         });
     if let Err(error) = spawned {
         let mut state = state();

@@ -13,6 +13,17 @@ texts, and dictations: "What did we decide about the budget in November?",
 "Summarize my calls with Anna last week", "What did I dictate about the
 release yesterday?".
 
+## Its language
+
+Assistant speaks the language you dictate in: with a specific language set for
+speech recognition (General › Speech model), its example questions, setup's
+questions and chips, and the buttons on its cards are in that language, and so
+are its answers until you write to it in another. With recognition on Auto it
+follows the window's language. Write in another language and it answers in
+that one. Places in the window it names keep the window's words. For a
+language VibeHex has no translation for, such as Italian, its own buttons
+stay in English, and its answers are still in your language.
+
 ## Changes it suggests
 
 When a setting would do what you asked, the answer ends with a card: where

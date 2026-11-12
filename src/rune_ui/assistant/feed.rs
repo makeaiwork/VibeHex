@@ -469,3 +469,77 @@ fn coming(p: Paint, answering: &Answering, mood: Mood) -> Vec<El> {
         )])
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assistant::language;
+    use crate::desktop::i18n::speaking;
+    use crate::transcription::models::{TranscriptionModelId, TranscriptionSelection};
+
+    fn dictating(language: &str) -> Ui {
+        crate::desktop::i18n::apply(Some("en"));
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.pane = super::super::super::sidebar::Pane::Assistant;
+        ui.settings.transcription = TranscriptionSelection {
+            model: TranscriptionModelId::ParakeetV3,
+            language: language.into(),
+        };
+        ui
+    }
+
+    fn russian(english: &str) -> String {
+        speaking(Some("ru"), || tr(english).to_owned())
+    }
+
+    /// An English window, Russian dictated: the start page's questions and
+    /// setup's own questions, chips, and "Now:" are Russian.
+    #[test]
+    fn the_dictation_language_speaks_on_the_start_page_and_in_setup() {
+        let mut ui = dictating("ru");
+        let shown = language::within(&ui.settings, || EXAMPLES.map(tr));
+        for (shown, english) in shown.iter().zip(EXAMPLES) {
+            assert_eq!(*shown, russian(english));
+            assert_ne!(*shown, english, "{english} has a Russian row");
+        }
+        super::super::ask::begin(&mut ui);
+        let turn = &ui.assistant.conversation().unwrap().turns[0];
+        assert!(
+            turn.now.starts_with(&format!("**{}**", russian("Now:"))),
+            "{}",
+            turn.now
+        );
+        let ask = &turn.asks[0];
+        let (q, label) = language::within(&ui.settings, || {
+            (
+                tr(&ask.q).to_owned(),
+                super::super::ask::label(ask, &ask.options[0]),
+            )
+        });
+        assert_eq!(q, russian(&ask.q));
+        assert_ne!(q, ask.q);
+        assert_eq!(label, russian(&ask.options[0].label));
+        // The window stays English.
+        assert_eq!(
+            tr("Ask anything about VibeHex"),
+            "Ask anything about VibeHex"
+        );
+    }
+
+    /// Recognition on Auto follows the window; a language without a table
+    /// (Italian) shows English.
+    #[test]
+    fn auto_follows_the_window_and_italian_reads_english() {
+        for language in ["auto", "it"] {
+            let ui = dictating(language);
+            let shown = language::within(&ui.settings, || EXAMPLES.map(tr));
+            assert_eq!(shown, EXAMPLES, "{language}");
+        }
+        let ui = dictating("auto");
+        crate::desktop::i18n::apply(Some("de"));
+        let shown = language::within(&ui.settings, || tr(EXAMPLES[0]).to_owned());
+        assert_eq!(shown, speaking(Some("de"), || tr(EXAMPLES[0]).to_owned()));
+        assert_ne!(shown, EXAMPLES[0]);
+        crate::desktop::i18n::apply(Some("en"));
+    }
+}

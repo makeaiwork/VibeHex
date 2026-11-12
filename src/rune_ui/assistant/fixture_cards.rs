@@ -25,7 +25,8 @@ pub(super) fn item(key: &str, from: Value, to: Value, why: &str) -> Item {
         key: key.into(),
         from,
         to,
-        why: why.into(),
+        // The rules' reasons are Assistant's words, as a plan makes them.
+        why: crate::desktop::i18n::tr(why).into(),
         included: true,
         ..Item::default()
     }

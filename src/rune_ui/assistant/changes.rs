@@ -167,6 +167,7 @@ fn is_download(item: &changes::Item) -> bool {
 /// Saves the card's change: what it needs first and the change itself, in
 /// one save, or nothing.
 pub(super) fn apply(ui: &mut Ui, at: At) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(card) = card(ui, at).cloned() else {
         return;
     };

@@ -2892,6 +2892,7 @@ fn goldens() {
     for scene in [
         "assistant-answering",
         "assistant-start",
+        "assistant-start-russian",
         "assistant-connect",
         "assistant-settings",
         "assistant-consent",

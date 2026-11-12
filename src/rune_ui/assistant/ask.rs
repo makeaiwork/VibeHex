@@ -24,7 +24,7 @@ use crate::assistant::setup::since::{self, Since};
 use crate::assistant::setup::{self, Answer, Ask, Choice, Stage, follow, past};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Recall;
-use crate::desktop::i18n::tr;
+use crate::desktop::i18n::{tr, tr_window};
 
 /// Where a round is: its conversation and turn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +46,7 @@ pub(super) fn os(ui: &Ui) -> &'static str {
 /// preselected from it, in a new conversation (or the empty one open). A
 /// returning setup says what came since and folds round one to a row.
 pub(super) fn begin(ui: &mut Ui) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     if ui.assistant.answering.is_some() {
         return;
     }
@@ -57,6 +58,7 @@ pub(super) fn begin(ui: &mut Ui) {
 /// (`since`) with what came since, round one folded, and the terms the
 /// use shows Vocabulary lacks.
 pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let context = super::changes::context(ui);
     let mut asks = setup::questions(os(ui));
     setup::preselect(&mut asks, &context.settings, &context.state);
@@ -98,6 +100,16 @@ pub(super) fn start(ui: &mut Ui, since: Option<Since>) {
 /// window's language, the model's as written.
 fn words<'a>(ask: &Ask, words: &'a str) -> &'a str {
     if ask.own { tr(words) } else { words }
+}
+
+/// A question's hint: a follow-up's is its Labs feature's title, a place
+/// in the window, so in the window's words.
+fn hint(ask: &Ask) -> String {
+    if ask.own && ask.id.starts_with("labs.") {
+        tr_window(&ask.hint).to_owned()
+    } else {
+        words(ask, &ask.hint).to_owned()
+    }
 }
 
 /// An option's label as the person saw it, with the server it names.
@@ -167,7 +179,7 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
     );
     if !ask.hint.is_empty() && !small {
         line = line.child(
-            text(words(ask, &ask.hint).to_owned())
+            text(hint(ask))
                 .key("hint")
                 .font(p.k.ty.small)
                 .color(p.faint()),
@@ -390,6 +402,7 @@ fn set_round(ui: &mut Ui, at: At, asks: Vec<Ask>) {
 /// the person picked is theirs; an untouched question follows it (code
 /// with Russian is Russian with English tech terms).
 fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(mut asks) = round(ui, at) else {
         return;
     };
@@ -421,6 +434,7 @@ fn pick(ui: &mut Ui, at: At, number: usize, id: &str) {
 /// The round is answered (or skipped, `skip`): the next round, or the
 /// plan.
 pub(super) fn answered(ui: &mut Ui, at: At, skip: bool) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(mut asks) = round(ui, at) else {
         return;
     };
@@ -602,6 +616,7 @@ fn plan(ui: &mut Ui, conversation: u32) {
 /// A setup's plan was applied or put off: the setup is finished, and kept
 /// with what it applied and what the person declined (`setup::past`).
 pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     let Some(open) = ui.assistant.store.get(at.conversation) else {
         return;
     };
@@ -636,6 +651,7 @@ pub(super) fn decided(ui: &mut Ui, at: super::changes::At) {
 
 /// Asks an answers turn again: its follow-ups, or its plan.
 pub(super) fn again(ui: &mut Ui, conversation: u32, turn: &Turn) {
+    let _speaking = crate::assistant::language::speak(&ui.settings);
     if ui.assistant.answering.is_some() || ui.assistant.fixture {
         return;
     }

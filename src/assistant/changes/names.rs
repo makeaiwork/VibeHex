@@ -512,6 +512,25 @@ fn lab_title(settings_key: &str) -> Option<&'static str> {
         .map(|article| article.title.as_str())
 }
 
+/// The words a card shows for values, which the pane translates (brand
+/// names aside): Assistant's own, so every language has them.
+#[cfg(test)]
+pub fn words() -> Vec<&'static str> {
+    const BRANDS: [&str; 6] = [
+        "OpenCode",
+        "OpenRouter",
+        "Codex",
+        "Apple Intelligence",
+        "CPU",
+        "GPU",
+    ];
+    ["On", "Off", "Not set", "Empty", "Built in"]
+        .into_iter()
+        .chain(LABELS.iter().map(|(_, label)| *label))
+        .filter(|label| !BRANDS.contains(label))
+        .collect()
+}
+
 /// Choice ids and the words the window shows for them.
 const LABELS: &[(&str, &str)] = &[
     ("opencode", "OpenCode"),

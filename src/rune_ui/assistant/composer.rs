@@ -23,11 +23,14 @@ pub(super) fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
     let pane = &ui.assistant;
     let edit = &pane.ask;
     // Under a plan still to decide, the field is for questions about it.
+    // Assistant's invitation, in its language.
+    let speaking = crate::assistant::language::speak(&ui.settings);
     let placeholder = if super::plan::waiting(ui) {
         tr("Ask about these changes")
     } else {
         tr("Ask about VibeHex or your recordings")
     };
+    drop(speaking);
     let input = rune::text_input(edit, p.k.ty.ui)
         .key("input")
         .label(placeholder)

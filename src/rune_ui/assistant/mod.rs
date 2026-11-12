@@ -241,7 +241,10 @@ fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     // With no model to ask, the panel stands in for the field (and for the
     // greeting of a new conversation).
     let connect = connect::needed(ui);
-    let mut feed = feed::feed(ui, p, !connect, still);
+    // The conversation is Assistant's: its own words in its language (the
+    // dictation language when set); places it names keep the window's.
+    let mut feed =
+        crate::assistant::language::within(&ui.settings, || feed::feed(ui, p, !connect, still));
     if connect {
         feed = feed.child(connect::panel(ui, p));
     }

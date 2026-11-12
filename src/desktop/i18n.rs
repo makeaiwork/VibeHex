@@ -6,8 +6,6 @@
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
-#[cfg(not(test))]
-use std::sync::atomic::{AtomicU8, Ordering};
 
 mod failures;
 mod french;
@@ -15,6 +13,7 @@ mod labs;
 mod meetings;
 mod portuguese;
 mod russian;
+mod speaking;
 mod text_language;
 mod traditional_chinese;
 pub(crate) mod vibehex;
@@ -42,36 +41,8 @@ pub(crate) const LANGUAGE_CHOICES: &[LanguageChoice] = &[
     (Some("ru"), "Русский"),
 ];
 
-/// Active language column into [`TRANSLATIONS`]; 255 means English.
-#[cfg(not(test))]
-static CURRENT: AtomicU8 = AtomicU8::new(255);
-
-// Tests render scenes in different languages concurrently, so each test
-// thread has its own language.
-#[cfg(test)]
-thread_local! {
-    static CURRENT: std::cell::Cell<u8> = const { std::cell::Cell::new(ENGLISH) };
-}
-
-#[cfg(not(test))]
-fn current() -> u8 {
-    CURRENT.load(Ordering::Relaxed)
-}
-
-#[cfg(test)]
-fn current() -> u8 {
-    CURRENT.get()
-}
-
-#[cfg(not(test))]
-fn set_current(code: u8) {
-    CURRENT.store(code, Ordering::Relaxed);
-}
-
-#[cfg(test)]
-fn set_current(code: u8) {
-    CURRENT.set(code);
-}
+pub(crate) use speaking::{Speaking, speak, speaking, tr_window, window_code};
+use speaking::{current, set_current};
 
 const ENGLISH: u8 = 255;
 /// Brazilian Portuguese, kept in its own table ([`portuguese::TRANSLATIONS`]).
@@ -1849,6 +1820,41 @@ mod tests {
                     .all(|translation| !translation.is_empty())
             );
         }
+    }
+
+    /// Setup's follow-up questions are the Labs articles' `ask:` lines,
+    /// shown in Assistant's language like its other words.
+    #[test]
+    fn every_follow_up_question_has_every_language() {
+        let table: std::collections::HashMap<_, _> = all_translations().copied().collect();
+        for article in crate::assistant::guide::articles() {
+            if article.ask.is_empty() {
+                continue;
+            }
+            let translations = table
+                .get(article.ask.as_str())
+                .unwrap_or_else(|| panic!("{:?} has no translations", article.ask));
+            assert!(
+                translations
+                    .iter()
+                    .all(|translation| !translation.is_empty())
+            );
+        }
+    }
+
+    /// A card's values ("On", "Toggle", "A week") are Assistant's words.
+    #[test]
+    fn every_card_value_word_has_every_language() {
+        let table: std::collections::HashMap<_, _> = all_translations().copied().collect();
+        let missing: Vec<&str> = crate::assistant::changes::names::words()
+            .into_iter()
+            .filter(|english| {
+                table
+                    .get(english)
+                    .is_none_or(|row| row.iter().any(|translation| translation.is_empty()))
+            })
+            .collect();
+        assert!(missing.is_empty(), "no translations for {missing:?}");
     }
 
     /// Setup's own questions name their words in a table, not at `tr`.

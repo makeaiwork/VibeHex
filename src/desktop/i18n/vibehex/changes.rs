@@ -82,6 +82,16 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Add anyway", ["Dodaj mimo to", "仍然添加", "それでも追加", "Trotzdem hinzufügen", "Añadir de todos modos", "Усе одно додати"]),
     ("Already in Vocabulary", ["Już jest w słowniku", "已在词汇表中", "すでに語彙にあります", "Schon im Vokabular", "Ya está en el vocabulario", "Уже є у словнику"]),
     ("Tech terms you likely say, spelled as they should be", ["Terminy techniczne, które pewnie mówisz, zapisane poprawnie", "你可能会说的技术术语，按正确拼写", "よく口にしそうな技術用語を正しい綴りで", "Fachbegriffe, die du wohl sagst, richtig geschrieben", "Términos técnicos que seguramente dices, bien escritos", "Технічні терміни, які ви, мабуть, кажете, написані як треба"]),
+    // A card's values.
+    ("On", ["Wł.", "开", "オン", "An", "Sí", "Увімк."]),
+    ("Not set", ["Nie ustawiono", "未设置", "未設定", "Nicht festgelegt", "Sin definir", "Не задано"]),
+    ("Empty", ["Puste", "空", "空", "Leer", "Vacío", "Порожньо"]),
+    ("Toggle", ["Przełączanie", "切换", "切り替え", "Umschalten", "Alternar", "Перемикання"]),
+    ("Lower volume", ["Ścisz", "降低音量", "音量を下げる", "Leiser stellen", "Bajar volumen", "Зменшити гучність"]),
+    ("Hidden", ["Ukryty", "隐藏", "非表示", "Ausgeblendet", "Oculto", "Приховано"]),
+    ("A day", ["Dzień", "一天", "1日", "Einen Tag", "Un día", "День"]),
+    ("A week", ["Tydzień", "一周", "1週間", "Eine Woche", "Una semana", "Тиждень"]),
+    ("A month", ["Miesiąc", "一个月", "1か月", "Einen Monat", "Un mes", "Місяць"]),
 ];
 
 /// French.
@@ -162,6 +172,16 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("Add anyway", "Ajouter quand même"),
     ("Already in Vocabulary", "Déjà dans le vocabulaire"),
     ("Tech terms you likely say, spelled as they should be", "Des termes techniques que vous dites sans doute, bien orthographiés"),
+    // A card's values.
+    ("On", "Activé"),
+    ("Not set", "Non défini"),
+    ("Empty", "Vide"),
+    ("Toggle", "Bascule"),
+    ("Lower volume", "Baisser le volume"),
+    ("Hidden", "Masqué"),
+    ("A day", "Un jour"),
+    ("A week", "Une semaine"),
+    ("A month", "Un mois"),
 ];
 
 /// Brazilian Portuguese.
@@ -242,6 +262,16 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Add anyway", "Adicionar mesmo assim"),
     ("Already in Vocabulary", "Já está no vocabulário"),
     ("Tech terms you likely say, spelled as they should be", "Termos técnicos que você deve falar, escritos do jeito certo"),
+    // A card's values.
+    ("On", "Ligado"),
+    ("Not set", "Não definido"),
+    ("Empty", "Vazio"),
+    ("Toggle", "Alternar"),
+    ("Lower volume", "Abaixar o volume"),
+    ("Hidden", "Oculto"),
+    ("A day", "Um dia"),
+    ("A week", "Uma semana"),
+    ("A month", "Um mês"),
 ];
 
 /// Russian.
@@ -322,4 +352,14 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("Add anyway", "Всё равно добавить"),
     ("Already in Vocabulary", "Уже есть в словаре"),
     ("Tech terms you likely say, spelled as they should be", "Технические термины, которые вы, скорее всего, говорите, в правильном написании"),
+    // A card's values.
+    ("On", "Вкл."),
+    ("Not set", "Не задано"),
+    ("Empty", "Пусто"),
+    ("Toggle", "Переключение"),
+    ("Lower volume", "Уменьшить громкость"),
+    ("Hidden", "Скрыт"),
+    ("A day", "День"),
+    ("A week", "Неделя"),
+    ("A month", "Месяц"),
 ];

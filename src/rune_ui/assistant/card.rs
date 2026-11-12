@@ -23,7 +23,7 @@ use crate::assistant::changes::names::{self, Home};
 use crate::assistant::changes::parts::PROMPT;
 use crate::assistant::changes::state::Shown;
 use crate::assistant::changes::{Card, CardKind, Decision, Item, Refused, Why};
-use crate::desktop::i18n::{tr, tr_fill, tr_named};
+use crate::desktop::i18n::{tr, tr_fill, tr_named, tr_window};
 
 /// Where the words start: past the 28 pt tile and its gap.
 pub(super) const INDENT: f32 = 38.0;
@@ -80,7 +80,10 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
     };
     let place = names::place(&item.key, &ui.settings);
     let (path, name) = match &place {
-        Some(place) => (tr(place.path).to_owned(), tr(&place.name).to_owned()),
+        Some(place) => (
+            tr_window(place.path).to_owned(),
+            tr_window(&place.name).to_owned(),
+        ),
         None => (String::new(), item.key.clone()),
     };
     let to = match ui.assistant.editing == Some(at) {
@@ -299,7 +302,7 @@ fn state_body(
                     .unwrap_or_default();
                 tr_named(
                     "Now set to {value}, in {pane}. Nothing was changed",
-                    &[("value", &now), ("pane", tr(pane))],
+                    &[("value", &now), ("pane", tr_window(pane))],
                 )
             };
             body.extend(why(p, &words));
@@ -595,8 +598,8 @@ fn radios(p: Paint, at: At, item: &Item, options: &[Value], chosen: usize, sugge
 /// What the save turns on beside: "Also turns on Labs › …".
 fn also_row(ui: &Ui, p: Paint, index: usize, key: &str, value: &Value) -> El {
     let name = match names::place(key, &ui.settings) {
-        Some(place) if place.path.is_empty() => tr(&place.name).to_owned(),
-        Some(place) => format!("{} › {}", tr(place.path), tr(&place.name)),
+        Some(place) if place.path.is_empty() => tr_window(&place.name).to_owned(),
+        Some(place) => format!("{} › {}", tr_window(place.path), tr_window(&place.name)),
         None => key.to_owned(),
     };
     let mut line = row()
@@ -695,14 +698,17 @@ pub(super) fn refused(ui: &Ui, p: Paint, index: usize, refused: &Refused) -> Opt
             let place = place?;
             (
                 &theme::LOCK,
-                tr(place.path).to_owned(),
-                tr(&place.name).to_owned(),
-                tr_fill("Changed only by hand, in {}", tr(place.path)),
+                tr_window(place.path).to_owned(),
+                tr_window(&place.name).to_owned(),
+                tr_fill("Changed only by hand, in {}", tr_window(place.path)),
             )
         }
         Why::Invalid(why) => {
             let (path, name) = place.map_or((String::new(), key.to_owned()), |place| {
-                (tr(place.path).to_owned(), tr(&place.name).to_owned())
+                (
+                    tr_window(place.path).to_owned(),
+                    tr_window(&place.name).to_owned(),
+                )
             });
             (
                 &theme::CIRCLE_EXCLAMATION,

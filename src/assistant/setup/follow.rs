@@ -21,7 +21,7 @@ use crate::assistant::changes::vocab::{self, Term};
 use crate::assistant::changes::{self, parse::Proposal};
 use crate::assistant::guide::{self, Article};
 use crate::control::settings;
-use crate::desktop::i18n::tr;
+use crate::desktop::i18n::{tr, tr_window};
 
 /// The most questions a round asks.
 pub const ROUND: usize = 4;
@@ -295,7 +295,8 @@ fn reworded(mut ask: Ask, line: &Value) -> Option<Ask> {
     };
     ask.q = q.into();
     ask.own = false;
-    ask.hint = tr(&ask.hint).to_owned();
+    // A Labs feature's title names its place: the window's words.
+    ask.hint = tr_window(&ask.hint).to_owned();
     let written = line.get("options").and_then(Value::as_array);
     for option in &mut ask.options {
         let label = written
