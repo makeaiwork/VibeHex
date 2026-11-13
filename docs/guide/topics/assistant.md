@@ -18,8 +18,7 @@ Assistant speaks the language you dictate in: with a specific speech
 recognition language, its example questions, setup's questions and chips,
 card buttons, and answers are in it; on Auto, the window's language. Write in
 another language and it answers in that one. Places it names keep the
-window's words. Without a translation (Italian, say) its buttons stay
-English.
+window's words. Without a translation its buttons stay English.
 
 ## Changes it suggests
 
@@ -68,13 +67,9 @@ Then comes one list of changes, grouped by area, each with a checkbox, what it
 changes from and to, and what it takes: a download and its size, a ChatGPT
 sign-in, or a macOS permission. A setting you chose yourself is never ticked
 for you ("You chose …"), an engine not set up yet says where to finish, and a
-model that already hears your language stays. A switch that has a value
-of its own shows it in the same row, ready to change: **Unload model when
-idle** reads "Off → On after [60 min ▾]", **Remind me before meetings**
-"remind me [1 min ▾]", at what is saved now. What already fits is
-folded under **Already set**, with such a value too (changing it there is
-one change); a long value folds to three lines (**Show
-all**). Untick what you don't need and press **Apply 3 changes and 81
+model that already hears your language stays. A switch's own value is in
+its row: "Off → On after [60 min ▾]". What already fits is folded under
+**Already set**; a long value folds to three lines (**Show all**). Untick what you don't need and press **Apply 3 changes and 81
 terms** (Vocabulary terms are counted apart). A change that can't be made
 says why, and the rest still apply; **Undo** takes the whole list back.
 
@@ -83,11 +78,7 @@ dictations, or any meeting), skips the first questions: it says what came
 since your last setup, what is new in VibeHex, and, if Assistant may read
 your recordings, what your use shows (how much you dictate and where, how
 many are long, the words cleanup keeps fixing, terms Vocabulary lacks, as
-one **Add N terms** card). A term cleanup never fixed gets what it sounds
-like from how your dictations wrote it before cleanup (two times or more);
-with Codex, OpenCode, OpenRouter or your own server, the plan's model may
-suggest Russian spellings for a term still without one. Such a term starts
-unticked; **Edit** shows and changes its spellings. Your earlier answers stay folded under **Has
+one **Add N terms** card). Your earlier answers stay folded under **Has
 anything changed in how you use VibeHex?**: **Continue** goes on to the
 plan, **Change answers** opens them. Something you declined before isn't
 offered again until that setting changes.
@@ -124,8 +115,8 @@ on a click. If the recordings don't say, the answer says so.
 Each numbered mark in the answer, and each chip under **From your
 recordings**, opens its place: a meeting on Transcript with the passage
 tinted and the phrases it cited lit, a Files text on its Original the same
-way (also while you listen to it), or the dictation in History, its row
-marked with the number. **Back to Assistant**, at the top of that pane, returns
+way, or the dictation in History, its row
+marked with the number. **Back to Assistant** returns
 to the same spot in the conversation; Cmd-[ on a Mac and Ctrl+[ elsewhere do
 the same.
 
@@ -159,4 +150,4 @@ me"; "Can Assistant search the web?"; «Может ли ассистент ис�
 ассистенту читать мои записи?»; «Помоги мне настроить VibeHex под меня»;
 «Добавь Kubernetes в словарь».
 
-<!-- sources: docs/features/assistant.md; src/assistant/web.rs; src/rune_ui/assistant/web.rs; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup/mod.rs; src/assistant/setup/follow.rs; src/assistant/setup/plan.rs; src/assistant/setup/preset.rs; src/assistant/changes/vocab.rs; src/assistant/changes/companion.rs; src/assistant/recordings/sounds.rs; src/assistant/setup/spellings.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->
+<!-- sources: docs/features/assistant.md; src/assistant/web.rs; src/rune_ui/assistant/web.rs; src/assistant/intent/mod.rs; src/assistant/intent/setup.rs; src/assistant/setup/mod.rs; src/assistant/setup/follow.rs; src/assistant/setup/plan.rs; src/assistant/setup/preset.rs; src/assistant/changes/vocab.rs; src/assistant/changes/companion.rs; src/rune_ui/assistant/card.rs; src/rune_ui/assistant/plan.rs; src/rune_ui/assistant/vocab.rs; src/assistant/recordings/mod.rs; src/rune_ui/assistant/recall.rs; src/rune_ui/assistant/jump.rs; src/rune_ui/assistant/settings.rs -->
