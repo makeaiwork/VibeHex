@@ -1059,7 +1059,7 @@ is what puts one into `agent::VERIFIED`:
 
 | Engine | Default | Live run |
 | --- | --- | --- |
-| Codex (`codex`) | agent | 13 November 2026, GPT-6-Luna at low effort, 37 scenarios: 36 pass, 333 of 334 checks, against 37 of 37 through the router the same night |
+| Codex (`codex`) | agent | 13 November 2026, GPT-6-Luna at low effort, 37 scenarios: 36 pass, 333 of 334 checks, against 37 of 37 through the router the same night; again at medium effort (the app's default) the next day: 37 of 37, 334 of 334 |
 | OpenRouter (`openrouter`) | router | not run: no key on the machine the runs were made on |
 | Your own server (`custom`) | router | not run: the models at hand were small local ones, not loaded |
 | OpenCode (`opencode`) | router | not run: what a request costs depends on the provider behind it |
@@ -1077,8 +1077,13 @@ its first step line after 9 s, its first word after 15 s, and ended after
 19 s (medians), where the router, which reads before it asks, had the
 first word after 5 s and ended after 9 s. An answer in one request had its
 first word after 8 s against 6 s. The agent's requests carried 50 k
-characters a turn against 39 k (medians). A model at higher effort asks
-more readily; run the scenarios again before naming another engine here.
+characters a turn against 39 k (medians). At medium effort the same 20
+of 44 turns read, each step about as quick to its first line (9 s), but
+the model thinks longer before it writes: the first word after 26 s and
+the end after 32 s for a turn that read, after 15 s and 19 s for one
+request (medians), and the scenarios that read most (`17`, `24`, `25`)
+took five requests and a minute or more. Run the scenarios again before
+naming another engine here.
 
 ## Settings keys
 
