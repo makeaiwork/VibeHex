@@ -56,6 +56,55 @@ them on. Russian vibe coding turns on most of them in one go.
 
 ## Screenshots
 
+**Assistant.** Ask anything about VibeHex in your own words, or let it set VibeHex up for you.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-start-dark.png">
+  <img alt="Assistant's start page: Set VibeHex up for me, and example questions" src="docs/images/readme/assistant-start-light.png">
+</picture>
+
+**Answers with links.** The steps come with links that open the right place in the app.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-answer-dark.png">
+  <img alt="Assistant answering how to make Zoom calls record by themselves, with links to Labs and Meetings settings" src="docs/images/readme/assistant-answer-light.png">
+</picture>
+
+**Set VibeHex up for me.** A few questions about how you work: what you use it for, the language you speak, where cleanup and meeting notes run.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-setup-dark.png">
+  <img alt="The first round of setup questions, with choices and an optional field about your work" src="docs/images/readme/assistant-setup-light.png">
+</picture>
+
+**One list of changes.** Each change says why it fits; untick what you don't need, apply them together, and undo if you change your mind.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-plan-dark.png">
+  <img alt="Suggested changes from setup, grouped by area, with the reason for each and Apply" src="docs/images/readme/assistant-plan-light.png">
+</picture>
+
+**Files.** Drop audio and video files to transcribe them, clean them up, and
+  rework the text with your own requests.
+- **Meetings you can ask about.** Ask questions about a meeting in a Requests
+  tab. Notes are written even when Apple Intelligence is off, and the
+  transcript can be cleaned up turn by turn. Listen to a meeting or a file
+  from its transcript: the line playing lights up, and a click on a line plays
+  from there. Yandex Telemost is detected alongside Zoom, Meet and the rest.
+- **Quiet while you dictate, even on a monitor.** Mute and Lower audio also
+  work when macOS can't set your output's volume, as with a display's
+  speakers. They lower Music and Spotify, or, with Lower every app on, every
+  app.
+- **Small things that add up.** A separate key, such as Return, can finish a
+  dictation. The sidebar folds into a column of icons. Every update shows what
+  changed, including the releases you skipped. Everything VibeHex adds is
+  translated into Russian, like the rest of the interface.
+
+Most of these live in Labs, marked with a star, and stay off until you turn
+them on. Russian vibe coding turns on most of them in one go.
+
+## Screenshots
+
 **Assistant.** Ask how to do something and get the steps, with links that open the right place.
 
 <picture>
