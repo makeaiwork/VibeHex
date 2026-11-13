@@ -67,7 +67,10 @@ question there that reaches past it reads the other recordings the same way.
 An answer may suggest setting changes and vocabulary terms as cards; nothing
 changes until the person presses one, and then only through the check
 `hex settings` uses (terms through `hex vocabulary add`'s). "Set VibeHex up
-for me" asks four questions and offers one list of changes. "What's new?"
+for me" asks four questions and offers one list of changes, with no model
+needed; onboarding's last page offers it ("Set up with Assistant"), and
+after an update a dot on the sidebar row leads once to the start page that
+offers it. "What's new?"
 reads VibeHex's own release notes (`docs/releases`) since the version the
 install ran before and offers what fits the person's settings. On Codex,
 with Web on (the default), it may search the web when the guide has no
@@ -323,8 +326,13 @@ Launch Hex, setup incomplete              // setup.tour; every build and OS, ful
 │   └── Within 2 min of that relaunch -> "The VibeHex shortcut didn't start." + Reopen VibeHex
 └── VibeHex is ready -> where Hex lives (menu bar, system tray, or app launcher)
     ├── Try again -> back to the practice game
-    └── Start using VibeHex -> records completion once the permissions are ready and
-        the model is here or on its way; closes onboarding
+    ├── Set up with Assistant (Neutral, Assistant's face; only while Assistant
+    │   shows, `assistant.enabled`, on every OS) -> everything Start does, then
+    │   the window on Assistant, a new conversation, guided setup's round one
+    │   showing; it needs no model (docs/features/assistant.md › Guided setup)
+    │   Check: `rune_ui::assistant::invite_tests`
+    └── Start using VibeHex (the main button) -> records completion once the
+        permissions are ready and the model is here or on its way; closes onboarding
 Run setup again (Labs) or `hex onboarding reset` -> the same story from the start,
 on every build; settings, models, and permissions stay, so their pages pass
 ```

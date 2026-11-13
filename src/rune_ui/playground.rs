@@ -190,6 +190,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/New conversation, dictating Russian",
     ),
     ("assistant-connect", "Window/Assistant/Connect a model"),
+    (
+        "assistant-setup-unreachable",
+        "Window/Assistant/Setup with no model connected",
+    ),
     ("assistant-settings", "Window/Assistant/Settings"),
     (
         "assistant-consent",
@@ -256,6 +260,14 @@ const PATHS: &[(&str, &str)] = &[
     (
         "assistant-updated",
         "Window/Assistant/New conversation after an update",
+    ),
+    (
+        "assistant-marked",
+        "Window/Assistant/Sidebar marked after an update",
+    ),
+    (
+        "assistant-marked-rail",
+        "Window/Assistant/Folded sidebar marked after an update",
     ),
     (
         "assistant-vocab-card",
@@ -554,6 +566,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Onboarding/Your turn · reopen",
     ),
     ("mac-onboarding-ready", "Window/Onboarding/Hex is ready"),
+    (
+        "mac-onboarding-ready-russian",
+        "Window/Onboarding/Hex is ready, in Russian",
+    ),
     ("portal", "Linux & Windows/Settings · portal shortcuts"),
     ("commands", "Linux & Windows/Settings · hex commands"),
     ("portal-mouse", "Linux & Windows/Settings · mouse button"),

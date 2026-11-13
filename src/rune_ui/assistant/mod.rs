@@ -15,7 +15,7 @@ mod card_diff;
 mod changes;
 mod companion;
 mod composer;
-mod connect;
+pub(super) mod connect;
 pub(super) mod dots;
 pub(super) mod face;
 #[cfg(test)]
@@ -23,6 +23,8 @@ mod facts_tests;
 mod feed;
 pub(super) mod fixture;
 pub(super) mod fixture_cards;
+#[cfg(test)]
+mod invite_tests;
 // Pinned on a Mac: the follow-ups and the preset's rows are this OS's.
 #[cfg(all(test, target_os = "macos"))]
 mod flow_pins;
@@ -49,7 +51,7 @@ mod verbs;
 mod vocab;
 mod vocab_edit;
 mod web;
-mod whats_new;
+pub(super) mod whats_new;
 
 pub(super) use value::ValueAt;
 
@@ -153,6 +155,11 @@ pub(in super::super) struct AssistantPane {
     pub(super) fixed_now: Option<u64>,
     /// The version this install updated to lately, and when (`whats_new`).
     pub(super) updated: Option<(String, u64)>,
+    /// The update the sidebar's row is marked for, until Assistant opens
+    /// (`whats_new::marked`).
+    pub(super) mark: Option<String>,
+    /// Whether the mark was read this run.
+    mark_read: bool,
 }
 
 /// A scroll offset the feed keeps up to date.
@@ -259,8 +266,8 @@ pub(super) fn pane(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> (Vec<
 
 /// The feed over the field, both centred.
 fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
-    // With no model to ask, the panel stands in for the field (and for the
-    // greeting of a new conversation).
+    // With no model to ask, the panel stands in for the field, under the
+    // conversation or a new one's start page: setup needs no model.
     let connect = connect::needed(ui);
     // The conversation is Assistant's: its own words in its language (the
     // dictation language when set); places it names keep the window's.
@@ -330,21 +337,19 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     changed |= ui.assistant.dots.poll(live, tx);
     changes::follow_open(ui);
     if ui.is_fixture() || ui.assistant.fixture {
-        return changed;
+        return changed | whats_new::opened(ui);
     }
-    let keep = ui.settings.assistant.keep_conversations;
-    let pane = &mut ui.assistant;
-    if !pane.loaded {
+    whats_new::look(ui);
+    if !ui.assistant.loaded {
         if ui.pane != Pane::Assistant {
             return changed;
         }
-        pane.store = Store::open(keep);
-        pane.open = newest(&pane.store);
-        pane.updated = crate::assistant::releases::history::fresh(pane.now_ms());
-        pane.kept = keep;
-        pane.loaded = true;
-        changed = true;
+        changed |= load(ui);
     }
+    // Opened after an update: on the start page, before it draws.
+    changed |= whats_new::opened(ui);
+    let keep = ui.settings.assistant.keep_conversations;
+    let pane = &mut ui.assistant;
     // Keeping turned on or off, here or from `hex settings`.
     if pane.kept != keep {
         pane.store.keep(keep);
@@ -382,6 +387,37 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         changed = true;
     }
     changed | composer::poll(ui) | connect::poll(ui)
+}
+
+/// Reads the conversations, once a run, as the pane first shows: the
+/// newest opens. Never in a scene. True when it read them.
+fn load(ui: &mut Ui) -> bool {
+    if ui.assistant.loaded || ui.assistant.fixture || ui.is_fixture() {
+        return false;
+    }
+    let keep = ui.settings.assistant.keep_conversations;
+    let pane = &mut ui.assistant;
+    pane.store = Store::open(keep);
+    pane.open = newest(&pane.store);
+    pane.updated = crate::assistant::releases::history::fresh(pane.now_ms());
+    pane.kept = keep;
+    pane.loaded = true;
+    true
+}
+
+/// Onboarding's "Set up with Assistant": the pane on a new conversation
+/// with guided setup begun as "Set VibeHex up for me" begins it, round one
+/// showing. Round one needs no model. Nothing where Assistant is off.
+pub(in super::super) fn set_up(ui: &mut Ui, tx: &mut Tx) {
+    if !Pane::Assistant.shown(ui) {
+        return;
+    }
+    ui.select_pane(Pane::Assistant, tx);
+    ui.assistant.view = View::Chat;
+    load(ui);
+    whats_new::opened(ui);
+    ui.assistant.open = None;
+    ask::begin(ui);
 }
 
 /// Whether a step line still going on shows anywhere: an answer's in

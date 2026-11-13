@@ -23,6 +23,7 @@ use rune::{El, TextEdit, Transition, Tx, text};
 use super::super::controls::Paint;
 use super::super::paste_access::{self, PasteAccess};
 use super::super::platform::Os;
+use super::super::sidebar::Pane;
 use super::super::{Ui, onboarding};
 use super::choice::{self, Shown};
 use super::fixture::{Language, Speech};
@@ -71,6 +72,9 @@ pub(crate) struct Live {
     /// The shortcut listener failed after setup and Hex won't relaunch by
     /// itself again: Reopen Hex.
     pub(crate) reopen: bool,
+    /// Assistant shows in the sidebar (`assistant.enabled`), so Hex is
+    /// ready offers Set up with Assistant.
+    pub(crate) assistant: bool,
     /// macOS needed a restart and Hex couldn't relaunch itself.
     pub(crate) relaunch_failed: bool,
     /// The desktop's paste permission on GNOME and KDE Wayland: the
@@ -214,6 +218,7 @@ pub(in crate::rune_ui) fn open(ui: &mut Ui) {
         accessibility_row: ui.platform.caps.permissions,
         accessibility_renamed: ui.platform.accessibility_renamed,
         reopen: false,
+        assistant: Pane::Assistant.shown(ui),
         relaunch_failed: false,
         paste: ui.platform.paste,
         choice: None,
@@ -437,6 +442,7 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     let relaunch_failed = ui.platform.relaunch_failed;
     let paste = ui.platform.paste;
     let live_window = !ui.is_fixture();
+    let assistant = Pane::Assistant.shown(ui);
     let Some(s) = ui.first_run.as_mut() else {
         return false;
     };
@@ -444,6 +450,7 @@ pub(in crate::rune_ui) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         return false;
     };
     live.warming = warming;
+    live.assistant = assistant;
     live.checked = Some(checked);
     // Linux and Windows ask for no permissions: both rows are ready.
     if !asks_permissions {
@@ -635,17 +642,23 @@ fn finish_without_model(ui: &mut Ui) {
     ui.tour = None;
 }
 
-/// "Start using Hex" (and Skip on `"Almost ready"`): closes the first run
-/// and the tour under it. Setup counts as finished with the permissions
-/// ready and the model here or on its way; a download still running goes
-/// on, and a launch that interrupts it resumes it.
-pub(super) fn finish(ui: &mut Ui) {
+/// Whether finishing now counts setup as finished: the permissions ready
+/// and the model here or on its way.
+pub(in crate::rune_ui) fn completes(ui: &Ui) -> bool {
     let installed = ui.picker.selected_installed(&ui.settings);
     let on_its_way = ui.tour.as_ref().is_some_and(|tour| {
         tour.flow.choice().started().is_some() && tour.flow.view().model != ItemStatus::Failed
     });
+    ui.platform.setup_status(installed || on_its_way).ready()
+}
+
+/// "Start using Hex" (and Skip on `"Almost ready"`): closes the first run
+/// and the tour under it. Setup counts as finished as [`completes`] says;
+/// a download still running goes on, and a launch that interrupts it
+/// resumes it.
+pub(super) fn finish(ui: &mut Ui) {
     if ui.live()
-        && ui.platform.setup_status(installed || on_its_way).ready()
+        && completes(ui)
         && !crate::desktop::onboarding::completion_recorded()
         && let Err(error) = crate::desktop::onboarding::record_completion()
     {
@@ -653,6 +666,14 @@ pub(super) fn finish(ui: &mut Ui) {
     }
     ui.first_run = None;
     ui.tour = None;
+}
+
+/// "Set up with Assistant", beside Start using VibeHex: everything Start
+/// does, then the window on Assistant in a new conversation with guided
+/// setup begun, round one showing, as "Set VibeHex up for me" begins it.
+pub(in crate::rune_ui) fn set_up_with_assistant(ui: &mut Ui, tx: &mut Tx) {
+    finish(ui);
+    super::super::assistant::set_up(ui, tx);
 }
 
 /// The person decided on the model step: the story goes on, with the

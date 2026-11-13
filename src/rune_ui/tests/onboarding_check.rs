@@ -51,9 +51,10 @@ pub(super) const SCENES: &[&str] = &[
     "onboarding-try",
     "mac-onboarding-try",
     "mac-onboarding-reopen",
-    // Hex is ready.
+    // Hex is ready, with Set up with Assistant, and its buttons in Russian.
     "onboarding-ready",
     "mac-onboarding-ready",
+    "mac-onboarding-ready-russian",
 ];
 
 /// The pages Skip shows on: the demo, the practice, and the wait for a

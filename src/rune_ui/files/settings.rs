@@ -567,10 +567,19 @@ pub(in super::super) fn engine_select(
             ui.update(|settings| set(settings, None))
         }),
     )];
+    // Assistant recommends Codex for itself, as its Connect panel does: on
+    // Codex's default model, or its one row before the models are read.
+    let recommended = (key == "assistant-engine").then(|| {
+        codex
+            .iter()
+            .find(|model| model.default)
+            .or_else(|| codex.first())
+            .map_or_else(|| "codex".to_owned(), |model| format!("codex:{}", model.id))
+    });
     let mut last = None;
     for (group, value, label) in &rows {
         let chosen = value.clone();
-        let item = choice(
+        let mut item = choice(
             label,
             None,
             current == Some(value.as_str()),
@@ -579,6 +588,9 @@ pub(in super::super) fn engine_select(
                 ui.update(|settings| set(settings, Some(value)));
             },
         );
+        if recommended.as_deref() == Some(value.as_str()) {
+            item = item.badge(tr("Recommended"));
+        }
         items.push(((last != Some(*group)).then_some(*group), item));
         last = Some(*group);
     }

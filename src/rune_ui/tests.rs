@@ -3266,6 +3266,7 @@ fn goldens() {
         "assistant-change-both",
         "assistant-change-coming",
         "assistant-setup-ask",
+        "assistant-setup-unreachable",
         "assistant-setup-follow",
         "assistant-setup-follow-ru",
         "assistant-setup-plan",
@@ -3315,6 +3316,8 @@ fn goldens() {
     for scene in [
         "assistant-whats-new",
         "assistant-updated",
+        "assistant-marked",
+        "assistant-marked-rail",
         "assistant-places",
         "assistant-place-opened",
         "assistant-lab-opened",

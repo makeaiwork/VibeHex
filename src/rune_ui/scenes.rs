@@ -747,6 +747,7 @@ pub(super) const SCENES: &[Scene] = &[
     ("assistant-start", assistant::fixture::start),
     ("assistant-start-russian", assistant::fixture::start_russian),
     ("assistant-connect", assistant::fixture::connect),
+    ("assistant-setup-unreachable", assistant::connect::scene),
     ("assistant-settings", assistant::fixture::settings),
     ("assistant-consent", assistant::fixture::consent),
     ("assistant-steps", assistant::fixture::steps),
@@ -772,6 +773,8 @@ pub(super) const SCENES: &[Scene] = &[
     ("assistant-applied", assistant::fixture_cards::applied),
     ("assistant-whats-new", assistant::fixture_cards::whats_new),
     ("assistant-updated", assistant::fixture_cards::updated),
+    ("assistant-marked", assistant::fixture_cards::marked),
+    ("assistant-marked-rail", assistant::fixture_cards::rail),
     ("assistant-vocab-card", assistant::fixture_cards::vocab_card),
     (
         "assistant-vocab-applied",
@@ -1224,6 +1227,12 @@ pub(super) const SCENES: &[Scene] = &[
     }),
     ("mac-onboarding-ready", |ui| {
         mac_first_run(ui, onboarding::MacStep::Done, Page::Ready)
+    }),
+    // Its three buttons in a Russian window, the longest of their words.
+    ("mac-onboarding-ready-russian", |ui| {
+        mac_first_run(ui, onboarding::MacStep::Done, Page::Ready);
+        ui.settings.ui_language = Some("ru".into());
+        crate::desktop::i18n::apply(Some("ru"));
     }),
 ];
 

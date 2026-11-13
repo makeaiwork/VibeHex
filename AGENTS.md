@@ -978,7 +978,9 @@ CoreAudio formats, AppleScript details, or event serialization.
   (resumed at its saved step), or an upgrader from 2.3.1 or earlier whose
   setup isn't ready (#475). Run setup again (Labs) and `hex onboarding reset`
   replay it from the start on every build. Start using Hex records completion
-  only once the permissions are ready and the model is here or on its way.
+  only once the permissions are ready and the model is here or on its way;
+  Set up with Assistant beside it (where Assistant shows) finishes the same
+  way, then opens Assistant's guided setup.
   A quiet Skip shows only on the pages setup doesn't need, the demo, the
   practice, and Almost ready: it passes over that part to the next step setup
   still needs (permissions, then the model), else Hex is ready, and on the

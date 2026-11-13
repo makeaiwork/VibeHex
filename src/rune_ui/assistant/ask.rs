@@ -99,11 +99,13 @@ pub(super) fn on(ui: &Ui, flow: Flow, event: Event) -> (Flow, Vec<Effect>) {
 /// `then` with what the machine may know of this install now.
 fn knowing<T>(ui: &Ui, conversation: u32, then: impl FnOnce(&Env) -> T) -> T {
     let context = super::changes::context(ui);
+    let unreachable = unreachable(ui, conversation);
     let env = Env {
         context: &context,
         saved: &ui.settings,
         now_ms: ui.assistant.now_ms(),
-        on_device: on_device(ui, conversation),
+        on_device: unreachable || on_device(ui, conversation),
+        unreachable,
         busy: ui.assistant.answering.is_some(),
         scene: ui.assistant.fixture,
         changed: &since::changed_since,
@@ -196,13 +198,28 @@ fn on_device(ui: &Ui, conversation: u32) -> bool {
 
 /// Whether this conversation's engine is a built-in model.
 fn built_in(ui: &Ui, conversation: u32) -> bool {
+    asks_on(ui, conversation).is_local()
+}
+
+/// Whether this conversation's model can't be reached now: OpenCode isn't
+/// running, Codex isn't installed, or Codex is signed out as Output last
+/// read it. Setup then writes itself, as on a built-in model, and no
+/// request goes out to fail.
+pub(super) fn unreachable(ui: &Ui, conversation: u32) -> bool {
+    let engine = asks_on(ui, conversation);
+    super::connect::unreachable(ui, &engine)
+        || (engine.codex_model().is_some()
+            && super::super::output::codex_signed_in(ui) == Some(false))
+}
+
+/// The engine `conversation` asks on.
+fn asks_on(ui: &Ui, conversation: u32) -> crate::files::rewrite::Engine {
     let open = ui.assistant.store.get(conversation);
     super::engine(
         &ui.settings,
         open.and_then(|open| open.engine.as_deref()),
         open.and_then(|open| open.effort.as_deref()),
     )
-    .is_local()
 }
 
 /// Whether a model writes this setup's follow-ups and plan, and so reads
@@ -215,7 +232,7 @@ fn built_in(ui: &Ui, conversation: u32) -> bool {
 /// with the round. A scene plays the engine it is set to, though the app
 /// writes its rounds.
 pub(super) fn model_writes(ui: &Ui, conversation: u32) -> bool {
-    !built_in(ui, conversation) && !super::connect::needed(ui)
+    !built_in(ui, conversation) && !unreachable(ui, conversation) && !super::connect::needed(ui)
 }
 
 /// A chip pressed.
@@ -1015,5 +1032,77 @@ mod tests {
                 .iter()
                 .any(|answer| answer.id == round[1].id && answer.chosen == ["yes"])
         );
+    }
+
+    /// Setup from the Start row to its plan, every round as preselected
+    /// (calls picked so a round one is never empty), follow-ups skipped.
+    fn to_the_plan(ui: &mut Ui) -> Turn {
+        begin(ui);
+        for _ in 0..8 {
+            let open = ui.assistant.conversation().unwrap();
+            match flow::step(&open.turns, ui.assistant.store.setups()) {
+                Step::Basics { turn, .. } => {
+                    let asks = turns(ui)[turn].asks.clone();
+                    let use_at = number(&asks, "use");
+                    if asks[use_at].chosen.is_empty() {
+                        pick(ui, at(ui, turn), use_at, "dictation_any");
+                    }
+                    answered(ui, at(ui, turn), false);
+                }
+                Step::Follow { turn, .. } => answered(ui, at(ui, turn), true),
+                Step::Plan { .. } | Step::Done => break,
+                other => panic!("setup stopped at {other:?}"),
+            }
+        }
+        assert!(ui.assistant.answering.is_none(), "no model was asked");
+        let turns = turns(ui);
+        assert!(
+            turns.iter().all(|turn| turn.error.is_none()),
+            "nothing failed: {turns:?}"
+        );
+        turns.last().unwrap().clone()
+    }
+
+    const CONNECT: &str = "To ask Assistant questions, connect a model below: Codex works best if you have ChatGPT Plus or Pro.";
+
+    /// A fresh install's Assistant runs on AI cleanup's OpenCode, which
+    /// isn't running: setup needs no model. It runs on the app's own rules
+    /// to its plan, which ends pointing at the Connect panel.
+    #[test]
+    fn with_opencode_unreachable_setup_runs_to_the_apps_plan() {
+        let mut ui = Ui::with(
+            crate::app_settings::AppSettings::default(),
+            super::super::super::Service::Fixture(Vec::new()),
+        );
+        super::super::fixture::connect(&mut ui);
+        assert!(super::super::connect::needed(&ui));
+        let plan = crate::desktop::i18n::speaking(Some("en"), || to_the_plan(&mut ui));
+        let id = ui.assistant.open.unwrap();
+        assert!(unreachable(&ui, id));
+        assert!(plan.answer.ends_with(CONNECT), "{}", plan.answer);
+        assert!(!plan.cards.is_empty(), "the app's plan");
+    }
+
+    /// Codex chosen for Assistant and signed out, as Output read it: the
+    /// field still shows, and setup runs on the app's own rules the same.
+    #[test]
+    fn with_codex_signed_out_setup_runs_to_the_apps_plan() {
+        let mut ui = Ui::with(
+            crate::app_settings::AppSettings::default(),
+            super::super::super::Service::Fixture(Vec::new()),
+        );
+        super::super::fixture::open(&mut ui);
+        ui.assistant.reach.codex = Some(true);
+        super::super::super::output::codex_signed_out(&mut ui);
+        assert!(!super::super::connect::needed(&ui), "Codex is installed");
+        let plan = crate::desktop::i18n::speaking(Some("en"), || to_the_plan(&mut ui));
+        assert!(unreachable(&ui, ui.assistant.open.unwrap()));
+        assert!(plan.answer.ends_with(CONNECT), "{}", plan.answer);
+        // Signed in, a model writes the rounds: nothing points anywhere.
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.assistant.fixture = true;
+        let plan = crate::desktop::i18n::speaking(Some("en"), || to_the_plan(&mut ui));
+        assert!(!unreachable(&ui, ui.assistant.open.unwrap()));
+        assert!(!plan.answer.contains("connect a model"), "{}", plan.answer);
     }
 }

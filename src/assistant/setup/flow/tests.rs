@@ -14,6 +14,8 @@ struct Run {
     state: State,
     flow: Flow,
     remote: bool,
+    /// The remote model can't be reached now.
+    unreachable: bool,
     busy: bool,
     now: u64,
     trace: Vec<String>,
@@ -91,6 +93,7 @@ impl Run {
             },
             flow: Flow::new(1, Vec::new(), Vec::new()),
             remote,
+            unreachable: false,
             busy: false,
             now: 1_800_000_000_000,
             trace: Vec::new(),
@@ -122,7 +125,8 @@ impl Run {
             context: &context,
             saved: &self.settings,
             now_ms: self.now,
-            on_device: !self.remote,
+            on_device: !self.remote || self.unreachable,
+            unreachable: self.unreachable,
             busy: self.busy,
             scene: false,
             changed: &|_, _| false,
@@ -145,7 +149,8 @@ impl Run {
             context: &context,
             saved: &self.settings,
             now_ms: self.now,
-            on_device: !self.remote,
+            on_device: !self.remote || self.unreachable,
+            unreachable: self.unreachable,
             busy: self.busy,
             scene: false,
             changed: &|_, _| false,
@@ -767,4 +772,63 @@ fn an_older_saved_setup_still_loads() {
         },
     );
     assert_eq!(kept.len(), 2);
+}
+
+/// A setup never stalls for good: after a model failed twice in a row,
+/// Try again writes the rest itself; with the model out of reach, so does
+/// the first Try again, and the plan ends pointing at the Connect panel
+/// (the sample install picked Codex, so it says Codex needs signing in).
+#[test]
+fn a_stalled_setup_goes_on_without_a_model() {
+    let (trace, plan) = speaking(Some("en"), || {
+        let mut run = Run::new(true);
+        run.send("begin", Event::Begin { since: None });
+        let turn = run.last();
+        let asked = run.send("continue", Event::Answered { turn, skip: false });
+        run.reply(&asked, true);
+        let turn = run.last();
+        let asked = run.send("again", Event::Again { turn });
+        run.reply(&asked, true);
+        let turn = run.last();
+        run.send("third", Event::Again { turn });
+        // Out of reach from the first failure on.
+        let mut off = Run::new(true);
+        off.trace.push("out of reach".into());
+        off.send("begin", Event::Begin { since: None });
+        let turn = off.last();
+        let asked = off.send("continue", Event::Answered { turn, skip: false });
+        off.reply(&asked, true);
+        off.unreachable = true;
+        let turn = off.last();
+        off.send("again", Event::Again { turn });
+        let turn = off.last();
+        off.send("skip", Event::Answered { turn, skip: true });
+        let plan = off.flow.turns.last().unwrap().answer.clone();
+        let mut trace = run.trace;
+        trace.extend(off.trace);
+        (trace, plan)
+    });
+    assert_eq!(
+        trace,
+        [
+            "begin: push now round -> Basics",
+            "continue: answers, keep, ask follow -> Answered",
+            "no reply:  -> Stalled",
+            "again: ask follow -> Stalled",
+            "no reply:  -> Stalled",
+            "third: push round -> Follow",
+            "out of reach",
+            "begin: push now round -> Basics",
+            "continue: answers, keep, ask follow -> Answered",
+            "no reply:  -> Stalled",
+            "again: push round -> Follow",
+            "skip: answers, keep, push plan -> Plan",
+        ]
+    );
+    assert!(
+        plan.ends_with(
+            "To ask Assistant questions, connect a model below: Codex works best. You chose Codex, so it still needs signing in."
+        ),
+        "{plan}"
+    );
 }

@@ -7,6 +7,7 @@
 #[rustfmt::skip]
 pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Assistant", ["Asystent", "助手", "アシスタント", "Assistent", "Asistente", "Асистент"]),
+    ("Set up with Assistant", ["Skonfiguruj z Asystentem", "让助手帮你设置", "アシスタントと設定する", "Mit dem Assistenten einrichten", "Configurar con el asistente", "Налаштувати з асистентом"]),
     ("Chat", ["Czat", "聊天", "チャット", "Chat", "Chat", "Чат"]),
     ("Ask about VibeHex", ["Zapytaj o VibeHex", "询问 VibeHex 相关问题", "VibeHex について質問", "Frag etwas zu VibeHex", "Pregunta sobre VibeHex", "Запитайте про VibeHex"]),
     ("Model for this conversation", ["Model dla tej rozmowy", "此对话的模型", "この会話のモデル", "Modell für dieses Gespräch", "Modelo para esta conversación", "Модель для цієї розмови"]),
@@ -95,6 +96,7 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
 #[rustfmt::skip]
 pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("Assistant", "Assistant"),
+    ("Set up with Assistant", "Configurer avec l'Assistant"),
     ("Chat", "Discussion"),
     ("Ask about VibeHex", "Posez une question sur VibeHex"),
     ("Model for this conversation", "Modèle pour cette conversation"),
@@ -165,7 +167,7 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("{} guide articles", "{} articles du guide"),
     ("Read 1 guide article: {}", "1 article du guide lu : {}"),
     ("Read {count} guide articles: {names}", "{count} articles du guide lus : {names}"),
-    ("Back to Assistant", "Retour à l’Assistant"),
+    ("Back to Assistant", "Retour à l'Assistant"),
     ("{current} of {count}", "{current} sur {count}"),
     ("From the answer: {}", "D’après la réponse : {}"),
     ("Previous place", "Passage précédent"),
@@ -183,6 +185,7 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
 #[rustfmt::skip]
 pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Assistant", "Assistente"),
+    ("Set up with Assistant", "Configurar com o Assistente"),
     ("Chat", "Conversa"),
     ("Ask about VibeHex", "Pergunte sobre o VibeHex"),
     ("Model for this conversation", "Modelo para esta conversa"),
@@ -271,6 +274,7 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
 #[rustfmt::skip]
 pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("Assistant", "Ассистент"),
+    ("Set up with Assistant", "Настроить с ассистентом"),
     ("Chat", "Чат"),
     ("Ask about VibeHex", "Спросите о VibeHex"),
     ("Model for this conversation", "Модель для этого разговора"),

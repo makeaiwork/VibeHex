@@ -522,6 +522,18 @@ pub(super) fn fixture(state: &mut CodexCleanup) {
     });
 }
 
+/// Codex installed and signed out.
+pub(super) fn signed_out(state: &mut CodexCleanup) {
+    state.status = Reported::Ready(Status {
+        executable: "/opt/homebrew/bin/codex".into(),
+        version: "0.164.0".into(),
+        account: Account::SignedOut,
+        models: Vec::new(),
+        limits: Vec::new(),
+        limited: false,
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
