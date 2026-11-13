@@ -28,6 +28,7 @@ pub mod past;
 pub mod plan;
 pub mod preset;
 pub mod since;
+pub mod spellings;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

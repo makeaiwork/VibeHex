@@ -820,6 +820,73 @@ fn the_uses_terms_join_the_plan_sure_ones_checked() {
     assert_eq!(rows(&state), [(vec!["Granola".to_owned()], true)]);
 }
 
+/// A term the use has with no spelling gets a remote model's, as its own
+/// row: the use's reason, unchecked as before, the model's spellings that
+/// pass (Russian letters, never the term). Its term for something else
+/// stays a row of its own.
+#[test]
+fn a_models_spellings_fill_a_term_that_has_none() {
+    use crate::assistant::changes::parse::Proposal;
+    use crate::assistant::changes::vocab;
+    use crate::assistant::offer::{Gate, Origin};
+    let settings = owners();
+    let state = mac();
+    let candidates = [since::Candidate {
+        term: "quit".into(),
+        ..since::Candidate::default()
+    }];
+    let line = |term: &str, sounds: &[&str]| Proposal {
+        key: vocab::KEY.into(),
+        value: Some(
+            vocab::Term {
+                term: term.into(),
+                sounds_like: sounds.iter().map(|sound| (*sound).to_owned()).collect(),
+            }
+            .value(),
+        ),
+        why: "from the model".into(),
+        plan: true,
+        line: vocab::KEY.into(),
+        ..Proposal::default()
+    };
+    let gate = Gate::new(&settings, &state);
+    let model = changes::resolve(
+        &[
+            line("quit", &["квит", "quit", "kvit"]),
+            line("Kubernetes", &["кубернетис"]),
+        ],
+        &gate,
+        Origin::Plan,
+    );
+    let card = plan::with_terms(
+        model.cards,
+        &owners_answers(),
+        &candidates,
+        &settings,
+        &state,
+    )
+    .unwrap();
+    let rows: Vec<(vocab::Term, bool, String)> = card
+        .items
+        .iter()
+        .filter(|item| item.key == vocab::KEY)
+        .flat_map(|item| {
+            vocab::terms(&item.to)
+                .into_iter()
+                .map(|term| (term, item.included, item.why.clone()))
+        })
+        .collect();
+    let quit = rows.iter().find(|(term, ..)| term.term == "quit").unwrap();
+    assert_eq!(quit.0.sounds_like, ["квит"]);
+    assert!(!quit.1, "a term the use isn't sure of starts unchecked");
+    assert_eq!(quit.2, "You say these, and Vocabulary doesn't have them");
+    let kubernetes = rows
+        .iter()
+        .find(|(term, ..)| term.term == "Kubernetes")
+        .unwrap();
+    assert_eq!(kubernetes.0.sounds_like, ["кубернетис"]);
+}
+
 /// A Mac known to have no notch and only a Magic Mouse, one with a notch
 /// and an MX mouse, and one whose hardware couldn't be read.
 fn macs() -> [State; 3] {

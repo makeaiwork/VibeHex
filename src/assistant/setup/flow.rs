@@ -611,6 +611,9 @@ impl Flow {
             };
             return self.emit(Effect::Ask { line, stage }, out);
         }
+        // On this device no model writes the plan, so none is asked how a
+        // term sounds either: a term keeps what History has it heard as
+        // (`setup::spellings` says why).
         let context = self.context(env);
         let card = plan::with_terms(
             Vec::new(),
