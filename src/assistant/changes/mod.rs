@@ -10,6 +10,7 @@
 //! and then only through `control::settings::check`, the path `hex settings`
 //! takes. `state` derives what a card shows each frame.
 
+pub mod built_in;
 pub mod catalog;
 pub mod companion;
 pub mod counts;
@@ -313,6 +314,8 @@ pub fn resolve(proposals: &[Proposal], gate: &Gate, origin: Origin) -> Resolved 
             _ => cards.push(card),
         }
     }
+    // Cleanup on this computer and its model are one row.
+    built_in::fold_cards(&mut resolved.cards, &gate.state.machine);
     resolved
 }
 
@@ -366,7 +369,8 @@ fn card(proposal: &Proposal, gate: &Gate, origin: Origin) -> Result<Card, offer:
         class: catalog::class(key, &to),
         requires: gate.requires(key, &to),
         companion: match kind {
-            CardKind::Single => companion::of(settings, key, &to),
+            CardKind::Single => companion::of(settings, key, &to)
+                .or_else(|| built_in::companion(settings, &gate.state.machine, key, &to)),
             _ => None,
         },
         ..Item::default()

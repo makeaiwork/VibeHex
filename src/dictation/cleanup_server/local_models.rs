@@ -34,7 +34,38 @@ pub struct LocalModel {
     /// real Russian dictations, E4B wrote 40 as their terms, Qwen3 37, E2B
     /// 36; Qwen3 also follows instructions more closely than E2B.
     pub quality: u8,
+    /// Its attention cache's shape, from the file's GGUF header, for
+    /// [`LocalModel::memory`].
+    cache: Cache,
 }
+
+/// What a model's attention cache holds per token, as its GGUF header
+/// says (`block_count`, `attention.shared_kv_layers`, `head_count_kv`,
+/// `key_length` and `value_length`, their `_swa` forms, and
+/// `sliding_window_pattern`). llama-server keeps it in f16, 2 bytes a
+/// number, the way the engine starts it for dictation (no `--cache-type`).
+#[derive(Debug, Eq, PartialEq)]
+struct Cache {
+    /// Layers that keep the whole window: their own keys and values (a
+    /// layer that shares an earlier one's keeps none).
+    full_layers: u64,
+    /// Bytes a token takes in one of them: K and V heads times their
+    /// lengths, at 2 bytes.
+    full_bytes: u64,
+    /// Sliding-window layers, which keep only [`WINDOW_CELLS`] tokens.
+    window_layers: u64,
+    window_bytes: u64,
+}
+
+/// What a sliding-window layer keeps: llama.cpp's window (512 for Gemma 4)
+/// plus its 512-token batch, `n_swa + n_ubatch`.
+const WINDOW_CELLS: u64 = 1024;
+
+/// Beyond the file and the cache, what a running llama-server holds: its
+/// compute buffers and the process itself. Measured with `footprint` on
+/// Gemma 4 E4B serving dictation: 505 MB beside the mapped file, 176 MB
+/// of it the cache, so about 0.33 GB; rounded up.
+pub const OVERHEAD: u64 = 400_000_000;
 
 /// The models offered, the recommended one first.
 pub const MODELS: &[LocalModel] = &[
@@ -50,6 +81,13 @@ pub const MODELS: &[LocalModel] = &[
         sha256: "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
         speed: 4,
         quality: 4,
+        // 36 layers, 8 KV heads of 128 + 128.
+        cache: Cache {
+            full_layers: 36,
+            full_bytes: 8 * (128 + 128) * 2,
+            window_layers: 0,
+            window_bytes: 0,
+        },
     },
     LocalModel {
         id: "gemma-4-e4b-it",
@@ -63,6 +101,14 @@ pub const MODELS: &[LocalModel] = &[
         sha256: "85a896a047553e842f25297ee5b031d64ff30147d9c4af17b1e4b394cd1fab87",
         speed: 3,
         quality: 5,
+        // 42 layers, the last 18 sharing: of the 24 with a cache, 4 global
+        // (2 KV heads of 512 + 512) and 20 sliding (2 of 256 + 256).
+        cache: Cache {
+            full_layers: 4,
+            full_bytes: 2 * (512 + 512) * 2,
+            window_layers: 20,
+            window_bytes: 2 * (256 + 256) * 2,
+        },
     },
     LocalModel {
         id: "gemma-4-e2b-it",
@@ -76,6 +122,14 @@ pub const MODELS: &[LocalModel] = &[
         sha256: "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
         speed: 5,
         quality: 3,
+        // 35 layers, the last 20 sharing: of the 15 with a cache, 3 global
+        // (1 KV head of 512 + 512) and 12 sliding (1 of 256 + 256).
+        cache: Cache {
+            full_layers: 3,
+            full_bytes: (512 + 512) * 2,
+            window_layers: 12,
+            window_bytes: (256 + 256) * 2,
+        },
     },
 ];
 
@@ -143,7 +197,22 @@ impl LocalModel {
 
     /// Size for a person, such as "2.5 GB".
     pub fn size_label(&self) -> String {
-        format!("{:.1} GB", self.bytes as f64 / 1e9)
+        gigabytes(self.bytes)
+    }
+
+    /// Its attention cache in the window the engine starts dictation with
+    /// ([`super::engine::CONTEXT_TOKENS`]), in bytes.
+    pub fn cache_bytes(&self) -> u64 {
+        let cache = &self.cache;
+        let window = u64::from(super::engine::CONTEXT_TOKENS);
+        cache.full_layers * cache.full_bytes * window
+            + cache.window_layers * cache.window_bytes * WINDOW_CELLS.min(window)
+    }
+
+    /// About how much memory it takes while it runs: the file (mapped
+    /// whole, every layer on the GPU), its cache, and [`OVERHEAD`].
+    pub fn memory(&self) -> u64 {
+        self.bytes + self.cache_bytes() + OVERHEAD
     }
 
     /// Stops the engine if it runs this model, then deletes the file and any
@@ -162,6 +231,12 @@ impl LocalModel {
         }
         Ok(())
     }
+}
+
+/// Bytes for a person, in decimal gigabytes as a download is counted:
+/// "2.5 GB".
+pub fn gigabytes(bytes: u64) -> String {
+    format!("{:.1} GB", bytes as f64 / 1e9)
 }
 
 /// Downloads `model`, resuming a partial file, and moves it into place once
@@ -245,6 +320,25 @@ mod tests {
         assert_eq!(find(MODELS[0].id), Some(&MODELS[0]));
     }
 
+    /// What each takes while it runs, from its header's numbers: Qwen3's
+    /// cache is a whole window on every layer, Gemma's mostly a sliding
+    /// one on the layers that don't share.
+    #[test]
+    fn each_model_says_what_it_takes_while_it_runs() {
+        let memory: Vec<(&str, u64, String)> = MODELS
+            .iter()
+            .map(|model| (model.id, model.cache_bytes(), gigabytes(model.memory())))
+            .collect();
+        assert_eq!(
+            memory,
+            [
+                ("qwen3-4b-instruct-2507", 1_207_959_552, "4.1 GB".to_owned()),
+                ("gemma-4-e4b-it", 176_160_768, "5.6 GB".to_owned()),
+                ("gemma-4-e2b-it", 62_914_560, "3.6 GB".to_owned()),
+            ]
+        );
+    }
+
     #[test]
     fn only_a_matching_file_is_moved_into_place() {
         let root = std::env::temp_dir().join(format!("hex-local-model-{}", std::process::id()));
@@ -262,6 +356,12 @@ mod tests {
             sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
             speed: 3,
             quality: 3,
+            cache: Cache {
+                full_layers: 0,
+                full_bytes: 0,
+                window_layers: 0,
+                window_bytes: 0,
+            },
         };
         let partial = root.join("test.gguf.partial");
         let path = root.join("test.gguf");

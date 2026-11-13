@@ -802,6 +802,22 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::setup_fixture::setup_follow_ru,
     ),
     ("assistant-setup-plan", assistant::setup_fixture::setup_plan),
+    (
+        "assistant-setup-local-model",
+        assistant::built_in_fixture::setup_local_model,
+    ),
+    (
+        "assistant-setup-local-model-low",
+        assistant::built_in_fixture::setup_local_model_low,
+    ),
+    (
+        "assistant-setup-local-model-downloading",
+        assistant::built_in_fixture::setup_local_model_downloading,
+    ),
+    (
+        "assistant-card-local-model",
+        assistant::built_in_fixture::card_local_model,
+    ),
     ("assistant-setup-kept", assistant::setup_fixture::setup_kept),
     (
         "assistant-setup-result",

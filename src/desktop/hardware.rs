@@ -10,6 +10,9 @@
 //! descriptor declares), and the model from `hw.model`. Elsewhere, and
 //! whatever can't be read, stays unknown: a feature is then never left out
 //! for it.
+//!
+//! The memory installed ([`memory`]) is read on every OS, for the built-in
+//! cleanup models' fit; only the app reads it, no model is told.
 
 /// What a Labs feature needs (`needs:` in its guide article).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -123,6 +126,62 @@ pub fn detect() -> Hardware {
     {
         Hardware::default()
     }
+}
+
+/// The physical memory installed, in bytes; `None` where it can't be read.
+/// Read once: it doesn't change while VibeHex runs. macOS asks `hw.memsize`,
+/// Linux reads `MemTotal` in `/proc/meminfo`, Windows asks
+/// `GlobalMemoryStatusEx`.
+pub fn memory() -> Option<u64> {
+    static MEMORY: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
+    *MEMORY.get_or_init(read_memory)
+}
+
+#[cfg(target_os = "macos")]
+fn read_memory() -> Option<u64> {
+    let mut bytes: u64 = 0;
+    let mut size = std::mem::size_of::<u64>();
+    // SAFETY: the name is NUL-terminated and `bytes` holds `size`.
+    let status = unsafe {
+        libc::sysctlbyname(
+            c"hw.memsize".as_ptr(),
+            (&raw mut bytes).cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    (status == 0 && bytes > 0).then_some(bytes)
+}
+
+#[cfg(target_os = "linux")]
+fn read_memory() -> Option<u64> {
+    meminfo_total(&std::fs::read_to_string("/proc/meminfo").ok()?)
+}
+
+#[cfg(target_os = "windows")]
+fn read_memory() -> Option<u64> {
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    // SAFETY: a zeroed MEMORYSTATUSEX is valid; the call fills it once its
+    // length is set.
+    let mut status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+    status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+    // SAFETY: `status` is a live, sized MEMORYSTATUSEX.
+    let ok = unsafe { GlobalMemoryStatusEx(&mut status) };
+    (ok != 0 && status.ullTotalPhys > 0).then_some(status.ullTotalPhys)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+fn read_memory() -> Option<u64> {
+    None
+}
+
+/// `MemTotal` from `/proc/meminfo`'s text, in bytes (the file counts kB).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn meminfo_total(text: &str) -> Option<u64> {
+    let line = text.lines().find(|line| line.starts_with("MemTotal:"))?;
+    let kilobytes: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kilobytes * 1024)
 }
 
 #[cfg(target_os = "macos")]
@@ -341,6 +400,16 @@ mod tests {
     #[ignore = "reads this computer's devices"]
     fn this_computer() {
         println!("{:#?}", detect());
+        println!("memory: {:?}", memory());
+    }
+
+    #[test]
+    fn memory_is_read_from_meminfo() {
+        let text = "MemTotal:       16303488 kB\nMemFree:         1234 kB\n";
+        assert_eq!(meminfo_total(text), Some(16_303_488 * 1024));
+        assert_eq!(meminfo_total("MemFree: 1 kB\n"), None);
+        // Wherever it is read, it is some memory or none.
+        assert_ne!(memory(), Some(0));
     }
 
     #[test]

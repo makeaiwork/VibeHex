@@ -102,6 +102,9 @@ pub struct State {
     /// language question when recognition is on Auto; empty in a scene,
     /// which then follows the window.
     pub system_language: String,
+    /// The memory, the free disk, and the built-in cleanup models on disk,
+    /// for the model a row starts at. Only the app reads it.
+    pub machine: crate::assistant::changes::built_in::Machine,
 }
 
 impl State {

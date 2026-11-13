@@ -10,6 +10,8 @@
 //! dictation's AI cleanup runs on.
 
 mod ask;
+mod built_in;
+pub(super) mod built_in_fixture;
 mod card;
 mod card_diff;
 mod changes;
@@ -155,6 +157,9 @@ pub(in super::super) struct AssistantPane {
     pub(super) fixture: bool,
     /// A scene's screens and pointing devices; unknown otherwise.
     pub(super) hardware: crate::desktop::hardware::Hardware,
+    /// A scene's memory, free disk, and built-in models on disk; read off
+    /// the computer otherwise (`built_in::machine`).
+    pub(super) machine: crate::assistant::changes::built_in::Machine,
     /// Where Codex stands in a scene, which never looks.
     pub(super) codex_as: crate::assistant::changes::state::Codex,
     /// A scene's clock, so its times read the same on any day.
@@ -358,6 +363,8 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     // signed in, as Output does while it shows Codex.
     if ui.pane != Pane::Output {
         changed |= super::output::poll_codex(ui);
+        // A built-in model a card brought downloads in its row.
+        changed |= super::output::local_cleanup::follow(ui, tx);
     }
     let keep = ui.settings.assistant.keep_conversations;
     let pane = &mut ui.assistant;

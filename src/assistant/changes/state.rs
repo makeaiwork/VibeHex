@@ -1,12 +1,12 @@
 //! What a card shows now, derived each frame from what was decided and
 //! what is true now: the settings (changed by hand since?), the model
-//! being downloaded, the Codex sign-in, the OS permissions, and whether
+//! being downloaded (a speech model, or a built-in cleanup model), the Codex sign-in, the OS permissions, and whether
 //! Undo still holds this session. Nothing here is stored.
 
 use serde_json::Value;
 
 use super::catalog::{self, Class, Permission, Shorter};
-use super::{Card, CardKind, Decision, current, vocab};
+use super::{Card, CardKind, Decision, Item, built_in, current, vocab};
 use crate::app_settings::AppSettings;
 use crate::control::settings;
 
@@ -16,6 +16,8 @@ pub struct Live<'a> {
     /// The speech model the service is preparing: its id, bytes come, and
     /// bytes in all (0 while unknown).
     pub preparing: Option<(String, u64, u64)>,
+    /// The built-in cleanup models downloading: each id and its bytes come.
+    pub built_in: Vec<(&'static str, u64)>,
     /// Where Codex stands, for a row or card that runs on it.
     pub codex: Codex,
     /// Screen & System Audio Recording is allowed (true off macOS).
@@ -115,7 +117,7 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
         Decision::Undone => Shown::Undone,
         Decision::Failed { why } => Shown::Failed(why.clone()),
         Decision::Applied { after, .. } => {
-            if let Some(shown) = downloading(item.class, &item.key, to, live) {
+            if let Some(shown) = downloading(item, to, live) {
                 return shown;
             }
             let moved = after
@@ -138,7 +140,7 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
             if let Some(blocked) = blocked(card, live.settings).filter(|_| live.here) {
                 return blocked;
             }
-            if let Some(shown) = downloading(item.class, &item.key, to, live) {
+            if let Some(shown) = downloading(item, to, live) {
                 return shown;
             }
             // A choice shows its options whatever the value is now.
@@ -235,7 +237,7 @@ pub fn row(card: &Card, index: usize, live: &Live) -> Row {
             if let Some(why) = &item.failed {
                 return Row::Failed(why.clone());
             }
-            match downloading(item.class, &item.key, &item.to, live) {
+            match downloading(item, &item.to, live) {
                 Some(Shown::Downloading { done, total }) => Row::Downloading { done, total },
                 _ => Row::Applied,
             }
@@ -322,7 +324,18 @@ pub fn applied_count(card: &Card) -> (usize, usize) {
     (total - failed, total)
 }
 
-fn downloading(class: Class, key: &str, to: &Value, live: &Live) -> Option<Shown> {
+/// A model `item` brings, downloading: a speech model the service
+/// prepares, or the built-in cleanup model it runs on.
+fn downloading(item: &Item, to: &Value, live: &Live) -> Option<Shown> {
+    if let Some(model) = built_in::target(item, live.settings)
+        && let Some((_, done)) = live.built_in.iter().find(|(id, _)| *id == model.id)
+    {
+        return Some(Shown::Downloading {
+            done: *done,
+            total: model.bytes,
+        });
+    }
+    let (class, key) = (item.class, item.key.as_str());
     let (model, done, total) = live.preparing.as_ref()?;
     let wanted = match key {
         "transcription.model" => to.as_str()?,
@@ -376,6 +389,7 @@ mod tests {
         Live {
             settings,
             preparing: None,
+            built_in: Vec::new(),
             codex: Codex::Ready,
             system_audio: true,
             undoable: true,
@@ -539,6 +553,32 @@ mod tests {
             shown(&meetings, &not_allowed),
             Shown::Applied { undo: true }
         );
+    }
+
+    /// A built-in cleanup model a saved row brings shows its download;
+    /// once it is in, the row is applied.
+    #[test]
+    fn a_built_in_model_downloading_shows_in_its_row() {
+        let settings = AppSettings::default();
+        let machine = built_in::Machine::default();
+        let mut plan = card(built_in::RUNS_ON, json!("opencode"), json!("local"));
+        plan.kind = CardKind::Plan;
+        plan.items[0].companion =
+            built_in::companion(&settings, &machine, built_in::RUNS_ON, &json!("local"));
+        plan.decision = applied(Vec::new(), 0);
+        let model = &crate::dictation::cleanup_server::local_models::MODELS[0];
+        let downloading = Live {
+            built_in: vec![(model.id, 1_000)],
+            ..live(&settings)
+        };
+        assert_eq!(
+            row(&plan, 0, &downloading),
+            Row::Downloading {
+                done: 1_000,
+                total: model.bytes
+            }
+        );
+        assert_eq!(row(&plan, 0, &live(&settings)), Row::Applied);
     }
 
     #[test]

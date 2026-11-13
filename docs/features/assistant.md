@@ -237,6 +237,44 @@ Opened from a place link                         // rune_ui::assistant::places
   goes through the service, which downloads it first and switches when
   done. A shorter retention says what goes (older meetings to the Trash,
   older dictations deleted) and its button is Danger.
+- Cleanup on this computer (`dictation_processing.server.runs_on` to
+  `local`) carries the built-in model it will run (`changes::built_in`,
+  owner decision 2026-11-13), as a card from an answer, a setup plan's
+  row, and the preset's row alike: the row's companion keyed
+  `dictation_processing.server.local_model`, picked under the row among
+  `local_models::MODELS` (`rune_ui::assistant::built_in`). Each model shows
+  Output › AI cleanup's speed and quality meters, its download ("2.5 GB
+  download", left out once on disk), and what it takes while it runs
+  ("about 4.1 GB of memory while it runs", `LocalModel::memory`: the file,
+  mapped whole; its attention cache at the window dictation starts the
+  engine with, `CONTEXT_TOKENS` 8192 in f16, from the GGUF header's shape,
+  sliding-window layers at 1024 cells; and 0.4 GB for llama-server's
+  buffers, measured with `footprint` on E4B: Qwen3 4B 4.1 GB, Gemma 4 E4B
+  5.6 GB, Gemma 4 E2B 3.6 GB). The recommended one is tagged Recommended,
+  one on disk Downloaded; the picked one wears the accent's soft tint
+  with its radio. One taking more than half the memory installed
+  (`desktop::hardware::memory`: `hw.memsize` on macOS, `MemTotal` on Linux,
+  `GlobalMemoryStatusEx` on Windows, read once) says "May slow this Mac:
+  needs about 5.6 GB of 8 GB memory"; a download larger than the disk
+  free where the models go (`fs2::available_space`) says "Not enough disk
+  space: needs 5.0 GB, 4.0 GB free"; with every model too big for the
+  memory the list ends "None of these fits this Mac's memory well: AI
+  cleanup with Codex suits it better". The row starts at a model on disk
+  that fits (the one saved first), else the recommended one if it fits,
+  else the next that fits (`built_in::preselect`); a model line beside it
+  (a model's answer, the preset's `local_model`) folds into that choice,
+  starting there while it fits (`built_in::fold`). What the memory, disk,
+  and models on disk are is read when the plan or card is made
+  (`facts::State::machine`) and again as it draws; a scene sets its own
+  (`AssistantPane::machine`). Before Apply the row says "Needs a download
+  2.5 GB" for a model not on disk; the save writes both keys, then the
+  model downloads as Output's Download does (`local_cleanup::
+  start_download`), its progress in the row ("Downloading Qwen3 4B
+  Instruct, 1.0 GB of 2.5 GB. AI cleanup uses it once it is in") with
+  Cancel; a failed download says why with Try again. A
+  `local_model` card while cleanup runs here downloads the same way.
+  Undo stops the download. The pane follows the downloads while it shows
+  (`local_cleanup::follow`).
 - Only the newest card still waiting gets the Primary button. Undo puts
   back everything the save changed while the conversation stays open this
   session; another conversation, a quit, or a hand change ends it, and the
@@ -631,7 +669,7 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
     language's question; `setup::language::tests` and
     `a_plans_model_and_language_are_one_choice` hold it;
   - the engines answered: dictation's `runs_on` with Clean up with AI
-    (or it off), `meetings.notes.writer` (Apple Intelligence through
+    (or it off; on this computer, with the built-in model to pick, above), `meetings.notes.writer` (Apple Intelligence through
     `meetings.summaries`), `files.cleanup_engine`, and the AI cleanup
     server lab where an engine needs it;
   - Russian vibe coding for Russian and code on any cleanup engine;
@@ -909,7 +947,9 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   15) feeds it a file full of them.
 - Step one is one plan under setup's rules: a key this machine can't take
   is left out and named under "Not available here"; an engine not ready
-  starts unchecked with where to finish; a value already the same folds
+  starts unchecked with where to finish; cleanup on this computer is one
+  row with its model to pick, at Denis's model while it fits this machine's
+  memory and disk (`built_in::fold`, above); a value already the same folds
   into "Already set" (Labs off on both sides are left out); the prompt is
   a row, the terms one folded row (above) less those the person has. All
   checked but `meetings.retention`, which moves older meetings to the
@@ -1415,7 +1455,9 @@ each with the parse it must make); scenes `assistant`,
 `assistant-updated`, the mark's `assistant-marked` and `assistant-marked-rail`, setup's
 `assistant-setup-ask`, `assistant-setup-unreachable`, `assistant-setup-follow`, `assistant-setup-plan`,
 `assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
-`assistant-setup-preset-codex`, `assistant-setup-preset-shortcuts`, the terms' `assistant-plan-terms`,
+`assistant-setup-preset-codex`, `assistant-setup-preset-shortcuts`, cleanup on this Mac's
+`assistant-setup-local-model`, `assistant-setup-local-model-low`,
+`assistant-setup-local-model-downloading`, `assistant-card-local-model`, the terms' `assistant-plan-terms`,
 `assistant-plan-terms-open`, `assistant-setup-preset-terms`
 (`rune_ui::tests::assistant_terms`, Linux, presses the fold and both
 checkboxes and holds a long term and a long list inside their row),
@@ -1557,6 +1599,7 @@ The other scenes, each through `every_scene_is_laid_out_whole`:
 | What's new | `assistant-whats-new`, `assistant-updated` |
 | The sidebar's mark after an update | `assistant-marked`, `assistant-marked-rail` |
 | Setup's first round, plan, and result | `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-kept`, `assistant-setup-result` |
+| Cleanup on this Mac with its built-in models (16 GB, 8 GB with one too big, downloading, a card) | `assistant-setup-local-model`, `assistant-setup-local-model-low`, `assistant-setup-local-model-downloading`, `assistant-card-local-model` |
 | Setup with no model connected | `assistant-setup-unreachable` |
 | Returning setup's plan | `assistant-setup-returning-plan` |
 | Set me up like Denis | `assistant-setup-preset`, `assistant-setup-preset-codex`, `assistant-setup-preset-shortcuts`, `assistant-setup-preset-terms` |

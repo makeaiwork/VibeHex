@@ -3303,6 +3303,12 @@ fn goldens() {
         "assistant-setup-preset",
         "assistant-setup-preset-codex",
         "assistant-setup-preset-terms",
+        // Cleanup on this Mac: its models to pick from, one too big for an
+        // 8 GB Mac, the model downloading, and the card in an answer.
+        "assistant-setup-local-model",
+        "assistant-setup-local-model-low",
+        "assistant-setup-local-model-downloading",
+        "assistant-card-local-model",
     ] {
         check_golden(scene, false, GOLDEN_SIZE);
         check_golden(scene, true, GOLDEN_SIZE);

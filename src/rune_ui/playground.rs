@@ -354,6 +354,22 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/Suggested changes",
     ),
     (
+        "assistant-setup-local-model",
+        "Window/Assistant/Setup/Cleanup on this Mac, its models to pick from",
+    ),
+    (
+        "assistant-setup-local-model-low",
+        "Window/Assistant/Setup/Cleanup on an 8 GB Mac, one model too big",
+    ),
+    (
+        "assistant-setup-local-model-downloading",
+        "Window/Assistant/Setup/Cleanup on this Mac, its model downloading",
+    ),
+    (
+        "assistant-card-local-model",
+        "Window/Assistant/Cards/Cleanup on this Mac from an answer",
+    ),
+    (
         "assistant-long-follow-german",
         "Window/Assistant/Long/A follow-up round in German",
     ),

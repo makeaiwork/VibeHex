@@ -16,7 +16,7 @@ use serde_json::{Map, Value};
 use super::plan::area;
 use crate::app_settings::{AppSettings, HotkeyBinding};
 use crate::assistant::changes::parse::Proposal;
-use crate::assistant::changes::{self, Card, CardKind, Item, names, parts, vocab};
+use crate::assistant::changes::{self, Card, CardKind, Item, built_in, names, parts, vocab};
 use crate::assistant::facts::State;
 use crate::assistant::offer::{Gate, Origin, Why};
 use crate::control::settings;
@@ -151,6 +151,10 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
             }
         }
     }
+    // Cleanup on this computer is one row, starting at Denis's model while
+    // it fits here (`changes::built_in`).
+    let model = preset.settings.get(built_in::KEY).and_then(Value::as_str);
+    built_in::fold(&mut items, &mut kept, model, &state.machine);
     items.sort_by_key(|item| (area(&item.key), item.key == RETENTION));
     let at = items
         .iter()

@@ -361,7 +361,11 @@ fn line(
         );
     }
     words = words.children(notes(p, item, shown));
-    words = words.children(takes(ui, p, item, shown, included));
+    words = words.children(takes(ui, p, (at, item), shown, included));
+    // Cleanup on this computer: its models to pick from.
+    if matches!(shown, Row::Open { .. }) {
+        words = words.children(super::built_in::choices(ui, p, at, index, item));
+    }
     row()
         .key(format!("row{index}"))
         .role("group")
@@ -487,24 +491,13 @@ fn mark(glyph: &'static Icon, color: rune::Color) -> El {
 /// What else a row takes or how it went: a download and its size, a
 /// sign-in, what a shorter retention removes, what it turns on beside, a
 /// failure, a download's progress.
-fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<El> {
+fn takes(ui: &Ui, p: Paint, (at, item): (At, &Item), shown: &Row, included: &[&str]) -> Vec<El> {
     let mut lines = Vec::new();
     match shown {
         Row::Open { codex, shorter, .. } => {
-            if let Some(size) = download_size(item) {
-                lines.push(
-                    row()
-                        .key("download")
-                        .gap(6.0)
-                        .center_y()
-                        .child(
-                            text(tr("Needs a download"))
-                                .key("words")
-                                .font(DESCRIPTION)
-                                .color(p.muted()),
-                        )
-                        .child(text(size).key("size").font(DESCRIPTION).color(p.warning())),
-                );
+            let size = download_size(item).or_else(|| super::built_in::download_size(ui, item));
+            if let Some(size) = size {
+                lines.push(super::built_in::needs_download(p, size));
             }
             if let Some(codex) = codex {
                 lines.push(codex_line(p, *codex));
@@ -545,6 +538,10 @@ fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<
                 .wrap_anywhere(),
         ),
         Row::Downloading { done, total } => {
+            if let Some(model) = crate::assistant::changes::built_in::target(item, &ui.settings) {
+                lines.extend(super::built_in::downloading(p, at, model, *done, *total));
+                return lines;
+            }
             let fraction = if *total > 0 {
                 (*done as f32 / *total as f32).clamp(0.0, 1.0)
             } else {
@@ -573,7 +570,8 @@ fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<
                     .wrap_anywhere(),
             );
         }
-        Row::Applied | Row::Left => {}
+        Row::Applied => lines.extend(super::built_in::failed(ui, p, item)),
+        Row::Left => {}
     }
     lines
 }

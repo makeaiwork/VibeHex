@@ -2,19 +2,22 @@
 //! `control::settings::check`, the path `hex settings set` takes, then the
 //! window's own save (`Ui::update`), so the host adopts it as it would a
 //! switch flipped by hand. A speech model goes through the service's
-//! ChooseModel, which downloads it first. Undo puts back what the save
+//! ChooseModel, which downloads it first; a built-in cleanup model the
+//! save brings downloads after it, as Output's Download does
+//! (`changes::built_in`). Undo puts back what the save
 //! changed while the conversation stays open this session (owner decision
 //! 2); a switch to another conversation, or a quit, ends it.
 
 use rune::Tx;
 use serde_json::{Map, Value};
 
+use super::super::output::local_cleanup;
 use super::super::sidebar::Pane;
 use super::super::{Ui, history, labs, picker, platform};
 use crate::assistant::changes::catalog::Class;
 use crate::assistant::changes::names::{self, Home};
 use crate::assistant::changes::state::{self, Codex, Live, Shown};
-use crate::assistant::changes::{self, Card, CardKind, Context, Decision, vocab};
+use crate::assistant::changes::{self, Card, CardKind, Context, Decision, built_in, vocab};
 use crate::assistant::facts;
 use crate::control::settings::{self, Effect};
 use crate::desktop::i18n::tr;
@@ -54,6 +57,7 @@ fn scene(ui: &Ui) -> Option<facts::Scene> {
             .as_ref()
             .map(|installed| installed.iter().map(|id| id.as_str().to_owned()).collect()),
         hardware: ui.assistant.hardware.clone(),
+        machine: ui.assistant.machine.clone(),
     })
 }
 
@@ -85,6 +89,7 @@ pub(super) fn live(ui: &Ui, at: At) -> Live<'_> {
     Live {
         settings: &ui.settings,
         preparing,
+        built_in: local_cleanup::downloads(ui),
         codex: codex(ui),
         // Only macOS asks; a scene plays a Mac.
         system_audio: ui.platform.system_audio
@@ -222,6 +227,39 @@ pub(super) fn apply(ui: &mut Ui, at: At) {
     if applied && !ui.assistant.undo.contains(&at) {
         ui.assistant.undo.push(at);
     }
+    if applied {
+        download_built_in(ui, &card);
+    }
+}
+
+/// The built-in cleanup models a saved `card` brings that aren't on disk
+/// yet start downloading, as Output's Download does; a scene and a test
+/// start nothing.
+fn download_built_in(ui: &mut Ui, card: &Card) {
+    let wanted: Vec<_> = card
+        .items
+        .iter()
+        .filter(|item| item.included && item.failed.is_none())
+        .filter_map(|item| built_in::target(item, &ui.settings))
+        .filter(|model| !model.installed())
+        .collect();
+    for model in wanted {
+        local_cleanup::start_download(ui, model);
+    }
+}
+
+/// The built-in models `card` brought that are still downloading stop.
+fn stop_built_in(ui: &mut Ui, card: &Card) {
+    let ids: Vec<&str> = card
+        .items
+        .iter()
+        .filter(|item| item.included)
+        .filter_map(|item| built_in::target(item, &ui.settings))
+        .map(|model| model.id)
+        .collect();
+    for id in ids {
+        local_cleanup::cancel(ui, id);
+    }
 }
 
 /// Saves a plan's checked rows. Each is checked on its own against what
@@ -291,6 +329,9 @@ fn apply_plan(ui: &mut Ui, at: At, card: Card) {
     if done == 0 && decision.is_ok() {
         let why = card.items.iter().find_map(|item| item.failed.clone());
         decision = Err(why.unwrap_or_else(|| tr("Nothing was selected").to_owned()));
+    }
+    if decision.is_ok() {
+        download_built_in(ui, &card);
     }
     decide(ui, at, card, decision);
 }
@@ -483,6 +524,8 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
     let Decision::Applied { before, after, .. } = &card.decision else {
         return;
     };
+    // A built-in model it brought stops downloading.
+    stop_built_in(ui, &card);
     let done = match card.items.first() {
         Some(item) if card.kind != CardKind::Plan && is_download(item) => {
             prepare(ui, &item.key, &item.from)
@@ -549,9 +592,18 @@ pub(super) fn ask_macos(ui: &mut Ui) {
     ui.ask(platform::PlatformRequest::SystemAudio);
 }
 
-/// Stops the speech model downloading.
-pub(super) fn cancel_download(ui: &mut Ui) {
-    picker::cancel(ui);
+/// Stops the model the card at `at` downloads: its built-in cleanup
+/// model, else the speech model.
+pub(super) fn cancel_download(ui: &mut Ui, at: At) {
+    let built_in = card(ui, at).is_some_and(|card| {
+        card.items
+            .iter()
+            .any(|item| built_in::target(item, &ui.settings).is_some())
+    });
+    match (built_in, card(ui, at).cloned()) {
+        (true, Some(card)) => stop_built_in(ui, &card),
+        _ => picker::cancel(ui),
+    }
 }
 
 /// Opens where the card's setting lives in the window: its Labs row, or
@@ -984,6 +1036,40 @@ mod tests {
     fn ui_prompt(ui: &Ui) -> String {
         let mode = &ui.settings.dictation_processing.default_mode;
         mode.post_processing.prompt.clone()
+    }
+
+    /// Cleanup on this computer saves the model picked in its row with it,
+    /// and Undo takes both back; a scene downloads nothing.
+    #[test]
+    fn cleanup_on_this_computer_saves_its_model() {
+        use crate::assistant::changes::built_in;
+        use crate::dictation::cleanup_server::local_models::MODELS;
+        let (mut ui, at) = with_card(built_in::RUNS_ON, json!("opencode"), json!("local"));
+        let settings = ui.settings.clone();
+        set(&mut ui, at, |card| {
+            card.items[0].requires = vec![("labs.ai_cleanup_server".into(), json!(true))];
+            card.items[0].companion = built_in::companion(
+                &settings,
+                &built_in::Machine::default(),
+                built_in::RUNS_ON,
+                &json!("local"),
+            );
+        });
+        pick_companion(&mut ui, at, 0, false, 2);
+        apply(&mut ui, at);
+        let server = &ui.settings.dictation_processing.server;
+        assert_eq!(server.runs_on, crate::app_settings::CleanupRunsOn::Local);
+        assert_eq!(server.local_model, MODELS[2].id);
+        assert!(
+            local_cleanup::downloads(&ui).is_empty(),
+            "a scene starts none"
+        );
+        undo(&mut ui, at);
+        assert_ne!(
+            ui.settings.dictation_processing.server.runs_on,
+            crate::app_settings::CleanupRunsOn::Local
+        );
+        assert_eq!(ui.settings.dictation_processing.server.local_model, "");
     }
 
     #[test]

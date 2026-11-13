@@ -68,10 +68,11 @@ changes from and to, and what it takes: a download and its size, a ChatGPT
 sign-in, or a macOS permission. A setting you chose yourself is never ticked
 for you ("You chose …"), an engine not set up yet says where to finish, and a
 model that already hears your language stays. A switch's own value is in
-its row: "Off → On after [60 min ▾]". What already fits is folded under
-**Already set**; a long value folds to three lines (**Show all**). Untick what you don't need and press **Apply 3 changes and 81
-terms** (Vocabulary terms are counted apart). A change that can't be made
-says why, and the rest still apply; **Undo** takes the whole list back.
+its row: "Off → On after [60 min ▾]". Cleanup on this Mac lists the
+built-in models and their memory; Apply downloads one. What fits already
+folds under **Already set**, a long value under **Show all**. Untick what you
+don't need, press **Apply 3 changes and 81 terms**. A failed change says
+why, the rest apply; **Undo** undoes them all.
 
 Setting up again, after a setup or once you have used VibeHex a while (50
 dictations, or any meeting), skips the first questions: it says what came
