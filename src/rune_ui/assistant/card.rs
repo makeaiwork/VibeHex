@@ -70,7 +70,7 @@ pub(super) fn push(
 }
 
 /// The card at `at`; `primary` when its main button is the screen's one.
-pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
+pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool, layer: &mut Vec<El>) -> Option<El> {
     let card = act::card(ui, at)?;
     let item = card.items.first()?;
     let shown = act::shown(ui, at)?;
@@ -157,20 +157,41 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
                     false,
                     false,
                 )),
-                _ => Some(value::change(
-                    ui,
-                    p,
-                    at,
-                    0,
-                    Change {
-                        key: &item.key,
-                        from: &item.from,
-                        to: &to,
-                        struck,
-                        end: true,
-                        beside: value::BESIDE,
-                    },
-                )),
+                _ => {
+                    let pair = value::change(
+                        ui,
+                        p,
+                        at,
+                        0,
+                        Change {
+                            key: &item.key,
+                            from: &item.from,
+                            to: &to,
+                            struck,
+                            end: true,
+                            beside: value::BESIDE,
+                        },
+                    );
+                    // A switch's companion beside it: "after [15 min ▾]".
+                    let open = matches!(shown, Shown::Proposed { .. });
+                    let companion =
+                        item.companion
+                            .as_ref()
+                            .filter(|_| !struck)
+                            .and_then(|companion| {
+                                super::companion::view(ui, p, at, 0, false, companion, open, layer)
+                            });
+                    Some(match companion {
+                        Some(companion) => row()
+                            .key("change")
+                            .gap(6.0)
+                            .center_y()
+                            .flex_wrap()
+                            .child(pair)
+                            .child(companion),
+                        None => pair,
+                    })
+                }
             };
             body = state_body(ui, p, at, card, item, &to, &shown, main);
             let ink = if shell == Shell::Off {

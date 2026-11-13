@@ -11,6 +11,7 @@
 //! takes. `state` derives what a card shows each frame.
 
 pub mod catalog;
+pub mod companion;
 pub mod counts;
 pub mod names;
 pub mod parse;
@@ -127,6 +128,19 @@ pub struct Item {
     /// English for the pane to translate.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub note: String,
+    /// The value that goes with a switch turned on (`companion`), picked
+    /// in the row and saved with it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub companion: Option<companion::Companion>,
+}
+
+impl Item {
+    /// Its companion, when picked other than the value saved now.
+    pub fn companion_changed(&self) -> Option<&companion::Companion> {
+        self.companion
+            .as_ref()
+            .filter(|companion| companion.changed())
+    }
 }
 
 /// What the person did with a card.
@@ -347,6 +361,10 @@ fn card(proposal: &Proposal, gate: &Gate, origin: Origin) -> Result<Card, offer:
         included: !proposal.optional,
         class: catalog::class(key, &to),
         requires: gate.requires(key, &to),
+        companion: match kind {
+            CardKind::Single => companion::of(settings, key, &to),
+            _ => None,
+        },
         ..Item::default()
     };
     // A choice shows its options whatever the value is now.
@@ -392,13 +410,17 @@ pub fn current(settings: &AppSettings, key: &str) -> Option<Value> {
 }
 
 /// The values a card's save sends to `check`: what its items need first,
-/// then the items (a part as its whole key), in that order.
+/// then the items (a part as its whole key) with their companions, then a
+/// plan's companions changed on a row it keeps, in that order.
 pub fn values(card: &Card, settings: &AppSettings) -> Result<Map<String, Value>, String> {
     let mut values = Map::new();
     for item in card.items.iter().filter(|item| item.included) {
         for (key, value) in &item.requires {
             values.insert(key.clone(), value.clone());
         }
+    }
+    for item in card.kept.iter().filter_map(Item::companion_changed) {
+        values.insert(item.key.clone(), item.to().clone());
     }
     for item in card.items.iter().filter(|item| item.included) {
         let to = match &card.kind {
@@ -415,6 +437,9 @@ pub fn values(card: &Card, settings: &AppSettings) -> Result<Map<String, Value>,
             None => {
                 values.insert(item.key.clone(), to.clone());
             }
+        }
+        if let Some(companion) = &item.companion {
+            values.insert(companion.key.clone(), companion.to().clone());
         }
     }
     Ok(values)

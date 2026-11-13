@@ -17,6 +17,8 @@ mod requires;
 pub use check::{bounds, check, check_one, diff, kinds, values};
 use hotkeys::special_key_refusal;
 pub use hotkeys::{format_hotkey, parse_hotkey};
+#[cfg(test)]
+pub use requires::companions;
 pub use requires::{missing, requires};
 
 /// One setting as `hex settings get` reports it.

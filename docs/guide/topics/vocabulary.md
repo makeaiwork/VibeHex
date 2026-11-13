@@ -73,6 +73,16 @@ heard is put back.
 - **Labs › Add to vocabulary from a selection** (macOS): press ⌥⇧A over a
   misheard word in any app, type the right spelling, and it is added and, where the text can be edited, replaces the selection.
 
+## Terms Assistant offers
+
+**Set VibeHex up for me**, with your leave to read recordings, offers terms
+you say that Vocabulary lacks. Each comes with how it is heard: from the
+fixes cleanup made, else from how your dictations wrote it before cleanup
+(seen twice or more, never an ordinary word it merely resembles). On Codex,
+OpenCode, OpenRouter, or your own server, the plan's model may spell a term
+still without one in Russian letters. Such a term starts unticked; **Edit**
+shows and changes its spellings before you add it.
+
 ## Russian vibe coding
 
 **Labs › Russian vibe coding** adds a starter list of 90 terms (Claude Code, GitHub,
@@ -85,4 +95,4 @@ names) sit at the end, past what Parakeet biasing takes.
 
 **Asked as.** "Why does it write the wrong spelling of my product name?"; "How do I add a word?"; «Как добавить слово в словарь»; «Почему пишет Кубер вместо Kubernetes»; «Словарь не работает».
 
-<!-- sources: docs/features/vocabulary.md:65-80,84-96,177-183; src/rune_ui/vocabulary.rs:143-172,451-480; src/dictation/vocabulary.rs:19-26,230-258,263-296; src/dictation/processor.rs:984-1000; src/transcription/models.rs:348-375; src/transcription/gguf_session.rs:131-157; src/control/cli.rs:155-158,378-402; src/control/host.rs:236-247; src/control.rs:920-955; src/dictation/presets.rs:1-14,59-70; src/rune_ui/labs.rs:456-461,788-799; docs/vocabulary/vibe-coding-ru.txt -->
+<!-- sources: docs/features/vocabulary.md:65-80,84-96,177-183; src/rune_ui/vocabulary.rs:143-172,451-480; src/dictation/vocabulary.rs:19-26,230-258,263-296; src/dictation/processor.rs:984-1000; src/transcription/models.rs:348-375; src/transcription/gguf_session.rs:131-157; src/control/cli.rs:155-158,378-402; src/control/host.rs:236-247; src/control.rs:920-955; src/dictation/presets.rs:1-14,59-70; src/rune_ui/labs.rs:456-461,788-799; docs/vocabulary/vibe-coding-ru.txt; src/assistant/recordings/sounds.rs; src/assistant/setup/spellings.rs -->

@@ -438,7 +438,10 @@ pub fn build(
                     setup::follow::prompt_lines(candidates, &context.settings, &context.state);
                 instructions.push_str(&setup_follow(&asks, &others, &before));
             }
-            Stage::Plan { .. } => instructions.push_str(SETUP_PLAN),
+            Stage::Plan { terms, .. } => {
+                instructions.push_str(SETUP_PLAN);
+                instructions.push_str(&setup::spellings::ask(terms));
+            }
             Stage::Look { .. } => instructions.push_str(SETUP_LOOK),
             _ => instructions.push_str(CHANGES),
         }

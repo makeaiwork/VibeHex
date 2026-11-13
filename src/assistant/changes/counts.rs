@@ -36,17 +36,36 @@ impl Counts {
     }
 }
 
-/// What a plan holds, and what of it is selected.
+/// The rows a plan keeps as they are whose companion was picked other
+/// than the value saved (`companion`): one change each, always selected.
+fn kept(card: &Card) -> impl Iterator<Item = &Item> + Clone {
+    card.kept
+        .iter()
+        .filter(|item| item.companion_changed().is_some())
+}
+
+/// What a plan holds, and what of it is selected. A row's companion is
+/// part of its change; a kept row's, changed, is a change of its own.
 pub fn held(card: &Card) -> (Counts, Counts) {
     (
-        Counts::of(card.items.iter()),
-        Counts::of(card.items.iter().filter(|item| item.included)),
+        Counts::of(card.items.iter().chain(kept(card))),
+        Counts::of(
+            card.items
+                .iter()
+                .filter(|item| item.included)
+                .chain(kept(card)),
+        ),
     )
 }
 
 /// What a plan's save applied, of what was selected.
 pub fn applied(card: &Card) -> (Counts, Counts) {
-    let selected = || card.items.iter().filter(|item| item.included);
+    let selected = || {
+        card.items
+            .iter()
+            .filter(|item| item.included)
+            .chain(kept(card))
+    };
     (
         Counts::of(selected().filter(|item| item.failed.is_none())),
         Counts::of(selected()),

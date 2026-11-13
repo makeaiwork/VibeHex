@@ -13,8 +13,9 @@ use super::super::Ui;
 use super::changes::At;
 use super::fixture::{AT, MINUTE, open};
 use super::fixture_cards::{conversation, item};
+use super::value::Slot;
 use crate::assistant::changes::catalog::Class;
-use crate::assistant::changes::{Card, CardKind, Decision, Item, current, parts};
+use crate::assistant::changes::{Card, CardKind, Decision, Item, companion, current, parts};
 use crate::assistant::facts::{Fact, Facts, State};
 use crate::assistant::recordings::Step;
 use crate::assistant::recordings::usage::{self, Usage};
@@ -275,6 +276,14 @@ fn rows(ui: &Ui) -> (Vec<Item>, Vec<Item>) {
         json!(true),
         "You said yes to this",
     );
+    // A switch with its companion, at the minutes saved.
+    let mut unload = item(
+        "labs.unload_idle",
+        json!(false),
+        json!(true),
+        "You said yes to this",
+    );
+    unload.companion = companion::of(settings, "labs.unload_idle", &json!(true));
     let writer_now = current(settings, "meetings.notes.writer").unwrap_or(Value::Null);
     let mut writer = item(
         "meetings.notes.writer",
@@ -297,6 +306,7 @@ fn rows(ui: &Ui) -> (Vec<Item>, Vec<Item>) {
         "labs.russian_vibe_coding",
         "labs.vocabulary_quick_add",
         "meetings.enabled",
+        "meetings.calendar.remind",
         "labs.files",
         "transcription.model",
     ]
@@ -305,13 +315,14 @@ fn rows(ui: &Ui) -> (Vec<Item>, Vec<Item>) {
         let now = current(settings, key).unwrap_or(Value::Null);
         Item {
             key: (*key).into(),
+            companion: companion::of(settings, key, &now),
             from: now.clone(),
             to: now,
             ..Item::default()
         }
     })
     .collect();
-    (vec![spoken, mode, stop, calls, writer, files], kept)
+    (vec![spoken, mode, stop, unload, calls, writer, files], kept)
 }
 
 /// The answers turn: no bubble, the app's line, and the plan.
@@ -340,6 +351,10 @@ fn plan_scene(ui: &mut Ui, unfolded: bool) {
     open(ui);
     ui.platform.system_audio = true;
     let state = sample(ui);
+    // Reminders on, a minute before; the model kept loaded for now.
+    ui.settings.meetings.calendar.remind = true;
+    ui.settings.labs.unload_idle = false;
+    ui.settings.labs.unload_idle_minutes = 60;
     // The owner dictates Russian: Assistant's words are Russian.
     let _speaking = crate::assistant::language::speak(&ui.settings);
     let first = answered(ui, &state, "openrouter");
@@ -363,11 +378,16 @@ fn plan_scene(ui: &mut Ui, unfolded: bool) {
     ];
     let id = conversation(ui, "Set up for me", turns, &[]);
     if unfolded {
-        ui.assistant.kept_open = vec![At {
+        let at = At {
             conversation: id,
             turn: 2,
             card: 0,
-        }];
+        };
+        ui.assistant.kept_open = vec![at];
+        // The reminder's lead picked anew, and the minutes' menu open.
+        super::changes::pick_companion(ui, at, 4, true, 3);
+        let unload = super::super::Menu::Companion(at.value(3, Slot::Companion(false)));
+        ui.open = Some(unload);
     }
 }
 
@@ -576,18 +596,29 @@ fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
                 count: 21,
                 heard: vec!["гитхаб".into()],
                 fixed: 21,
+                sounds: Vec::new(),
             },
             usage::Term {
                 word: "Claude Code".into(),
                 count: 14,
                 heard: vec!["клод код".into()],
                 fixed: 14,
+                sounds: Vec::new(),
+            },
+            // Never fixed: how History has it heard.
+            usage::Term {
+                word: "Tailscale".into(),
+                count: 5,
+                heard: Vec::new(),
+                fixed: 0,
+                sounds: vec!["тейлскейл".into(), "тейл скейл".into()],
             },
             usage::Term {
                 word: "Supabase".into(),
                 count: 6,
                 heard: vec!["супабейс".into()],
                 fixed: 2,
+                sounds: Vec::new(),
             },
         ],
         fixes: vec![

@@ -22,11 +22,11 @@
 use serde_json::Value;
 
 use super::since::Candidate;
-use super::{Answer, engines, follow, picked};
+use super::{Answer, engines, follow, picked, spellings};
 use crate::app_settings::AppSettings;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::vocab;
-use crate::assistant::changes::{self, Card, CardKind, Item, names, parts};
+use crate::assistant::changes::{self, Card, CardKind, Item, companion, names, parts};
 use crate::assistant::facts::State;
 use crate::assistant::offer::{Dropped, Gate, Origin};
 use crate::assistant::recordings::terms;
@@ -391,9 +391,10 @@ pub fn planned(
         }
     }
     let answered_terms = !terms.is_empty();
+    let mut theirs = Vec::new();
     for item in cards.into_iter().flat_map(|card| card.items) {
         if item.key == vocab::KEY {
-            terms.push(item);
+            theirs.push(item);
             continue;
         }
         if rules.owned.contains(&item.key) || rules.kept.contains(&item.key) {
@@ -413,6 +414,11 @@ pub fn planned(
     }
     items.sort_by_key(|item| area(&item.key));
     items.truncate(PLAN_LINES);
+    // A model's spellings for a term the use has with none fill it in;
+    // its other terms are rows of their own.
+    let mut candidates = candidates.to_vec();
+    terms.extend(spellings::fill(theirs, &mut candidates));
+    let candidates = candidates.as_slice();
     // Every term on a row of its own: the ones a follow-up asked for
     // checked, and a model's with them; then the use's, sure ones checked.
     let mut rows: Vec<Item> = vocab::split(terms);
@@ -451,8 +457,10 @@ pub fn planned(
         if kept.iter().any(|known| known.key == *key) || items.iter().any(|item| item.key == *key) {
             continue;
         }
+        // A switch kept on keeps its companion choosable (`companion`).
         kept.push(Item {
             key: key.clone(),
+            companion: companion::of(settings, key, &now),
             from: now.clone(),
             to: now,
             ..Item::default()

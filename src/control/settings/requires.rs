@@ -122,6 +122,12 @@ const RULES: &[Rule] = &[
         "labs.caps_lock_dictation",
     ),
     rule("labs.unload_idle_minutes", When::Any, "labs.unload_idle"),
+    // How long before a meeting its reminder shows: nothing without one.
+    rule(
+        "meetings.calendar.lead_minutes",
+        When::Any,
+        "meetings.calendar.remind",
+    ),
     rule(
         "labs.sidebar_collapsed",
         When::Set,
@@ -207,6 +213,40 @@ pub fn missing(settings: &AppSettings, key: &str, value: &Value) -> Vec<(String,
         }
     }
     out
+}
+
+/// The companions the rules imply, `(switch, value)`: a choice that does
+/// nothing without one switch whatever it is (an exact key's rule whose
+/// `when` holds for every choice, a key that can't be none), the one
+/// choice that switch has. Assistant's plan rows offer it beside the
+/// switch (`assistant::changes::companion`, which lists them; its test
+/// holds the list to this).
+#[cfg(test)]
+pub fn companions() -> Vec<(&'static str, &'static str)> {
+    let kind = |name: &str| super::keys().find(|key| key.key == name);
+    let mut pairs: Vec<(&'static str, &'static str)> = Vec::new();
+    for rule in rules() {
+        let Some(key) = kind(rule.key).filter(|_| !rule.key.ends_with('.')) else {
+            continue;
+        };
+        let super::Kind::Choice(choices) = key.kind else {
+            continue;
+        };
+        let every = choices.iter().all(|choice| {
+            let value = Value::String((*choice).into());
+            rule.when.holds(&value)
+        });
+        let switch = kind(rule.needs).is_some_and(|needs| matches!(needs.kind, super::Kind::Bool));
+        if every && switch && !key.optional && matches!(rule.want, Want::On) {
+            pairs.push((rule.needs, rule.key));
+        }
+    }
+    let once = |switch: &str| pairs.iter().filter(|(known, _)| *known == switch).count() == 1;
+    pairs
+        .clone()
+        .into_iter()
+        .filter(|(switch, _)| once(switch))
+        .collect()
 }
 
 /// Whether `settings` has `key` at `want`.

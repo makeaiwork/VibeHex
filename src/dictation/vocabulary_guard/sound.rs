@@ -260,7 +260,7 @@ fn is_vowel_letter(c: char) -> bool {
 
 /// How many of a word's letters come before its case ending; all of them
 /// when it has none or isn't Cyrillic.
-fn stem_len(letters: &[char]) -> usize {
+pub(super) fn stem_len(letters: &[char]) -> usize {
     if !letters.iter().all(|c| ('а'..='я').contains(c) || *c == 'ё') {
         return letters.len();
     }

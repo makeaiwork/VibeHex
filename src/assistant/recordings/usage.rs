@@ -80,6 +80,9 @@ pub struct Term {
     pub heard: Vec<String>,
     /// The most times one heard form was fixed into it.
     pub fixed: usize,
+    /// With no heard form, how History's raw text has it, as the
+    /// vocabulary guard hears it (`sounds`), most often first.
+    pub sounds: Vec<String>,
 }
 
 impl Term {
@@ -188,7 +191,8 @@ pub fn from_entries(entries: &[HistoryEntry], known: &[String], now_ms: u64) -> 
         })
         .collect();
     fixes.sort_by(|a, b| b.count.cmp(&a.count).then(a.heard.cmp(&b.heard)));
-    let terms = super::terms::pick(&seen, &fixes, known);
+    let mut terms = super::terms::pick(&seen, &fixes, known);
+    super::sounds::fill(&mut terms, entries, known);
     // Putting ё back (все → всё, еще → ещё) is spelling, the most
     // frequent change there is, and says nothing of how the person works:
     // it would fill the list ahead of кодекс → Codex.
@@ -259,8 +263,15 @@ pub fn lines(usage: &Usage) -> Vec<String> {
 }
 
 fn term_line(term: &Term) -> String {
-    if term.heard.is_empty() {
+    if term.heard.is_empty() && term.sounds.is_empty() {
         format!("{} x{}", term.word, term.count)
+    } else if term.heard.is_empty() {
+        format!(
+            "{} x{} (in History before cleanup as \"{}\")",
+            term.word,
+            term.count,
+            term.sounds.join("\", \"")
+        )
     } else {
         format!(
             "{} x{} (heard as \"{}\")",
@@ -631,12 +642,13 @@ mod tests {
         let usage = from_entries(&entries, &known, u64::MAX / 2);
         for term in &usage.terms {
             println!(
-                "{} x{} fixed {}{} heard {:?}",
+                "{} x{} fixed {}{} heard {:?} in History {:?}",
                 term.word,
                 term.count,
                 term.fixed,
                 if term.sure() { " SURE" } else { "" },
-                term.heard
+                term.heard,
+                term.sounds
             );
         }
         for line in lines(&usage) {

@@ -529,6 +529,21 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
     chose …". An engine not ready (no OpenRouter key, no server address,
     OpenCode not running, Codex signed out) starts unchecked with where
     to finish. What already fits folds into "Already set: N things ›".
+  - A switch turned on (or kept on) that has a companion value carries
+    it in its row as a choice (`changes::companion`, `Item::companion`):
+    "Off → On after [60 min ▾]", the kit's menu of the values a save
+    takes, starting at the value saved now, never another (the person's
+    own included), on every engine. The pairs are one list
+    (`companion::PAIRS`): Unload model when idle with its minutes,
+    Remind me before meetings with its lead minutes
+    (`meetings.calendar.lead_minutes` now needs the reminder,
+    `requires`), Caps Lock dictation with its light, the VibeHex
+    microphone with its voice; a test holds the list to what the
+    registry's rules imply and every value to what `settings::check`
+    takes. The row saves both in one save (`changes::values`); a kept row
+    ("Already set") carries it too: changed there it is one change and
+    is saved, untouched it is none (`changes::counts`). A one-off card
+    turning such a switch on carries the same choice.
   - A model (`SETUP_PLAN`) may add up to 6 rows of its own; it can't
     change a row the rules own, and its row over the person's own value
     starts unchecked. Its refusals show beside the plan.
@@ -627,8 +642,34 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   never a small word ("to"). A word that is a Vocabulary term, one of a
   term's words ("Code" of "Claude Code"), or a sounds-like is known. A
   phrase cleanup writes twice or more for Russian it heard ("pull
-  request") is one term, as a whole. How it was heard comes only from
+  request") is one term, as a whole. How it was heard comes from
   fixes into exactly it, word for word or phrase for phrase.
+- A term with no such fix (a speech model wrote it in Latin whenever
+  cleanup saw it: e-mail, quit) gets its sounds-like from History's raw
+  text (`recordings::sounds`, inside the use's reading and its leave):
+  runs of non-Latin words the vocabulary guard's own sound matching
+  takes for the term (`dictation::vocabulary_guard::Hearing`, the
+  guard's `support`: every word, a case ending allowed, a short word
+  with every consonant right; never a filler or a one-or-two-letter
+  word), so a form offered is one the guard would hold against the term
+  once listed. A declined form counts with its stem («имейлом» is
+  «имейл»); forms heard twice or more, most often first, at most 3. Never
+  the term itself, a form another term took, or a form the guard takes
+  for another word: a Vocabulary term or spelling (the owner's «лэп» is
+  Labs, listed as «Лэпс», not LEPS), another term, or its heard form.
+  Only the forms leave the module, never a dictation's text.
+- On a remote engine (Codex, OpenCode, OpenRouter, your own server) the
+  plan's prompt lists the terms still without a sounds-like
+  (`setup::spellings::ask`, `<terms_without_spellings>`, the words only);
+  the model may write a `hex-vocab` line with 1 to 3 Russian spellings for
+  one it knows. The app keeps only letters of another alphabet than Latin
+  (a space or hyphen between), at most 24 letters and 3 words, never the
+  term, each once, at most 3 (`spellings::valid`); the row stays the
+  use's (its reason, unchecked unless sure). A built-in model writes no
+  plan, so it is never asked: a small model transliterates badly, and a
+  wrong spelling is written as the term before cleanup (the guard's
+  exact spellings). The web stays off for the plan as before. The term's
+  Edit shows the spellings, whichever step found them.
 - An ordinary word written as a name (Web, Monkey), or a Title Case
   phrase of ordinary words (New Session), is no term on its capital alone
   (`terms::ordinary`): a Russian speech model writes an English word in

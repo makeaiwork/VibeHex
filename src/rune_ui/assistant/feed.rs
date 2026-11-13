@@ -32,7 +32,7 @@ const EXAMPLES: [&str; 4] = [
 const FACE: f32 = 20.0;
 
 /// The open conversation, or the start of a new one (`greet`).
-pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
+pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool, layer: &mut Vec<El>) -> El {
     let pane = &ui.assistant;
     let mut feed = col().key("assistant-feed").gap(18.0);
     if let Some(error) = &pane.error {
@@ -64,7 +64,7 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
         if !turn.question.trim().is_empty() && turn.answers.is_empty() {
             feed = feed.child(session::bubble(p, &format!("asked{index}"), &turn.question));
         }
-        feed = feed.child(reply(ui, p, &known, (conversation.id, index), turn));
+        feed = feed.child(reply(ui, p, &known, (conversation.id, index), turn, layer));
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
@@ -275,6 +275,7 @@ fn reply(
     known: &super::places::Known,
     (conversation, index): (u32, usize),
     turn: &Turn,
+    layer: &mut Vec<El>,
 ) -> El {
     let now_ms = ui.assistant.now_ms();
     let mut words = col().key("words").grow(1.0).shrink().min_w(0.0).gap(8.0);
@@ -327,10 +328,10 @@ fn reply(
         };
         let primary = newest == Some(at);
         words = words.children(match turn.cards[card].kind {
-            CardKind::Plan => super::plan::view(ui, p, at, primary),
+            CardKind::Plan => super::plan::view(ui, p, at, primary, layer),
             CardKind::Vocabulary => super::vocab::view(ui, p, at, primary),
             CardKind::VocabularyEdit => super::vocab_edit::view(ui, p, at, primary),
-            _ => super::card::view(ui, p, at, primary),
+            _ => super::card::view(ui, p, at, primary, layer),
         });
     }
     for (number, refused) in turn.refused.iter().enumerate() {
@@ -561,6 +562,12 @@ mod tests {
             "Cleanup keeps fixing how these are heard",
             "You say these, and Vocabulary doesn't have them",
             "Answered before: {}",
+            // A switch's companion in its row.
+            "after {}",
+            "remind me {}",
+            "light {}",
+            "voice {}",
+            "At start",
         ];
         for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
             let english: Vec<&str> = CONTROLS

@@ -28,6 +28,7 @@ pub mod past;
 pub mod plan;
 pub mod preset;
 pub mod since;
+pub mod spellings;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -301,6 +302,7 @@ pub fn own_words() -> Vec<&'static str> {
     words.extend(engines::words());
     words.extend(plan::words());
     words.extend(since::words());
+    words.extend(crate::assistant::changes::companion::words());
     for (_, q, hint, _, options) in QUESTIONS {
         words.extend([q, hint].into_iter().filter(|word| !word.is_empty()));
         for (_, label, note) in options {

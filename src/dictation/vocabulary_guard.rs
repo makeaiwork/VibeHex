@@ -23,6 +23,7 @@
 //! logged but counts.
 
 mod align;
+mod hearing;
 mod mend;
 mod plain_words;
 #[cfg(test)]
@@ -39,6 +40,7 @@ use std::ops::Range;
 use crate::dictation::vocabulary::VocabularyEntry;
 use Verdict::{Kept, Moved, Restored, Undone, Unjudged};
 use align::{Word, words};
+pub(crate) use hearing::{Hearing, stem};
 use sound::Key;
 use stretch::{Gap, Stretch};
 

@@ -201,8 +201,13 @@ const PLAIN: &[&str] = &[
 
 /// Whether a word, as compared, means something on its own.
 pub(super) fn is_content(norm: &str) -> bool {
-    norm.chars().filter(|c| c.is_alphabetic()).count() >= MIN_CONTENT_CHARS
-        && PLAIN.binary_search(&norm).is_err()
+    norm.chars().filter(|c| c.is_alphabetic()).count() >= MIN_CONTENT_CHARS && !is_plain(norm)
+}
+
+/// Whether a word, as compared, is a filler, a particle, a pronoun, a
+/// preposition, or punctuation said aloud.
+pub(super) fn is_plain(norm: &str) -> bool {
+    PLAIN.binary_search(&norm).is_ok()
 }
 
 #[cfg(test)]

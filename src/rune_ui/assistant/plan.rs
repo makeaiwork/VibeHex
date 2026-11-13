@@ -28,7 +28,7 @@ use crate::assistant::changes::catalog::{self, Class, Permission};
 use crate::assistant::changes::counts;
 use crate::assistant::changes::names;
 use crate::assistant::changes::state::{self, Row, Shown};
-use crate::assistant::changes::{Card, CardKind, Item, vocab};
+use crate::assistant::changes::{Card, CardKind, Decision, Item, vocab};
 use crate::assistant::setup;
 use crate::desktop::i18n::{tr, tr_fill, tr_named, tr_window};
 use crate::transcription::models;
@@ -61,7 +61,7 @@ pub(super) fn waiting(ui: &Ui) -> bool {
 }
 
 /// The plan at `at`; `primary` when its Apply is the screen's one.
-pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
+pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool, layer: &mut Vec<El>) -> Option<El> {
     let card = act::card(ui, at)?;
     let shown = act::shown(ui, at)?;
     let live = act::live(ui, at);
@@ -122,7 +122,7 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
             list = list.child(heading(p, here));
         }
         if !term {
-            list = list.child(line(ui, p, at, index, item, &shown, &included));
+            list = list.child(line(ui, p, at, (index, item), &shown, &included, layer));
             continue;
         }
         if let Some(terms) = terms.as_ref().filter(|_| first) {
@@ -148,7 +148,7 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool) -> Option<El> {
     if !card.kept.is_empty() {
         list = list
             .child(rule(p, "rule-kept"))
-            .child(kept(ui, p, at, card));
+            .child(kept(ui, p, at, card, layer));
     }
     if card.items.is_empty() {
         return Some(list);
@@ -189,7 +189,7 @@ fn caption(p: Paint, index: usize, why: &str) -> El {
 }
 
 /// "Already set: 3 things ›", and what they are once unfolded.
-fn kept(ui: &Ui, p: Paint, at: At, card: &Card) -> El {
+fn kept(ui: &Ui, p: Paint, at: At, card: &Card, layer: &mut Vec<El>) -> El {
     let open = ui.assistant.kept_open.contains(&at);
     let count = card.kept.len();
     let words = match count {
@@ -274,7 +274,11 @@ fn kept(ui: &Ui, p: Paint, at: At, card: &Card) -> El {
                         &card::label(&item.key, &item.from),
                         false,
                         false,
-                    )),
+                    ))
+                    .children(item.companion.as_ref().and_then(|companion| {
+                        let open = matches!(card.decision, Decision::Proposed);
+                        super::companion::view(ui, p, at, index, true, companion, open, layer)
+                    })),
             );
         }
     }
@@ -295,10 +299,10 @@ fn line(
     ui: &Ui,
     p: Paint,
     at: At,
-    index: usize,
-    item: &Item,
+    (index, item): (usize, &Item),
     shown: &Row,
     included: &[&str],
+    layer: &mut Vec<El>,
 ) -> El {
     let place = names::place(&item.key, &ui.settings);
     let (path, name) = match &place {
@@ -365,20 +369,61 @@ fn line(
         .items_start()
         .child(row().key("lead").pt(2.0).child(lead))
         .child(words)
-        .child(row().key("change").pt(1.0).child(value::change(
-            ui,
-            p,
-            at,
-            index,
-            Change {
-                key: &item.key,
-                from: &item.from,
-                to: &item.to,
-                struck: off,
-                end: true,
-                beside: value::BESIDE,
-            },
-        )))
+        .child(change(ui, p, at, (index, item), shown, layer))
+}
+
+/// From → to, and the companion beside them ("after [15 min ▾]"), or
+/// under them when the two stand one under the other.
+fn change(
+    ui: &Ui,
+    p: Paint,
+    at: At,
+    (index, item): (usize, &Item),
+    shown: &Row,
+    layer: &mut Vec<El>,
+) -> El {
+    let off = matches!(shown, Row::Left);
+    let pair = value::change(
+        ui,
+        p,
+        at,
+        index,
+        Change {
+            key: &item.key,
+            from: &item.from,
+            to: &item.to,
+            struck: off,
+            end: true,
+            beside: value::BESIDE,
+        },
+    );
+    let open = matches!(shown, Row::Open { .. });
+    let companion = item
+        .companion
+        .as_ref()
+        .filter(|_| !off)
+        .and_then(|companion| {
+            super::companion::view(ui, p, at, index, false, companion, open, layer)
+        });
+    let Some(companion) = companion else {
+        return row().key("change").pt(1.0).child(pair);
+    };
+    match value::apart(p, &item.key, &item.from, &item.to, value::BESIDE) {
+        true => col()
+            .key("change")
+            .pt(1.0)
+            .gap(4.0)
+            .items_end()
+            .child(pair)
+            .child(companion),
+        false => row()
+            .key("change")
+            .pt(1.0)
+            .gap(6.0)
+            .center_y()
+            .child(pair)
+            .child(companion),
+    }
 }
 
 /// `words` in Assistant's language with the places it names in the
