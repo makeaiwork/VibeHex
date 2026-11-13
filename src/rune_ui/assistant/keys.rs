@@ -166,7 +166,13 @@ fn binding(ui: &Ui, (key, target): (&str, ShortcutTarget), value: &Value) -> Opt
 fn caps(binding: Option<&HotkeyBinding>) -> String {
     binding.map_or_else(
         || tr("Not set").to_owned(),
-        |binding| s::shortcut_caps(binding, false).join(""),
+        // ⌥⇧V on a Mac; Ctrl+Alt+V where caps are words.
+        |binding| {
+            s::shortcut_caps(binding, false).join(match cfg!(target_os = "macos") {
+                true => "",
+                false => "+",
+            })
+        },
     )
 }
 
@@ -653,10 +659,19 @@ fn keep(ui: &mut Ui, at: At) {
 /// Scenes: the preset's step with its dictation row recording.
 pub(in super::super) fn preset_recording(ui: &mut Ui) {
     super::setup_fixture::setup_preset_shortcuts(ui);
-    if let Some(at) = shortcuts_at(ui) {
-        ui.assistant.recording = Some((at, 0));
+    // The first row with a recorder: the dictation shortcut where Denis's
+    // is taken, else the next.
+    let first = shortcuts_at(ui).and_then(|at| {
+        let card = act::card(ui, at)?;
+        card.items
+            .iter()
+            .enumerate()
+            .find_map(|(index, item)| Some((at, index, place(&item.key)?.0)))
+    });
+    if let Some((at, index, target)) = first {
+        ui.assistant.recording = Some((at, index));
         ui.capture = Capture::Listening {
-            target: ShortcutTarget::Dictation,
+            target,
             message: None,
             held: HotkeyModifiers::default(),
         };

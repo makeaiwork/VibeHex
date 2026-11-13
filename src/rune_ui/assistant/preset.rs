@@ -86,7 +86,11 @@ mod tests {
             .iter()
             .map(|item| item.key.as_str())
             .collect();
-        assert!(keys.contains(&"dictation_hotkey"), "{keys:?}");
+        // The mode is always a row; Denis's Mac key only where it is taken.
+        assert!(keys.contains(&"shortcut_mode"), "{keys:?}");
+        if cfg!(target_os = "macos") {
+            assert!(keys.contains(&"dictation_hotkey"), "{keys:?}");
+        }
         // Deciding again doesn't ask twice.
         decided(&mut ui, at);
         assert_eq!(turns(&ui).len(), 2);
