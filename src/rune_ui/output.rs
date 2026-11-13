@@ -24,7 +24,7 @@ use crate::dictation::text_replacements::ReplacementSet;
 mod ai_cleanup;
 mod codex_cleanup;
 mod examples;
-mod local_cleanup;
+pub(super) mod local_cleanup;
 
 /// The agent card's spark, this many points square.
 const SPARK: f32 = 30.0;

@@ -68,7 +68,8 @@ An answer may suggest setting changes and vocabulary terms as cards; nothing
 changes until the person presses one, and then only through the check
 `hex settings` uses (terms through `hex vocabulary add`'s). "Set VibeHex up
 for me" asks four questions and offers one list of changes, with no model
-needed; onboarding's last page offers it ("Set up with Assistant"), and
+needed (cleaning up on this computer picks a built-in model there, with
+its memory and download, and Apply downloads it); onboarding's last page offers it ("Set up with Assistant"), and
 after an update a dot on the sidebar row leads once to the start page that
 offers it. "Help me set up my shortcuts" answers with a card of the
 shortcuts in use, each with General's recorder, saved together. "What's new?"

@@ -254,6 +254,9 @@ fn state_body(
             {
                 body.push(radios(p, at, item, options, *chosen, *suggested));
             }
+            // Cleanup on this computer: its models to pick from.
+            let models = super::built_in::proposed(ui, p, at, 0, item);
+            body.extend(models.into_iter().map(|el| el.pl(INDENT)));
             if card.kind == CardKind::Prompt {
                 body.push(card_diff::lines(
                     ui,
@@ -297,6 +300,7 @@ fn state_body(
             ]));
         }
         Shown::Applied { undo } => {
+            body.extend(super::built_in::failed(ui, p, item).map(|el| el.pl(INDENT)));
             let mut row = vec![
                 status(&applied_words(card, &item.key, to), p.success()),
                 el().key("space").grow(1.0),
@@ -372,6 +376,11 @@ fn state_body(
             body.push(buttons(vec![status(tr("Already set this way"), p.muted())]));
         }
         Shown::Downloading { done, total } => {
+            if let Some(model) = crate::assistant::changes::built_in::target(item, &ui.settings) {
+                let lines = super::built_in::downloading(p, at, model, *done, *total);
+                body.extend(lines.into_iter().map(|el| el.pl(INDENT)));
+                return body;
+            }
             let fraction = if *total > 0 {
                 (*done as f32 / *total as f32).clamp(0.0, 1.0)
             } else {
@@ -395,8 +404,8 @@ fn state_body(
             body.push(buttons(vec![
                 status(&words, p.muted()),
                 el().key("space").grow(1.0),
-                push(p, "cancel", tr("Cancel"), Look::Ghost, |ui, _| {
-                    act::cancel_download(ui)
+                push(p, "cancel", tr("Cancel"), Look::Ghost, move |ui, _| {
+                    act::cancel_download(ui, at)
                 }),
             ]));
         }

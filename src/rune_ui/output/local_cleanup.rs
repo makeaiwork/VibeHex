@@ -296,7 +296,14 @@ fn chip(p: Paint, key: &str, label: String, code: bool) -> El {
 
 /// A rating out of five as five segments, lit in `color` up to `level`,
 /// after its name; `word` says it to a screen reader.
-fn meter(p: Paint, key: &str, name: &str, level: u8, word: &str, color: rune::Color) -> El {
+pub(in crate::rune_ui) fn meter(
+    p: Paint,
+    key: &str,
+    name: &str,
+    level: u8,
+    word: &str,
+    color: rune::Color,
+) -> El {
     let segments = row()
         .key("segments")
         .gap(2.0)
@@ -343,7 +350,7 @@ fn in_use_pill(p: Paint) -> El {
 }
 
 /// A model's speed in a word, from its 1–5 rating.
-fn speed_label(speed: u8) -> &'static str {
+pub(in crate::rune_ui) fn speed_label(speed: u8) -> &'static str {
     match speed {
         5.. => tr("Fastest"),
         4 => tr("Fast"),
@@ -352,7 +359,7 @@ fn speed_label(speed: u8) -> &'static str {
 }
 
 /// A model's quality in a word, from its 1–5 rating.
-fn quality_label(quality: u8) -> &'static str {
+pub(in crate::rune_ui) fn quality_label(quality: u8) -> &'static str {
     match quality {
         5.. => tr("Best"),
         4 => tr("Good"),
@@ -370,7 +377,9 @@ fn choose(ui: &mut Ui, model: &'static LocalModel) {
     }
 }
 
-fn start_download(ui: &mut Ui, model: &'static LocalModel) {
+/// Downloads `model` in the background, as its Download button does; a
+/// scene and a test start nothing.
+pub(in crate::rune_ui) fn start_download(ui: &mut Ui, model: &'static LocalModel) {
     if !ui.live() || ui.output.cleanup.local.download(model.id).is_some() {
         return;
     }
@@ -402,7 +411,7 @@ fn start_download(ui: &mut Ui, model: &'static LocalModel) {
     }
 }
 
-fn cancel(ui: &mut Ui, id: &str) {
+pub(in crate::rune_ui) fn cancel(ui: &mut Ui, id: &str) {
     if let Some(download) = ui.output.cleanup.local.download(id) {
         download.canceled.store(true, Ordering::Release);
     }
@@ -420,6 +429,37 @@ fn delete(ui: &mut Ui, index: usize) {
         local.errors.push((model.id, format!("{error:#}")));
     }
     local.installed = None;
+}
+
+/// The models downloading, each with its bytes come.
+pub(in crate::rune_ui) fn downloads(ui: &Ui) -> Vec<(&'static str, u64)> {
+    let local = &ui.output.cleanup.local;
+    local
+        .downloads
+        .iter()
+        .map(|download| (download.model, download.bytes.load(Ordering::Relaxed)))
+        .collect()
+}
+
+/// Why `id`'s last download or delete failed, if it did.
+pub(in crate::rune_ui) fn failed(ui: &Ui, id: &str) -> Option<String> {
+    ui.output.cleanup.local.error(id).map(str::to_owned)
+}
+
+/// Follows the downloads from another pane (Assistant's plan rows), and
+/// wakes the window while one moves; true when what shows changed.
+pub(in crate::rune_ui) fn follow(ui: &mut Ui, tx: &mut rune::Tx) -> bool {
+    let local = &ui.output.cleanup.local;
+    if local.downloads.is_empty() && local.installed.is_some() {
+        return false;
+    }
+    let changed = poll(ui);
+    if !ui.output.cleanup.local.downloads.is_empty()
+        && ui.window.as_ref().is_none_or(rune::AppHandle::is_visible)
+    {
+        tx.wake_after(std::time::Duration::from_millis(250));
+    }
+    changed
 }
 
 /// Takes finished downloads, looks at what is installed, and follows the
@@ -481,6 +521,18 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         }
     }
     changed
+}
+
+/// A scene's download of `model`, `done` bytes in, that never finishes.
+pub(in crate::rune_ui) fn fixture_download(ui: &mut Ui, model: &'static LocalModel, done: u64) {
+    let (sender, finished) = channel::<Result<(), String>>();
+    std::mem::forget(sender);
+    ui.output.cleanup.local.downloads.push(Download {
+        model: model.id,
+        canceled: Arc::new(AtomicBool::new(false)),
+        bytes: Arc::new(AtomicU64::new(done)),
+        done: finished,
+    });
 }
 
 /// The fixture's built-in models: the first halfway downloaded, the

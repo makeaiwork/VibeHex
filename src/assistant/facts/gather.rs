@@ -1,6 +1,7 @@
 //! Reads what the facts need off this install: the speech models on disk,
 //! the keychain (whether a key is there, never the key), the Applications
-//! folder, the screens and pointing devices, and what earlier setups
+//! folder, the screens and pointing devices, the memory, free disk and
+//! built-in cleanup models (`changes::built_in::Machine`), and what earlier setups
 //! answered and declined. Called when a question is sent or setup moves
 //! on, never per frame, and on the UI thread: `NSScreen` answers only
 //! there (`desktop::hardware`), so off it the screens stay unknown.
@@ -12,6 +13,7 @@
 
 use super::{Fact, State};
 use crate::app_settings::AppSettings;
+use crate::assistant::changes::built_in::Machine;
 use crate::assistant::setup::{engines, past, since};
 use crate::desktop::hardware::{self, Hardware};
 use crate::dictation::cleanup_server::{Provider, keys};
@@ -39,6 +41,9 @@ pub struct Scene {
     pub installed: Option<Vec<String>>,
     /// Its screens and pointing devices; unknown by default.
     pub hardware: Hardware,
+    /// Its memory, free disk, and built-in models on disk; unknown and
+    /// none by default.
+    pub machine: Machine,
 }
 
 /// The ids of the `models` this computer can run that `has` finds
@@ -90,6 +95,7 @@ pub fn gather(seen: Seen) -> State {
             hardware: scene.hardware,
             // A scene follows the window, whatever this computer's is.
             system_language: String::new(),
+            machine: scene.machine,
         },
         None => State {
             os: std::env::consts::OS,
@@ -102,6 +108,7 @@ pub fn gather(seen: Seen) -> State {
             answered,
             hardware: hardware::detect(),
             system_language: crate::desktop::i18n::preferred_language(),
+            machine: Machine::here(),
         },
     }
 }

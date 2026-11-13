@@ -348,25 +348,25 @@ const FIRST: [&[&str]; 10] = [
 
 const PRESET: [&[&str]; 5] = [
     // Or set it up like Denis
-    &["answer preset=settings plan(134/135 open)"],
+    &["answer preset=settings plan(133/134 open)"],
     // Not now
     &[
-        "answer preset=settings plan(134/135 declined)",
+        "answer preset=settings plan(133/134 declined)",
         "answer preset=shortcuts shortcuts(3/8 open)",
     ],
     // Use these
     &[
-        "answer preset=settings plan(134/135 declined)",
+        "answer preset=settings plan(133/134 declined)",
         "answer preset=shortcuts shortcuts(3/8 applied)",
     ],
     // Undo
     &[
-        "answer preset=settings plan(134/135 declined)",
+        "answer preset=settings plan(133/134 declined)",
         "answer preset=shortcuts shortcuts(3/8 undone)",
     ],
     // again: Apply, Keep mine
     &[
-        "answer preset=settings plan(134/135 applied)",
+        "answer preset=settings plan(133/134 applied)",
         "answer preset=shortcuts shortcuts(3/8 declined)",
     ],
 ];
