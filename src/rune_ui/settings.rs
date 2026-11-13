@@ -223,7 +223,11 @@ pub(super) fn modifier_only_hint(peak: HotkeyModifiers) -> &'static str {
 }
 
 /// Saves a recorded chord, or keeps listening with why it was rejected.
+/// A row of Assistant's shortcuts card takes it instead, unsaved.
 fn record(ui: &mut Ui, target: ShortcutTarget, binding: Result<HotkeyBinding, &'static str>) {
+    if ui.assistant.recording.is_some() {
+        return super::assistant::recorded(ui, target, binding);
+    }
     let message = match binding.and_then(|binding| {
         validate(&ui.settings, target, &binding)?;
         Ok(binding)
@@ -294,6 +298,7 @@ pub(super) fn cancel_capture(ui: &mut Ui) {
         ui.send(Request::CancelShortcut);
     }
     ui.capture = Capture::Idle;
+    ui.assistant.recording = None;
 }
 
 /// The chord a key press records, in the key names Linux registers.

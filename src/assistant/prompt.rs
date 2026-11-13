@@ -443,7 +443,7 @@ pub fn build(
                 instructions.push_str(&setup::spellings::ask(terms));
             }
             Stage::Look { .. } => instructions.push_str(SETUP_LOOK),
-            _ => instructions.push_str(CHANGES),
+            _ => instructions.push_str(&[CHANGES, changes::shortcuts::note(question)].concat()),
         }
         instructions.push_str(&setup::about::told(stage));
         if let Stage::Plan { since, .. } | Stage::Follow { since, .. } = stage

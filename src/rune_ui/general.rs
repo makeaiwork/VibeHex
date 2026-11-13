@@ -20,7 +20,9 @@ use super::lists::{PermissionControl, permission_control, slider};
 use super::platform::PlatformRequest;
 use super::settings::{self as s, Capture, Face};
 use super::{Menu, Pane, Request, ShortcutTarget, Ui};
-use crate::app_settings::{IndicatorPosition, RecordingAudioBehavior, UpdateChannel};
+use crate::app_settings::{
+    HotkeyBinding, IndicatorPosition, RecordingAudioBehavior, UpdateChannel,
+};
 use crate::desktop::host::DesktopAction;
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::desktop::login_item::LoginItemStatus;
@@ -1380,48 +1382,70 @@ pub(super) fn quiet_select(
 /// A shortcut's keys, pressed to record a new one; while recording, the
 /// recorder's prompt in their place.
 pub(super) fn keys_button(ui: &Ui, p: Paint, target: ShortcutTarget) -> El {
-    let c = &p.k.c;
-    let face = s::face(ui, target);
     let listening = matches!(
         ui.capture,
         Capture::Listening { target: active, .. } if active == target
     );
+    recorder(
+        p,
+        s::hotkey_key(target),
+        (s::face(ui, target), listening),
+        s::binding(&ui.settings, target),
+        tr("Off"),
+        move |ui: &mut Ui| s::begin_capture(ui, target),
+    )
+}
+
+/// A shortcut's keys in their tray, or `none` when it has none.
+pub(super) fn keys_tray(p: Paint, binding: Option<&HotkeyBinding>, none: &str) -> El {
+    match binding {
+        Some(binding) => {
+            let caps = s::shortcut_caps(binding, false);
+            key_tray(
+                p,
+                "keys",
+                KeySize::Small,
+                caps.iter()
+                    .enumerate()
+                    .map(|(index, cap)| keycap(p, index, cap, KeySize::Small, false)),
+            )
+        }
+        None => row().key("off").h(24.0).px(8.0).center().child(
+            text(none.to_owned())
+                .key("label")
+                .font(value_font(p))
+                .color(p.faint()),
+        ),
+    }
+}
+
+/// The recorder keyed `key`: `binding`'s keys, pressed to record anew, or
+/// while `listening` the recorder's prompt (`face`). General's rows and
+/// Assistant's shortcuts card both draw it.
+pub(super) fn recorder(
+    p: Paint,
+    key: &str,
+    (face, listening): (Face, bool),
+    binding: Option<&HotkeyBinding>,
+    none: &str,
+    press: impl Fn(&mut Ui) + 'static,
+) -> El {
+    let c = &p.k.c;
     let content = match face {
         Face::Listening(_) => s::recorder_face(p, face, true).key("face"),
-        Face::Shortcut { saved } => {
-            let keys = match s::binding(&ui.settings, target) {
-                Some(binding) => {
-                    let caps = s::shortcut_caps(binding, false);
-                    key_tray(
-                        p,
-                        "keys",
-                        KeySize::Small,
-                        caps.iter()
-                            .enumerate()
-                            .map(|(index, cap)| keycap(p, index, cap, KeySize::Small, false)),
-                    )
-                }
-                None => row().key("off").h(24.0).px(8.0).center().child(
-                    text(tr("Off"))
-                        .key("label")
-                        .font(value_font(p))
-                        .color(p.faint()),
-                ),
-            };
-            row()
-                .key("face")
-                .gap(4.0)
-                .center_y()
-                .children(saved.then(|| {
-                    rune::icon(&rune_theme_opencode::icons::CHECK_SMALL, 16.0)
-                        .key("saved")
-                        .color(p.success())
-                }))
-                .child(keys)
-        }
+        Face::Shortcut { saved } => row()
+            .key("face")
+            .gap(4.0)
+            .center_y()
+            .children(saved.then(|| {
+                rune::icon(&rune_theme_opencode::icons::CHECK_SMALL, 16.0)
+                    .key("saved")
+                    .color(p.success())
+            }))
+            .child(keys_tray(p, binding, none)),
     };
     let mut button = row()
-        .key(s::hotkey_key(target))
+        .key(key.to_owned())
         .role("button")
         .label(s::face_label(face))
         .center_y()
@@ -1431,7 +1455,7 @@ pub(super) fn keys_button(ui: &Ui, p: Paint, target: ShortcutTarget) -> El {
         // While listening, keys reach the recorder rather than pressing it again.
         .focusable(!listening)
         .focus_ring(2.0, 0.0, c.border_focus)
-        .on_press(move |ui: &mut Ui| s::begin_capture(ui, target))
+        .on_press(press)
         .child(col().key("content").child(content));
     if listening {
         button = button.fill(c.bg_button_neutral);

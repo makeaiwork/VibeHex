@@ -285,7 +285,6 @@ fn reply(
         ));
     }
     words = words.children(super::ask::view(ui, p, conversation, index, turn));
-    words = words.children(super::preset::view(ui, p, conversation, index));
     if let Some(error) = &turn.error {
         let again = turn.clone();
         words = words.child(
@@ -326,6 +325,7 @@ fn reply(
             CardKind::Plan => super::plan::view(ui, p, at, primary, layer),
             CardKind::Vocabulary => super::vocab::view(ui, p, at, primary),
             CardKind::VocabularyEdit => super::vocab_edit::view(ui, p, at, primary),
+            CardKind::Shortcuts => super::keys::view(ui, p, at, primary, layer),
             _ => super::card::view(ui, p, at, primary, layer),
         });
     }

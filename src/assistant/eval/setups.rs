@@ -744,10 +744,9 @@ pub fn scenarios() -> Vec<Scenario> {
                         .ok_or("no shortcuts step")?;
                     ensure(
                         !second.items.is_empty()
-                            && second
-                                .items
-                                .iter()
-                                .all(|item| shortcut(&item.key) || item.key == "shortcut_mode"),
+                            && second.items.iter().all(|item| {
+                                crate::assistant::changes::shortcuts::is_key(&item.key)
+                            }),
                         || {
                             format!(
                                 "{:?}",

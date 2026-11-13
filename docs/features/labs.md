@@ -1043,7 +1043,7 @@ cap); `history_stats_parse_sum_retained_entries_and_need_the_labs_toggle` in
 [labs.rs](../../src/labs.rs); and
 `history_stats_button_opens_and_closes_the_dialog` in
 [rune_ui/tests.rs](../../src/rune_ui/tests.rs). `history-stats` in
-[rune_ui/scenes.rs](../../src/rune_ui/scenes.rs) renders the button and dialog
+[rune_ui/scenes](../../src/rune_ui/scenes/mod.rs) renders the button and dialog
 in both themes. Not yet observed: the dialog in a real window, and the Labs
 page goldens need regenerating on Linux with the new row.
 

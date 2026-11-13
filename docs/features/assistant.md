@@ -868,13 +868,67 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   a row, the terms one folded row (above) less those the person has. All
   checked but `meetings.retention`, which moves older meetings to the
   Trash.
-- Once it is applied or put off: "These are Denis's shortcuts — do they
-  suit you?" with the list, Use these (a plan of their own, with Undo),
-  Keep mine, or a key typed instead (an ordinary question; the model's
-  change card goes through `check`). A save that failed stays at the
-  plan, and the Try again that goes through leads on to the shortcuts.
-  Turns carry `preset` (`settings`, `shortcuts`, `shortcuts-plan`,
-  `done`).
+- Once it is applied or put off, the shortcuts card (below) with Denis's
+  bindings proposed: "Here are Denis's shortcuts, beside yours where they
+  differ." A row Denis has differently shows yours → his; one that
+  already matches has "Already set". Only the shortcuts the preset names,
+  among those whose feature is on after step one, and only those this OS
+  takes (a binding its check refuses is left out with its row). Recording
+  a key in a row replaces Denis's there. Use these saves every row that
+  differs, Denis's or recorded, in one all-or-none `check` with Undo;
+  Keep mine changes nothing. A message typed meanwhile is an ordinary
+  question. When nothing differs the turn is "Your shortcuts already match
+  Denis's." A save that failed stays at the plan, and the Try again that
+  goes through leads on to the shortcuts. Turns carry `preset`
+  (`settings`, `shortcuts`, `done`; an old `shortcuts-plan` turn reads as
+  done).
+
+## Shortcuts card
+
+- One card of rows, one per shortcut (`assistant::changes::shortcuts`,
+  `rune_ui::assistant::keys`, `CardKind::Shortcuts`), in General's order
+  and named as General names it, in the window's language (as plan rows
+  name places): Shortcut, Shortcut mode, Cancel, Second dictation shortcut
+  or Terminal paste shortcut, Stop shortcut, Annotate, Replay last 15 s,
+  Paste last dictation, Add selection to vocabulary, Dictate without
+  processing, Transform typed text, Screenshots, Record screen.
+- A row lists only a shortcut in use: its Labs feature on (with the
+  preset, on after step one), Toggle for Cancel, Annotate on for its own;
+  the Shortcut mode always. A shortcut this OS doesn't have is never a
+  row.
+- Each key row has General's recorder (`general::recorder`): click it and
+  press the keys. Recording goes through General's own capture
+  (`settings::begin_capture`), which pauses global shortcuts while it
+  listens (macOS: the tap's capture flag; Linux: the host's
+  `SuspendShortcuts`; Windows: its chord watch), and `record` hands the
+  binding to the card while a row records (`assistant.recording`). It is
+  checked by General's `validate` (bare clicks, the OS's rules, "Already
+  in use") against the settings as the card's save would make them
+  without that row: a key another row proposes is in use as much as one
+  already saved. Esc cancels, as in General. A refused key keeps the row
+  listening with General's message.
+- Shortcut mode, Double-tap and Double-tap only are one row, a select of
+  General's Shortcut mode choices (Hold or double-tap, Hold, Tap,
+  Double-tap), those the settings after the save allow.
+- A row is a change while its value differs from the one it had when the
+  card was made. The card saves the changed rows, with what they need
+  first ("Also turns on Labs › ..."), in one all-or-none `check` through
+  the path every card's save takes, with Undo.
+- In an answer: `assistant::intent::shortcuts` reads from the words alone
+  whether a question asks for help with one's shortcuts ("help me set up
+  my shortcuts", "which keys do I have", «помоги настроить горячие
+  клавиши», «какие у меня горячие клавиши»); a question about why one
+  doesn't work, or about an API key, is a guide question. `settle` attaches
+  the card under whatever model answered, the plain worker and agent mode
+  alike, with the rows as they are ("Not set" for an empty one) and one
+  Save, off until a row changes. A question naming one shortcut ("how do I
+  change the dictation key?") narrows the card to its row. The model is
+  told the card comes (`shortcuts::NOTE`) and writes one sentence leading
+  into it; a key it proposes by name joins the card as that row's change
+  instead of a card of its own (`shortcuts::take`).
+- A key the card's save can't write (`check` takes no lone Return or Esc,
+  which General saves directly) is refused as it is recorded, with
+  General's "Add a modifier", rather than failing at Save.
 
 ## What's new
 
@@ -1433,6 +1487,7 @@ gone.
 | Plan with its terms folded | `assistant-plan-terms` | `plan_with_its_terms_folded` |
 | Plan with its terms unfolded | `assistant-plan-terms-open` | `plan_with_its_terms_unfolded` |
 | Plan with long values | `assistant-long-values`, `assistant-long-values-open` | `plan_with_long_values` |
+| Shortcuts card | `assistant-shortcuts-card`, `assistant-setup-preset-shortcuts-recording`, `assistant-setup-preset-shortcuts-recorded` | `shortcuts_card` |
 | Vocabulary edit card | `assistant-vocab-edit` | `vocabulary_edit_card` |
 | Follow-up round | `assistant-setup-follow`, `assistant-setup-follow-ru` | `follow_up_round` |
 | Returning opener | `assistant-setup-returning` | `returning_opener` |

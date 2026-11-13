@@ -3,6 +3,9 @@
 
 use super::*;
 
+mod fixtures;
+pub(super) use fixtures::{fixture, mac_fixture, portal_fixture};
+
 /// A named starting state for `--scene`.
 pub(super) type Scene = (&'static str, fn(&mut Ui));
 
@@ -813,6 +816,15 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::setup_fixture::setup_preset_shortcuts,
     ),
     (
+        "assistant-setup-preset-shortcuts-recording",
+        assistant::keys::preset_recording,
+    ),
+    (
+        "assistant-setup-preset-shortcuts-recorded",
+        assistant::keys::preset_recorded,
+    ),
+    ("assistant-shortcuts-card", assistant::keys::answer),
+    (
         "assistant-setup-preset-terms",
         assistant::terms_fixture::preset_terms_open,
     ),
@@ -1309,41 +1321,6 @@ fn scrawl_fixture(ui: &mut Ui, enabled: bool, adjust: fn(&mut platform::ScrawlVi
     ui.pane = Pane::Annotate;
 }
 
-pub(super) fn mac_fixture() -> Ui {
-    let mut ui = fixture(DesktopShortcuts::Registered);
-    ui.platform = platform::PlatformState::preview(platform::Capabilities::MACOS);
-    ui.host = platform::PlatformHost::Fixture(Vec::new());
-    ui.settings.dictation_hotkey = AppSettings::default().dictation_hotkey;
-    ui.settings.paste_with_shift = false;
-    ui.settings.meetings.enabled = true;
-    ui.settings.meetings.summaries = crate::app_settings::MeetingSummaries::Mac;
-    ui.settings.meetings.providers = vec![
-        crate::app_settings::MeetingProviderChoice {
-            key: "com.tinyspeck.slackmacgap".into(),
-            label: "Slack huddles".into(),
-            policy: crate::app_settings::MeetingPolicy::AlwaysRecord,
-        },
-        crate::app_settings::MeetingProviderChoice {
-            key: "problems.kitlangton.com".into(),
-            label: "problems.kitlangton.com".into(),
-            policy: crate::app_settings::MeetingPolicy::NeverOffer,
-        },
-    ];
-    ui.settings.experimental.hex_microphone = true;
-    ui.microphones = Ok(crate::audio::InputDevices {
-        names: vec![
-            "Kit Pods".into(),
-            "MacBook Pro Microphone".into(),
-            "Studio Display Microphone".into(),
-        ],
-        system_default: Some("Kit Pods".into()),
-        default_is_hex_microphone: false,
-        ..Default::default()
-    });
-    ui.meetings = meetings::MeetingsPane::fixture();
-    ui
-}
-
 /// Labs › Files on a Mac, showing `pane`.
 fn files_scene(ui: &mut Ui, pane: files::FilesPane) {
     *ui = mac_fixture();
@@ -1381,68 +1358,6 @@ fn listening(message: Option<&'static str>, held: HotkeyModifiers) -> Capture {
         message,
         held,
     }
-}
-
-pub(super) fn portal_fixture() -> Ui {
-    fixture(DesktopShortcuts::Portal(vec![
-        DesktopGrantedShortcut {
-            name: "Dictation".into(),
-            trigger: Some("F12".into()),
-            unconfirmed: false,
-        },
-        DesktopGrantedShortcut {
-            name: "Paste last dictation".into(),
-            trigger: Some("Ctrl+Alt+V".into()),
-            unconfirmed: false,
-        },
-    ]))
-}
-
-/// Deterministic settings and service state matching a typical Wayland
-/// desktop with the shortcuts portal.
-pub(super) fn fixture(shortcuts: DesktopShortcuts) -> Ui {
-    crate::desktop::i18n::apply(Some("en"));
-    let settings = AppSettings {
-        dictation_hotkey: HotkeyBinding {
-            modifiers: HotkeyModifiers::default(),
-            key: Some(HotkeyKey::named("f12")),
-        },
-        transcription: crate::transcription::models::TranscriptionSelection {
-            model: TranscriptionModelId::ParakeetUnifiedEnglish,
-            language: "en".into(),
-        },
-        paste_with_shift: true,
-        ..AppSettings::default()
-    };
-    let mut ui = Ui::with(settings, Service::Fixture(Vec::new()));
-    ui.platform.wayland = true;
-    ui.models = models::Models::fixture();
-    ui.picker.installed = Some(vec![TranscriptionModelId::ParakeetUnifiedEnglish]);
-    ui.view = Some(ServiceView {
-        listener: DesktopListenerSnapshot {
-            running: true,
-            warming: false,
-            status: "Enabled".into(),
-            warning: None,
-            notice: None,
-            last_failure: None,
-            shortcuts,
-            shortcuts_configurable: false,
-        },
-        operation_error: None,
-        transcription: DesktopTranscriptionSnapshot {
-            downloaded_bytes: 0,
-            error: None,
-            preparation_stage: None,
-            selection: ui.settings.transcription.clone(),
-            preparing: None,
-        },
-        update_status: DesktopUpdateStatus::Current,
-        update_notes: None,
-        update_blocked: None,
-        editing: false,
-    });
-    ui
 }
 
 /// Meeting notes on Codex, in Russian.

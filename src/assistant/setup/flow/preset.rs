@@ -1,7 +1,8 @@
 //! The preset's part of the setup machine: "Set me up like Denis" as one
-//! plan, then his shortcuts as a second step of their own.
+//! plan, then his shortcuts as a second step of their own: the shortcuts
+//! card, saved or put off as any card is.
 
-use super::{DONE, Effect, Env, Flow, SETTINGS, SHORTCUTS, SHORTCUTS_PLAN};
+use super::{DONE, Effect, Env, Flow, SETTINGS, SHORTCUTS};
 use crate::assistant::changes::Decision;
 use crate::assistant::setup::preset;
 use crate::assistant::store::Turn;
@@ -24,7 +25,8 @@ impl Flow {
             tr("Everything already matches how Denis has it.").to_owned()
         };
         if !planned.missing.is_empty() {
-            let missing: Vec<&str> = planned.missing.iter().map(|name| tr(name)).collect();
+            // Places in the window, in the window's words.
+            let missing: Vec<&str> = planned.missing.iter().map(|name| tr_window(name)).collect();
             answer.push_str("\n\n");
             answer.push_str(&tr_fill("Not available here: {}", &missing.join(", ")));
         }
@@ -63,63 +65,34 @@ impl Flow {
         }
     }
 
-    /// The preset's second step: the owner's shortcuts, and whether they
-    /// suit.
+    /// The preset's second step: the owner's shortcuts as the shortcuts
+    /// card, each row Denis's binding over the person's, recorded anew
+    /// where they want another key. "Use these" saves the card, "Keep
+    /// mine" puts it off. Already the same everywhere, it says so.
     fn shortcuts(&mut self, env: &Env, out: &mut Vec<Effect>) {
-        let list = preset::shortcut_list(&preset::denis(), env.saved);
-        if list.is_empty() {
+        let Some(card) = preset::shortcuts(&preset::denis(), env.saved) else {
             return;
-        }
-        let mut answer = tr("These are Denis's shortcuts — do they suit you?").to_owned();
-        answer.push('\n');
-        for (path, name, binding) in list {
-            // Two named alike tell themselves apart by where they are.
-            let name = if path.is_empty() {
-                tr_window(&name).to_owned()
-            } else if path.ends_with(name.as_str()) {
-                tr_window(&path).to_owned()
-            } else {
-                format!("{} › {}", tr_window(&path), tr_window(&name))
-            };
-            answer.push_str(&format!("\n- {name}: {binding}"));
-        }
+        };
+        let differs = card.items.iter().any(|item| item.included);
+        let (answer, cards, step) = match differs {
+            true => (
+                tr("Here are Denis's shortcuts, beside yours where they differ."),
+                vec![card],
+                SHORTCUTS,
+            ),
+            false => (
+                tr("Your shortcuts already match Denis's."),
+                Vec::new(),
+                DONE,
+            ),
+        };
         let asked = Turn {
-            answer,
-            preset: SHORTCUTS.into(),
+            answer: answer.into(),
+            cards,
+            preset: step.into(),
             created_ms: env.now_ms,
             ..Turn::default()
         };
         self.push(asked, out);
-    }
-
-    /// The owner's shortcuts as a plan of their own.
-    pub(super) fn use_shortcuts(&mut self, env: &Env, out: &mut Vec<Effect>) {
-        let card = preset::shortcuts(&preset::denis(), env.saved);
-        let answer = if card.is_some() {
-            tr("Here they are. Untick any you'd rather keep as they are.")
-        } else {
-            tr("Your shortcuts already match Denis's.")
-        };
-        let plan = Turn {
-            question: tr("Use these").into(),
-            answer: answer.into(),
-            cards: card.into_iter().collect(),
-            preset: SHORTCUTS_PLAN.into(),
-            created_ms: env.now_ms,
-            ..Turn::default()
-        };
-        self.push(plan, out);
-    }
-
-    /// "Keep mine": the shortcuts stay.
-    pub(super) fn keep_shortcuts(&mut self, env: &Env, out: &mut Vec<Effect>) {
-        let kept = Turn {
-            question: tr("Keep mine").into(),
-            answer: tr("Your shortcuts stay as they are.").into(),
-            preset: DONE.into(),
-            created_ms: env.now_ms,
-            ..Turn::default()
-        };
-        self.push(kept, out);
     }
 }

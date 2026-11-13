@@ -33,8 +33,9 @@ use crate::desktop::i18n::tr;
 
 /// A preset turn's steps (`Turn::preset`).
 pub const SETTINGS: &str = "settings";
+/// Older conversations hold `shortcuts-plan` too: a plan card of
+/// Denis's shortcuts, before they were a shortcuts card. It reads as done.
 pub const SHORTCUTS: &str = "shortcuts";
-pub const SHORTCUTS_PLAN: &str = "shortcuts-plan";
 pub const DONE: &str = "done";
 
 /// Where a setup stands, read off the conversation's last turn.
@@ -60,10 +61,8 @@ pub enum Step {
     Plan { turn: usize },
     /// The preset's plan waits.
     PresetPlan { turn: usize },
-    /// The preset's shortcuts are shown: use them, or keep one's own.
+    /// The preset's shortcuts card waits: Use these, or Keep mine.
     Shortcuts { turn: usize },
-    /// The preset's shortcuts as a plan of their own.
-    ShortcutsPlan { turn: usize },
     /// Decided, or nothing to decide.
     Done,
 }
@@ -94,10 +93,6 @@ pub enum Event {
     LookAgain { turn: usize },
     /// "Set me up like Denis", typed as `question` or pressed.
     Preset { question: String },
-    /// The preset's shortcuts: "Use these".
-    UseShortcuts,
-    /// "Keep mine".
-    KeepShortcuts,
 }
 
 /// What a transition asks to be done.
@@ -244,8 +239,7 @@ pub fn step(turns: &[Turn], kept: &[Setup]) -> Step {
     match last.preset.as_str() {
         "" => {}
         SETTINGS if open(last.cards.first()) => return Step::PresetPlan { turn },
-        SHORTCUTS => return Step::Shortcuts { turn },
-        SHORTCUTS_PLAN if open(last.cards.first()) => return Step::ShortcutsPlan { turn },
+        SHORTCUTS if open(last.cards.first()) => return Step::Shortcuts { turn },
         _ => return Step::Done,
     }
     if !last.asks.is_empty() {
@@ -368,8 +362,6 @@ impl Flow {
             Event::Again { turn } => self.again(turn, env, &mut out),
             Event::LookAgain { turn } => self.look_again(turn, env, &mut out),
             Event::Preset { question } => self.preset(question, env, &mut out),
-            Event::UseShortcuts => self.use_shortcuts(env, &mut out),
-            Event::KeepShortcuts => self.keep_shortcuts(env, &mut out),
         }
         (self, out)
     }

@@ -70,7 +70,8 @@ changes until the person presses one, and then only through the check
 for me" asks four questions and offers one list of changes, with no model
 needed; onboarding's last page offers it ("Set up with Assistant"), and
 after an update a dot on the sidebar row leads once to the start page that
-offers it. "What's new?"
+offers it. "Help me set up my shortcuts" answers with a card of the
+shortcuts in use, each with General's recorder, saved together. "What's new?"
 reads VibeHex's own release notes (`docs/releases`) since the version the
 install ran before and offers what fits the person's settings. On Codex,
 with Web on (the default), it may search the web when the guide has no

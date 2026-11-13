@@ -42,7 +42,7 @@ fn cards(cards: &[Card]) -> Vec<String> {
                         terms.join(", ")
                     )
                 }
-                CardKind::Plan => format!(
+                CardKind::Plan | CardKind::Shortcuts => format!(
                     "{} {}={}",
                     if item.included { "[x]" } else { "[ ]" },
                     item.key,
