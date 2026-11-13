@@ -399,6 +399,17 @@ fn card(ui: &Ui, p: Paint, entry: &Row, new: bool, featured: bool) -> El {
     } else {
         format!("lab-card-{}", lab.id())
     };
+    // The lab an answer's link opened: a soft warm tint and a ring, so it
+    // shows among its neighbours (never a side bar).
+    let named = super::super::assistant::places::names(ui, entry.title);
+    let (fill, border) = if named {
+        (
+            (p.k.alpha(p.warning(), 0.08), 1.0),
+            p.k.alpha(p.warning(), 0.6),
+        )
+    } else {
+        ((c.bg_base, p.hair), c.border_weak)
+    };
     row()
         .key(key)
         .role("group")
@@ -409,8 +420,8 @@ fn card(ui: &Ui, p: Paint, entry: &Row, new: bool, featured: bool) -> El {
         .radius(p.k.radius.lg)
         .child(tile(p, entry.icon, TILE))
         .child(copy)
-        .fill(c.bg_base)
-        .border(p.hair, c.border_weak)
+        .fill(fill.0)
+        .border(fill.1, border)
 }
 
 /// The star beside a lab VibeHex added; hovering it says so.

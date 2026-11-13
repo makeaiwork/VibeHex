@@ -421,6 +421,22 @@ pub fn scenarios() -> Vec<Scenario> {
                                 format!("{items} items: {}", outcome.turn.answer)
                             })
                         }),
+                        check("a line leads into the list", |outcome| {
+                            let first = outcome
+                                .turn
+                                .answer
+                                .lines()
+                                .map(str::trim)
+                                .find(|line| !line.is_empty())
+                                .unwrap_or_default();
+                            ensure(
+                                !first.is_empty()
+                                    && !first.starts_with("- ")
+                                    && !first.starts_with("* ")
+                                    && !first.starts_with('#'),
+                                || outcome.turn.answer.clone(),
+                            )
+                        }),
                         offline("all four played suggestions stay", |outcome| {
                             ensure(list_items(&outcome.turn.answer) == 4, || {
                                 outcome.turn.answer.clone()

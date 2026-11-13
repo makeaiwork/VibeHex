@@ -32,10 +32,16 @@ pub(super) const RULES: Rules = Rules {
             "General's shortcut recorder, 3 pt wider than its control: a place Assistant opens, not its surface",
         ),
     ],
-    cuts: &[(
-        "assistant-picker/name",
-        "a narrow window cuts the open conversation's name, not the pane's title",
-    )], // A long value's three lines, with "Show all" under them (`value`).
+    cuts: &[
+        (
+            "assistant-picker/name",
+            "a narrow window cuts the open conversation's name, not the pane's title",
+        ),
+        (
+            "/copy/description",
+            "a Labs card's description stops at two lines: a place Assistant opens, not its surface",
+        ),
+    ], // A long value's three lines, with "Show all" under them (`value`).
     unfolds: &["all"],
 };
 

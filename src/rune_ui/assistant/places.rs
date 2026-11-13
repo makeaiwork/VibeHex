@@ -6,7 +6,8 @@
 //! **Meetings › Settings › Detected calls**). Names match the window's own
 //! words, in its language or in English, ignoring case; a path resolves to
 //! its deepest part that is known, and a name that finds nothing, or more
-//! than one place, stays bold.
+//! than one place, stays bold. A link reads in the window's words, each
+//! part written in English translated, so it matches the sidebar.
 //!
 //! Opening one selects its pane (and its Settings view, or its Labs card),
 //! lights the titles the path names inside it, section and row, the way a
@@ -23,7 +24,7 @@ use super::super::controls::Paint;
 use super::super::sidebar::Pane;
 use super::super::{general, labs};
 use crate::assistant::changes::names::{Home, WHERE};
-use crate::desktop::i18n::tr;
+use crate::desktop::i18n::{tr, tr_window};
 
 /// The titles a place link lights in its pane, outermost first, each in
 /// the lowercase forms it may show in; and whether it still has to land.
@@ -159,6 +160,23 @@ impl Known {
         }
         Some(found)
     }
+
+    /// `name` as the window shows it, when it names a place: each part
+    /// the model wrote in English in the window's words, so a Russian
+    /// window reads **Основные › Словарь**, not **General › Vocabulary**.
+    pub(in super::super) fn shown(&self, name: &str) -> Option<String> {
+        self.resolve(name)?;
+        let parts: Vec<String> = name
+            .split('›')
+            .map(|part| {
+                let words = part.trim();
+                let bare = words.trim_end_matches([':', '.']);
+                let shown = format!("{}{}", tr_window(bare), &words[bare.len()..]);
+                part.replacen(words, &shown, 1)
+            })
+            .collect();
+        Some(parts.join("›"))
+    }
 }
 
 fn spot(to: To, lit: Vec<String>) -> Spot {
@@ -265,6 +283,9 @@ pub(super) fn open(ui: &mut Ui, spot: &Spot, tx: &mut Tx) {
                 ..labs::LabsLink::default()
             };
             labs::reveal(ui, &link, tx);
+            if let Some((conversation, scroll_y)) = from {
+                super::jump::came_for_place(ui, conversation, scroll_y);
+            }
         }
         To::Pane(pane, settings) => {
             ui.select_pane(pane, tx);
@@ -380,6 +401,15 @@ pub(in super::super) fn lighting<R>(
 /// The key a lit title at `depth` lands by.
 fn lit_key(depth: usize) -> String {
     format!("place-lit-{depth}")
+}
+
+/// Whether the place opened names `title` as its deepest part: a Labs
+/// card it names is lit whole, so it stands out from its neighbours.
+pub(in super::super) fn names(ui: &Ui, title: &str) -> bool {
+    ui.place
+        .as_ref()
+        .and_then(|lit| lit.titles.last())
+        .is_some_and(|forms| forms.contains(&lower(title)) || forms.contains(&lower(tr(title))))
 }
 
 /// `label`, the text of `title`, its words lit when an opened place names

@@ -512,7 +512,8 @@ static CHEVRON_LEFT: Icon = Icon {
 /// Back to Assistant, before the pane's title, while it was opened from
 /// an answer.
 pub(in super::super) fn back_button(ui: &Ui, p: Paint) -> Option<El> {
-    if ui.came_from.is_none() || ui.pane == Pane::Assistant || ui.labs_open {
+    // Labs too: an answer's Labs › … link opens it.
+    if ui.came_from.is_none() || (ui.pane == Pane::Assistant && !ui.labs_open) {
         return None;
     }
     let c = &p.k.c;

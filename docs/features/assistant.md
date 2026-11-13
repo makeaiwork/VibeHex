@@ -47,8 +47,10 @@ Assistant                                        // rune_ui::assistant
 │   │           [n] marks inline, and
 │   │           "From your recordings" chips (title, date, time).
 │   │           A place in the window named in bold (General › Vocabulary,
-│   │           Labs › Smart spacing, Output) reads in the link colour and
-│   │           opens it; other bold words are full-brightness text
+│   │           Labs › Smart spacing, Output) reads in the link colour, in
+│   │           the window's words (Основные › Словарь in a Russian window,
+│   │           however the model wrote it), and opens it; other bold
+│   │           words are full-brightness text
 │   ├── Consent the first question about recordings, before anything is
 │   │           read: "Read your meetings, files, and dictations?", the model
 │   │           the passages go to, Allow or Answer without recordings
@@ -111,11 +113,12 @@ Opened from an answer                            // rune_ui::assistant::jump
                 however deep in a long passage. A dictation: its History
                 row tinted with the [n] before its title
 Opened from a place link                         // rune_ui::assistant::places
-├── Header      Back to Assistant (not on the Labs page)
+├── Header      Back to Assistant, on the Labs page too
 └── Titles      the section and row the path names, their words lit in
                 the accent; the deepest lands a third of the way down, its
                 Advanced fold opened when it is under one; a lab: Labs on
-                its group, its card's title lit. Lit until another pane
+                its group, its card's title lit and the card whole in a
+                soft warm tint with a ring (warning tokens). Lit until another pane
 ```
 
 ## Language
@@ -605,8 +608,9 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   - On a remote model (Codex, OpenCode, OpenRouter, your own server) with
     the use read, the model then looks (`Stage::Look`, `SETUP_LOOK`): the
     step "Read your settings, 972 dictations and 5 meetings" shows while
-    it writes and folds to one grey line with its seconds, then 2 to 4
-    concrete suggestions, each tied to a fact (what is new and fits, a
+    it writes and folds to one grey line with its seconds, then one short
+    line leading into the list ("Вот что из этого стоит поменять:") and 2
+    to 4 concrete suggestions, each tied to a fact (what is new and fits, a
     term cleanup keeps fixing), and round one folded after them, even if
     the model fails. Try again looks again. It reads `<since_last_setup>`
     (the last setup's answers, applied, declined; releases; the use's
@@ -1181,7 +1185,7 @@ each with the parse it must make); scenes `assistant`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`, `assistant-agent-consent`,
 `assistant-recordings`, `assistant-steps-open`, `assistant-knew`, `meetings-cited`,
 `meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`,
-`assistant-places`, `assistant-place-opened`, the cards'
+`assistant-places`, `assistant-place-opened`, `assistant-lab-opened`, the cards'
 `assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,
 `assistant-cards-prompt`, `assistant-cards-prompt-edit`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
@@ -1322,7 +1326,7 @@ The other scenes, each through `every_scene_is_laid_out_whole`:
 | Answer being written | `assistant-answering`, `assistant-web-answering` |
 | Answer from recordings | `assistant-steps`, `assistant-recordings` |
 | Answer from the web | `assistant-web`, `assistant-web-off`, `assistant-web-held` |
-| Places named and opened | `assistant-places`, `assistant-place-opened` |
+| Places named and opened | `assistant-places`, `assistant-place-opened`, `assistant-lab-opened` |
 | Assistant › Settings | `assistant-settings` |
 | Card held, applied, coming | `assistant-cards-held`, `assistant-applied`, `assistant-change-coming` |
 | Instructions card | `assistant-cards-prompt`, `assistant-cards-prompt-edit` |

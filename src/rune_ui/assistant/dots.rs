@@ -1,6 +1,7 @@
 //! The three dots of a step still going on ("Writing the answer",
 //! "Searching your recordings", "Read your settings…"): a gentle wave, the
 //! bright dot moving a → b → c every [`STEP`] while any such step shows,
+//! each dot easing to its new brightness over the step (`recall::step_line`),
 //! in Assistant, Files, and Meetings' Requests alike. They hold still
 //! under Reduce Motion and in scenes, and nothing wakes the window while
 //! no step is live.

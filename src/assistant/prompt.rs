@@ -300,9 +300,12 @@ than two lines each: one concrete change to how they work with VibeHex, and the 
 editors and cleanup keeps fixing кодекс → Codex, so Codex belongs in Vocabulary.
 - Prefer what is new since and fits how they work. Never suggest what they declined then, \
 or what the settings already have. Name a setting by where it is in the window.
-- No greeting, no heading, no facts repeated from <shown>, no closing question: the app asks \
-next whether anything changed in how they use VibeHex, and the list of changes comes after \
-their answers. Write no change blocks. End with `Sources: none`.";
+- Open with one short line, in their default language, that leads into the list from what \
+was shown, never a list item and never a heading: \"Here is what I'd change from this:\", \
+\"Вот что из этого стоит поменять:\". Then the list.
+- No greeting, no facts repeated from <shown>, no closing question: the app asks next whether \
+anything changed in how they use VibeHex, and the list of changes comes after their answers. \
+Write no change blocks. End with `Sources: none`.";
 
 /// What a question may read besides the guide.
 #[derive(Clone, Copy, Debug)]
@@ -1515,6 +1518,8 @@ mod tests {
             },
         );
         assert!(look.instructions.contains("2 to 4 suggestions"));
+        // One line leads into the list, so it never starts bare.
+        assert!(look.instructions.contains("Open with one short line"));
         // Written in their default language, as every setup prompt is.
         assert!(look.instructions.contains("Their default language is"));
         assert!(
