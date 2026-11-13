@@ -36,6 +36,8 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("Didn't read your recordings: the question went unanswered", ["Nie przeczytano Twoich nagrań: pytanie zostało bez odpowiedzi", "未读取你的录音：询问没有得到回答", "録音は読んでいません：確認への返事がありませんでした", "Deine Aufnahmen nicht gelesen: Die Frage blieb unbeantwortet", "No se leyeron tus grabaciones: la pregunta quedó sin respuesta", "Ваші записи не прочитано: запитання лишилося без відповіді"]),
     ("An answer in another conversation is waiting for you to say whether it may read your recordings.", ["Odpowiedź w innej rozmowie czeka, aż powiesz, czy może przeczytać Twoje nagrania.", "另一个对话中的回答正在等你决定是否允许它读取你的录音。", "別の会話の回答が、録音を読んでよいかどうかの返事を待っています。", "Eine Antwort in einem anderen Gespräch wartet darauf, dass du sagst, ob sie deine Aufnahmen lesen darf.", "Una respuesta en otra conversación espera a que digas si puede leer tus grabaciones.", "Відповідь в іншій розмові чекає, чи дозволите ви їй прочитати ваші записи."]),
     ("Open that conversation", ["Otwórz tę rozmowę", "打开那个对话", "その会話を開く", "Dieses Gespräch öffnen", "Abrir esa conversación", "Відкрити ту розмову"]),
+    ("{line}, not the web", ["{line}, bez internetu", "{line}，未使用网络", "{line}（ウェブは使っていません）", "{line}, ohne Web", "{line}, sin la web", "{line}, без інтернету"]),
+    ("The web stays off once a conversation has read your recordings, Vocabulary, or cleanup instructions", ["Internet pozostaje wyłączony, gdy rozmowa przeczytała Twoje nagrania, Słownictwo lub instrukcje porządkowania", "对话读过你的录音、词汇表或整理指令后，网络会保持关闭", "会話で録音、語彙、整えの指示を読んだあとは、ウェブは使いません", "Sobald ein Gespräch deine Aufnahmen, dein Vokabular oder deine Bereinigungsanweisungen gelesen hat, bleibt das Web aus", "Cuando una conversación ha leído tus grabaciones, tu Vocabulario o tus instrucciones de limpieza, la web queda desactivada", "Щойно розмова прочитала ваші записи, Словник або інструкції упорядкування, інтернет лишається вимкненим"]),
 ];
 
 #[rustfmt::skip]
@@ -69,6 +71,8 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("Didn't read your recordings: the question went unanswered", "Vos enregistrements n’ont pas été lus : la question est restée sans réponse"),
     ("An answer in another conversation is waiting for you to say whether it may read your recordings.", "Une réponse dans une autre conversation attend que vous disiez si elle peut lire vos enregistrements."),
     ("Open that conversation", "Ouvrir cette conversation"),
+    ("{line}, not the web", "{line}, sans le web"),
+    ("The web stays off once a conversation has read your recordings, Vocabulary, or cleanup instructions", "Le web reste coupé dès qu'une conversation a lu vos enregistrements, votre Vocabulaire ou vos instructions de nettoyage"),
 ];
 
 #[rustfmt::skip]
@@ -102,6 +106,8 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("Didn't read your recordings: the question went unanswered", "Suas gravações não foram lidas: a pergunta ficou sem resposta"),
     ("An answer in another conversation is waiting for you to say whether it may read your recordings.", "Uma resposta em outra conversa está esperando você dizer se ela pode ler suas gravações."),
     ("Open that conversation", "Abrir essa conversa"),
+    ("{line}, not the web", "{line}, sem a web"),
+    ("The web stays off once a conversation has read your recordings, Vocabulary, or cleanup instructions", "A web fica desligada depois que uma conversa leu suas gravações, seu Vocabulário ou suas instruções de limpeza"),
 ];
 
 #[rustfmt::skip]
@@ -135,4 +141,6 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("Didn't read your recordings: the question went unanswered", "Ваши записи не прочитаны: вопрос остался без ответа"),
     ("An answer in another conversation is waiting for you to say whether it may read your recordings.", "Ответ в другом разговоре ждёт, разрешите ли вы ему читать ваши записи."),
     ("Open that conversation", "Открыть тот разговор"),
+    ("{line}, not the web", "{line}, без интернета"),
+    ("The web stays off once a conversation has read your recordings, Vocabulary, or cleanup instructions", "Когда разговор уже читал ваши записи, Словарь или инструкции очистки, интернет остаётся выключен"),
 ];

@@ -1027,7 +1027,11 @@ anything, a change is still a card the person presses:
   helped: it was on earlier in the turn and what was read since turned it
   off, or only an earlier answer keeps it off; a question about their own
   never had the web to lose, and nothing is said, as with the router.
-  Searches made before that stay with the turn. The eval holds every
+  A turn held back says it as the router's does: its fold ends ", not the
+  web" ("Read your settings in 9 s, not the web"), and its last step says
+  why ("The web stays off once a conversation has read your recordings,
+  Vocabulary, or cleanup instructions"; a router turn names recordings
+  alone). Searches made before that stay with the turn. The eval holds every
   scenario, router's and agent's, to it (`checks::no_web_after_personal`).
 - **The trace.** `Turn::trace` is what the turn did, in order
   (`agent::trace::Did`): articles by id (`app` for the pre-read), a guide

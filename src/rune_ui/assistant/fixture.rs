@@ -415,7 +415,9 @@ fn recorded(ui: &mut Ui, steps: Vec<Step>, trace: Vec<Did>) {
 
 /// The same answer as an agent gave it, its steps open: the articles laid
 /// out, the person's yes on the card, the search, the notes and a
-/// transcript read whole, a setting, and a call that was refused.
+/// transcript read whole, a setting, and a call that was refused. Web was
+/// on until the recordings were read: the fold says it stayed off, and
+/// the last step why.
 pub(in super::super) fn steps_open(ui: &mut Ui) {
     recorded(
         ui,
@@ -442,6 +444,11 @@ pub(in super::super) fn steps_open(ui: &mut Ui) {
         ],
     );
     let id = ui.assistant.open.unwrap_or_default();
+    ui.assistant.store.each(|conversation| {
+        if conversation.id == id {
+            conversation.turns[0].web.held_back = true;
+        }
+    });
     ui.assistant.unfolded.push((id, 0));
 }
 

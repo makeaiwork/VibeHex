@@ -184,13 +184,14 @@ pub(super) fn steps(p: Paint, turn: &Turn) -> Vec<El> {
         ));
     }
     if !web.went_online() {
-        lines.push(line(
-            p,
-            "held",
-            (&icons::GLOBE, c.icon_muted),
-            tr("The web stays off once a conversation has read your recordings"),
-            None,
-        ));
+        // An agent's conversation is kept off by more than recordings.
+        let why = match turn.trace.is_empty() {
+            true => tr("The web stays off once a conversation has read your recordings"),
+            false => tr(
+                "The web stays off once a conversation has read your recordings, Vocabulary, or cleanup instructions",
+            ),
+        };
+        lines.push(line(p, "held", (&icons::GLOBE, c.icon_muted), why, None));
         return lines;
     }
     lines.push(line(
@@ -240,7 +241,9 @@ fn line(
         text(words.to_owned())
             .key("what")
             .font(p.k.ty.small)
-            .color(if missing { p.warning() } else { p.faint() }),
+            .color(if missing { p.warning() } else { p.faint() })
+            .wrap()
+            .shrink(),
     );
     if let Some(found) = found {
         words_row = words_row.child(

@@ -34,7 +34,7 @@ use crate::assistant::intent;
 use crate::assistant::recordings::{Allowed, Kind, Ref, Sources, Step, cite};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::{Answering, Recall};
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::{tr, tr_fill, tr_named};
 
 /// A question waiting for the person to say whether recordings may be read.
 #[derive(Clone, Debug)]
@@ -744,9 +744,10 @@ pub(in super::super) fn chips_with(
     Some(line)
 }
 
-/// The folded line: what the steps read, and in how long. Nothing a tool
-/// read: that a search of the recordings found nothing, else the guide,
-/// with the web when the answer went there.
+/// The folded line: what the steps read, and in how long, and that the
+/// web was held back when it was. Nothing a tool read: that a search of
+/// the recordings found nothing, else the guide, with the web when the
+/// answer went there.
 pub(super) fn summary((trace, other): (&[Did], bool), web: Option<&Turn>, seconds: f32) -> String {
     let seconds = format!("{:.0}", seconds.max(1.0));
     let web = web.filter(|turn| !turn.web.is_empty());
@@ -762,6 +763,10 @@ pub(super) fn summary((trace, other): (&[Did], bool), web: Option<&Turn>, second
         ));
     }
     match (words::folded(&read, &seconds), web) {
+        // Kept off the web, as a guide answer's line says it.
+        (Some(line), Some(turn)) if turn.web.held_back && !turn.web.went_online() => {
+            tr_named("{line}, not the web", &[("line", &line)])
+        }
         (Some(line), _) => line,
         (None, _) if words::searched(trace) => {
             tr_fill("Found nothing in your recordings in {} s", &seconds)

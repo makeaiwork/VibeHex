@@ -682,13 +682,56 @@ mod tests {
             "{guide:?}"
         );
         let read = shown(super::super::fixture::steps_open);
+        // Web was on until the recordings were read: the fold says it
+        // stayed off, as a guide answer's does, and the last step why.
+        assert!(
+            has(
+                &read,
+                "Read 4 meetings, 1 file, and your settings in 9 s, not the web"
+            ),
+            "{read:?}"
+        );
         assert!(has(
             &read,
-            "Read 4 meetings, 1 file, and your settings in 9 s"
+            "The web stays off once a conversation has read your recordings, Vocabulary, or cleanup instructions"
         ));
         assert!(has(&read, "Read 3 guide articles: "), "{read:?}");
         assert!(has(&read, "You allowed reading your recordings"));
         assert!(has(&read, "Didn't read your settings: sending them is off"));
+    }
+
+    /// A fold that read things and was kept off the web says so in every
+    /// language, and one Web was never on for says nothing of it.
+    #[test]
+    fn a_fold_kept_off_the_web_says_so() {
+        use crate::assistant::agent::trace::Did;
+        let trace = [Did::Settings {
+            keys: vec!["labs.meetings".into()],
+        }];
+        let mut turn = Turn {
+            trace: trace.to_vec(),
+            ..Turn::default()
+        };
+        let line = |turn: &Turn| super::super::recall::summary((&trace, false), Some(turn), 9.0);
+        assert_eq!(line(&turn), "Read your settings in 9 s");
+        turn.web.held_back = true;
+        assert_eq!(line(&turn), "Read your settings in 9 s, not the web");
+        assert!(!line(&turn).contains('·'));
+        for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
+            let shown = speaking(Some(code), || line(&turn));
+            let guide = speaking(Some(code), || line(&Turn::default()));
+            assert!(
+                shown.starts_with(&guide) && shown != guide,
+                "{code}: {shown}"
+            );
+        }
+        assert_eq!(
+            speaking(Some("ru"), || line(&turn)),
+            format!(
+                "{}, без интернета",
+                speaking(Some("ru"), || line(&Turn::default()))
+            )
+        );
     }
 
     /// While an answer in another conversation waits on the consent card,
