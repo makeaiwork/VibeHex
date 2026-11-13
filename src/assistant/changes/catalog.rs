@@ -573,9 +573,10 @@ mod tests {
         let facts = Facts::of(&settings, &State::default());
         let on = line(&settings, &facts, "stop_hotkey").unwrap();
         assert!(!on.contains("does nothing"), "{on}");
-        // A switch that is off needs nothing.
-        let labs = line(&settings, &facts, "labs.stop_shortcut").unwrap();
-        assert!(!labs.contains("does nothing"), "{labs}");
+        // A switch that is off needs nothing (the lab is a Mac's).
+        if let Some(labs) = line(&settings, &facts, "labs.stop_shortcut") {
+            assert!(!labs.contains("does nothing"), "{labs}");
+        }
     }
 
     /// A key's line asked for alone is the line the section carries for it,
