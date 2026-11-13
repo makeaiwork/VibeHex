@@ -29,7 +29,7 @@ shows what the speech model heard. Cancel, Escape, or a click elsewhere saves no
 
 **Where.** Labs › Add to vocabulary from a selection
 (`labs.vocabulary_quick_add`). Shortcut: General › Output › Add selection to
-vocabulary (`vocabulary_add_hotkey`).
+vocabulary (`vocabulary_add_hotkey`), shown only while the lab is on.
 
 **Asked as.** "Add a misheard word to the Vocabulary from any app"; «Как
 быстро добавить неправильно написанное слово в словарь»; «Выделил слово, хочу

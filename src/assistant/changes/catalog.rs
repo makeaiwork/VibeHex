@@ -276,16 +276,50 @@ impl<'a> Lines<'a> {
                     .and_then(|(_, value)| sendable(key, kind, value))
             };
             let now = now.unwrap_or_default();
+            let unmet = self.unmet(key, kind, &now);
             match key {
                 // Summaries only decides while no writer is chosen: said
                 // where its value stands, so it never reads as who writes.
                 "meetings.summaries" if self.facts.notes.writer.is_some() => line.push_str(
                     &format!(" | {now} (fallback, not used now: meetings.notes.writer decides)"),
                 ),
+                _ if !unmet.is_empty() => line.push_str(&format!(
+                    " | {now} (does nothing now: {} first; its row shows only then)",
+                    unmet.join(", ")
+                )),
                 _ => line.push_str(&format!(" | {now}")),
             }
         }
         Some(line)
+    }
+
+    /// What `key`, holding `now`, needs that isn't so: `labs.stop_shortcut
+    /// on` for a Stop shortcut kept from when the lab was on. A value no
+    /// one uses reads as such, so an answer turns the feature on first.
+    fn unmet(&self, key: &str, kind: &str, now: &str) -> Vec<String> {
+        let value = match kind {
+            "shortcut" if now == "none" || now.is_empty() => Value::Null,
+            "shortcut" => Value::Bool(true),
+            _ => self
+                .shown
+                .iter()
+                .find(|(known, _)| *known == key)
+                .map_or(Value::Null, |(_, value)| value.clone()),
+        };
+        settings::requires(key, &value)
+            .into_iter()
+            .filter(|(needs, want)| {
+                self.shown
+                    .iter()
+                    .find(|(known, _)| known == needs)
+                    .is_some_and(|(_, has)| has != want)
+            })
+            .map(|(needs, want)| match want {
+                Value::Bool(true) => format!("{needs} on"),
+                Value::String(choice) => format!("{needs} {choice}"),
+                other => format!("{needs} {other}"),
+            })
+            .collect()
     }
 
     /// Clean up with AI, a part of the Global mode.
@@ -515,6 +549,34 @@ mod tests {
         );
         assert_eq!(class("meetings.enabled", &Value::Bool(false)), Class::Card);
         assert_eq!(class(parts::PROMPT, &Value::from("x")), Class::Card);
+    }
+
+    /// A Stop shortcut kept while its lab is off reads as doing nothing,
+    /// with what turns it on first; on, it reads as it is.
+    #[test]
+    fn a_value_its_feature_leaves_unused_says_so() {
+        let mut settings = AppSettings::default();
+        settings.assistant.send_settings = true;
+        settings.labs.stop_shortcut = false;
+        let facts = Facts::of(&settings, &State::default());
+        // Stop shortcut is a Mac's; elsewhere there is no line.
+        let Some(off) = line(&settings, &facts, "stop_hotkey") else {
+            return;
+        };
+        assert!(
+            off.ends_with(
+                "(does nothing now: labs.stop_shortcut on first; its row shows only then)"
+            ),
+            "{off}"
+        );
+        settings.labs.stop_shortcut = true;
+        let facts = Facts::of(&settings, &State::default());
+        let on = line(&settings, &facts, "stop_hotkey").unwrap();
+        assert!(!on.contains("does nothing"), "{on}");
+        // A switch that is off needs nothing (the lab is a Mac's).
+        if let Some(labs) = line(&settings, &facts, "labs.stop_shortcut") {
+            assert!(!labs.contains("does nothing"), "{labs}");
+        }
     }
 
     /// A key's line asked for alone is the line the section carries for it,

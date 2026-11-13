@@ -31,7 +31,7 @@ finishes too. VibeHex refuses a key another VibeHex shortcut uses.
 
 **Where.** Labs › Stop shortcut (`labs.stop_shortcut`), marked as added in
 VibeHex. The key: General › Stop shortcut (`stop_hotkey`), with a restore
-button for Return.
+button for Return. That row shows only while the lab is on.
 
 **Asked as.** "Press Enter to finish dictation"; "Stop and paste with
 Return"; «Завершить диктовку клавишей Enter»; «Как остановить запись и

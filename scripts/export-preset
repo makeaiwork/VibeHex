@@ -18,6 +18,13 @@ server addresses, folders or paths, microphone, calendars, window or update
 state, Assistant's own settings, app lists or browser hosts. DENIED is checked
 on top of the allow-list, so a key added to ALLOWED by mistake still can't
 carry one of those out.
+
+Two narrow exceptions, each by its own rule: a call service's Always record
+or Never offer (`meetings.providers.<app>.policy`), only for the services
+VibeHex itself lists (KNOWN_MEETING_PROVIDERS and MORE_MEETING_PROVIDERS in
+src/app_settings/meetings.rs), never a host the owner added; and nothing of
+a setting that does nothing while another decides (Summaries while a notes
+writer is chosen).
 """
 
 import json
@@ -60,6 +67,10 @@ ALLOWED = {
     "dictation_processing.server.local_model",
     "dictation_processing.server.codex_model",
     "dictation_processing.server.codex_effort",
+    # While dictating: pause media (and browser tabs), and how long History keeps.
+    "recording_audio_behavior",
+    "pause_browser_media",
+    "history_retention",
     # Meetings: engines, writer, effort, toggles, retention.
     "meetings.enabled",
     "meetings.summaries",
@@ -119,6 +130,42 @@ def registry():
     return keys
 
 
+PROVIDER_PAIR = re.compile(r'\(\s*"([A-Za-z0-9.\-]+)",\s*"[^"]+"\s*\)')
+PROVIDER_CONST = re.compile(r'pub const TELEMOST_(?:APP|SITE): &str = "([^"]+)";')
+
+
+def known_providers():
+    """The call services VibeHex lists itself, by provider key."""
+    source = (ROOT / "src/app_settings/meetings.rs").read_text()
+    keys = set(PROVIDER_CONST.findall(source))
+    for name in ("KNOWN_MEETING_PROVIDERS", "MORE_MEETING_PROVIDERS"):
+        start = source.index(f"pub const {name}")
+        block = source[start:source.index("];", start)]
+        keys.update(PROVIDER_PAIR.findall(block))
+    return keys
+
+
+def provider_policy(key):
+    """The listed service a `meetings.providers.<app>.policy` key names, or None."""
+    if not (key.startswith("meetings.providers.") and key.endswith(".policy")):
+        return None
+    app = key[len("meetings.providers."):-len(".policy")]
+    return app if app in known_providers() else None
+
+
+def policies(settings):
+    """Always record and Never offer, for the services VibeHex lists."""
+    known = known_providers()
+    out = {}
+    for choice in at(settings, "meetings.providers") or []:
+        if not isinstance(choice, dict):
+            continue
+        key, policy = choice.get("key"), choice.get("policy")
+        if key in known and policy in ("always_record", "never_offer"):
+            out[f"meetings.providers.{key}.policy"] = policy
+    return out
+
+
 def at(settings, key):
     """The value at a dotted key, or None."""
     value = settings
@@ -175,6 +222,10 @@ def export(settings, keys=None):
         value = at(settings, key)
         if part and value is not None:
             preset[part][key] = value
+    # Summaries decides only while no notes writer is chosen.
+    if preset["settings"].get("meetings.notes.writer"):
+        preset["settings"].pop("meetings.summaries", None)
+    preset["settings"].update(policies(settings))
     processing = at(settings, "dictation_processing.default_mode.post_processing") or {}
     if isinstance(processing.get("enabled"), bool):
         preset["settings"]["dictation_processing.default_mode.cleanup"] = processing["enabled"]

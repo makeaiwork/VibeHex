@@ -422,6 +422,9 @@ pub fn values(card: &Card, settings: &AppSettings) -> Result<Map<String, Value>,
     for item in card.kept.iter().filter_map(Item::companion_changed) {
         values.insert(item.key.clone(), item.to().clone());
     }
+    // Parts of one key build on each other: three apps' choices, or the
+    // Global mode's switch and its instructions, all land in one save.
+    let mut working = settings.clone();
     for item in card.items.iter().filter(|item| item.included) {
         let to = match &card.kind {
             CardKind::Choice {
@@ -431,7 +434,8 @@ pub fn values(card: &Card, settings: &AppSettings) -> Result<Map<String, Value>,
         };
         match parts::part(&item.key, settings) {
             Some(part) => {
-                let (parent, json) = part.with(settings, to)?;
+                let (parent, json) = part.with(&working, to)?;
+                working = with_value(&working, parent, &json)?;
                 values.insert(parent.to_owned(), json);
             }
             None => {
@@ -443,6 +447,18 @@ pub fn values(card: &Card, settings: &AppSettings) -> Result<Map<String, Value>,
         }
     }
     Ok(values)
+}
+
+/// `settings` with the JSON key `key` (dotted, as `hex settings` names it)
+/// set to `value`.
+fn with_value(settings: &AppSettings, key: &str, value: &Value) -> Result<AppSettings, String> {
+    let mut json = serde_json::to_value(settings).map_err(|error| error.to_string())?;
+    let pointer = format!("/{}", key.replace('.', "/"));
+    let slot = json
+        .pointer_mut(&pointer)
+        .ok_or_else(|| format!("`{key}` is missing"))?;
+    *slot = value.clone();
+    serde_json::from_value(json).map_err(|error| error.to_string())
 }
 
 /// Before and after of every key `diff` names.

@@ -713,13 +713,15 @@ pub fn scenarios() -> Vec<Scenario> {
                         format!("{} rows", card.items.len())
                     })?;
                     for item in &card.items {
-                        let retention = item.key.contains("retention");
+                        let retention = item.key == "meetings.retention";
                         ensure(item.included != retention, || {
                             format!("{}: checked {}", item.key, item.included)
                         })?;
                     }
                     ensure(
-                        card.items.iter().any(|item| item.key.contains("retention")),
+                        card.items
+                            .iter()
+                            .any(|item| item.key == "meetings.retention"),
                         || "no retention row".into(),
                     )
                 }),

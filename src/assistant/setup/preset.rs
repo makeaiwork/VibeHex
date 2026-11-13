@@ -153,6 +153,9 @@ pub fn shortcuts(preset: &Preset, settings: &AppSettings) -> Option<Card> {
         let Some(value) = shortcut(raw) else {
             continue;
         };
+        if !in_use(preset, settings, key, &value) {
+            continue;
+        }
         // Those this machine can't take, or the same already, the gate
         // drops.
         let cards = changes::resolve(&[line(key, value)], &gate, Origin::Preset).cards;
@@ -174,6 +177,9 @@ pub fn shortcut_list(preset: &Preset, settings: &AppSettings) -> Vec<(String, St
         .filter(|(key, _)| settings::unavailable(key).is_none())
         .filter_map(|(key, raw)| {
             let value = shortcut(raw)?;
+            if !in_use(preset, settings, key, &value) {
+                return None;
+            }
             let place = names::place(key, settings);
             let path = place.as_ref().map(|place| place.path.to_owned());
             Some((
@@ -190,6 +196,28 @@ pub fn shortcut_list(preset: &Preset, settings: &AppSettings) -> Vec<(String, St
             (path, name.clone(), binding.clone())
         })
         .collect()
+}
+
+/// Whether `key`'s shortcut does anything once the preset is in: what it
+/// needs (its Labs feature, the double-tap lock) is on in the preset, or,
+/// where the preset says nothing of it, on already. The owner's Stop
+/// shortcut keeps its Return while the lab is off; offering it would show
+/// a key that does nothing, and saving it would turn the lab on.
+fn in_use(preset: &Preset, settings: &AppSettings, key: &str, value: &Value) -> bool {
+    let now = settings::values(settings);
+    settings::requires(key, value).iter().all(|(needs, want)| {
+        let after = preset
+            .settings
+            .get(*needs)
+            .or_else(|| preset.shortcuts.get(*needs))
+            .cloned()
+            .or_else(|| {
+                now.iter()
+                    .find(|(known, _)| known == needs)
+                    .map(|(_, value)| value.clone())
+            });
+        after.as_ref() == Some(want)
+    })
 }
 
 /// A shortcut's value as `hex settings` shows it: a binding as text
@@ -303,12 +331,22 @@ mod tests {
             "\"assistant.",
             "applications",
             "browser_hosts",
-            "providers",
             "http://",
             "https://",
             "/users/",
         ] {
             assert!(!text.contains(never), "{never}");
+        }
+        // Call services only as one listed app's choice, never the list.
+        let listed: Vec<String> = crate::app_settings::known_meeting_providers(true)
+            .map(|(key, _)| format!("meetings.providers.{key}.policy"))
+            .collect();
+        for key in preset
+            .settings
+            .keys()
+            .filter(|key| key.contains("providers"))
+        {
+            assert!(listed.contains(key), "{key}");
         }
         // Shortcuts come in a step of their own.
         for key in preset.settings.keys() {
@@ -518,5 +556,63 @@ mod tests {
         let values = changes::values(&card, &AppSettings::default()).unwrap();
         assert!(settings::check(&AppSettings::default(), &values, &shortcuts).is_ok());
         assert!(!shortcut_list(&preset, &AppSettings::default()).is_empty());
+    }
+
+    /// Zoom and both Telemosts record without asking, in one save, and
+    /// Summaries, which only decides while no notes writer is chosen,
+    /// isn't planned beside the writer.
+    #[test]
+    fn the_call_services_always_record_and_summaries_stay_out() {
+        let settings = AppSettings::default();
+        let card = plan(&denis(), &settings, &mac()).card.unwrap();
+        let keys: Vec<&str> = card.items.iter().map(|item| item.key.as_str()).collect();
+        assert!(!keys.contains(&"meetings.summaries"), "{keys:?}");
+        let values = changes::values(&card, &settings).unwrap();
+        let providers = values
+            .get("meetings.providers")
+            .expect("the policies are planned");
+        for app in [
+            "us.zoom.xos",
+            crate::app_settings::TELEMOST_APP,
+            crate::app_settings::TELEMOST_SITE,
+        ] {
+            let policy = providers
+                .as_array()
+                .and_then(|all| all.iter().find(|choice| choice["key"] == app))
+                .map(|choice| choice["policy"].clone());
+            assert_eq!(policy, Some(Value::String("always_record".into())), "{app}");
+        }
+    }
+
+    /// A shortcut whose feature the preset leaves off is neither shown nor
+    /// saved: the owner's Stop shortcut keeps Return while its lab is off,
+    /// and saving it would turn the lab on.
+    #[test]
+    fn a_shortcut_whose_feature_stays_off_is_left_out() {
+        let mut preset = denis();
+        assert_eq!(
+            preset.settings.get("labs.stop_shortcut"),
+            Some(&Value::Bool(false))
+        );
+        assert!(preset.shortcuts.contains_key("stop_hotkey"));
+        let settings = AppSettings::default();
+        let off = shortcut_list(&preset, &settings).len();
+        let saved: Vec<String> = shortcuts(&preset, &settings)
+            .into_iter()
+            .flat_map(|card| card.items)
+            .map(|item| item.key)
+            .collect();
+        assert!(
+            !saved
+                .iter()
+                .any(|key| key == "stop_hotkey" || key == "labs.stop_shortcut")
+        );
+        // On in the preset, it is offered with it.
+        preset
+            .settings
+            .insert("labs.stop_shortcut".into(), Value::Bool(true));
+        if cfg!(target_os = "macos") {
+            assert_eq!(shortcut_list(&preset, &settings).len(), off + 1);
+        }
     }
 }
