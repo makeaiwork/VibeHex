@@ -6,7 +6,8 @@
 //! **Meetings › Settings › Detected calls**). Names match the window's own
 //! words, in its language or in English, ignoring case; a path resolves to
 //! its deepest part that is known, and a name that finds nothing, or more
-//! than one place, stays bold.
+//! than one place, stays bold. A link reads in the window's words, each
+//! part written in English translated, so it matches the sidebar.
 //!
 //! Opening one selects its pane (and its Settings view, or its Labs card),
 //! lights the titles the path names inside it, section and row, the way a
@@ -23,7 +24,7 @@ use super::super::controls::Paint;
 use super::super::sidebar::Pane;
 use super::super::{general, labs};
 use crate::assistant::changes::names::{Home, WHERE};
-use crate::desktop::i18n::tr;
+use crate::desktop::i18n::{tr, tr_window};
 
 /// The titles a place link lights in its pane, outermost first, each in
 /// the lowercase forms it may show in; and whether it still has to land.
@@ -158,6 +159,23 @@ impl Known {
             }
         }
         Some(found)
+    }
+
+    /// `name` as the window shows it, when it names a place: each part
+    /// the model wrote in English in the window's words, so a Russian
+    /// window reads **Основные › Словарь**, not **General › Vocabulary**.
+    pub(in super::super) fn shown(&self, name: &str) -> Option<String> {
+        self.resolve(name)?;
+        let parts: Vec<String> = name
+            .split('›')
+            .map(|part| {
+                let words = part.trim();
+                let bare = words.trim_end_matches([':', '.']);
+                let shown = format!("{}{}", tr_window(bare), &words[bare.len()..]);
+                part.replacen(words, &shown, 1)
+            })
+            .collect();
+        Some(parts.join("›"))
     }
 }
 

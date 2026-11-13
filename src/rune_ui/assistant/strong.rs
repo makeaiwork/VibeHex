@@ -35,21 +35,25 @@ pub(in super::super) fn bolds(source: &str) -> Vec<Bold> {
     scan(source).bolds
 }
 
-/// `source` with every plain bold run that `is_place` names written as a
-/// link to it, `[**words**](hex-place:n)`, and the names linked, the n-th
-/// for `hex-place:n`. The rest is left as written.
+/// `source` with every plain bold run that `place` names written as a
+/// link to it, `[**shown**](hex-place:n)` with the words `place` gives it
+/// (the window's own), and the names linked as written, the n-th for
+/// `hex-place:n`. The rest is left as written.
 pub(in super::super) fn linked(
     source: &str,
-    is_place: impl Fn(&str) -> bool,
+    place: impl Fn(&str) -> Option<String>,
 ) -> (String, Vec<String>) {
     let mut out = String::with_capacity(source.len());
     let mut names: Vec<String> = Vec::new();
     let mut from = 0;
     for bold in bolds(source) {
         let words = &source[bold.inner.clone()];
-        if !bold.plain || !is_place(words) {
+        if !bold.plain {
             continue;
         }
+        let Some(shown) = place(words) else {
+            continue;
+        };
         let n = match names.iter().position(|name| name == words) {
             Some(n) => n,
             None => {
@@ -59,7 +63,9 @@ pub(in super::super) fn linked(
         };
         out.push_str(&source[from..bold.outer.start]);
         out.push('[');
-        out.push_str(&source[bold.outer.clone()]);
+        out.push_str(&source[bold.outer.start..bold.inner.start]);
+        out.push_str(&shown);
+        out.push_str(&source[bold.inner.end..bold.outer.end]);
         out.push_str("](");
         out.push_str(PLACE);
         out.push_str(&n.to_string());
@@ -322,8 +328,10 @@ mod tests {
             .collect()
     }
 
-    fn place(words: &str) -> bool {
-        ["General › Vocabulary", "Output", "Labs › Smart spacing"].contains(&words)
+    fn place(words: &str) -> Option<String> {
+        ["General › Vocabulary", "Output", "Labs › Smart spacing"]
+            .contains(&words)
+            .then(|| words.to_owned())
     }
 
     #[test]
@@ -360,6 +368,15 @@ mod tests {
     }
 
     #[test]
+    fn a_place_shows_in_the_words_given_and_keeps_its_name() {
+        let (out, names) = linked("Open **General › Vocabulary**.", |name| {
+            (name == "General › Vocabulary").then(|| "Основные › Словарь".to_owned())
+        });
+        assert_eq!(out, "Open [**Основные › Словарь**](hex-place:0).");
+        assert_eq!(names, ["General › Vocabulary"]);
+    }
+
+    #[test]
     fn places_in_lists_quotes_and_tables_are_linked() {
         let source = "1. Turn on **Labs › Smart spacing**.\n- **Output**\n> **Output**\n\n| Where | |\n|---|---|\n| **General › Vocabulary** | **Add** |\n";
         let (out, names) = linked(source, place);
@@ -388,7 +405,7 @@ mod tests {
     #[test]
     fn bold_with_markup_inside_is_no_name() {
         let source = "**Output `x`** and **see [1](hex-ref:1.0)** and **Out*put***";
-        let (out, _) = linked(source, |_| true);
+        let (out, _) = linked(source, |name| Some(name.to_owned()));
         assert_eq!(out, source);
     }
 

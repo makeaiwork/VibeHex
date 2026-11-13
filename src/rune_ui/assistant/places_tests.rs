@@ -178,11 +178,29 @@ fn an_answer_links_its_places_only() {
     let known = Known::of(&ui);
     let (out, names) = super::super::strong::linked(
         "Open **General › Vocabulary**, press **Add**, then **Labs › Smart spacing**.",
-        |name| known.resolve(name).is_some(),
+        |name| known.shown(name),
     );
     assert_eq!(
         out,
         "Open [**General › Vocabulary**](hex-place:0), press **Add**, then [**Labs › Smart spacing**](hex-place:1)."
     );
     assert_eq!(names, ["General › Vocabulary", "Labs › Smart spacing"]);
+}
+
+/// A place the model names in English reads in the window's words, and
+/// one already in them, or with a full stop, stays as it reads.
+#[test]
+fn a_place_shows_in_the_windows_words() {
+    let ui = ui();
+    crate::desktop::i18n::apply(Some("ru"));
+    let known = Known::of(&ui);
+    let english = known.shown("General › Vocabulary");
+    let own = known.shown("Основные › Словарь");
+    let stop = known.shown("History.");
+    let nowhere = known.shown("Nowhere");
+    crate::desktop::i18n::apply(Some("en"));
+    assert_eq!(english.as_deref(), Some("Основные › Словарь"));
+    assert_eq!(own.as_deref(), Some("Основные › Словарь"));
+    assert_eq!(stop.as_deref(), Some("История."));
+    assert_eq!(nowhere, None);
 }

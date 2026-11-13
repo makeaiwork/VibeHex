@@ -221,7 +221,8 @@ pub const PLAN_TERMS: &str = "Вот что стоит поменять.\n\n```h
 {\"term\":\"Web\",\"sounds_like\":[\"веб\"]}\n\
 ```\n\nSources: none";
 
-pub const LOOK: &str = "- В **General › Vocabulary** стоит добавить Codex: очистка четыре раза исправляла «кодекс».\n\
+pub const LOOK: &str = "Вот что из этого стоит поменять:\n\n\
+- В **General › Vocabulary** стоит добавить Codex: очистка четыре раза исправляла «кодекс».\n\
 - Диктовок в редакторы кода больше половины: проверьте **Labs › Russian vibe coding**.\n\
 - GitHub и pull request тоже просятся в словарь.\n\
 - Длинных диктовок мало, так что быстрая локальная очистка вам подходит.\n\nSources: none";

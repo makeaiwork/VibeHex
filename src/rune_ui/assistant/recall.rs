@@ -536,7 +536,7 @@ pub(in super::super) fn answer_with(
     let hover = LinkPaint::new().bg(k.alpha(accent, 0.22));
     let ring = k.alpha(accent, 0.5);
     let (source, names) = match known {
-        Some(known) => strong::linked(answer, |name| known.resolve(name).is_some()),
+        Some(known) => strong::linked(answer, |name| known.shown(name)),
         None => (answer.to_owned(), Vec::new()),
     };
     let source = marked(&source);

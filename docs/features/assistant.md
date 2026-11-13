@@ -47,8 +47,10 @@ Assistant                                        // rune_ui::assistant
 │   │           [n] marks inline, and
 │   │           "From your recordings" chips (title, date, time).
 │   │           A place in the window named in bold (General › Vocabulary,
-│   │           Labs › Smart spacing, Output) reads in the link colour and
-│   │           opens it; other bold words are full-brightness text
+│   │           Labs › Smart spacing, Output) reads in the link colour, in
+│   │           the window's words (Основные › Словарь in a Russian window,
+│   │           however the model wrote it), and opens it; other bold
+│   │           words are full-brightness text
 │   ├── Consent the first question about recordings, before anything is
 │   │           read: "Read your meetings, files, and dictations?", the model
 │   │           the passages go to, Allow or Answer without recordings
@@ -605,8 +607,9 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   - On a remote model (Codex, OpenCode, OpenRouter, your own server) with
     the use read, the model then looks (`Stage::Look`, `SETUP_LOOK`): the
     step "Read your settings, 972 dictations and 5 meetings" shows while
-    it writes and folds to one grey line with its seconds, then 2 to 4
-    concrete suggestions, each tied to a fact (what is new and fits, a
+    it writes and folds to one grey line with its seconds, then one short
+    line leading into the list ("Вот что из этого стоит поменять:") and 2
+    to 4 concrete suggestions, each tied to a fact (what is new and fits, a
     term cleanup keeps fixing), and round one folded after them, even if
     the model fails. Try again looks again. It reads `<since_last_setup>`
     (the last setup's answers, applied, declined; releases; the use's
