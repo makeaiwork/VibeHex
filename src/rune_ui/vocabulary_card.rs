@@ -15,17 +15,17 @@ use std::time::Duration;
 
 use rune::{
     Cx, El, KeyPolicy, OverlayHandle, OverlayInput, OverlayOptions, OverlayPlacement, OverlaySpec,
-    ScreenEdge, TextEdit, Tx, col, el, row, text,
+    ScreenEdge, TextEdit, Tx, col,
 };
-use rune_kit::{Button, ButtonVariant, TextInput};
 
-use super::controls::{DESCRIPTION, Paint, PushSize};
+use super::controls::Paint;
+use super::vocabulary::card as panel;
 use crate::accessibility::Selection;
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::vocabulary::{self, VocabularyEntry};
 
 /// The overlay's size: the card and room for its shadow.
-const SIZE: (f32, f32) = (460.0, 210.0);
+const SIZE: (f32, f32) = (panel::WIDTH + 24.0, 210.0);
 /// The card's distance below the top of the screen's work area, until it
 /// is first placed by its selection.
 const MARGIN: f32 = 56.0;
@@ -33,7 +33,6 @@ const MARGIN: f32 = 56.0;
 const GAP: f64 = 6.0;
 /// The pointer's own height below its hot spot, which the card stays clear of.
 const POINTER_HEIGHT: f64 = 20.0;
-const LABEL_WIDTH: f32 = 96.0;
 
 /// Saves `term` with `heard` as one of its spellings; the error says why
 /// it couldn't.
@@ -385,55 +384,22 @@ fn on_focus(card: &mut Card, focused: bool, _: &mut Tx) {
     }
 }
 
-fn field(
-    p: Paint,
-    key: &'static str,
-    label: &str,
-    edit: &TextEdit,
-    placeholder: &str,
-    access: fn(&mut Card) -> &mut TextEdit,
-) -> El {
-    row()
-        .key(key)
-        .gap(10.0)
-        .center_y()
-        .child(
-            text(label.to_string())
-                .key("label")
-                .w(LABEL_WIDTH)
-                .font(p.k.ty.ui)
-                .color(p.muted()),
-        )
-        .child(
-            TextInput::new(edit)
-                .placeholder(placeholder)
-                .width(None)
-                .on_edit(access)
-                .on_submit(|card: &mut Card, _: &mut Tx| add(card))
-                .build(p.k)
-                .key("input")
-                .grow(1.0)
-                .shrink(),
-        )
-}
-
-fn heard_field(card: &mut Card) -> &mut TextEdit {
-    &mut card.heard
-}
-
-fn term_field(card: &mut Card) -> &mut TextEdit {
-    &mut card.term
+fn card_field(card: &mut Card, term: bool) -> &mut TextEdit {
+    if term {
+        &mut card.term
+    } else {
+        &mut card.heard
+    }
 }
 
 fn view(card: &Card, cx: &mut Cx<Card>) -> El {
     let p = Paint::new(cx.system_dark(), cx.env().scale);
-    let c = &p.k.c;
     let mut notes = Vec::new();
     if let Some(error) = &card.error {
         notes.push((tr_fill("Couldn't save: {}", error), p.danger()));
     }
     if let Some(cleaned) = &card.cleaned {
-        notes.push((tr_fill("AI cleanup wrote it as {}", cleaned), p.muted()));
+        notes.push(panel::cleaned_note(p, cleaned));
     }
     if card.source.as_ref().is_some_and(|source| !source.editable) {
         notes.push((
@@ -441,71 +407,17 @@ fn view(card: &Card, cx: &mut Cx<Card>) -> El {
             p.muted(),
         ));
     }
-    let mut panel = col()
-        .key("card")
-        .role("dialog")
-        .label(tr("Add to vocabulary"))
-        .w(SIZE.0 - 24.0)
-        .padding(16.0)
-        .gap(10.0)
-        .radius(p.k.radius.xl)
-        .fill(c.bg_base)
-        .border(p.hair, c.border_weak)
-        .child(
-            text(tr("Add to vocabulary"))
-                .key("title")
-                .font(p.k.ty.body_medium)
-                .color(p.text()),
-        )
-        .child(field(
-            p,
-            "heard",
-            tr("Heard"),
-            &card.heard,
-            tr("What was transcribed"),
-            heard_field,
-        ))
-        .child(field(
-            p,
-            "term",
-            tr("Should be"),
-            &card.term,
-            tr("The right spelling"),
-            term_field,
-        ));
-    for (index, (note, color)) in notes.into_iter().enumerate() {
-        panel = panel.child(
-            text(note)
-                .key(format!("note-{index}"))
-                .font(DESCRIPTION)
-                .color(color)
-                .wrap(),
-        );
-    }
-    panel = panel.child(
-        row()
-            .key("footer")
-            .gap(10.0)
-            .center_y()
-            .child(el().key("spacer").grow(1.0))
-            .child(
-                Button::new(tr("Cancel"))
-                    .variant(ButtonVariant::Neutral)
-                    .on_press_tx(|card: &mut Card, _: &mut Tx| close(card))
-                    .build_push(p.k)
-                    .key("cancel"),
-            )
-            .child(
-                Button::new(tr("Add"))
-                    .variant(ButtonVariant::Contrast)
-                    .on_press_tx(|card: &mut Card, _: &mut Tx| add(card))
-                    .build_push(p.k)
-                    .key("add"),
-            ),
+    let panel = panel::panel(
+        p,
+        panel::Panel {
+            heard: &card.heard,
+            term: &card.term,
+            notes,
+            field: card_field,
+            add,
+            cancel: close,
+        },
     );
-    for shadow in &p.k.elevation.overlay {
-        panel = panel.box_shadow(*shadow);
-    }
     let root = col()
         .key("vocabulary-card")
         .w_full()

@@ -2181,9 +2181,10 @@ Checks: `a_pasted_list_reads_terms_and_spellings_per_line`,
 `text_view_saves_the_list_it_shows`,
 `leaving_text_view_without_save_keeps_the_list`, and
 `an_emptied_text_view_saves_no_terms` in
-[rune_ui/vocabulary.rs](../../src/rune_ui/vocabulary.rs); scene
-`mac-settings-vocabulary-text` (no golden). Not yet observed: Text view in a
-running Hex.
+[rune_ui/vocabulary.rs](../../src/rune_ui/vocabulary.rs); scenes
+`mac-settings-vocabulary-text` (the Russian starter list, no golden) and
+`mac-settings-vocabulary-text-en` (English developer terms, golden). Not yet
+observed: Text view in a running Hex.
 
 Add to vocabulary from a selection (`vocabulary-quick-add`, macOS): turn a
 misheard word into a Vocabulary entry where it was misheard.
@@ -2202,7 +2203,8 @@ misheard word into a Vocabulary entry where it was misheard.
 │   │           the selection (AXBoundsForRange of AXSelectedTextRange), above it when
 │   │           the screen ends first, at the pointer when the app gives no bounds, kept
 │   │           on that screen's visible frame: Heard (the selection) and Should be
-│   │           (focused; prefilled when Heard is already a term's spelling)
+│   │           (focused; prefilled when Heard is already a term's spelling); its panel
+│   │           is rune_ui/vocabulary/card.rs, shared with the window's scenes
 │   ├── Cleaned   a word AI cleanup wrote ("Directus" for a heard "Динкдан"): Heard is
 │   │             what transcription wrote there, Should be the selection, and the card
 │   │             says "AI cleanup wrote it as …" (dictation::heard_before: the newest 100
@@ -2229,8 +2231,11 @@ Checks: `the_vocabulary_shortcut_needs_its_lab_and_its_own_keys` in
 [app_settings.rs](../../src/app_settings.rs), `a_listed_spelling_or_term_finds_its_term` and `the_card_sits_by_its_selection`
 in [rune_ui/vocabulary_card.rs](../../src/rune_ui/vocabulary_card.rs), the alignment and the entry's choice in
 [dictation/heard_before.rs](../../src/dictation/heard_before.rs), the taps in
-[suppression/modifier_tap.rs](../../src/suppression/modifier_tap.rs). The card
-has no scene. Observed: AXSelectedText alone was settable almost nowhere (three tries,
+[suppression/modifier_tap.rs](../../src/suppression/modifier_tap.rs). Scenes
+`vocabulary-card` (Should be empty and focused), `vocabulary-card-filled`, and
+`vocabulary-card-cleanup` hold the card's panel in the window on its backdrop
+(goldens for the last two), so every OS renders it; Add and Cancel close it
+there with nothing saved. Observed: AXSelectedText alone was settable almost nowhere (three tries,
 all `replaceable=false`), hence the paste, as AliceMate does. Not yet
 observed: the paste replacement in a running Hex across native, Chromium,
 and terminal apps. Observed against the real History: "Directus", "Claude

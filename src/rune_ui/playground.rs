@@ -67,6 +67,19 @@ const PATHS: &[(&str, &str)] = &[
         "Window/General/Vocabulary text view",
     ),
     (
+        "mac-settings-vocabulary-text-en",
+        "Window/General/Vocabulary text view in English",
+    ),
+    ("vocabulary-card", "Window/General/Add to vocabulary card"),
+    (
+        "vocabulary-card-filled",
+        "Window/General/Add to vocabulary card filled",
+    ),
+    (
+        "vocabulary-card-cleanup",
+        "Window/General/Add to vocabulary card after AI cleanup",
+    ),
+    (
         "mac-settings-vocabulary-empty",
         "Window/General/Vocabulary · empty",
     ),
