@@ -117,8 +117,8 @@ Opened from a place link                         // rune_ui::assistant::places
 └── Titles      the section and row the path names, their words lit in
                 the accent; the deepest lands a third of the way down, its
                 Advanced fold opened when it is under one; a lab: Labs on
-                its group, its card's title lit and the card whole in a
-                soft warm tint with a ring (warning tokens). Lit until another pane
+                its group, the card whole in a soft warm tint with a ring
+                (warning tokens), its title untinted. Lit until another pane
 ```
 
 ## Language
