@@ -252,6 +252,7 @@ mod tests {
             count: 4,
             heard: vec!["гранола".into()],
             fixed,
+            sounds: Vec::new(),
         };
         let usage = Usage {
             dictations: 80,

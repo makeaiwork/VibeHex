@@ -422,7 +422,11 @@ pub fn candidates(usage: &Usage) -> Vec<Candidate> {
         .iter()
         .map(|term| Candidate {
             term: term.word.clone(),
-            sounds_like: term.heard.clone(),
+            // How cleanup heard it, else how History has it heard.
+            sounds_like: match term.heard.is_empty() {
+                true => term.sounds.clone(),
+                false => term.heard.clone(),
+            },
             sure: term.sure(),
         })
         .collect()
@@ -495,6 +499,7 @@ mod tests {
                 count: 9,
                 heard: vec!["гитхаб".into()],
                 fixed: 9,
+                sounds: Vec::new(),
             }],
             fixes: vec![Fix {
                 heard: "гитхаб".into(),
@@ -763,11 +768,22 @@ mod tests {
             count: 4,
             heard: vec!["супабейс".into()],
             fixed: 2,
+            sounds: Vec::new(),
+        });
+        // Never fixed: how History has it heard is how it sounds.
+        usage.terms.push(Term {
+            word: "LEPS".into(),
+            count: 5,
+            heard: Vec::new(),
+            fixed: 0,
+            sounds: vec!["лепс".into()],
         });
         let candidates = candidates(&usage);
-        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates.len(), 3);
         assert_eq!(candidates[0].term, "GitHub");
         assert_eq!(candidates[0].sounds_like, ["гитхаб"]);
         assert!(candidates[0].sure && !candidates[1].sure);
+        assert_eq!(candidates[2].sounds_like, ["лепс"]);
+        assert!(!candidates[2].sure);
     }
 }

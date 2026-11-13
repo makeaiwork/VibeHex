@@ -16,6 +16,7 @@ pub mod heard;
 mod meetings;
 pub mod read;
 mod shelf;
+mod sounds;
 mod spoken;
 pub mod terms;
 mod texts;

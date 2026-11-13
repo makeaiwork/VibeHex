@@ -201,6 +201,7 @@ fn term(word: String, count: usize, into: &[&Fix]) -> Term {
             .map(|fix| fix.heard.clone())
             .collect(),
         fixed: into.iter().map(|fix| fix.count).max().unwrap_or(0),
+        sounds: Vec::new(),
     }
 }
 
