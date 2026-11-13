@@ -16,6 +16,7 @@ pub mod counts;
 pub mod names;
 pub mod parse;
 pub mod parts;
+pub mod shortcuts;
 pub mod state;
 pub mod vocab;
 pub mod vocab_edit;
@@ -98,6 +99,9 @@ pub enum CardKind {
     Vocabulary,
     /// Entries already in Vocabulary, each before → after (`vocab_edit`).
     VocabularyEdit,
+    /// Shortcuts, each recorded in its row; the changed ones saved
+    /// together (`shortcuts`).
+    Shortcuts,
 }
 
 /// One key a card changes.

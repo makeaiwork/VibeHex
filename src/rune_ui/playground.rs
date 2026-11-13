@@ -314,6 +314,18 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/Denis's shortcuts",
     ),
     (
+        "assistant-setup-preset-shortcuts-recording",
+        "Window/Assistant/Setup/Denis's shortcuts, a row recording",
+    ),
+    (
+        "assistant-setup-preset-shortcuts-recorded",
+        "Window/Assistant/Setup/Denis's shortcuts, a key recorded instead",
+    ),
+    (
+        "assistant-shortcuts-card",
+        "Window/Assistant/Cards/Shortcuts card in an answer",
+    ),
+    (
         "assistant-setup-preset-terms",
         "Window/Assistant/Setup/Set up like Denis, the terms unfolded",
     ),

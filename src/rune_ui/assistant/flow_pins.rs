@@ -65,6 +65,7 @@ fn shape(turn: &Turn) -> String {
     for card in &turn.cards {
         let kind = match card.kind {
             CardKind::Plan => "plan",
+            CardKind::Shortcuts => "shortcuts",
             _ => "card",
         };
         let decision = match &card.decision {
@@ -258,18 +259,21 @@ fn the_preset_then_its_shortcuts() {
     changes::decline(&mut ui, plan);
     pin(&ui, "Not now", PRESET[1]);
 
-    let id = ui.assistant.open.unwrap();
-    super::preset::use_these(&mut ui, id);
+    let shortcuts = changes::At { turn: 1, ..plan };
+    changes::apply(&mut ui, shortcuts);
     pin(&ui, "Use these", PRESET[2]);
+
+    changes::undo(&mut ui, shortcuts);
+    pin(&ui, "Undo", PRESET[3]);
 
     // Another conversation: the plan applied, then Keep mine.
     ui.assistant.open = None;
     super::preset::begin(&mut ui, String::new());
     let plan = plan_at(&ui);
     changes::apply(&mut ui, plan);
-    let id = ui.assistant.open.unwrap();
-    super::preset::keep_mine(&mut ui, id);
-    pin(&ui, "again: Apply, Keep mine", PRESET[3]);
+    let shortcuts = changes::At { turn: 1, ..plan };
+    changes::decline(&mut ui, shortcuts);
+    pin(&ui, "again: Apply, Keep mine", PRESET[4]);
 }
 
 const FIRST: [&[&str]; 10] = [
@@ -342,24 +346,27 @@ const FIRST: [&[&str]; 10] = [
     ],
 ];
 
-const PRESET: [&[&str]; 4] = [
+const PRESET: [&[&str]; 5] = [
     // Or set it up like Denis
     &["answer preset=settings plan(134/135 open)"],
     // Not now
     &[
         "answer preset=settings plan(134/135 declined)",
-        "answer preset=shortcuts",
+        "answer preset=shortcuts shortcuts(3/8 open)",
     ],
     // Use these
     &[
         "answer preset=settings plan(134/135 declined)",
-        "answer preset=shortcuts",
-        "question answer preset=shortcuts-plan plan(3/3 open)",
+        "answer preset=shortcuts shortcuts(3/8 applied)",
+    ],
+    // Undo
+    &[
+        "answer preset=settings plan(134/135 declined)",
+        "answer preset=shortcuts shortcuts(3/8 undone)",
     ],
     // again: Apply, Keep mine
     &[
         "answer preset=settings plan(134/135 applied)",
-        "answer preset=shortcuts",
-        "question answer preset=done",
+        "answer preset=shortcuts shortcuts(3/8 declined)",
     ],
 ];

@@ -836,6 +836,41 @@ mod tests {
         assert_eq!(turn.refused[0].why, changes::Why::Unknown);
     }
 
+    /// A question about one's shortcuts gets the shortcuts card, whatever
+    /// the model wrote, and the model is told it comes; a key the model
+    /// named joins it.
+    #[test]
+    fn a_question_about_shortcuts_gets_the_shortcuts_card() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let told = Arc::new(Mutex::new(false));
+        let seen = told.clone();
+        let generate: Generate = Box::new(move |instructions, _, _, _| {
+            *seen.lock().unwrap() = instructions.contains("The app shows a card under your answer");
+            Ok("Here they are.\n```hex-change\n{\"key\":\"paste_last_hotkey\",\"value\":\"control+shift+v\"}\n```".into())
+        });
+        assert!(start(
+            with_changes("Help me set up my shortcuts"),
+            Room::Small,
+            "Local".into(),
+            generate,
+            true
+        ));
+        let (_, turn) = finished();
+        assert!(*told.lock().unwrap(), "the model wasn't told of the card");
+        assert_eq!(turn.cards.len(), 1, "{:?}", turn.cards);
+        let card = &turn.cards[0];
+        assert_eq!(card.kind, changes::CardKind::Shortcuts);
+        let paste = card
+            .items
+            .iter()
+            .find(|item| item.key == "paste_last_hotkey")
+            .unwrap();
+        assert!(paste.included);
+        assert_eq!(card.items.iter().filter(|item| item.included).count(), 1);
+    }
+
     /// A remote model gets one silent round to fix refused lines.
     #[test]
     fn a_remote_model_repairs_its_refused_lines_once() {

@@ -813,6 +813,15 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::setup_fixture::setup_preset_shortcuts,
     ),
     (
+        "assistant-setup-preset-shortcuts-recording",
+        assistant::keys::preset_recording,
+    ),
+    (
+        "assistant-setup-preset-shortcuts-recorded",
+        assistant::keys::preset_recorded,
+    ),
+    ("assistant-shortcuts-card", assistant::keys::answer),
+    (
         "assistant-setup-preset-terms",
         assistant::terms_fixture::preset_terms_open,
     ),

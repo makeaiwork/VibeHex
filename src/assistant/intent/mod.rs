@@ -25,6 +25,7 @@ pub mod preset;
 mod releases;
 mod route;
 mod setup;
+mod shortcuts;
 mod spoken;
 mod stop;
 
@@ -33,6 +34,7 @@ pub use follow::carried;
 pub use releases::releases;
 pub use route::{Reads, Route, preset_not_offered, reads, route};
 pub use setup::setup;
+pub use shortcuts::shortcuts;
 pub use spoken::forms as spoken_forms_of;
 use stop::STOP;
 

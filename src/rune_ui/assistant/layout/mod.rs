@@ -32,6 +32,14 @@ pub(super) const RULES: Rules = Rules {
             "a quiet select hangs 8 pt past its row's edge, so its words end where the row's do",
         ),
         (
+            "shortcut-keys",
+            "the shortcuts card's rows hold General's recorder, 3 pt wider than its control",
+        ),
+        (
+            "shortcut-mode-trigger",
+            "the shortcuts card's Shortcut mode is a quiet select, 8 pt past its row's edge",
+        ),
+        (
             "dictation-hotkey",
             "General's shortcut recorder, 3 pt wider than its control: a place Assistant opens, not its surface",
         ),

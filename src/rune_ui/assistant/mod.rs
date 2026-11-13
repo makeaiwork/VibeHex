@@ -29,6 +29,7 @@ mod invite_tests;
 #[cfg(all(test, target_os = "macos"))]
 mod flow_pins;
 pub(super) mod jump;
+pub(super) mod keys;
 mod knew;
 #[cfg(test)]
 mod layout;
@@ -53,6 +54,7 @@ mod vocab_edit;
 mod web;
 pub(super) mod whats_new;
 
+pub(super) use keys::recorded;
 pub(super) use value::ValueAt;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
@@ -118,6 +120,8 @@ pub(in super::super) struct AssistantPane {
     /// Cards applied in the open conversation this session: Undo holds
     /// for them until another conversation opens (owner decision 2).
     pub(super) undo: Vec<changes::At>,
+    /// The shortcuts card's row recording a key, while it records.
+    pub(super) recording: Option<(changes::At, usize)>,
     /// Setup plans whose "Already set" is unfolded.
     pub(super) kept_open: Vec<changes::At>,
     /// Plans whose Vocabulary terms are folded the other way than they

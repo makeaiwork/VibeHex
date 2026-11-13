@@ -79,6 +79,15 @@ pub(super) const SURFACES: &[Surface] = &[
         scenes: &["assistant-long-values", "assistant-long-values-open"],
     },
     Surface {
+        name: "Shortcuts card",
+        test: "shortcuts_card",
+        scenes: &[
+            "assistant-shortcuts-card",
+            "assistant-setup-preset-shortcuts-recording",
+            "assistant-setup-preset-shortcuts-recorded",
+        ],
+    },
+    Surface {
         name: "Vocabulary edit card",
         test: "vocabulary_edit_card",
         scenes: &["assistant-vocab-edit"],
@@ -222,6 +231,7 @@ surfaces!(
     plan_with_its_terms_folded,
     plan_with_its_terms_unfolded,
     plan_with_long_values,
+    shortcuts_card,
     vocabulary_edit_card,
     follow_up_round,
     returning_opener,

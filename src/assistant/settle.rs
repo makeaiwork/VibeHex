@@ -197,6 +197,16 @@ pub(super) fn settle(
         cards = card.into_iter().collect();
         dropped.extend(more);
     }
+    // A question about one's shortcuts gets the shortcuts card, whatever
+    // the model wrote: the keys it named for them join it.
+    if question.setup == Stage::None
+        && let Some(only) = super::intent::shortcuts(&question.question)
+        && let Some(mut card) =
+            changes::shortcuts::card(settings, &Default::default(), &Default::default(), &only)
+    {
+        changes::shortcuts::take(&mut card, &mut cards);
+        cards.push(card);
+    }
     Settled {
         reply,
         cards,

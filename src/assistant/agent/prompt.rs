@@ -208,6 +208,9 @@ pub fn first(question: &Question, limits: Limits) -> First {
     );
     if let Some(context) = context {
         instructions.push_str(base::CHANGES);
+        instructions.push_str(crate::assistant::changes::shortcuts::note(
+            &question.question,
+        ));
         if context.send() {
             instructions.push_str(base::PERSONAL);
         }

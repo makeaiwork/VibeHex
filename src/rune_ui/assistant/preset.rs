@@ -1,17 +1,13 @@
 //! "Set me up like Denis" in the pane: the owner's settings as one plan
 //! (`assistant::setup::preset`), no model asked, and only where it is
-//! offered (`preset::offered`: Russian recognition). Once it is applied or put
-//! off, a second step shows his shortcuts and asks whether they suit:
-//! "Use these" makes them a plan of their own, with Undo; "Keep mine"
-//! leaves them; typing a key instead asks the model, whose change card
-//! goes through the same check as any other.
-
-use rune::{El, row, text};
+//! offered (`preset::offered`: Russian recognition). Once it is applied or
+//! put off, a second step shows his shortcuts as the shortcuts card
+//! (`keys`): a recorder per row, "Use these" saving them with Undo, "Keep
+//! mine" leaving them. A message typed meanwhile is a question like any
+//! other.
 
 use super::super::Ui;
-use super::super::controls::{DESCRIPTION, Paint};
-use super::super::lists::small_button;
-use crate::assistant::setup::flow::{self, Event, Flow, Step};
+use crate::assistant::setup::flow::{Event, Flow};
 use crate::desktop::i18n::tr;
 
 /// Starts the preset: in the open conversation when `question` was typed
@@ -44,55 +40,13 @@ pub(super) fn begin(ui: &mut Ui, question: String) {
     super::ask::perform(ui, id, effects);
 }
 
-/// Under the shortcuts while they wait: Use these, Keep mine, and that a
-/// key typed instead works too.
-pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize) -> Option<El> {
-    let pane = &ui.assistant;
-    let stands = pane
-        .store
-        .get(conversation)
-        .map(|open| flow::step(&open.turns, pane.store.setups()));
-    if stands != Some(Step::Shortcuts { turn: index }) || pane.answering.is_some() {
-        return None;
-    }
-    Some(
-        row()
-            .key("preset-shortcuts")
-            .gap(8.0)
-            .center_y()
-            .flex_wrap()
-            .child(small_button(p, "use", tr("Use these"), move |ui, _| {
-                use_these(ui, conversation)
-            }))
-            .child(small_button(p, "keep", tr("Keep mine"), move |ui, _| {
-                keep_mine(ui, conversation)
-            }))
-            .child(
-                text(tr("or type the key you'd like instead"))
-                    .key("type")
-                    .font(DESCRIPTION)
-                    .color(p.faint())
-                    .wrap()
-                    .shrink(),
-            ),
-    )
-}
-
-/// The owner's shortcuts as a plan of their own.
-pub(super) fn use_these(ui: &mut Ui, id: u32) {
-    super::ask::send(ui, id, Event::UseShortcuts);
-}
-
-pub(super) fn keep_mine(ui: &mut Ui, id: u32) {
-    super::ask::send(ui, id, Event::KeepShortcuts);
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::ask::decided;
     use super::super::changes::{self, At};
     use super::*;
-    use crate::assistant::setup::flow::{SETTINGS, SHORTCUTS, SHORTCUTS_PLAN};
+    use crate::assistant::changes::CardKind;
+    use crate::assistant::setup::flow::{self, SETTINGS, SHORTCUTS, Step};
     use crate::assistant::store::Turn;
 
     fn turns(ui: &Ui) -> Vec<Turn> {
@@ -126,16 +80,32 @@ mod tests {
         decided(&mut ui, at);
         let second = turns(&ui)[1].clone();
         assert_eq!(second.preset, SHORTCUTS);
-        assert!(second.answer.contains("dictation") || second.answer.contains("Dictation"));
+        assert_eq!(second.cards[0].kind, CardKind::Shortcuts);
+        let keys: Vec<&str> = second.cards[0]
+            .items
+            .iter()
+            .map(|item| item.key.as_str())
+            .collect();
+        assert!(keys.contains(&"dictation_hotkey"), "{keys:?}");
         // Deciding again doesn't ask twice.
         decided(&mut ui, at);
         assert_eq!(turns(&ui).len(), 2);
-        let id = ui.assistant.open.unwrap();
-        use_these(&mut ui, id);
-        let third = turns(&ui)[2].clone();
-        assert_eq!(third.preset, SHORTCUTS_PLAN);
-        if let Some(card) = third.cards.first() {
-            assert!(card.items.iter().all(|item| item.included));
-        }
+        // Use these is the card's save: the step is done, nothing pushed.
+        let shortcuts = At {
+            conversation: at.conversation,
+            turn: 1,
+            card: 0,
+        };
+        changes::apply(&mut ui, shortcuts);
+        assert!(matches!(
+            turns(&ui)[1].cards[0].decision,
+            crate::assistant::changes::Decision::Applied { .. }
+        ));
+        assert_eq!(turns(&ui).len(), 2);
+        let open = ui.assistant.conversation().unwrap();
+        assert_eq!(
+            flow::step(&open.turns, ui.assistant.store.setups()),
+            Step::Done
+        );
     }
 }

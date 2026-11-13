@@ -19,6 +19,14 @@ on Linux (Ctrl+Alt+Space on GNOME and KDE). On Linux Wayland without shortcut
 support there is no recorder: bind the `hex dictation` commands in your
 desktop's keyboard settings.
 
+## Set them with Assistant
+
+Ask Assistant "help me set up my shortcuts" or "which keys do I have?"
+(«помоги настроить горячие клавиши»). It answers with a card of the shortcuts
+you use, each with General's recorder: click one, press the keys (Esc cancels),
+then **Save**. A key another shortcut has is refused as Already in use, and
+**Undo** puts them back.
+
 ## Choose how it works
 
 General › Shortcut mode:

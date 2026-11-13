@@ -71,7 +71,7 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
     // A vocabulary card's rows, like a plan's, show the rest.
     if matches!(
         card.kind,
-        CardKind::Plan | CardKind::Vocabulary | CardKind::VocabularyEdit
+        CardKind::Plan | CardKind::Vocabulary | CardKind::VocabularyEdit | CardKind::Shortcuts
     ) {
         return plan(card, live);
     }

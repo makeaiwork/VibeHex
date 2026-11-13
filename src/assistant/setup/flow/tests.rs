@@ -72,7 +72,6 @@ fn stands(flow: &Flow) -> &'static str {
         Step::Plan { .. } => "Plan",
         Step::PresetPlan { .. } => "PresetPlan",
         Step::Shortcuts { .. } => "Shortcuts",
-        Step::ShortcutsPlan { .. } => "ShortcutsPlan",
         Step::Done => "Done",
     }
 }
@@ -718,16 +717,20 @@ fn the_preset_then_its_shortcuts() {
         run.decide("not now", Decision::Declined);
         // Decided again: the shortcuts aren't asked twice.
         run.send("not now again", Event::Decided { turn: 0, card: 0 });
+        let card = &run.flow.turns[1].cards[0];
+        assert_eq!(card.kind, CardKind::Shortcuts);
+        assert!(card.items.iter().any(|item| item.included));
         let mut kept = Run {
             settings: run.settings.clone(),
             flow: run.flow.clone(),
             ..Run::new(false)
         };
-        let effects = run.send("use these", Event::UseShortcuts);
-        assert_eq!(effects.len(), 1);
-        kept.send("keep mine", Event::KeepShortcuts);
-        run.trace.pop();
-        run.trace.extend(kept.trace);
+        // Use these is the card's save; Keep mine puts it off. Either
+        // way the preset is done, and nothing more is pushed.
+        let effects = run.decide("use these", applied());
+        assert!(effects.is_empty());
+        kept.decide("keep mine", Decision::Declined);
+        run.trace.extend(kept.trace.split_off(kept.trace.len() - 1));
         run.trace
     });
     assert_eq!(
@@ -737,7 +740,8 @@ fn the_preset_then_its_shortcuts() {
             "preset: push preset settings -> PresetPlan",
             "not now: push preset shortcuts -> Shortcuts",
             "not now again:  -> Shortcuts",
-            "keep mine: push preset done -> Done",
+            "use these:  -> Done",
+            "keep mine:  -> Done",
         ]
     );
 }

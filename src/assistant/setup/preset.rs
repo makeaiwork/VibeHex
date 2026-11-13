@@ -168,81 +168,19 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
     planned
 }
 
-/// The preset's shortcuts as a plan, each as `hex settings set` takes it;
-/// those already the same, or that this machine can't take, left out.
+/// The preset's shortcuts as the shortcuts card (`changes::shortcuts`):
+/// a row per shortcut this machine has and whose feature is in use once
+/// the preset is in, each from the person's binding to Denis's. A row
+/// already the same is no change, and reads as already set. The owner's
+/// Stop shortcut keeps its Return while the lab is off; offering it would
+/// show a key that does nothing, and saving it would turn the lab on.
 pub fn shortcuts(preset: &Preset, settings: &AppSettings) -> Option<Card> {
-    let state = State::default();
-    let gate = Gate::new(settings, &state);
-    let mut items = Vec::new();
-    for (key, raw) in &preset.shortcuts {
-        let Some(value) = shortcut(raw) else {
-            continue;
-        };
-        if !in_use(preset, settings, key, &value) {
-            continue;
-        }
-        // Those this machine can't take, or the same already, the gate
-        // drops.
-        let cards = changes::resolve(&[line(key, value)], &gate, Origin::Preset).cards;
-        items.extend(cards.into_iter().flat_map(|card| card.items));
-    }
-    (!items.is_empty()).then(|| Card {
-        kind: CardKind::Plan,
-        items,
-        ..Card::default()
-    })
-}
-
-/// The preset's shortcuts as the person reads them: where each is (only
-/// when another has the same name), its name, and its binding.
-pub fn shortcut_list(preset: &Preset, settings: &AppSettings) -> Vec<(String, String, String)> {
-    let rows: Vec<(String, String, String)> = preset
+    let proposed: Map<String, Value> = preset
         .shortcuts
         .iter()
-        .filter(|(key, _)| settings::unavailable(key).is_none())
-        .filter_map(|(key, raw)| {
-            let value = shortcut(raw)?;
-            if !in_use(preset, settings, key, &value) {
-                return None;
-            }
-            let place = names::place(key, settings);
-            let path = place.as_ref().map(|place| place.path.to_owned());
-            Some((
-                path.unwrap_or_default(),
-                name(key, settings),
-                names::label(key, &value),
-            ))
-        })
+        .filter_map(|(key, raw)| Some((key.clone(), shortcut(raw)?)))
         .collect();
-    rows.iter()
-        .map(|(path, name, binding)| {
-            let twice = rows.iter().filter(|(_, other, _)| other == name).count() > 1;
-            let path = if twice { path.clone() } else { String::new() };
-            (path, name.clone(), binding.clone())
-        })
-        .collect()
-}
-
-/// Whether `key`'s shortcut does anything once the preset is in: what it
-/// needs (its Labs feature, the double-tap lock) is on in the preset, or,
-/// where the preset says nothing of it, on already. The owner's Stop
-/// shortcut keeps its Return while the lab is off; offering it would show
-/// a key that does nothing, and saving it would turn the lab on.
-fn in_use(preset: &Preset, settings: &AppSettings, key: &str, value: &Value) -> bool {
-    let now = settings::values(settings);
-    settings::requires(key, value).iter().all(|(needs, want)| {
-        let after = preset
-            .settings
-            .get(*needs)
-            .or_else(|| preset.shortcuts.get(*needs))
-            .cloned()
-            .or_else(|| {
-                now.iter()
-                    .find(|(known, _)| known == needs)
-                    .map(|(_, value)| value.clone())
-            });
-        after.as_ref() == Some(want)
-    })
+    changes::shortcuts::card(settings, &proposed, &preset.settings, &[])
 }
 
 /// A shortcut's value as `hex settings` shows it: a binding as text
@@ -580,7 +518,42 @@ mod tests {
         let shortcuts = crate::rune_ui::shortcut_rules();
         let values = changes::values(&card, &AppSettings::default()).unwrap();
         assert!(settings::check(&AppSettings::default(), &values, &shortcuts).is_ok());
-        assert!(!shortcut_list(&preset, &AppSettings::default()).is_empty());
+        // Every row is a shortcut or the mode; a row already the same is
+        // no change.
+        for item in &card.items {
+            assert!(changes::shortcuts::is_key(&item.key), "{}", item.key);
+            assert_eq!(item.included, item.from != item.to, "{}", item.key);
+        }
+    }
+
+    /// Use these saves what was recorded in place of Denis's: one save,
+    /// the recorded key in the row's place, the rest Denis's.
+    #[test]
+    fn a_key_recorded_replaces_denis_s_in_the_save() {
+        let settings = AppSettings::default();
+        let mut card = shortcuts(&denis(), &settings).unwrap();
+        let paste = card
+            .items
+            .iter()
+            .position(|item| item.key == "paste_last_hotkey")
+            .unwrap();
+        let recorded = Value::String("control+shift+v".into());
+        changes::shortcuts::set(&mut card, paste, recorded.clone());
+        let values = changes::values(&card, &settings).unwrap();
+        assert_eq!(values.get("paste_last_hotkey"), Some(&recorded));
+        let saved = settings::check(&settings, &values, &crate::rune_ui::shortcut_rules())
+            .unwrap()
+            .settings;
+        assert_eq!(
+            changes::current(&saved, "paste_last_hotkey"),
+            Some(recorded)
+        );
+        if cfg!(target_os = "macos") {
+            assert_eq!(
+                changes::current(&saved, "dictation_hotkey"),
+                Some(Value::String("right-option".into()))
+            );
+        }
     }
 
     /// Zoom and both Telemosts record without asking, in one save, and
@@ -637,7 +610,9 @@ mod tests {
         );
         assert!(preset.shortcuts.contains_key("stop_hotkey"));
         let settings = AppSettings::default();
-        let off = shortcut_list(&preset, &settings).len();
+        let rows =
+            |preset: &Preset| shortcuts(preset, &settings).map_or(0, |card| card.items.len());
+        let off = rows(&preset);
         let saved: Vec<String> = shortcuts(&preset, &settings)
             .into_iter()
             .flat_map(|card| card.items)
@@ -653,7 +628,7 @@ mod tests {
             .settings
             .insert("labs.stop_shortcut".into(), Value::Bool(true));
         if cfg!(target_os = "macos") {
-            assert_eq!(shortcut_list(&preset, &settings).len(), off + 1);
+            assert_eq!(rows(&preset), off + 1);
         }
     }
 }
