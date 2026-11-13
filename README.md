@@ -3,6 +3,7 @@
 **Local voice dictation for macOS, with an assistant that knows the app and your recordings.**
 
 <p>
+  <a href="#what-vibehex-adds-to-hex">What it adds</a>&emsp;
   <a href="#assistant">Assistant</a>&emsp;
   <a href="#meetings-and-files">Meetings</a>&emsp;
   <a href="#ai-cleanup-and-vocabulary">Cleanup</a>&emsp;
@@ -23,6 +24,28 @@ key, speak, and it pastes. It is a fork of [Hex](https://github.com/anomalyco/he
 by Anomaly: everything Hex does, VibeHex does too, and it keeps up with Hex's
 changes. VibeHex is its own app, built and signed separately, so it is not an
 official Hex release.
+
+## What VibeHex adds to Hex
+
+- **An assistant inside the app.** Ask in your own words how to do
+  something. It answers from the app's guide with links to the exact
+  setting, and offers changes as cards you apply with one click and can undo.
+- **Setup in a few questions.** Tell it how you work, and it turns your
+  answers into one list of changes, each with the reason it fits.
+- **Answers from your recordings.** Ask about your meetings, files and
+  dictations; each point links to the line it came from.
+- **AI cleanup with no server.** A cleanup model runs inside VibeHex,
+  offline, and you see its speed, quality and memory before you download it.
+  Or clean up on Codex with your ChatGPT plan, OpenRouter, or your own server.
+- **Fix a word from any app.** Select a misheard word, press a shortcut and
+  type the right spelling: it goes into Vocabulary and is replaced in place.
+- **Files.** Drop audio or video to transcribe it, clean it up, and rework
+  the text with your own requests.
+- **Meetings you can ask and listen to.** Questions in a Requests tab, notes
+  even without Apple Intelligence, and playback from the transcript with the
+  playing line lit.
+- **Quiet while you dictate, even on a monitor.** Music and other apps get
+  quieter even when macOS can't set your display's volume.
 
 ## Assistant
 
