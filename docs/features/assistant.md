@@ -499,6 +499,42 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
     model. A typed request asks the model (`SETUP_ASK`) to word them as
     `hex-ask` lines in the message's language; missing, broken, or with
     unknown ids, the app's own show.
+- Under the four questions, one optional field in the person's own words
+  (`setup::about`, owner decision 2026-11-13): "Tell us in a few words what
+  you do and where you dictate most (optional)" («Расскажите в двух
+  словах, чем занимаетесь и куда больше всего диктуете (необязательно)»),
+  its example "I write code and dictate into Cursor and Telegram" («Пишу
+  код, диктую в Cursor и Telegram»). It asks about their work, never
+  about features; the chips stay the way to answer, and Continue goes on
+  with it empty.
+  - It shows only while a model writes the follow-ups
+    (`rune_ui::assistant::ask::model_writes`): the conversation's engine is
+    remote (Codex, OpenCode, OpenRouter, your own server) and can be
+    reached (not `connect::needed`: OpenCode running, Codex signed in). On
+    a built-in model, or one that can't be reached, the app picks the
+    follow-ups by its rules and the field hides. It follows the engine as
+    it is now: switched after round one shows, the field shows or hides
+    with it, and what was typed stays with the round. A scene plays the
+    engine it is set to, though the app writes its rounds.
+  - Typing keeps the text in round one's turn (`Turn::about`) as a draft
+    in memory, at most 400 characters (`about::MAX`, the field cut there
+    too); Continue saves it with the answers. Trimmed, it travels to the
+    follow-up and plan stages (`Stage::Follow`/`Plan::about`) in a tag of
+    its own after `<answers>`, on one line with no angle brackets:
+    `<in_their_words>\nI write code in Russian and dictate into
+    Cursor\n</in_their_words>`, the prompt saying it is their own
+    description, to choose questions and rows that fit, never to be quoted
+    back. Empty, neither the tag nor what it is. Setup's web search stays
+    off.
+  - The setup's record keeps it (`past::Setup::about`). A returning setup
+    shows it again, editable, in the folded round one and through "Change
+    answers"; cleared there, the next record has none. The returning look
+    (`Stage::Look`) reads it in `<since_last_setup>` as `their own words
+    then: …`, the person's own answer; the use stays aggregates only.
+  - Scenes: `assistant-setup-ask` shows it empty, `assistant-setup-returning`
+    filled. The eval's `11b-in-their-words` writes "I write code in Russian
+    and dictate into Cursor" with only dictation into any app picked: the
+    follow-ups lean to code, its words not quoted back.
 - Follow-up rounds (`setup::follow`). Labs articles say whom setup asks
   (`for:` uses: `dictation`, `code`, `meetings`, `files`, `ru`,
   `cleanup`) and how (`ask:`, a yes/no question; `then:` what follows);

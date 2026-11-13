@@ -15,7 +15,8 @@
 //! performs what it asks for ([`perform`]): turns and answers into the
 //! store, the setup's record kept, a model asked.
 
-use rune::{El, col, el, icon, row, text};
+use rune::{El, TextEdit, col, el, icon, row, text};
+use rune_kit::TextArea;
 use rune_theme_opencode::icons as theme;
 
 use super::super::Ui;
@@ -23,7 +24,7 @@ use super::super::controls::Paint;
 use super::composer;
 use crate::assistant::setup::flow::{self, Effect, Env, Event, Flow, Step, first};
 use crate::assistant::setup::since::{self, Since};
-use crate::assistant::setup::{self, Ask, Choice};
+use crate::assistant::setup::{self, Ask, Choice, about};
 use crate::assistant::store::Turn;
 use crate::assistant::worker::Recall;
 use crate::desktop::i18n::{tr, tr_fill, tr_window};
@@ -190,6 +191,11 @@ fn on_device(ui: &Ui, conversation: u32) -> bool {
     if ui.is_fixture() || ui.assistant.fixture {
         return true;
     }
+    built_in(ui, conversation)
+}
+
+/// Whether this conversation's engine is a built-in model.
+fn built_in(ui: &Ui, conversation: u32) -> bool {
     let open = ui.assistant.store.get(conversation);
     super::engine(
         &ui.settings,
@@ -197,6 +203,19 @@ fn on_device(ui: &Ui, conversation: u32) -> bool {
         open.and_then(|open| open.effort.as_deref()),
     )
     .is_local()
+}
+
+/// Whether a model writes this setup's follow-ups and plan, and so reads
+/// round one's own words: the conversation asks a remote engine (Codex,
+/// OpenCode, OpenRouter, your own server) that can be reached. A built-in
+/// model, or one that can't be reached (OpenCode not running, Codex signed
+/// out: `connect::needed`), leaves them to the app's own rules, and the
+/// field hides. It follows the engine as it is now: switched after round
+/// one shows, the field shows or hides with it, and what was typed stays
+/// with the round. A scene plays the engine it is set to, though the app
+/// writes its rounds.
+pub(super) fn model_writes(ui: &Ui, conversation: u32) -> bool {
+    !built_in(ui, conversation) && !super::connect::needed(ui)
 }
 
 /// A chip pressed.
@@ -282,17 +301,95 @@ pub(super) fn view(ui: &Ui, p: Paint, conversation: u32, index: usize, turn: &Tu
         .filter(|_| pane.answering_in(Some(conversation)).is_none())
         .map(|open| flow::step(&open.turns, pane.store.setups()));
     match stands {
-        Some(Step::Basics { turn: here, folded }) if here == index => shown.push(if folded {
-            super::returning::folded(p, at, &turn.asks)
-        } else {
-            open(p, at, &turn.asks, unfolded, waits(ui, at))
-        }),
+        Some(Step::Basics { turn: here, folded }) if here == index => {
+            let field = about(ui, p, at, &turn.about, folded);
+            shown.push(if folded {
+                super::returning::folded(p, at, &turn.asks, field)
+            } else {
+                open(p, at, &turn.asks, unfolded, waits(ui, at), field)
+            });
+        }
         Some(Step::Follow { turn: here, .. }) if here == index => {
-            shown.push(open(p, at, &turn.asks, unfolded, waits(ui, at)));
+            shown.push(open(p, at, &turn.asks, unfolded, waits(ui, at), None));
         }
         _ => {}
     }
     shown
+}
+
+/// Round one's own words (`setup::about`): one optional field under its
+/// questions, "what you do and where you dictate most", only while a model
+/// writes the follow-ups ([`model_writes`]). Typing keeps the text in the
+/// round's turn as a draft, at most `about::MAX` characters; Continue
+/// sends and keeps it. `small` beside a returning setup's folded answers.
+fn about(ui: &Ui, p: Paint, at: At, written: &str, small: bool) -> Option<El> {
+    if !model_writes(ui, at.conversation) {
+        return None;
+    }
+    let pane = &ui.assistant;
+    let fresh;
+    let edit = match pane.about_at == Some(at) && pane.about_edit.text == written {
+        true => &pane.about_edit,
+        false => {
+            fresh = TextEdit::new(written);
+            &fresh
+        }
+    };
+    let label = tr(about::LABEL);
+    let font = match small {
+        true => rune::TextStyle {
+            weight: 560.0,
+            ..p.k.ty.ui
+        },
+        false => p.k.ty.body_medium,
+    };
+    let written = written.to_owned();
+    let field = TextArea::new(edit)
+        .label(label)
+        .placeholder(tr(about::PLACEHOLDER))
+        .auto_grow(2, 6)
+        .width(None)
+        .wrap_anywhere()
+        .on_edit(move |ui: &mut Ui| {
+            let pane = &mut ui.assistant;
+            if pane.about_at != Some(at) || pane.about_edit.text != written {
+                pane.about_at = Some(at);
+                pane.about_edit = TextEdit::new(written.clone());
+            }
+            &mut pane.about_edit
+        })
+        .on_change(move |ui: &mut Ui, _: &mut rune::Tx| {
+            let pane = &mut ui.assistant;
+            let capped = about::cap(&pane.about_edit.text);
+            if capped.len() < pane.about_edit.text.len() {
+                let capped = capped.to_owned();
+                pane.about_edit.replace_text(capped);
+            }
+            let text = pane.about_edit.text.clone();
+            pane.store.write_about(at.conversation, at.turn, &text);
+        })
+        .build(p.k)
+        .key("field")
+        .w_full()
+        .min_w(0.0);
+    Some(
+        col()
+            .key("own-words")
+            .role("group")
+            .label(label)
+            .gap(6.0)
+            .w_full()
+            .min_w(0.0)
+            .child(
+                text(label)
+                    .key("q")
+                    .font(font)
+                    .color(p.text())
+                    .wrap_anywhere()
+                    .w_full(),
+            )
+            .child(field),
+    )
 }
 
 /// Unfolds round `at`'s "Answered before", for a scene.
@@ -401,7 +498,14 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
 /// Continue, and "Skip to the plan" after round one. Either `waits` (Continue,
 /// the skip) while the model it would ask is answering in another
 /// conversation, and the round says so.
-fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool, waits: (bool, bool, &str)) -> El {
+fn open(
+    p: Paint,
+    at: At,
+    asks: &[Ask],
+    unfolded: bool,
+    waits: (bool, bool, &str),
+    field: Option<El>,
+) -> El {
     let c = &p.k.c;
     let mut card = col()
         .key(format!("round{}", at.turn))
@@ -419,6 +523,7 @@ fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool, waits: (bool, bool, &str
         }
         card = card.child(question(p, at, number, ask));
     }
+    card = card.children(field);
     card = card.children(before(p, at, asks, unfolded, true));
     let small = super::super::controls::PushSize::build_small_push;
     let go = rune_kit::Button::new(tr("Continue"))
@@ -789,6 +894,72 @@ mod tests {
             }
         }
         answered(ui, here, false);
+    }
+
+    /// Round one's own words show only where a model reads them: on a
+    /// remote engine that can be reached, never on a built-in model, nor on
+    /// Codex signed out or OpenCode not running.
+    #[test]
+    fn the_own_words_field_shows_only_where_a_model_reads_it() {
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.assistant.fixture = true;
+        begin(&mut ui);
+        let here = at(&ui, 0);
+        let p = Paint::new(false, 1.0);
+        let shows = |ui: &Ui| about(ui, p, here, "", false).is_some();
+        let choose = |ui: &mut Ui, engine: &str| {
+            let engine = Some(engine.to_owned());
+            ui.assistant.store.choose(here.conversation, engine, None);
+        };
+        choose(&mut ui, "codex");
+        assert!(model_writes(&ui, here.conversation));
+        assert!(shows(&ui), "Codex reads it");
+        choose(&mut ui, "local:gemma-4-e4b-it");
+        assert!(!shows(&ui), "a built-in model reads nothing");
+        choose(&mut ui, "codex");
+        ui.assistant.reach.codex = Some(false);
+        assert!(!shows(&ui), "Codex signed out reads nothing");
+        ui.assistant.reach.codex = None;
+        choose(&mut ui, "opencode");
+        ui.assistant.reach.opencode = Some(false);
+        assert!(!shows(&ui), "OpenCode not running reads nothing");
+        ui.assistant.reach.opencode = Some(true);
+        assert!(shows(&ui));
+    }
+
+    /// What is typed in the field is round one's, capped; Continue keeps it
+    /// with the setup, and the next setup shows it again, folded with the
+    /// answers, to change.
+    #[test]
+    fn the_own_words_are_kept_and_shown_again() {
+        let mut ui = super::super::super::scenes::mac_fixture();
+        ui.assistant.fixture = true;
+        ui.meetings.meetings.clear();
+        ui.history.entries.clear();
+        begin(&mut ui);
+        let here = at(&ui, 0);
+        let typed = format!("  Пишу код, диктую в Cursor {}", "и ".repeat(300));
+        ui.assistant
+            .store
+            .write_about(here.conversation, here.turn, &typed);
+        assert_eq!(turns(&ui)[0].about.chars().count(), about::MAX);
+        answered(&mut ui, here, false);
+        let kept = ui.assistant.store.setups().last().unwrap().about.clone();
+        assert!(kept.starts_with("Пишу код, диктую в Cursor"), "{kept}");
+        // What the field held, trimmed.
+        assert_eq!(kept, about::clean(about::cap(&typed)));
+        // The next setup returns, folded, with the words as they were.
+        ui.assistant.open = None;
+        begin(&mut ui);
+        let opening = turns(&ui)[0].clone();
+        assert!(opening.folded);
+        assert_eq!(opening.about, kept);
+        assert!(opening.facts.contains(about::THEN), "{}", opening.facts);
+        // "Change answers" keeps them.
+        let here = at(&ui, 0);
+        send(&mut ui, here.conversation, Event::Change { turn: 0 });
+        assert!(!turns(&ui)[0].folded);
+        assert_eq!(turns(&ui)[0].about, kept);
     }
 
     /// A follow-up round answered and the conversation left: the answers
