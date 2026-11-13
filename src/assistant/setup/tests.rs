@@ -542,6 +542,55 @@ fn a_models_questions_keep_known_ids_or_fall_back() {
     assert_eq!(super::asks(&[], "macos"), questions("macos"));
 }
 
+/// A small model asked to write round one in the person's language handed
+/// back the English example as it was (Gemma 4 E4B did, to a Russian
+/// request): the app shows its own words in Assistant's language, and names
+/// stay names.
+#[test]
+fn a_copied_english_example_is_shown_in_assistants_language() {
+    use crate::desktop::i18n::speaking;
+    let copied: Vec<Value> = ask_lines("macos")
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    let shown = speaking(Some("ru"), || asks(&copied, "macos"));
+    assert_eq!(shown.len(), 4);
+    assert!(!shown[0].own, "the model's round, its ids kept");
+    assert_eq!(shown[0].q, "Для чего вам VibeHex?");
+    assert_ne!(shown[0].hint, "pick any");
+    let option = |ask: &Ask, id: &str| {
+        ask.options
+            .iter()
+            .find(|option| option.id == id)
+            .cloned()
+            .unwrap()
+    };
+    let local = option(&shown[2], "local");
+    assert_ne!(local.label, "On this Mac");
+    assert_ne!(local.note, "Fastest. A small model, little context");
+    assert_eq!(option(&shown[2], "codex").label, "Codex");
+    for ask in &shown {
+        for words in std::iter::once(&ask.q).chain(ask.options.iter().map(|option| &option.note)) {
+            assert!(
+                !words.is_ascii() || words.is_empty(),
+                "left in English: {words}"
+            );
+        }
+    }
+
+    // Words of its own stay as written; English stays English.
+    let russian: Vec<Value> = [json!({"id":"use","q":"Зачем вам VibeHex?","options":[
+        {"id":"dictation_any","label":"Диктовка"},{"id":"meetings","label":"Созвоны"}]})]
+    .into_iter()
+    .chain(copied[1..].iter().cloned())
+    .collect();
+    let mixed = speaking(Some("ru"), || asks(&russian, "macos"));
+    assert_eq!(mixed[0].q, "Зачем вам VibeHex?");
+    assert_eq!(mixed[0].options[0].label, "Диктовка");
+    let english = speaking(Some("en"), || asks(&copied, "macos"));
+    assert_eq!(english[0].q, "What do you use VibeHex for?");
+}
+
 /// Every line the rules make, on every answer, is a change a save takes.
 #[test]
 fn every_rule_resolves_to_a_valid_change() {

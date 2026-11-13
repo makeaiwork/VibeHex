@@ -405,9 +405,21 @@ pub fn shows(asks: &[Ask], ask: &Ask) -> bool {
     uses.iter().any(|id| id == "meetings" || id == "files")
 }
 
+/// A model's words, or the app's own in Assistant's language where it only
+/// handed back the English it was shown: a small model asked to write the
+/// questions in the person's language may copy the example as it was.
+fn written_or_own(written: &str, english: &str) -> String {
+    if written.eq_ignore_ascii_case(english.trim()) {
+        tr(english).to_owned()
+    } else {
+        written.to_owned()
+    }
+}
+
 /// The questions to show for the `hex-ask` lines a model wrote: its own
 /// words when every fixed question came with known option ids, else the
-/// app's own. A caption it left out is the app's, translated.
+/// app's own. A caption it left out is the app's, translated, and so is
+/// any text it copied from the English example (`written_or_own`).
 pub fn asks(written: &[Value], os: &str) -> Vec<Ask> {
     let own = questions(os);
     let read: Option<Vec<Ask>> = own
@@ -430,24 +442,27 @@ pub fn asks(written: &[Value], os: &str) -> Vec<Ask> {
                         .and_then(Value::as_str)
                         .map(str::trim)
                         .filter(|note| !note.is_empty())
-                        .unwrap_or_else(|| tr(&known.note));
+                        .map_or_else(
+                            || tr(&known.note).to_owned(),
+                            |note| written_or_own(note, &known.note),
+                        );
                     (!label.is_empty()).then(|| Choice {
                         id: id.into(),
-                        label: label.into(),
-                        note: note.into(),
+                        label: written_or_own(label, &known.label),
+                        note,
                         ..Choice::default()
                     })
                 })
                 .collect();
+            let hint = line
+                .get("hint")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .trim();
             (!q.is_empty() && options.len() >= 2).then(|| Ask {
                 id: fixed.id.clone(),
-                q: q.into(),
-                hint: line
-                    .get("hint")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .trim()
-                    .into(),
+                q: written_or_own(q, &fixed.q),
+                hint: written_or_own(hint, &fixed.hint),
                 multi: fixed.multi,
                 options,
                 ..Ask::default()
