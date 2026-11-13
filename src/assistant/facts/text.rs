@@ -256,7 +256,7 @@ fn unfit(facts: &Facts) -> String {
 }
 
 /// What a model is told while the person's settings aren't sent.
-const NOT_SENT: &str = "You don't know the person's current values, cleanup instructions, or \
+pub(crate) const NOT_SENT: &str = "You don't know the person's current values, cleanup instructions, or \
     Vocabulary; the app shows each value on its card. When an answer needs them, say in one \
     sentence that **Assistant › Settings › Your current settings** lets you read them, with no \
     card.\n";

@@ -20,19 +20,20 @@ pub fn message(text: &'static str, canned: &[&'static str], checks: Vec<Check>) 
         said: Said::Message(text),
         web: false,
         canned: canned.to_vec(),
+        allows: false,
         checks,
     }
 }
 
 /// [`message`] in a conversation whose Web is on.
-fn online(text: &'static str, canned: &[&'static str], checks: Vec<Check>) -> Step {
+pub fn online(text: &'static str, canned: &[&'static str], checks: Vec<Check>) -> Step {
     Step {
         web: true,
         ..message(text, canned, checks)
     }
 }
 
-fn guide() -> Check {
+pub fn guide() -> Check {
     routed(|route| *route == Route::Guide, "the guide")
 }
 
@@ -67,10 +68,9 @@ fn dictations_found(steps: &[Read]) -> usize {
 
 fn several_dictations() -> Check {
     check("more than one dictation found", |outcome| {
-        let found = dictations_found(&outcome.turn.steps);
-        ensure(found > 1, || {
-            format!("found {found}: {:?}", outcome.turn.steps)
-        })
+        let steps = outcome.searched();
+        let found = dictations_found(&steps);
+        ensure(found > 1, || format!("found {found}: {steps:?}"))
     })
 }
 
@@ -88,7 +88,7 @@ fn dictation_ids(root: &std::path::Path) -> Vec<String> {
 
 /// Every `[n]` an answer carries is an excerpt it was given, and every
 /// excerpt cited is a recording the fixture holds.
-fn citations_resolve() -> Check {
+pub fn citations_resolve() -> Check {
     check(
         "every citation resolves to a fixture recording",
         |outcome| {
@@ -501,7 +501,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 ],
                 vec![
                     offline("it was allowed to search", |outcome| {
-                        ensure(outcome.sent.as_ref().is_some_and(|sent| sent.web), || {
+                        ensure(outcome.sent.iter().any(|sent| sent.web), || {
                             "the web was off".into()
                         })
                     }),
@@ -546,11 +546,11 @@ pub fn scenarios() -> Vec<Scenario> {
                 vec![
                     recordings(),
                     check("meetings were read", |outcome| {
-                        let read =
-                            outcome.turn.steps.iter().any(
-                                |step| matches!(step, Read::Meetings { found, .. } if *found > 0),
-                            );
-                        ensure(read, || format!("{:?}", outcome.turn.steps))
+                        let steps = outcome.searched();
+                        let read = steps
+                            .iter()
+                            .any(|step| matches!(step, Read::Meetings { found, .. } if *found > 0));
+                        ensure(read, || format!("{steps:?}"))
                     }),
                     live("the answer cites what it read", |outcome| {
                         ensure(
@@ -599,7 +599,18 @@ pub fn scenarios() -> Vec<Scenario> {
                             let answer = &outcome.turn.answer;
                             let whole = says(
                                 answer,
-                                &["97", "весь", "все ", "всех", "целиком", "whole", "entire"],
+                                // «по всему списку» says the whole list too
+                                // (a live answer worded it so).
+                                &[
+                                    "97",
+                                    "весь",
+                                    "все ",
+                                    "всех",
+                                    "всему",
+                                    "целиком",
+                                    "whole",
+                                    "entire",
+                                ],
                             );
                             ensure(
                                 !answer.contains("64") || (says(answer, CLEANUP_WORDS) && whole),

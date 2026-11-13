@@ -15,6 +15,7 @@
 //! Every reported Assistant problem becomes a scenario here in the change
 //! that fixes it.
 
+mod agent;
 mod answers;
 mod checks;
 mod fixtures;
@@ -27,4 +28,4 @@ mod scenarios;
 mod setups;
 mod stages;
 
-pub use harness::{SERIAL, sent};
+pub use harness::{SERIAL, called, sent};

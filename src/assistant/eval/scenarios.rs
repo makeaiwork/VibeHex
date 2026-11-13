@@ -1,6 +1,18 @@
-//! Every scenario, and the two ways they run: offline in `scripts/check`
-//! (`the_scenarios_hold_offline`), and live on a real engine with
-//! `scripts/assistant-eval` (`evaluate_assistant_scenarios`).
+//! Every scenario, and the ways they run: offline in `scripts/check`, and
+//! live on a real engine with `scripts/assistant-eval`
+//! (`evaluate_assistant_scenarios`).
+//!
+//! Offline there are three passes. The reported problems run as the
+//! router answers them, one request each (`the_scenarios_hold_offline`).
+//! The agent's scenarios run through its loop, each a script of replies
+//! (`the_agent_scenarios_hold_offline`). And the reported problems run
+//! through the loop too, held only to what every step is held to, the
+//! privacy rule among them (`every_scenario_keeps_its_privacy_as_an_agent`).
+//!
+//! Live, both sets run the way the engine answers: as an agent where
+//! `assistant.agent` has it so, or `HEX_ASSISTANT_AGENT=1` forces it; one
+//! request with `HEX_ASSISTANT_AGENT=0`. The same scenarios run both ways
+//! are how the two are compared.
 //!
 //! - `HEX_ASSISTANT_EVAL_ENGINE`: `codex`, `codex:<model>`, `local:<id>`,
 //!   `openrouter`, `custom`, or `opencode`.
@@ -12,8 +24,8 @@
 
 use std::path::PathBuf;
 
-use super::harness::{Mode, Ran, Scenario, run};
-use super::{answers, gate, report, setups};
+use super::harness::{Held, Mode, Ran, Scenario, run, run_held};
+use super::{agent, answers, gate, report, setups};
 use crate::app_settings::AppSettings;
 use crate::files::rewrite::Engine;
 
@@ -32,16 +44,22 @@ pub fn all() -> Vec<Scenario> {
     all
 }
 
-/// The scenarios `HEX_ASSISTANT_EVAL_ONLY` names, or all of them.
-fn chosen() -> Vec<Scenario> {
+/// The agent's own scenarios (`eval::agent`), in the order of their ids.
+pub fn agent() -> Vec<Scenario> {
+    let mut all = agent::scenarios();
+    all.sort_by_key(|scenario| scenario.id);
+    all
+}
+
+/// Those of `all` that `HEX_ASSISTANT_EVAL_ONLY` names, or all of them.
+fn chosen(all: Vec<Scenario>) -> Vec<Scenario> {
     let only: Vec<String> = std::env::var("HEX_ASSISTANT_EVAL_ONLY")
         .unwrap_or_default()
         .split(',')
         .map(|id| id.trim().to_owned())
         .filter(|id| !id.is_empty())
         .collect();
-    all()
-        .into_iter()
+    all.into_iter()
         .filter(|scenario| only.is_empty() || only.iter().any(|id| scenario.id.starts_with(id)))
         .collect()
 }
@@ -64,23 +82,58 @@ fn write(layer: &str, model: &str, runs: &[Ran]) -> PathBuf {
 /// routing, what goes into the prompt, and what the app makes of a reply.
 #[test]
 fn the_scenarios_hold_offline() {
-    let scenarios = chosen();
+    let scenarios = chosen(all());
     let runs: Vec<Ran> = scenarios
         .iter()
         .map(|scenario| run(scenario, &Mode::Canned))
         .collect();
+    held(&runs, "offline");
+}
+
+/// Prints the table and writes the report when a check failed (or a
+/// report was asked for), then fails on any failure.
+fn held(runs: &[Ran], layer: &str) {
     let failures: Vec<String> = runs.iter().flat_map(Ran::failures).collect();
     if !failures.is_empty() || std::env::var_os("HEX_ASSISTANT_EVAL_OUT").is_some() {
-        eprintln!("{}", report::table(&runs));
-        eprintln!("report: {}", write("offline", "played", &runs).display());
+        eprintln!("{}", report::table(runs));
+        eprintln!("report: {}", write(layer, "played", runs).display());
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// The agent's scenarios, each a script of replies played through its
+/// loop: what a call reads, what the next request carries, the budgets,
+/// consent mid-answer, and the web going off once the prompt holds what is
+/// the person's own.
+#[test]
+fn the_agent_scenarios_hold_offline() {
+    let runs: Vec<Ran> = chosen(agent())
+        .iter()
+        .map(|scenario| run(scenario, &Mode::Agent))
+        .collect();
+    held(&runs, "offline-agent");
+}
+
+/// Every reported problem, played through the agent's loop: its reply is
+/// an answer at once, and each step is held to what every step is held to
+/// (no error, no card to the value set, nothing this computer can't use,
+/// and never the web once the prompt holds what is the person's own).
+/// Their own checks are the router's, on what its one prompt carries.
+#[test]
+fn every_scenario_keeps_its_privacy_as_an_agent() {
+    let runs: Vec<Ran> = chosen(all())
+        .iter()
+        .map(|scenario| run_held(scenario, &Mode::Agent, Held::Always))
+        .collect();
+    held(&runs, "offline-as-agent");
 }
 
 /// Scenario ids are unique, and each holds something.
 #[test]
 fn every_scenario_checks_something() {
-    let all = all();
+    let mut all = all();
+    let router = all.len();
+    all.extend(agent());
     for (index, scenario) in all.iter().enumerate() {
         assert!(
             all[index + 1..].iter().all(|other| other.id != scenario.id),
@@ -95,7 +148,12 @@ fn every_scenario_checks_something() {
         );
         assert!(!scenario.about.is_empty(), "{}", scenario.id);
     }
-    assert!(all.len() >= 19, "{} scenarios", all.len());
+    assert!(router >= 19, "{router} scenarios");
+    assert!(
+        all.len() - router >= 10,
+        "{} agent scenarios",
+        all.len() - router
+    );
 }
 
 #[test]
@@ -117,7 +175,9 @@ fn evaluate_assistant_scenarios() {
     .with_effort(&effort);
     let model = engine.model_name();
     let mut runs = Vec::new();
-    for scenario in chosen() {
+    let mut scenarios = all();
+    scenarios.extend(agent());
+    for scenario in chosen(scenarios) {
         let ran = run(&scenario, &Mode::Live(Box::new(engine.clone())));
         eprintln!(
             "{:<28} {}",

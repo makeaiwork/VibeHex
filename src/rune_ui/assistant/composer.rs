@@ -4,19 +4,71 @@
 //! for the open conversation (kept with it), or for the next new one;
 //! neither ever changes dictation's AI cleanup.
 
-use rune::{El, TextEdit, row};
+use rune::{El, TextEdit, el, row, text};
 
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::super::files::composer::{self as files, MAX_LINES, SEND_ICON, STOP_ICON};
+use crate::assistant::agent::access::Access;
 use crate::assistant::intent::{self, Route};
 use crate::assistant::prompt;
-use crate::assistant::setup::Stage;
+use crate::assistant::setup::{Stage, flow};
 use crate::assistant::worker::{self, Earlier, Question, Recall};
 use crate::desktop::i18n::tr;
 
 pub(super) const MODEL_MENU: &str = "assistant-model";
 const EFFORT_MENU: &str = "assistant-effort";
+/// Why a question waits while an answer in another conversation is
+/// parked on the card asking to read the recordings.
+pub(super) const PARKED: &str = "An answer in another conversation is waiting for you to say whether it may read your recordings.";
+
+/// Why a question can't be asked here now, while an answer comes in
+/// another conversation: the model is answering there, or that answer
+/// waits for the person on the consent card (with its conversation, which
+/// the line opens). None while nothing answers elsewhere.
+pub(super) fn elsewhere(ui: &Ui) -> Option<(&'static str, Option<u32>)> {
+    let pane = &ui.assistant;
+    let answering = pane.answering.as_ref()?;
+    if Some(answering.conversation) == pane.open {
+        return None;
+    }
+    Some(match answering.asking {
+        true => (tr(PARKED), Some(answering.conversation)),
+        false => (tr(flow::BUSY), None),
+    })
+}
+
+/// The line over the field that says why Send waits, with a way to the
+/// conversation that holds the card; none when a setup round open here
+/// already says it beside its Continue.
+pub(super) fn waits(ui: &Ui, p: Paint) -> Option<El> {
+    let (words, parked) = elsewhere(ui)?;
+    if super::ask::round_waits(ui) {
+        return None;
+    }
+    let mut line = row().key("elsewhere").w_full().gap(8.0).center_y().child(
+        text(words)
+            .key("why")
+            .font(p.k.ty.small)
+            .color(p.muted())
+            .wrap_anywhere()
+            .shrink(),
+    );
+    if let Some(id) = parked {
+        line = line
+            .child(el().key("space").grow(1.0))
+            .child(super::super::lists::small_button(
+                p,
+                "go",
+                tr("Open that conversation"),
+                move |ui, _| {
+                    ui.open = None;
+                    ui.assistant.open = Some(id);
+                },
+            ));
+    }
+    Some(line)
+}
 
 /// The field under the feed.
 pub(super) fn field(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> El {
@@ -238,6 +290,10 @@ pub(super) fn ask_with(
     pane.open = Some(id);
     pane.error = None;
     let changes = super::changes::context(ui);
+    // What the model may read of the recordings if it asks to itself
+    // (`assistant::agent`).
+    let access = Access::of(&ui.settings, crate::assistant::recordings::Sources::here());
+    let now_ms = ui.assistant.now_ms();
     let asked = worker::ask(
         Question {
             conversation: id,
@@ -247,6 +303,8 @@ pub(super) fn ask_with(
             changes: Some(changes),
             setup,
             web,
+            access,
+            now_ms,
         },
         engine,
     );

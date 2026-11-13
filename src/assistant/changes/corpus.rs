@@ -9,6 +9,7 @@ use serde_json::Value;
 use super::parse::parse;
 use super::{Why, resolve, vocab};
 use crate::app_settings::AppSettings;
+use crate::assistant::agent::protocol;
 use crate::assistant::offer::{Gate, Origin};
 use crate::assistant::setup;
 
@@ -66,6 +67,13 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
     for (name, text) in files {
         let (fields, reply) = split(&text);
         let parsed = parse(&reply);
+        // A read step's block never shows either; calls written with no
+        // fence leave with the step (`protocol::without`).
+        let shown = protocol::without(&parsed.body);
+        assert!(
+            !shown.contains("{\"tool\""),
+            "{name}: the body shows a call"
+        );
         for fence in ["```hex", "~~~hex", "{\"key\"", "{\"term\"", "CHANGE "] {
             assert!(
                 !parsed.body.contains(fence),
@@ -187,6 +195,28 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
                         .collect();
                     assert_eq!(got, want, "{name}: refused");
                 }
+                // What a read step asks for (`agent::protocol`): its
+                // tools in order, or `none` for an answer.
+                "reads" => {
+                    let got: Vec<String> = protocol::reads(&reply)
+                        .map(|reads| reads.calls.into_iter().map(|call| call.tool).collect())
+                        .unwrap_or_default();
+                    let want = match want.as_str() {
+                        "none" => Vec::new(),
+                        want => list(want, ','),
+                    };
+                    assert_eq!(got, want, "{name}: reads");
+                    assert_eq!(
+                        protocol::reads(&reply).is_some(),
+                        !want.is_empty(),
+                        "{name}: a read step"
+                    );
+                }
+                "reads_malformed" => assert_eq!(
+                    protocol::reads(&reply).map_or(0, |reads| reads.malformed.len()),
+                    want.parse::<usize>().unwrap(),
+                    "{name}: reads_malformed"
+                ),
                 other => panic!("{name}: no field {other}"),
             }
         }

@@ -99,6 +99,11 @@ pub(super) const SURFACES: &[Surface] = &[
         scenes: &["assistant-consent"],
     },
     Surface {
+        name: "Consent card mid-answer",
+        test: "consent_card_mid_answer",
+        scenes: &["assistant-agent-consent"],
+    },
+    Surface {
         name: "No model page",
         test: "no_model_page",
         scenes: &["assistant-connect"],
@@ -221,6 +226,7 @@ surfaces!(
     follow_up_round,
     returning_opener,
     consent_card,
+    consent_card_mid_answer,
     no_model_page,
 );
 

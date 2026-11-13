@@ -15,6 +15,8 @@
 
 use serde_json::{Map, Value};
 
+use crate::assistant::agent::protocol;
+
 /// The fences a reply's change lines come in.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Fence {
@@ -26,6 +28,10 @@ enum Fence {
     Ask,
     /// One vocabulary term per line, all in one card.
     Vocab,
+    /// What a model asks to read (`agent::protocol`): no change at all.
+    /// An answer never shows one, and a reply that still asks once its
+    /// turn may read no more loses the block.
+    Read,
 }
 
 /// Every line a plan's reply holds, as a line of its one list.
@@ -133,6 +139,7 @@ fn opens(line: &str, next: Option<&str>) -> Option<(&'static str, Fence)> {
         "hex-ask" => Fence::Ask,
         "hex-vocab" | "hex-vocabulary" => Fence::Vocab,
         "json" | "jsonl" | "" if next.is_some_and(starts_change) => Fence::Change,
+        _ if protocol::opens(line, next).is_some() => Fence::Read,
         _ => return None,
     };
     Some((marker, fence))
@@ -148,6 +155,9 @@ pub(crate) fn starts_change(line: &str) -> bool {
 }
 
 fn read_block(lines: &[&str], fence: Fence, parsed: &mut Parsed) {
+    if fence == Fence::Read {
+        return;
+    }
     let text = lines.join("\n");
     // A whole array, or objects spread over lines: one value at a time.
     let objects: Vec<(String, Option<Value>)> = match loose(text.trim()) {
@@ -236,7 +246,7 @@ fn tagged(line: &str) -> Option<Proposal> {
 
 /// JSON as weak models write it: trailing commas, single-quoted keys,
 /// `True`, `False`, and `None` outside strings.
-fn loose(text: &str) -> Option<Value> {
+pub(crate) fn loose(text: &str) -> Option<Value> {
     if let Ok(value) = serde_json::from_str(text) {
         return Some(value);
     }
@@ -314,7 +324,9 @@ fn tidy(body: &str) -> String {
 
 /// While a reply streams, where its visible part ends: before a change
 /// block opens, a tagged line, or a fence still being written. `true`
-/// when a change is on its way.
+/// when a change is on its way: never for a read block (`hex-read`), nor
+/// for a fence still being written that may only be one or that opens
+/// the reply, as a read step does.
 pub fn visible(draft: &str) -> (&str, bool) {
     let mut at = 0;
     // Inside a code block that isn't a change, its closing fence is just
@@ -326,16 +338,22 @@ pub fn visible(draft: &str) -> (&str, bool) {
         let trimmed = line.trim();
         let last = index + 1 == lines.len();
         let fence = trimmed.starts_with("```") || trimmed.starts_with("~~~");
-        let change = !inside
-            && (opens(line, next).is_some()
-                || trimmed.starts_with("CHANGE ")
-                // A `json` fence whose next line hasn't come yet.
-                || (next.is_none_or(str::is_empty)
-                    && matches!(trimmed, "```json" | "```" | "~~~" | "~~~json"))
-                // A fence still being written: ```, ``, `, ```he.
-                || (last && !line.ends_with('\n') && unfinished_fence(trimmed)));
-        if change {
-            return (draft[..at].trim_end(), true);
+        let opened = opens(line, next).filter(|_| !inside);
+        let tagged = trimmed.starts_with("CHANGE ");
+        // A `json` fence whose next line hasn't come yet.
+        let pending = next.is_none_or(str::is_empty)
+            && matches!(trimmed, "```json" | "```" | "~~~" | "~~~json");
+        // A fence still being written: ```, ``, `, ```he.
+        let unfinished = last && !line.ends_with('\n') && unfinished_fence(trimmed);
+        if !inside && (opened.is_some() || tagged || pending || unfinished) {
+            let shown = draft[..at].trim_end();
+            let read = match opened {
+                Some((_, fence)) => fence == Fence::Read,
+                None => {
+                    !tagged && !trimmed.starts_with('C') && (shown.is_empty() || reads(trimmed))
+                }
+            };
+            return (shown, !read);
         }
         if fence {
             inside = !inside;
@@ -343,6 +361,13 @@ pub fn visible(draft: &str) -> (&str, bool) {
         at += line.len();
     }
     (draft, false)
+}
+
+/// Whether a fence still being written can only be a read block's:
+/// `hex-r` and on.
+fn reads(line: &str) -> bool {
+    let info = line.trim_start_matches(['`', '~']);
+    info.len() > "hex-".len() && protocol::FENCE.starts_with(info)
 }
 
 fn unfinished_fence(line: &str) -> bool {
@@ -354,6 +379,7 @@ fn unfinished_fence(line: &str) -> bool {
             || "hex-plan".starts_with(info)
             || "hex-ask".starts_with(info)
             || "hex-vocab".starts_with(info)
+            || protocol::FENCE.starts_with(info)
             || "json".starts_with(info))
         || "CHANGE".starts_with(line)
             && !line.is_empty()
@@ -467,5 +493,39 @@ mod tests {
         assert_eq!(visible(closed), (closed, false));
         assert_eq!(visible("Use `hex`"), ("Use `hex`", false));
         assert_eq!(visible("Answer"), ("Answer", false));
+    }
+
+    /// A read step shows nothing while it streams, and never as a change
+    /// being prepared; prose before its block shows until the block opens.
+    #[test]
+    fn a_read_block_never_shows_and_is_no_change() {
+        let whole = "```hex-read\n{\"tool\":\"facts\"}\n```";
+        for end in 1..=whole.len() {
+            assert_eq!(visible(&whole[..end]), ("", false), "{:?}", &whole[..end]);
+        }
+        assert_eq!(visible("Let me look.\n```hex-r"), ("Let me look.", false));
+        assert_eq!(
+            visible("Let me look.\n```hex-read\n{\"tool\""),
+            ("Let me look.", false)
+        );
+        assert_eq!(
+            visible("Let me look.\n```json\n{\"tool\":\"facts\"}"),
+            ("Let me look.", false)
+        );
+        // A fence that may still be a change's, after prose, is one.
+        assert_eq!(visible("Let me look.\n```hex-"), ("Let me look.", true));
+        // A change block that opens the reply is a change once it is named.
+        assert_eq!(visible("```hex-change\n{\"key\""), ("", true));
+        assert_eq!(visible("CHANGE labs.files = on"), ("", true));
+    }
+
+    /// An answer that still holds a read block loses it, as it loses its
+    /// change blocks.
+    #[test]
+    fn a_read_block_leaves_the_body() {
+        let parsed =
+            parse("Here it is.\n\n```hex-read\n{\"tool\":\"facts\"}\n```\n\nSources: none");
+        assert_eq!(parsed.body, "Here it is.\n\nSources: none");
+        assert!(parsed.proposals.is_empty() && parsed.malformed.is_empty());
     }
 }

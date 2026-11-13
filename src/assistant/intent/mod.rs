@@ -16,6 +16,7 @@
 //! about VibeHex's releases ("Что нового в последнем релизе?") is never one
 //! about recordings (`releases`).
 
+mod asked;
 pub mod beyond;
 pub mod cleanup;
 mod day;

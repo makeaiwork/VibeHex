@@ -201,14 +201,131 @@ pub struct Reading<'a> {
     pub instructions: bool,
 }
 
+/// The catalog's lines for one install: each key as `key | values | where
+/// | now`, the last only while the person lets their settings be read
+/// (`assistant.send_settings`). A value goes through [`sendable`]: a
+/// switch, a choice, a number, a known model id, a shortcut's keycaps;
+/// never text, a path, or a list.
+pub struct Lines<'a> {
+    settings: &'a AppSettings,
+    facts: &'a Facts,
+    shown: Vec<(&'static str, Value)>,
+    stored: Option<Value>,
+}
+
+impl<'a> Lines<'a> {
+    pub fn new(settings: &'a AppSettings, facts: &'a Facts) -> Self {
+        // The person's values go in only while they let them be read.
+        let send = facts.consent.send_settings;
+        Self {
+            settings,
+            facts,
+            shown: settings::values(settings),
+            stored: send.then(|| serde_json::to_value(settings).ok()).flatten(),
+        }
+    }
+
+    /// Whether the now column is written.
+    pub fn send(&self) -> bool {
+        self.facts.consent.send_settings
+    }
+
+    /// The header the lines stand under.
+    pub fn header(&self) -> &'static str {
+        match self.send() {
+            true => "key | values | where in the window | now",
+            false => "key | values | where in the window",
+        }
+    }
+
+    /// `key`'s line. None for a key no card changes, one this VibeHex
+    /// doesn't have here, one with no place in the window, or no setting
+    /// at all.
+    pub fn line(&self, key: &str) -> Option<String> {
+        if key == parts::CLEANUP {
+            return Some(self.cleanup());
+        }
+        if key == parts::PROMPT {
+            return Some(self.prompt());
+        }
+        let (key, kind, choices, _) = settings::kinds().find(|(known, ..)| *known == key)?;
+        self.known(key, kind, &choices)
+    }
+
+    /// The line of a key the registry lists, with its `kind` and `choices`.
+    fn known(&self, key: &str, kind: &str, choices: &[&str]) -> Option<String> {
+        if never(key) || settings::unavailable(key).is_some() {
+            return None;
+        }
+        let place = names::place(key, self.settings)?;
+        let mut line = format!(
+            "{key} | {} | {} › {}",
+            values(key, kind, choices),
+            place.path,
+            place.name
+        );
+        if self.send() {
+            let now = if kind == "shortcut" {
+                self.stored
+                    .as_ref()
+                    .map(|stored| facts::keycaps(stored, key).unwrap_or_else(|| "none".into()))
+            } else {
+                self.shown
+                    .iter()
+                    .find(|(known, _)| *known == key)
+                    .and_then(|(_, value)| sendable(key, kind, value))
+            };
+            let now = now.unwrap_or_default();
+            match key {
+                // Summaries only decides while no writer is chosen: said
+                // where its value stands, so it never reads as who writes.
+                "meetings.summaries" if self.facts.notes.writer.is_some() => line.push_str(
+                    &format!(" | {now} (fallback, not used now: meetings.notes.writer decides)"),
+                ),
+                _ => line.push_str(&format!(" | {now}")),
+            }
+        }
+        Some(line)
+    }
+
+    /// Clean up with AI, a part of the Global mode.
+    fn cleanup(&self) -> String {
+        format!(
+            "{} | on/off | Output › AI cleanup › Clean up with AI{}",
+            parts::CLEANUP,
+            if self.send() {
+                match parts::Part::Cleanup.value(self.settings) {
+                    Value::Bool(true) => " | on",
+                    _ => " | off",
+                }
+            } else {
+                ""
+            },
+        )
+    }
+
+    /// The Global mode's instructions: never their text.
+    fn prompt(&self) -> String {
+        format!(
+            "{} | the Global mode's whole instructions, as text | Output › AI cleanup › Instructions{}",
+            parts::PROMPT,
+            if self.send() { " |" } else { "" },
+        )
+    }
+}
+
+/// `key`'s line of the catalog (see [`Lines::line`]).
+#[cfg(test)]
+pub fn line(settings: &AppSettings, facts: &Facts, key: &str) -> Option<String> {
+    Lines::new(settings, facts).line(key)
+}
+
 /// The settings a card may change, as the prompt carries them: one line
 /// each, `key | values | where | now`, then what Assistant knows of this
 /// install (`facts::text::told`, the one place that writes it).
 pub fn section(settings: &AppSettings, reading: &Reading, facts: &Facts) -> String {
-    // The person's values go in only while they let them be read.
-    let send = facts.consent.send_settings;
-    let shown = settings::values(settings);
-    let stored = send.then(|| serde_json::to_value(settings).ok()).flatten();
+    let lines = Lines::new(settings, facts);
+    let send = lines.send();
     let wanted = |key: &str| {
         reading.every
             || CORE.contains(&key)
@@ -223,43 +340,15 @@ pub fn section(settings: &AppSettings, reading: &Reading, facts: &Facts) -> Stri
                 .iter()
                 .any(|(needs, _)| reading.keys.contains(needs))
     };
-    let mut out = String::from("<changeable_settings>\nkey | values | where in the window");
-    out.push_str(if send { " | now\n" } else { "\n" });
+    let mut out = format!("<changeable_settings>\n{}\n", lines.header());
     for (key, kind, choices, _) in settings::kinds() {
-        if never(key) || settings::unavailable(key).is_some() || !wanted(key) {
+        if !wanted(key) {
             continue;
         }
-        let Some(place) = names::place(key, settings) else {
-            continue;
-        };
-        out.push_str(&format!(
-            "{key} | {} | {} › {}",
-            values(key, kind, &choices),
-            place.path,
-            place.name
-        ));
-        if send {
-            let now = if kind == "shortcut" {
-                stored
-                    .as_ref()
-                    .map(|stored| facts::keycaps(stored, key).unwrap_or_else(|| "none".into()))
-            } else {
-                shown
-                    .iter()
-                    .find(|(known, _)| *known == key)
-                    .and_then(|(_, value)| sendable(key, kind, value))
-            };
-            let now = now.unwrap_or_default();
-            match key {
-                // Summaries only decides while no writer is chosen: said
-                // where its value stands, so it never reads as who writes.
-                "meetings.summaries" if facts.notes.writer.is_some() => out.push_str(&format!(
-                    " | {now} (fallback, not used now: meetings.notes.writer decides)"
-                )),
-                _ => out.push_str(&format!(" | {now}")),
-            }
+        if let Some(line) = lines.known(key, kind, &choices) {
+            out.push_str(&line);
+            out.push('\n');
         }
-        out.push('\n');
     }
     if reading.every || reading.keys.iter().any(|key| key.starts_with("meetings.")) {
         out.push_str(
@@ -267,23 +356,10 @@ pub fn section(settings: &AppSettings, reading: &Reading, facts: &Facts) -> Stri
         );
         out.push_str(if send { " |\n" } else { "\n" });
     }
-    out.push_str(&format!(
-        "{} | on/off | Output › AI cleanup › Clean up with AI{}\n",
-        parts::CLEANUP,
-        if send {
-            match parts::Part::Cleanup.value(settings) {
-                Value::Bool(true) => " | on",
-                _ => " | off",
-            }
-        } else {
-            ""
-        },
-    ));
-    out.push_str(&format!(
-        "{} | the Global mode's whole instructions, as text | Output › AI cleanup › Instructions{}\n",
-        parts::PROMPT,
-        if send { " |" } else { "" },
-    ));
+    out.push_str(&lines.cleanup());
+    out.push('\n');
+    out.push_str(&lines.prompt());
+    out.push('\n');
     out.push_str("</changeable_settings>\n");
     out.push_str(&format!(
         "Speech model ids: {}\n",
@@ -439,6 +515,50 @@ mod tests {
         );
         assert_eq!(class("meetings.enabled", &Value::Bool(false)), Class::Card);
         assert_eq!(class(parts::PROMPT, &Value::from("x")), Class::Card);
+    }
+
+    /// A key's line asked for alone is the line the section carries for it,
+    /// with the person's value or without.
+    #[test]
+    fn a_key_alone_reads_as_its_line_in_the_section() {
+        for send in [true, false] {
+            let mut settings = AppSettings::default();
+            settings.assistant.send_settings = send;
+            let facts = Facts::of(&settings, &State::default());
+            let reading = Reading {
+                every: true,
+                keys: Vec::new(),
+                instructions: false,
+            };
+            let section = super::section(&settings, &reading, &facts);
+            let lines: Vec<&str> = section
+                .lines()
+                .skip(2)
+                .take_while(|line| !line.starts_with("</"))
+                .collect();
+            assert!(lines.len() > 60, "only {} lines", lines.len());
+            for written in lines {
+                let key = written.split(" | ").next().unwrap();
+                if key == "meetings.providers.<app>.policy" {
+                    continue;
+                }
+                assert_eq!(
+                    line(&settings, &facts, key).as_deref(),
+                    Some(written),
+                    "{key}"
+                );
+            }
+        }
+        let settings = AppSettings::default();
+        let facts = Facts::of(&settings, &State::default());
+        for key in [
+            "assistant.engine",
+            "microphone",
+            "screenshots.folder",
+            "no.such.key",
+        ] {
+            assert_eq!(line(&settings, &facts, key), None, "{key}");
+        }
     }
 
     /// Every line a built prompt advertises is a key `hex settings get`

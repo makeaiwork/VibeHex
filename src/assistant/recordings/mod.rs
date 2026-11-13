@@ -14,6 +14,8 @@
 pub mod cite;
 pub mod heard;
 mod meetings;
+pub mod read;
+mod shelf;
 mod spoken;
 pub mod terms;
 mod texts;
@@ -23,6 +25,8 @@ use std::ops::Range;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+
+pub use shelf::Shelf;
 
 use super::intent::Intent;
 use crate::app_settings::AssistantSettings;

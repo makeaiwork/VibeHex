@@ -111,12 +111,14 @@ fn knowing<T>(ui: &Ui, conversation: u32, then: impl FnOnce(&Env) -> T) -> T {
 }
 
 /// Whether round `at`'s Continue and its "Skip to the plan" wait for a
-/// model that is answering in another conversation.
-fn waits(ui: &Ui, at: At) -> (bool, bool) {
+/// model that is answering in another conversation, and why, in words: it
+/// answers there, or its answer waits there on the consent card.
+fn waits(ui: &Ui, at: At) -> (bool, bool, &'static str) {
     let pane = &ui.assistant;
     let open = pane.store.get(at.conversation);
+    let why = super::composer::elsewhere(ui).map_or(tr(flow::BUSY), |(why, _)| why);
     let Some(open) = open.filter(|_| pane.answering.is_some()) else {
-        return (false, false);
+        return (false, false, why);
     };
     let flow = Flow::new(
         at.conversation,
@@ -127,8 +129,31 @@ fn waits(ui: &Ui, at: At) -> (bool, bool) {
         (
             flow.waits(at.turn, false, env),
             flow.waits(at.turn, true, env),
+            why,
         )
     })
+}
+
+/// Whether the open conversation shows a setup round whose Continue waits
+/// for a model answering elsewhere: the round says why itself.
+pub(super) fn round_waits(ui: &Ui) -> bool {
+    let pane = &ui.assistant;
+    let Some(open) = pane.conversation() else {
+        return false;
+    };
+    let at = match flow::step(&open.turns, pane.store.setups()) {
+        Step::Basics {
+            turn,
+            folded: false,
+        }
+        | Step::Follow { turn, .. } => At {
+            conversation: open.id,
+            turn,
+        },
+        _ => return false,
+    };
+    let waits = waits(ui, at);
+    waits.0 || waits.1
 }
 
 /// Performs a transition's effects in `conversation`, in order: turns and
@@ -376,7 +401,7 @@ fn title(p: Paint, ask: &Ask, small: bool) -> El {
 /// Continue, and "Skip to the plan" after round one. Either `waits` (Continue,
 /// the skip) while the model it would ask is answering in another
 /// conversation, and the round says so.
-fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool, waits: (bool, bool)) -> El {
+fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool, waits: (bool, bool, &str)) -> El {
     let c = &p.k.c;
     let mut card = col()
         .key(format!("round{}", at.turn))
@@ -409,7 +434,7 @@ fn open(p: Paint, at: At, asks: &[Ask], unfolded: bool, waits: (bool, bool)) -> 
         foot = foot.child(small(skip, p.k).key("skip"));
     }
     if waits.0 || waits.1 {
-        let why = text(tr(flow::BUSY)).key("waits").font(p.k.ty.small);
+        let why = text(waits.2.to_owned()).key("waits").font(p.k.ty.small);
         card = card.child(why.color(p.muted()).wrap_anywhere().w_full());
     }
     card.child(

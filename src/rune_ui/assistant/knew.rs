@@ -11,8 +11,9 @@ use rune_theme_opencode::icons as theme;
 use super::super::Ui;
 use super::super::controls::Paint;
 use super::recall;
+use crate::assistant::agent::words;
 use crate::assistant::store::Turn;
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::tr;
 
 /// The width a step's mark and gap take, so the line sits on their words.
 const UNDER_WORDS: f32 = 22.0;
@@ -27,21 +28,15 @@ pub(super) fn folded(
     turn: &Turn,
 ) -> Option<El> {
     let at = (conversation, index);
-    let searched = !turn.steps.is_empty() || !turn.web.is_empty();
+    // A router turn's search and an agent turn's trace, as one list.
+    let trace = words::of(&turn.steps, &turn.trace);
     let knew = !turn.knew.trim().is_empty();
-    if !searched && !knew {
+    if trace.is_empty() && turn.web.is_empty() && !knew {
         return None;
     }
-    let line = if searched {
-        recall::summary((&turn.steps, false), Some(turn), turn.seconds)
-    } else {
-        tr_fill(
-            "Read the guide in {} s",
-            &format!("{:.0}", turn.seconds.max(1.0)),
-        )
-    };
+    let line = recall::summary((&trace, false), Some(turn), turn.seconds);
     let open = ui.assistant.unfolded.contains(&at);
-    let mut list = recall::step_lines(p, &turn.steps);
+    let mut list = recall::trace_lines(p, &trace);
     list.extend(super::web::steps(p, turn));
     if knew {
         let shown = ui.assistant.knew_open.contains(&at);

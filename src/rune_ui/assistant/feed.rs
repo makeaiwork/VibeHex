@@ -68,7 +68,7 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool) -> El {
     }
     if let Some(answering) = pane.answering_in(pane.open) {
         let mood = pane.face.mood(true, still);
-        feed = feed.children(coming(p, answering, mood, pane.dots.phase()));
+        feed = feed.children(coming(ui, p, answering, mood, pane.dots.phase()));
     } else if let Some(pending) = pane
         .consent
         .as_ref()
@@ -428,9 +428,13 @@ fn sources(p: Paint, ids: &[String], web: &[String]) -> Option<El> {
 }
 
 /// The question being answered and what came so far, the face reading.
-fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<El> {
+/// "Looking in the guide" is said only while that is all it does: before
+/// its first words, with nothing read past the guide.
+fn coming(ui: &Ui, p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<El> {
     let steps = super::recall::live(p, answering, dots);
     let web = super::web::live(p, answering, dots);
+    // It asked to read the recordings and waits for the person.
+    let asking = super::recall::asking(ui, p, answering);
     // The model said nothing in time and is asked again.
     let retry = (answering.retrying && answering.draft.trim().is_empty()).then(|| {
         super::recall::step_line(p, "retry", false, tr("No reply yet, asking again"), dots)
@@ -467,6 +471,7 @@ fn coming(p: Paint, answering: &Answering, mood: Mood, dots: Option<u8>) -> Vec<
                 .gap(10.0)
                 .children(steps)
                 .children(web)
+                .children(asking)
                 .children(retry)
                 .children(words)
                 .children(preparing),
@@ -597,6 +602,181 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// What the window shows of `ui`, as its texts.
+    fn shown(apply: impl FnOnce(&mut Ui)) -> Vec<String> {
+        crate::desktop::i18n::apply(Some("en"));
+        let rt = super::super::layout::window(apply, super::super::super::WINDOW_SIZE);
+        rt.elements().into_iter().filter_map(|e| e.text).collect()
+    }
+
+    /// An agent's answer on its way says only what goes on: it looks in
+    /// the guide while the articles laid out are all it has; past them it
+    /// lists what it read and thinks; and while it asks to read the
+    /// recordings the card stands there and nothing else moves.
+    #[test]
+    fn an_agents_answer_says_only_what_it_does() {
+        fn answering(ui: &mut Ui) -> &mut Answering {
+            ui.assistant.answering.as_mut().expect("answering")
+        }
+        let has = |texts: &[String], words: &str| texts.iter().any(|text| text.contains(words));
+
+        // Only the articles the app laid out: it is in the guide.
+        let first = shown(|ui| {
+            super::super::fixture::steps(ui);
+            answering(ui).trace.truncate(1);
+        });
+        assert!(has(&first, "Looking in the guide"), "{first:?}");
+        assert!(!has(&first, "guide articles") && !has(&first, "Thinking it over"));
+
+        // Past them: each thing read, then that it thinks.
+        let read = shown(super::super::fixture::steps);
+        for line in [
+            "Read 3 guide articles: ",
+            "Searched 12 meetings: 4 match",
+            "Read the notes of “Бюджет Q1”",
+            "Thinking it over",
+        ] {
+            assert!(has(&read, line), "{line}: {read:?}");
+        }
+        assert!(!has(&read, "Looking in the guide"));
+        assert!(!has(&read, "Searching your recordings"));
+
+        // Its words come: the steps stay, nothing goes on beside them.
+        let drafted = shown(|ui| {
+            super::super::fixture::steps(ui);
+            answering(ui).draft = "In March".into();
+        });
+        assert!(has(&drafted, "Searched 12 meetings: 4 match"));
+        assert!(!has(&drafted, "Thinking it over"));
+
+        // It asks: the card, under what it read, and no step going on.
+        let asking = shown(super::super::fixture::agent_consent);
+        assert!(has(&asking, "Read your meetings, files, and dictations?"));
+        assert!(has(&asking, "Answer without recordings"));
+        assert!(has(&asking, "Read 3 guide articles: "), "{asking:?}");
+        assert!(!has(&asking, "Thinking it over") && !has(&asking, "Looking in the guide"));
+        let mut ui = dictating("auto");
+        super::super::fixture::agent_consent(&mut ui);
+        assert!(
+            !super::super::steps_live(&ui),
+            "nothing moves while it asks"
+        );
+    }
+
+    /// A finished agent answer's fold counts what its tools read; the
+    /// articles the app laid out are listed under it, never counted, and
+    /// a call that was refused has no check.
+    #[test]
+    fn an_agents_fold_counts_what_its_tools_read() {
+        let has = |texts: &[String], words: &str| texts.iter().any(|text| text.contains(words));
+        let guide = shown(super::super::fixture::knew);
+        // The scene dictates Russian: its answer's lines speak it.
+        let russian = |english: &str| speaking(Some("ru"), || tr(english).to_owned());
+        assert!(
+            has(
+                &guide,
+                &russian("Read the guide in {} s").replace("{}", "7")
+            ),
+            "{guide:?}"
+        );
+        let read = shown(super::super::fixture::steps_open);
+        // Web was on until the recordings were read: the fold says it
+        // stayed off, as a guide answer's does, and the last step why.
+        assert!(
+            has(
+                &read,
+                "Read 4 meetings, 1 file, and your settings in 9 s, not the web"
+            ),
+            "{read:?}"
+        );
+        assert!(has(
+            &read,
+            "The web stays off once a conversation has read your recordings, Vocabulary, or cleanup instructions"
+        ));
+        assert!(has(&read, "Read 3 guide articles: "), "{read:?}");
+        assert!(has(&read, "You allowed reading your recordings"));
+        assert!(has(&read, "Didn't read your settings: sending them is off"));
+    }
+
+    /// A fold that read things and was kept off the web says so in every
+    /// language, and one Web was never on for says nothing of it.
+    #[test]
+    fn a_fold_kept_off_the_web_says_so() {
+        use crate::assistant::agent::trace::Did;
+        let trace = [Did::Settings {
+            keys: vec!["labs.meetings".into()],
+        }];
+        let mut turn = Turn {
+            trace: trace.to_vec(),
+            ..Turn::default()
+        };
+        let line = |turn: &Turn| super::super::recall::summary((&trace, false), Some(turn), 9.0);
+        assert_eq!(line(&turn), "Read your settings in 9 s");
+        turn.web.held_back = true;
+        assert_eq!(line(&turn), "Read your settings in 9 s, not the web");
+        assert!(!line(&turn).contains('·'));
+        for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
+            let shown = speaking(Some(code), || line(&turn));
+            let guide = speaking(Some(code), || line(&Turn::default()));
+            assert!(
+                shown.starts_with(&guide) && shown != guide,
+                "{code}: {shown}"
+            );
+        }
+        assert_eq!(
+            speaking(Some("ru"), || line(&turn)),
+            format!(
+                "{}, без интернета",
+                speaking(Some("ru"), || line(&Turn::default()))
+            )
+        );
+    }
+
+    /// While an answer in another conversation waits on the consent card,
+    /// a question here says what it waits for, with a way there, and the
+    /// card stays in its own conversation; while one only answers there,
+    /// that it answers. In its own conversation neither shows.
+    #[test]
+    fn a_question_here_says_what_it_waits_for_elsewhere() {
+        use super::super::composer::PARKED;
+        use crate::assistant::setup::flow::BUSY;
+        let has = |texts: &[String], words: &str| texts.iter().any(|text| text.contains(words));
+        let elsewhere = |ui: &mut Ui| {
+            super::super::fixture::agent_consent(ui);
+            ui.assistant.open = None;
+        };
+        let parked = shown(elsewhere);
+        assert!(has(&parked, PARKED), "{parked:?}");
+        assert!(has(&parked, "Open that conversation"));
+        assert!(!has(&parked, BUSY));
+        assert!(!has(&parked, "Read your meetings, files, and dictations?"));
+        let busy = shown(|ui| {
+            elsewhere(ui);
+            ui.assistant.answering.as_mut().expect("answering").asking = false;
+        });
+        assert!(has(&busy, BUSY) && !has(&busy, PARKED), "{busy:?}");
+        assert!(!has(&busy, "Open that conversation"));
+        let here = shown(super::super::fixture::agent_consent);
+        assert!(!has(&here, PARKED) && !has(&here, BUSY));
+
+        let mut ui = dictating("auto");
+        super::super::fixture::agent_consent(&mut ui);
+        let id = ui.assistant.open;
+        ui.assistant.open = None;
+        let (_, open) = super::super::composer::elsewhere(&ui).expect("waits");
+        assert_eq!(open, id, "the line opens the card's conversation");
+        for words in [PARKED, "Open that conversation"] {
+            for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
+                let shown = speaking(Some(code), || tr(words).to_owned());
+                assert_ne!(shown, words, "{code} has no row for {words}");
+            }
+        }
+        assert_eq!(
+            speaking(Some("ru"), || tr(PARKED).to_owned()),
+            "Ответ в другом разговоре ждёт, разрешите ли вы ему читать ваши записи."
+        );
     }
 
     /// Recognition on Auto follows the window; a language without a table

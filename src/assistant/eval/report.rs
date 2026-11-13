@@ -67,7 +67,13 @@ fn step(step: &StepRan) -> Value {
         "steps": step.turn.steps.len(),
         "sources": step.turn.sources,
         "web_sources": step.turn.web.sources,
+        "agent": !step.turn.trace.is_empty(),
+        "requests": step.requests,
+        "called": step.called,
+        "trace": step.turn.trace,
         "first_event_s": step.first_event,
+        "first_read_s": step.first_read,
+        "first_word_s": step.first_word,
         "total_s": step.seconds,
         "prompt_chars": step.prompt_chars,
         "error": step.turn.error,
@@ -118,11 +124,24 @@ fn seconds(seconds: Option<f32>) -> String {
     seconds.map_or_else(|| "-".into(), |seconds| format!("{seconds:.1} s"))
 }
 
-/// The run as a table, a row a step, then each failure with why.
+/// The run as a table, a row a step, then each failure with why. `reqs`
+/// is the requests a turn made; `read`, when the first thing its model
+/// asked to read showed as a step; `word`, when the answer's first words
+/// did.
 pub fn table(runs: &[Ran]) -> String {
     let mut out = format!(
-        "{:<28} {:<5} {:<20} {:>6}  {:>7} {:>8} {:>8}  {}\n",
-        "scenario", "step", "route", "checks", "first", "total", "prompt", "cards"
+        "{:<28} {:<5} {:<20} {:>6} {:>4}  {:>7} {:>7} {:>7} {:>8} {:>8}  {}\n",
+        "scenario",
+        "step",
+        "route",
+        "checks",
+        "reqs",
+        "first",
+        "read",
+        "word",
+        "total",
+        "prompt",
+        "cards, then the tools called"
     );
     for ran in runs {
         if !ran.app.is_empty() {
@@ -135,14 +154,23 @@ pub fn table(runs: &[Ran]) -> String {
             ));
         }
         for (index, step) in ran.steps.iter().enumerate() {
-            let cards = cards(&step.turn.cards);
+            let mut cards = cards(&step.turn.cards);
+            if !step.called.is_empty() {
+                cards.push(format!("called {}", step.called.join(", ")));
+            }
             out.push_str(&format!(
-                "{:<28} {:<5} {:<20} {:>6}  {:>7} {:>8} {:>8}  {}\n",
+                "{:<28} {:<5} {:<20} {:>6} {:>4}  {:>7} {:>7} {:>7} {:>8} {:>8}  {}\n",
                 ran.id,
                 index + 1,
                 step.route,
                 passed(&step.checks),
+                match step.requests {
+                    0 => "-".into(),
+                    requests => requests.to_string(),
+                },
                 seconds(step.first_event),
+                seconds(step.first_read),
+                seconds(step.first_word),
                 seconds(step.asked.then_some(step.seconds)),
                 match step.prompt_chars {
                     0 => "-".into(),

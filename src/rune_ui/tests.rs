@@ -3246,6 +3246,7 @@ fn goldens() {
         "assistant-settings",
         "assistant-consent",
         "assistant-steps",
+        "assistant-agent-consent",
         "assistant-steps-open",
         "assistant-knew",
     ] {

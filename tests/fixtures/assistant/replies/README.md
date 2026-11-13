@@ -18,5 +18,8 @@ model wrote it. Every header field is optional; a field present is checked.
 | `malformed` | lines in a change block that weren't a change |
 | `cards` | cards made against default settings |
 | `refused` | refusals as `key:why` (`unknown`, `invalid`, `never`, `malformed`), `,` between them |
+| `reads` | the tools a read step calls (`hex-read`, `src/assistant/agent/protocol.rs`), `,` between them; `none` for a reply that is an answer |
+| `reads_malformed` | lines in a read block that weren't a call |
 
-Whatever the header says, the body never shows a change block.
+Whatever the header says, the body never shows a change block or a read
+block.

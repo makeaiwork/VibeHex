@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use color_eyre::eyre::{Result, WrapErr};
 use serde::{Deserialize, Serialize};
 
+use super::agent::trace::Did;
 use super::changes::{Card, Refused};
 use super::recordings::{Ref, Step};
 use super::setup::past::{self, Setup};
@@ -45,6 +46,10 @@ pub struct Turn {
     /// How it searched the person's recordings; empty for a guide answer.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub steps: Vec<Step>,
+    /// What an agent turn read before it answered, in order
+    /// (`agent::trace`); empty for a turn the router read for.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub trace: Vec<Did>,
     /// The places in the recordings its `[n]` cite.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refs: Vec<Ref>,
@@ -119,6 +124,7 @@ impl Turn {
                 } => dictations + meetings > 0,
                 Step::Guide { .. } => false,
             })
+            || self.trace.iter().any(Did::personal)
     }
 }
 
