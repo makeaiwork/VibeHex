@@ -5,13 +5,23 @@ code and to AI assistants. Hold a key, speak, and it pastes.
 
 It is a fork of [Hex](https://github.com/anomalyco/hex) by Anomaly. Everything
 Hex does, VibeHex does too, and it keeps up with Hex's changes. On top of that
-it adds vocabulary tools, AI cleanup without a separate server, files and
-meetings you can work with, and a Russian setup for vibe coding. VibeHex is
+it adds an assistant that knows the app and your recordings, vocabulary tools,
+AI cleanup without a separate server, files and meetings you can work with,
+and a Russian setup for vibe coding. VibeHex is
 its own app, built and signed separately, so it is not an official Hex
 release.
 
 ## Why VibeHex
 
+- **An assistant that knows VibeHex.** Ask in your own words how to do
+  something: it answers from VibeHex's guide, with links straight to the
+  setting, and offers changes as cards you apply with one click and can
+  undo. It sets VibeHex up for how you work in a few questions, helps you
+  pick your shortcuts, and tells you what's new after an update. With your
+  permission it answers questions about your meetings, files and
+  dictations, and links each answer to the recording it came from. It runs
+  on Codex with your ChatGPT plan (recommended), OpenCode, OpenRouter, your
+  own server, or a model built into the app.
 - **Technical words come out right.** Russian vibe coding adds 80 terms such
   as Claude Code, GitHub and MCP, fixes for words that often come out wrong in
   Russian, and cleanup instructions, all in one switch. When a word comes out
@@ -45,6 +55,20 @@ Most of these live in Labs, marked with a star, and stay off until you turn
 them on. Russian vibe coding turns on most of them in one go.
 
 ## Screenshots
+
+**Assistant.** Ask how to do something and get the steps, with links that open the right place.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-answer-dark.png">
+  <img alt="Assistant answering how to make Zoom calls record by themselves, with links to Labs and Meetings settings" src="docs/images/readme/assistant-answer-light.png">
+</picture>
+
+**Assistant on your recordings.** Ask about your meetings and files; each point links to the recording it came from.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-recordings-dark.png">
+  <img alt="Assistant summing up budget decisions from four meetings and a file, with numbered links to each recording" src="docs/images/readme/assistant-recordings-light.png">
+</picture>
 
 **Files.** A transcript you can play: the line playing lights up, and you can ask about the text below it.
 
