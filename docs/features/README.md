@@ -67,7 +67,10 @@ question there that reaches past it reads the other recordings the same way.
 An answer may suggest setting changes and vocabulary terms as cards; nothing
 changes until the person presses one, and then only through the check
 `hex settings` uses (terms through `hex vocabulary add`'s). "Set VibeHex up
-for me" asks four questions and offers one list of changes. "What's new?"
+for me" asks four questions and offers one list of changes, with no model
+needed; onboarding's last page offers it ("Set up with Assistant"), and
+after an update a dot on the sidebar row leads once to the start page that
+offers it. "What's new?"
 reads VibeHex's own release notes (`docs/releases`) since the version the
 install ran before and offers what fits the person's settings. On Codex,
 with Web on (the default), it may search the web when the guide has no

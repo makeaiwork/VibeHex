@@ -262,6 +262,14 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/New conversation after an update",
     ),
     (
+        "assistant-marked",
+        "Window/Assistant/Sidebar marked after an update",
+    ),
+    (
+        "assistant-marked-rail",
+        "Window/Assistant/Folded sidebar marked after an update",
+    ),
+    (
         "assistant-vocab-card",
         "Window/Assistant/Cards/Vocabulary terms",
     ),

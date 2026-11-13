@@ -59,7 +59,8 @@ Each release's notes are on its page at github.com/makeaiwork/VibeHex/releases.
 You can also ask Assistant "What's new?": it knows every VibeHex release,
 tells what changed since the version you had before, and offers what suits
 your settings, each as a card you decide on. For two weeks after an update,
-a new Assistant conversation starts with "Updated to <version>" to ask it.
+a new Assistant conversation starts with "Updated to <version>" to ask it,
+and a dot on Assistant in the sidebar leads there until you first open it.
 
 ## Version and About
 

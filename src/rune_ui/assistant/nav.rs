@@ -4,15 +4,17 @@
 //! above it, but its open pane shows without a fill (variant B of the
 //! Selected board): the face and the word turn bright, the word medium, and
 //! the pane's title says the rest. A fill there read as a separate bar
-//! beside the version; the items at the top keep theirs.
+//! beside the version; the items at the top keep theirs. After an update
+//! both carry a dot until Assistant opens (`whats_new::marked`).
 
 use rune::{El, Tx, col, el, row, text};
 
 use super::super::Ui;
-use super::super::controls::Paint;
+use super::super::controls::{Paint, status_dot};
 use super::super::sidebar::{NAV_ROW_GAP, Pane};
 use super::face::face;
-use crate::desktop::i18n::tr;
+use super::whats_new::marked;
+use crate::desktop::i18n::{tr, tr_fill};
 
 const KEY: &str = "nav-assistant";
 /// The face is larger than the 16 pt icons above it (the Face board's
@@ -88,9 +90,18 @@ pub(in super::super) fn item(ui: &Ui, p: Paint, still: bool) -> Option<El> {
                 .key("label")
                 .font(if on { p.k.ty.ui_medium } else { p.k.ty.ui })
                 .color(if on { c.text_base } else { c.text_muted })
+                .shrink()
                 .truncate()
                 .a11y_hidden(),
         );
+    // After an update, a dot at the row's end until Assistant opens.
+    let item = match marked(ui) {
+        Some(version) => item
+            .description(tr_fill("Updated to {}", version))
+            .child(el().key("spacer").grow(1.0))
+            .child(mark(p).mr(9.0)),
+        None => item,
+    };
     Some(
         col()
             .key(format!("{KEY}-slot"))
@@ -145,6 +156,12 @@ pub(in super::super) fn rail_item(
             }
         })
         .child(glyph(ui, p, on, still));
+    let button = match marked(ui) {
+        Some(version) => button
+            .description(tr_fill("Updated to {}", version))
+            .child(mark(p).pin(None, Some(4.0), Some(4.0), None)),
+        None => button,
+    };
     Some(
         rune_kit::Tooltip::new(format!("{KEY}-tip"))
             .trigger(button)
@@ -153,4 +170,9 @@ pub(in super::super) fn rail_item(
             .open(ui.sidebar_tip == Some(KEY) && ui.open.is_none())
             .build(p.k, layer),
     )
+}
+
+/// The mark after an update: the accent dot an available update has.
+fn mark(p: Paint) -> El {
+    status_dot(p.accent()).key("mark")
 }

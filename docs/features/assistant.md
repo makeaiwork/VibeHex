@@ -12,7 +12,9 @@ Sidebar                                          // rune_ui::sidebar, rune_ui::a
 └── Assistant   below the spacer, above the version footer (nav-assistant):
                 a 32 pt row with a 24 pt face (VibeHex's hexagon with two
                 eyes); open, the face and word brighten, no fill. On the rail
-                the last button, 36 by 32, with its own tooltip
+                the last button, 36 by 32, with its own tooltip. After an
+                update, an accent dot at the row's end (on the rail, at the
+                face's top right) until Assistant is first opened
 Assistant                                        // rune_ui::assistant
 ├── Header      Chat | Settings; in Chat, the conversation picker and +.
 │               A narrow window cuts the picker's name, never the title
@@ -914,6 +916,21 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   asks "What's new since my last version?" in Assistant's language,
   answered from the notes whatever its words; once such a question is asked
   the row goes. There is no speech bubble on the face to put it in.
+- What leads there is a mark, never a popup: on the same condition (a
+  release's first two weeks after an earlier one ran here) the sidebar's
+  Assistant row carries an accent dot at its end, and the folded rail's
+  face one at its top right (`whats_new::marked`; its accessible
+  description says "Updated to <version>"). The first time Assistant opens
+  after that, from the sidebar, a link, or onboarding's Set up with
+  Assistant, it lands on a new conversation's start page, Updated to and
+  Set VibeHex up for me together, not on the last conversation; the mark
+  goes for good for that version: `versions.json` keeps `opened`, the last
+  version Assistant was opened on after an update
+  (`releases::history::note_opened`), so a relaunch doesn't bring it back
+  and the next update does. A first install, a development build, and a
+  window with Assistant off show none. Checks:
+  `the_mark_lasts_until_assistant_opens_on_the_update`,
+  `rune_ui::assistant::invite_tests`.
 
 ## Questions about recordings
 
@@ -1295,7 +1312,7 @@ each with the parse it must make); scenes `assistant`,
 `assistant-cards-prompt`, `assistant-cards-prompt-edit`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
 `assistant-change-both`, `assistant-change-coming`, `assistant-whats-new`,
-`assistant-updated`, setup's
+`assistant-updated`, the mark's `assistant-marked` and `assistant-marked-rail`, setup's
 `assistant-setup-ask`, `assistant-setup-unreachable`, `assistant-setup-follow`, `assistant-setup-plan`,
 `assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
 `assistant-setup-preset-shortcuts`, the terms' `assistant-plan-terms`,
@@ -1437,6 +1454,7 @@ The other scenes, each through `every_scene_is_laid_out_whole`:
 | Instructions card | `assistant-cards-prompt`, `assistant-cards-prompt-edit` |
 | Vocabulary card | `assistant-vocab-card`, `assistant-vocab-applied` |
 | What's new | `assistant-whats-new`, `assistant-updated` |
+| The sidebar's mark after an update | `assistant-marked`, `assistant-marked-rail` |
 | Setup's first round, plan, and result | `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-kept`, `assistant-setup-result` |
 | Setup with no model connected | `assistant-setup-unreachable` |
 | Returning setup's plan | `assistant-setup-returning-plan` |

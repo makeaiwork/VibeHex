@@ -318,7 +318,7 @@ pub(super) fn open_cleanup(ui: &mut Ui, tx: &mut Tx) {
 /// preselected but dictation cleaned up on Codex, Yes to each round's
 /// first follow-up, the app's own plan (Codex signed out: unticked,
 /// with its sign-in) ending on where to connect a model, and this panel under it.
-pub(in super::super) fn setup_fixture(ui: &mut Ui) {
+pub(in super::super) fn scene(ui: &mut Ui) {
     use crate::assistant::setup::flow::{self, Step};
     super::fixture::connect(ui);
     super::super::output::codex_signed_out(ui);

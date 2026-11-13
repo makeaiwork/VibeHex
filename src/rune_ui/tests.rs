@@ -3316,6 +3316,8 @@ fn goldens() {
     for scene in [
         "assistant-whats-new",
         "assistant-updated",
+        "assistant-marked",
+        "assistant-marked-rail",
         "assistant-places",
         "assistant-place-opened",
         "assistant-lab-opened",

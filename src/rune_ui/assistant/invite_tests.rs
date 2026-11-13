@@ -48,6 +48,9 @@ fn set_up_with_assistant_finishes_onboarding_and_opens_round_one() {
     let mut rt = scene("mac-onboarding-ready", |ui| {
         ui.history.entries.clear();
         ui.meetings.meetings.clear();
+        // An upgrader shown onboarding again: opening Assistant here
+        // counts as opening it after the update.
+        ui.assistant.mark = Some("3.3.0-vibe.7".into());
     });
     assert!(rt.find("start-using-hex").is_some());
     assert!(
@@ -71,6 +74,7 @@ fn set_up_with_assistant_finishes_onboarding_and_opens_round_one() {
         "round one is open"
     );
     assert!(ui.assistant.answering.is_none(), "no model was asked");
+    assert!(ui.assistant.mark.is_none(), "Assistant was opened");
     let shown = texts(&rt);
     assert!(
         shown
@@ -88,4 +92,59 @@ fn with_assistant_off_onboarding_offers_start_alone() {
     });
     assert!(rt.find("start-using-hex").is_some());
     assert!(rt.find("set-up-with-assistant").is_none());
+}
+
+/// Whether Assistant's sidebar row, or its rail button, shows the mark.
+fn marked(rt: &Runtime<Ui>) -> bool {
+    rt.elements()
+        .into_iter()
+        .any(|e| e.key.as_deref() == Some("mark") && e.path.contains("nav-assistant"))
+}
+
+/// After an update the sidebar's Assistant row carries a mark. Opening
+/// Assistant lands on a new conversation's start page, Updated to and
+/// Set VibeHex up for me together, not on the conversation left open; the
+/// mark is gone, and leaving and coming back doesn't bring it back.
+#[test]
+fn the_mark_leads_once_to_the_start_page() {
+    let mut rt = scene("assistant-marked", |ui| {
+        let store = &mut ui.assistant.store;
+        let id = store.start("Earlier", None, None);
+        store.push(
+            id,
+            crate::assistant::store::Turn {
+                question: "Earlier".into(),
+                answer: "An answer.".into(),
+                ..Default::default()
+            },
+        );
+        ui.assistant.open = Some(id);
+    });
+    assert!(marked(&rt), "the row is marked");
+    tap(&mut rt, "nav-assistant");
+    assert_eq!(rt.state.pane, Pane::Assistant);
+    assert_eq!(rt.state.assistant.open, None, "a new conversation");
+    assert!(rt.find("whats-new").is_some(), "Updated to 3.3.0-vibe.7");
+    assert!(rt.find("setup").is_some(), "Set VibeHex up for me");
+    assert!(!marked(&rt) && rt.state.assistant.mark.is_none());
+    // Away and back: no mark, and the conversation stays as left.
+    let earlier = rt.state.assistant.store.conversations()[0].id;
+    rt.state.assistant.open = Some(earlier);
+    tap(&mut rt, "nav-general");
+    assert!(!marked(&rt));
+    tap(&mut rt, "nav-assistant");
+    assert_eq!(rt.state.assistant.open, Some(earlier));
+}
+
+/// The folded sidebar's face carries the same mark; a first install, or
+/// Assistant turned off, has none.
+#[test]
+fn the_rail_carries_the_mark_and_a_first_install_none() {
+    assert!(marked(&scene("assistant-marked-rail", |_| {})));
+    assert!(!marked(&scene("assistant-start", |ui| {
+        ui.pane = Pane::General;
+    })));
+    assert!(!marked(&scene("assistant-marked", |ui| {
+        ui.settings.assistant.enabled = false;
+    })));
 }

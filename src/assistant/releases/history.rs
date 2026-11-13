@@ -1,7 +1,10 @@
 //! The VibeHex versions this install has run, each with when it first ran,
 //! so "what's new" means what came since the one before:
 //! `<support>/assistant/versions.json`, the newest 20. Only a release
-//! records itself; a development build leaves the list as it was.
+//! records itself; a development build leaves the list as it was. Beside
+//! them, `opened`: the last version Assistant was opened on after an
+//! update, so the sidebar's mark for an update shows until then and never
+//! again for it.
 
 use std::path::{Path, PathBuf};
 
@@ -24,6 +27,9 @@ pub struct Seen {
 struct File {
     #[serde(default)]
     versions: Vec<Seen>,
+    /// The last version Assistant was opened on after an update.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    opened: Option<String>,
 }
 
 fn path() -> Option<PathBuf> {
@@ -38,11 +44,22 @@ pub fn read() -> Vec<Seen> {
 }
 
 fn read_at(path: &Path) -> Vec<Seen> {
+    file_at(path).versions
+}
+
+fn file_at(path: &Path) -> File {
     std::fs::read(path)
         .ok()
         .and_then(|bytes| serde_json::from_slice::<File>(&bytes).ok())
-        .map(|file| file.versions)
         .unwrap_or_default()
+}
+
+fn write_at(path: &Path, file: &File) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let json = serde_json::to_vec_pretty(file).map_err(std::io::Error::other)?;
+    crate::durable::write(path, &json)
 }
 
 /// Notes that this build runs, once per new version: a release only.
@@ -60,21 +77,21 @@ pub fn record_running() {
 
 /// Adds `version` at `now_ms` unless it is the last one run.
 fn record_at(path: &Path, version: &str, now_ms: u64) -> std::io::Result<()> {
-    let mut versions = read_at(path);
-    if versions.last().is_some_and(|last| last.version == version) {
+    let mut file = file_at(path);
+    if file
+        .versions
+        .last()
+        .is_some_and(|last| last.version == version)
+    {
         return Ok(());
     }
-    versions.push(Seen {
+    file.versions.push(Seen {
         version: version.to_owned(),
         first_ms: now_ms,
     });
-    let excess = versions.len().saturating_sub(MAX);
-    versions.drain(..excess);
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let json = serde_json::to_vec_pretty(&File { versions }).map_err(std::io::Error::other)?;
-    crate::durable::write(path, &json)
+    let excess = file.versions.len().saturating_sub(MAX);
+    file.versions.drain(..excess);
+    write_at(path, &file)
 }
 
 /// The version run before the last run of `running`.
@@ -109,6 +126,42 @@ pub fn fresh(now_ms: u64) -> Option<(String, u64)> {
 fn fresh_in(seen: &[Seen], running: &str, now_ms: u64) -> Option<(String, u64)> {
     let at = updated_at(seen, running)?;
     (now_ms.saturating_sub(at) < FRESH_MS).then(|| (running.to_owned(), at))
+}
+
+/// The version the sidebar marks Assistant for: the update [`fresh`] names,
+/// while Assistant hasn't been opened on it. A release only; a first
+/// install has none.
+pub fn unopened(now_ms: u64) -> Option<String> {
+    if crate::dev_build::is_dev_build() || super::order(crate::VERSION).is_none() {
+        return None;
+    }
+    let path = path()?;
+    unopened_in(&file_at(&path), crate::VERSION, now_ms)
+}
+
+fn unopened_in(file: &File, running: &str, now_ms: u64) -> Option<String> {
+    let (version, _) = fresh_in(&file.versions, running, now_ms)?;
+    (file.opened.as_deref() != Some(version.as_str())).then_some(version)
+}
+
+/// Assistant was opened on `version` after its update: its mark is gone
+/// for good, across relaunches.
+pub fn note_opened(version: &str) {
+    let Some(path) = path() else {
+        return;
+    };
+    if let Err(error) = note_opened_at(&path, version) {
+        tracing::info!(%error, "couldn't note Assistant opened after the update");
+    }
+}
+
+fn note_opened_at(path: &Path, version: &str) -> std::io::Result<()> {
+    let mut file = file_at(path);
+    if file.opened.as_deref() == Some(version) {
+        return Ok(());
+    }
+    file.opened = Some(version.to_owned());
+    write_at(path, &file)
 }
 
 #[cfg(test)]
@@ -160,6 +213,44 @@ mod tests {
             fresh_in(&seen, "3.3.0-vibe.4", 1_500),
             None,
             "a first install"
+        );
+    }
+
+    /// The sidebar's mark: none on a first install, the update's until
+    /// Assistant opens on it, then never again for it, after a relaunch
+    /// too; the next update brings it back.
+    #[test]
+    fn the_mark_lasts_until_assistant_opens_on_the_update() {
+        let path = scratch("mark");
+        let day = 24 * 3_600_000;
+        record_at(&path, "3.3.0-vibe.6", 1_000).unwrap();
+        assert_eq!(
+            unopened_in(&file_at(&path), "3.3.0-vibe.6", 2_000),
+            None,
+            "a first install has no mark"
+        );
+        record_at(&path, "3.3.0-vibe.7", 10_000).unwrap();
+        let now = 10_000 + day;
+        assert_eq!(
+            unopened_in(&file_at(&path), "3.3.0-vibe.7", now).as_deref(),
+            Some("3.3.0-vibe.7")
+        );
+        note_opened_at(&path, "3.3.0-vibe.7").unwrap();
+        // Relaunched: the same version runs again, and the file is read anew.
+        record_at(&path, "3.3.0-vibe.7", now + 1).unwrap();
+        assert_eq!(unopened_in(&file_at(&path), "3.3.0-vibe.7", now + 2), None);
+        assert_eq!(read_at(&path).len(), 2, "the versions are kept beside it");
+        // Two weeks on, the update isn't fresh: no mark either way.
+        let file = File {
+            versions: read_at(&path),
+            opened: None,
+        };
+        assert_eq!(unopened_in(&file, "3.3.0-vibe.7", 10_000 + 15 * day), None);
+        record_at(&path, "3.3.0-vibe.8", now + 3).unwrap();
+        assert_eq!(
+            unopened_in(&file_at(&path), "3.3.0-vibe.8", now + 4).as_deref(),
+            Some("3.3.0-vibe.8"),
+            "the next update marks again"
         );
     }
 

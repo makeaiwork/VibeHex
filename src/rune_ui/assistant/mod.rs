@@ -51,7 +51,7 @@ mod verbs;
 mod vocab;
 mod vocab_edit;
 mod web;
-mod whats_new;
+pub(super) mod whats_new;
 
 pub(super) use value::ValueAt;
 
@@ -155,6 +155,11 @@ pub(in super::super) struct AssistantPane {
     pub(super) fixed_now: Option<u64>,
     /// The version this install updated to lately, and when (`whats_new`).
     pub(super) updated: Option<(String, u64)>,
+    /// The update the sidebar's row is marked for, until Assistant opens
+    /// (`whats_new::marked`).
+    pub(super) mark: Option<String>,
+    /// Whether the mark was read this run.
+    mark_read: bool,
 }
 
 /// A scroll offset the feed keeps up to date.
@@ -332,14 +337,17 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     changed |= ui.assistant.dots.poll(live, tx);
     changes::follow_open(ui);
     if ui.is_fixture() || ui.assistant.fixture {
-        return changed;
+        return changed | whats_new::opened(ui);
     }
+    whats_new::look(ui);
     if !ui.assistant.loaded {
         if ui.pane != Pane::Assistant {
             return changed;
         }
         changed |= load(ui);
     }
+    // Opened after an update: on the start page, before it draws.
+    changed |= whats_new::opened(ui);
     let keep = ui.settings.assistant.keep_conversations;
     let pane = &mut ui.assistant;
     // Keeping turned on or off, here or from `hex settings`.
@@ -407,6 +415,7 @@ pub(in super::super) fn set_up(ui: &mut Ui, tx: &mut Tx) {
     ui.select_pane(Pane::Assistant, tx);
     ui.assistant.view = View::Chat;
     load(ui);
+    whats_new::opened(ui);
     ui.assistant.open = None;
     ask::begin(ui);
 }

@@ -605,6 +605,21 @@ pub(in super::super) fn updated(ui: &mut Ui) {
     ui.assistant.updated = Some(("3.3.0-vibe.7".into(), AT));
 }
 
+/// The same update, Assistant not opened since: General shows, and the
+/// sidebar's Assistant row carries its mark.
+pub(in super::super) fn marked(ui: &mut Ui) {
+    updated(ui);
+    ui.pane = super::super::sidebar::Pane::General;
+    ui.assistant.mark = Some("3.3.0-vibe.7".into());
+}
+
+/// The mark on the folded sidebar's face.
+pub(in super::super) fn rail(ui: &mut Ui) {
+    marked(ui);
+    ui.settings.labs.collapsible_sidebar = true;
+    ui.settings.labs.sidebar_collapsed = true;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
