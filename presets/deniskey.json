@@ -15,6 +15,7 @@
     },
     "files.use_default_prompt": true,
     "files.use_vocabulary": true,
+    "history_retention": "forever",
     "labs.ai_cleanup_server": true,
     "labs.annotate_replay": false,
     "labs.api_processing": false,
@@ -90,9 +91,13 @@
     "meetings.questions.engine": "codex:gpt-6.1-terra",
     "meetings.retention": "month",
     "meetings.show_recording_indicator": true,
-    "meetings.summaries": "mac",
+    "pause_browser_media": true,
+    "recording_audio_behavior": "pause_media",
     "transcription.language": "ru",
     "transcription.model": "orukeet",
+    "meetings.providers.telemost.yandex.ru.policy": "always_record",
+    "meetings.providers.ru.yandex.desktop.telemost.policy": "always_record",
+    "meetings.providers.us.zoom.xos.policy": "always_record",
     "dictation_processing.default_mode.cleanup": true
   },
   "shortcuts": {

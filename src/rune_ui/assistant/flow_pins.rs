@@ -344,21 +344,21 @@ const FIRST: [&[&str]; 10] = [
 
 const PRESET: [&[&str]; 4] = [
     // Or set it up like Denis
-    &["answer preset=settings plan(128/129 open)"],
+    &["answer preset=settings plan(134/135 open)"],
     // Not now
     &[
-        "answer preset=settings plan(128/129 declined)",
+        "answer preset=settings plan(134/135 declined)",
         "answer preset=shortcuts",
     ],
     // Use these
     &[
-        "answer preset=settings plan(128/129 declined)",
+        "answer preset=settings plan(134/135 declined)",
         "answer preset=shortcuts",
         "question answer preset=shortcuts-plan plan(3/3 open)",
     ],
     // again: Apply, Keep mine
     &[
-        "answer preset=settings plan(128/129 applied)",
+        "answer preset=settings plan(134/135 applied)",
         "answer preset=shortcuts",
         "question answer preset=done",
     ],

@@ -117,9 +117,36 @@ class ExportTest(unittest.TestCase):
             ["dictation_hotkey", "double_tap_lock", "shortcut_mode", "stop_hotkey"],
         )
 
+    def test_a_listed_call_services_choice_goes_and_an_added_host_stays(self):
+        # Always record for Zoom and Telemost goes; a host the owner added,
+        # or Ask, which is the default, never does.
+        fixture = json.loads(json.dumps(FIXTURE))
+        fixture["meetings"]["providers"] = [
+            {"key": "us.zoom.xos", "label": "Zoom", "policy": "always_record"},
+            {"key": "telemost.yandex.ru", "label": "Yandex Telemost (web)", "policy": "always_record"},
+            {"key": "meet.google.com", "label": "Google Meet", "policy": "ask"},
+            {"key": "calls.example.com", "label": "Our calls", "policy": "always_record"},
+        ]
+        settings = export_preset.export(fixture)["settings"]
+        policies = {key: value for key, value in settings.items() if key.startswith("meetings.providers.")}
+        self.assertEqual(policies, {
+            "meetings.providers.us.zoom.xos.policy": "always_record",
+            "meetings.providers.telemost.yandex.ru.policy": "always_record",
+        })
+        self.assertNotIn("example.com", json.dumps(settings))
+
+    def test_summaries_stay_home_while_a_writer_decides(self):
+        fixture = json.loads(json.dumps(FIXTURE))
+        fixture["meetings"]["summaries"] = "mac"
+        self.assertNotIn("meetings.summaries", export_preset.export(fixture)["settings"])
+        del fixture["meetings"]["notes"]["writer"]
+        self.assertEqual(export_preset.export(fixture)["settings"]["meetings.summaries"], "mac")
+
     def test_every_kept_key_is_in_the_registry(self):
         keys = export_preset.registry()
         for key in self.preset["settings"]:
+            if export_preset.provider_policy(key):
+                continue
             if key != "dictation_processing.default_mode.cleanup":
                 self.assertIn(key, keys)
 
@@ -148,6 +175,8 @@ class ExportTest(unittest.TestCase):
         preset = json.loads(committed.read_text())
         for part in ("settings", "shortcuts"):
             for key in preset[part]:
+                if export_preset.provider_policy(key):
+                    continue
                 self.assertIsNone(export_preset.DENIED.search(key), key)
                 self.assertIsNotNone(export_preset.wanted(key, export_preset.registry().get(key, "Bool"))
                                      or key == "dictation_processing.default_mode.cleanup", key)

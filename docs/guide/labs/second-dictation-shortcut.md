@@ -32,7 +32,8 @@ Turning the switch off or clearing the key during a recording cancels it.
 
 **Where.** Labs › Second dictation shortcut
 (`labs.second_dictation_shortcut`). The recorder: General › Second dictation
-shortcut, under Shortcut (`second_dictation_hotkey`).
+shortcut, under Shortcut (`second_dictation_hotkey`), shown only while
+the lab is on.
 
 **Asked as.** "Another dictation key for my external keyboard"; "Two shortcuts
 for dictation"; «Вторая клавиша для диктовки»; «Хочу диктовать и с Fn, и с
