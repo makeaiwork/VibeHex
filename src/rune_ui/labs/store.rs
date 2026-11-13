@@ -362,7 +362,7 @@ fn card(ui: &Ui, p: Paint, entry: &Row, new: bool, featured: bool) -> El {
         .min_w(0.0)
         .gap(6.0)
         .center_y()
-        .child(super::super::assistant::places::lit(
+        .child(super::super::assistant::places::lit_quiet(
             p,
             entry.title,
             text(entry.title)

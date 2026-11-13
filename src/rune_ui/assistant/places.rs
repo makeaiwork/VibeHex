@@ -415,6 +415,16 @@ pub(in super::super) fn names(ui: &Ui, title: &str) -> bool {
 /// `label`, the text of `title`, its words lit when an opened place names
 /// it: tinted like a cited line, and what the scroll lands on.
 pub(in super::super) fn lit(p: Paint, title: &str, label: El) -> El {
+    lit_with(p, title, label, 0.26)
+}
+
+/// [`lit`] with no tint behind the words: a Labs card lit whole needs no
+/// second light on its title, only the place the scroll lands on.
+pub(in super::super) fn lit_quiet(p: Paint, title: &str, label: El) -> El {
+    lit_with(p, title, label, 0.0)
+}
+
+fn lit_with(p: Paint, title: &str, label: El, tint: f32) -> El {
     let depth = LIGHTING.with_borrow_mut(|(titles, found)| {
         if titles.is_empty() {
             return None;
@@ -429,7 +439,7 @@ pub(in super::super) fn lit(p: Paint, title: &str, label: El) -> El {
     };
     let k = p.k;
     label.text_highlights([
-        TextHighlight::new(0..title.len(), k.alpha(p.accent(), 0.26))
+        TextHighlight::new(0..title.len(), k.alpha(p.accent(), tint))
             .color(k.c.text_base)
             .pad(2.0)
             .key(lit_key(depth)),
