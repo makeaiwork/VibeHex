@@ -108,11 +108,8 @@ const PATHS: &[(&str, &str)] = &[
     ("shortcut-row-held", "Window/General/Shortcut/Held"),
     ("shortcut-row-rejected", "Window/General/Shortcut/Rejected"),
     ("shortcut-row-saved", "Window/General/Shortcut/Saved"),
-    ("mac-update-checking", "Window/General/Updates/Checking"),
-    (
-        "mac-update-downloading",
-        "Window/General/Updates/Downloading",
-    ),
+    ("mac-update-checking", "Window/About/Updates/Checking"),
+    ("mac-update-downloading", "Window/About/Updates/Downloading"),
     (
         "mac-update-ready",
         "Window/General/Updates/Ready to restart",
@@ -122,8 +119,8 @@ const PATHS: &[(&str, &str)] = &[
         "mac-settings-dev-channel",
         "Window/General/Updates/Dev channel",
     ),
-    ("mac-local-build", "Window/General/Updates/Local build"),
-    ("mac-test-build", "Window/General/Updates/Test build"),
+    ("mac-local-build", "Window/About/Updates/Local build"),
+    ("mac-test-build", "Window/About/Updates/Test build"),
     ("picker", "Window/Transcription model/Picker"),
     (
         "picker-downloading",
@@ -552,6 +549,7 @@ const PATHS: &[(&str, &str)] = &[
     ("history-stats", "Window/History/Stats dialog"),
     ("history-empty", "Window/History/Empty"),
     ("about", "Window/About/About"),
+    ("about-up-to-date", "Window/About/Updates/Up to date"),
     #[cfg(hex_capture)]
     ("captures", "Window/Captures/Captures"),
     #[cfg(hex_capture)]

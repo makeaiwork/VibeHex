@@ -1,5 +1,8 @@
-//! About: VibeHex's card, what the fork is with its source, and a way to
-//! reach its developer by email or Telegram.
+//! About: VibeHex's card (the version, the update check, and the release
+//! notes), what the fork is with its source, and a way to reach its
+//! developer by email or Telegram.
+
+mod update;
 
 use rune::{El, col, row, text};
 use rune_kit::{Button, ButtonVariant, ControlSize};
@@ -7,8 +10,10 @@ use rune_kit::{Button, ButtonVariant, ControlSize};
 use super::Ui;
 use super::brand;
 use super::controls::{self, DESCRIPTION, Paint, icon_row, raised};
-use super::icons::{MAIL, SEND, SOURCE};
+use super::icons::{MAIL, SEND, SOURCE, STAR};
 use crate::desktop::i18n::tr;
+
+pub(super) use update::BuildKind;
 
 /// The developer's Telegram.
 pub(super) const TELEGRAM_URL: &str = "https://t.me/DenisKey";
@@ -25,16 +30,17 @@ fn open(ui: &mut Ui, url: &str) {
     }
 }
 
-pub(super) fn pane(_ui: &Ui, p: Paint) -> El {
+pub(super) fn pane(ui: &Ui, p: Paint) -> El {
     let content = controls::page("content")
-        .child(app_card(p))
+        .child(app_card(ui, p))
         .child(fork_card(p))
         .child(developer(p));
     super::scroll_body(p.k, "scroll", content)
 }
 
-/// The logo, the name, and the version.
-fn app_card(p: Paint) -> El {
+/// The logo, the name, the version, and under it the update check and the
+/// release notes (`update`).
+fn app_card(ui: &Ui, p: Paint) -> El {
     raised(p, "app").child(
         row()
             .key("app-row")
@@ -55,19 +61,18 @@ fn app_card(p: Paint) -> El {
                             })
                             .color(p.text()),
                     )
-                    .child(
-                        text(super::sidebar::version_label())
-                            .key("version")
-                            .font(DESCRIPTION)
-                            .color(p.muted()),
-                    ),
+                    .child(update::version(ui, p))
+                    .children(update::control(ui, p))
+                    .children(update::release_notes(ui, p)),
             ),
     )
 }
 
-/// What the fork is, and its source.
+/// What the fork is, a word asking for a star, and its source.
 fn fork_card(p: Paint) -> El {
-    let open_source = Button::new(tr("Open on GitHub"))
+    // Starring happens on the repository's page.
+    let open_source = Button::new(tr("Star on GitHub"))
+        .icon(&STAR)
         .variant(ButtonVariant::Neutral)
         .control_size(ControlSize::Small)
         .on_press(|ui: &mut Ui| open(ui, SOURCE_URL))
@@ -77,15 +82,29 @@ fn fork_card(p: Paint) -> El {
         p,
         "fork",
         vec![
-            text(tr(
-                "VibeHex is a fork of Hex, the open-source dictation app. It adds many useful features of its own, and its code is open too.",
-            ))
-            .key("about")
-            .font(p.k.ty.ui)
-            .color(p.muted())
-            .wrap()
-            .px(controls::METRICS.row_px)
-            .py(14.0),
+            col()
+                .key("about")
+                .gap(6.0)
+                .px(controls::METRICS.row_px)
+                .py(14.0)
+                .child(
+                    text(tr(
+                        "VibeHex is a fork of Hex, the open-source dictation app. It adds many useful features of its own, and its code is open too.",
+                    ))
+                    .key("fork")
+                    .font(p.k.ty.ui)
+                    .color(p.muted())
+                    .wrap(),
+                )
+                .child(
+                    text(tr(
+                        "If VibeHex is useful to you, a star on GitHub helps others find it.",
+                    ))
+                    .key("star")
+                    .font(p.k.ty.ui)
+                    .color(p.muted())
+                    .wrap(),
+                ),
             icon_row(
                 p,
                 "source",

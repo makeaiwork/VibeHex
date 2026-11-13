@@ -39,6 +39,11 @@ static MARK: rune::Icon = rune::Icon {
     body: r#"<path d="M8 1.2 13.9 4.6v6.8L8 14.8 2.1 11.4V4.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 4.1 11.4 6v4L8 11.9 4.6 10V6z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/>"#,
 };
 
+/// The sidebar header's height, and its mark's size: the sidebar keeps its
+/// bottom item as far from its bottom edge as the mark is from its top.
+pub(super) const HEADER_HEIGHT: f32 = 28.0;
+pub(super) const MARK_SIZE: f32 = 22.0;
+
 /// The mark, `size` points square.
 pub(super) fn mark(p: Paint, key: &str, size: f32) -> El {
     rune::icon(&MARK, size).key(key.to_owned()).color(p.text())
@@ -60,11 +65,11 @@ pub(super) fn header(p: Paint) -> El {
         .key("brand")
         .role("heading")
         .label(NAME)
-        .h(28.0)
+        .h(HEADER_HEIGHT)
         .px(4.0)
         .gap(8.0)
         .center_y()
-        .child(mark(p, "logo", 22.0))
+        .child(mark(p, "logo", MARK_SIZE))
         .child(
             text(NAME)
                 .key("name")

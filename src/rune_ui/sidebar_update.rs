@@ -1,13 +1,30 @@
 //! The sidebar's update: Restart to update, Download update, or a channel
 //! switch, and under Restart to update what the staged dev build changed.
+//! It sits above Assistant; About has the same button (`about::update`).
 
-use super::sidebar::FOOTER_LINE;
+use super::sidebar::NAV_ROW_GAP;
 use super::*;
 
 const SHOWN: usize = 3;
+/// What's new's line.
+const LINK_LINE: f32 = 20.0;
+
+/// Above Assistant, one row's gap from it as between the items at the top:
+/// an update to take and, under it, what the staged dev build changed or
+/// why this Windows copy can't update itself.
+pub(super) fn group(ui: &Ui, p: Paint) -> Option<El> {
+    Some(
+        col()
+            .key("sidebar-update-group")
+            .mb(NAV_ROW_GAP / 2.0)
+            .child(control(ui, p)?)
+            .children(notes(ui, p))
+            .children(blocked(ui, p)),
+    )
+}
 
 /// An available update, as a secondary button with a dot.
-pub(super) fn control(ui: &Ui, p: Paint) -> Option<El> {
+fn control(ui: &Ui, p: Paint) -> Option<El> {
     // An available update is a state, not the screen's main action.
     action(ui).map(|(label, action)| {
         row()
@@ -46,7 +63,7 @@ pub(super) fn action(ui: &Ui) -> Option<(String, DesktopAction)> {
 
 /// Under Download update on Windows, why this Hex can't update itself and
 /// what to do (#1352).
-pub(super) fn blocked(ui: &Ui, p: Paint) -> Option<El> {
+fn blocked(ui: &Ui, p: Paint) -> Option<El> {
     let view = ui.view.as_ref()?;
     let why = view
         .update_blocked
@@ -63,7 +80,7 @@ pub(super) fn blocked(ui: &Ui, p: Paint) -> Option<El> {
 }
 
 /// What the staged dev build changed, while Restart to update shows.
-pub(super) fn notes(ui: &Ui, p: Paint) -> Option<El> {
+fn notes(ui: &Ui, p: Paint) -> Option<El> {
     ui.view
         .as_ref()
         .filter(|view| view.update_status == DesktopUpdateStatus::ReadyToRestart)
@@ -81,7 +98,7 @@ fn list(p: Paint, notes: &crate::desktop::host::UpdateNotes) -> Option<El> {
     let url = notes.url.clone();
     let link = row()
         .key("whats-new")
-        .h(FOOTER_LINE)
+        .h(LINK_LINE)
         .px(6.0)
         .center_y()
         .self_start()

@@ -1,5 +1,6 @@
-//! The sidebar: every pane in navigation order, their items, Quit on Linux,
-//! and the footer with the version and the update check.
+//! The sidebar: every pane in navigation order, their items, and at the
+//! bottom an update to take, Assistant, and Quit on Linux. The version and
+//! the update check are About's (`about::update`).
 
 use super::*;
 
@@ -244,6 +245,24 @@ pub(super) const NAV_ROW_GAP: f32 = 4.0;
 /// Between groups: the brand and the items, Assistant and Quit.
 const GROUP_GAP: f32 = 10.0;
 
+/// The logo's top below the sidebar's top edge, expanded or folded (41 pt
+/// on macOS, 13 elsewhere): the brand row's top, and the mark centred in
+/// it. The bottom item's glyph keeps the same distance from the bottom edge.
+pub(super) const LOGO_INSET: f32 =
+    SIDEBAR_TOP - NAV_ROW_GAP / 2.0 + (super::brand::HEADER_HEIGHT - super::brand::MARK_SIZE) / 2.0;
+
+/// The expanded sidebar's bottom padding. Assistant's face sits as far
+/// above the bottom edge as the logo below the top. Linux ends with Quit,
+/// a row of words: its row stands as far from the bottom as the brand row
+/// from the top.
+fn bottom_inset(ui: &Ui) -> f32 {
+    if !host::QUIT_IN_WINDOW && Pane::Assistant.shown(ui) {
+        LOGO_INSET - super::assistant::nav::SLOT_FACE_INSET
+    } else {
+        SIDEBAR_TOP - NAV_ROW_GAP / 2.0
+    }
+}
+
 /// On macOS the sidebar and the pane header stand in for the title bar the
 /// window draws none of: pressing their background moves the window.
 pub(super) fn title_bar(element: El) -> El {
@@ -319,7 +338,7 @@ pub(super) fn sidebar(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El
         .w(196.0)
         .h_full()
         .pt(SIDEBAR_TOP - NAV_ROW_GAP / 2.0)
-        .pb(12.0)
+        .pb(bottom_inset(ui))
         .pl(10.0)
         .pr(6.0)
         .child(
@@ -332,12 +351,9 @@ pub(super) fn sidebar(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El
         )
         .child(nav)
         .child(el().key("spacer").grow(1.0))
+        .children(sidebar_update::group(ui, p))
         .children(super::assistant::nav::item(ui, p, still))
-        .children(sidebar_update::control(ui, p))
-        .children(sidebar_update::notes(ui, p))
-        .children(sidebar_update::blocked(ui, p))
         .children(host::QUIT_IN_WINDOW.then(|| quit_item(p)))
-        .child(footer(ui, p))
 }
 
 /// Labs › Collapsible sidebar is on: the sidebar can fold into icons.
@@ -477,7 +493,8 @@ fn open_button(p: Paint) -> El {
 }
 
 /// The folded sidebar: Open sidebar, every pane, Labs, and About as icons,
-/// and the update check at the bottom.
+/// and at the bottom an update to take and Assistant, whose face sits as
+/// far above the bottom edge as the logo below the top.
 fn rail(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     let right = rune_kit::Placement::Right;
     let mut rail = title_bar(col())
@@ -486,7 +503,7 @@ fn rail(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
         .w(RAIL_WIDTH)
         .h_full()
         .pt(SIDEBAR_TOP - 4.0)
-        .pb(14.0)
+        .pb(LOGO_INSET - super::assistant::nav::RAIL_FACE_INSET)
         .gap(NAV_ROW_GAP)
         .items_center();
     let open = open_button(p).on_press(|ui: &mut Ui| fold(ui, false));
@@ -518,293 +535,23 @@ fn rail(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
         rail = rail.child(tip(ui, p, pane.key(), pane.title(), right, item, layer));
     }
     rail = rail.child(el().key("spacer").grow(1.0));
-    rail = rail.children(super::assistant::nav::rail_item(ui, p, still, layer));
-    rail.children(update_item(ui, p, layer))
+    rail = rail.children(update_item(ui, p, layer));
+    rail.children(super::assistant::nav::rail_item(ui, p, still, layer))
 }
 
-/// The folded sidebar's update button: an update to take, in the accent,
-/// or Check for updates while there is none and a check can run.
+/// The folded sidebar's update button, while there is an update to take:
+/// in the accent's dot, its words as the tooltip. The check is About's.
 fn update_item(ui: &Ui, p: Paint, layer: &mut Vec<El>) -> Option<El> {
-    use DesktopUpdateStatus as S;
-    let status = ui.view.as_ref().map(|view| &view.update_status);
-    let check = || Some(DesktopAction::CheckForUpdates);
-    // A state with no check to run names itself, as the footer does.
-    let (words, action, ready) = match (sidebar_update::action(ui), status) {
-        (Some((words, action)), _) => (words, Some(action), true),
-        (None, None | Some(S::Current | S::Failed)) => {
-            (tr("Check for updates").into(), check(), false)
-        }
-        (None, Some(S::Checking)) => (tr("Checking for updates…").into(), None, false),
-        (None, Some(S::Downloading)) => (tr("Downloading update").into(), None, false),
-        (None, Some(S::Managed)) => (tr("Managed by your organization").into(), None, false),
-        (None, Some(S::SourceBuild))
-            if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local =>
-        {
-            (tr("Local build, updates off").into(), None, false)
-        }
-        (None, Some(S::SourceBuild)) => {
-            (tr("Updated from your source checkout").into(), None, false)
-        }
-        (None, Some(_)) => (tr("Updated by your package manager").into(), None, false),
-    };
-    let mut item = rail_item(p, "sidebar-update", &super::icons::REFRESH, &words, false);
-    if let Some(action) = action {
-        item = item.on_press(move |ui: &mut Ui| ui.send(Request::Desktop(action.clone())));
-    }
-    if ready {
-        item = item.child(controls::status_dot(p.accent()).key("dot").pin(
-            None,
-            Some(5.0),
-            Some(5.0),
-            None,
-        ));
-    }
+    let (words, action) = sidebar_update::action(ui)?;
+    let item = rail_item(p, "sidebar-update", &super::icons::REFRESH, &words, false)
+        .on_press(move |ui: &mut Ui| ui.send(Request::Desktop(action.clone())))
+        .child(
+            controls::status_dot(p.accent())
+                .key("dot")
+                .pin(None, Some(5.0), Some(5.0), None),
+        );
     let right = rune_kit::Placement::Right;
     Some(tip(ui, p, "sidebar-update", &words, right, item, layer))
-}
-
-/// The version and, under it, a manual check or what the updater is doing.
-/// Both lines keep their place in every state, so a check never moves the
-/// version, and the status line is one element whose words change in place
-/// rather than two that cross-fade over each other. An available update is
-/// the Update button above.
-fn footer(ui: &Ui, p: Paint) -> El {
-    let c = &p.k.c;
-    let line = |key: &str, words: &str, color| {
-        row()
-            .key(key)
-            .h(FOOTER_LINE)
-            .px(6.0)
-            .center_y()
-            .self_start()
-            .radius(p.k.radius.sm)
-            .child(
-                text(words)
-                    .key("label")
-                    .font(p.k.ty.small)
-                    .color(color)
-                    .truncate(),
-            )
-    };
-    let status = ui.view.as_ref().map(|view| &view.update_status);
-    let status = match status {
-        None
-        | Some(
-            DesktopUpdateStatus::Unavailable
-            | DesktopUpdateStatus::Available
-            | DesktopUpdateStatus::ReadyToRestart
-            | DesktopUpdateStatus::SwitchAvailable { .. },
-        ) => None,
-        // After a check the person asked for, the line says how it went
-        // (#1120); the hourly check alone never changes its words.
-        Some(status @ (DesktopUpdateStatus::Current | DesktopUpdateStatus::Failed)) => {
-            let words = match status {
-                DesktopUpdateStatus::Current if ui.update_asked => tr("VibeHex is up to date"),
-                DesktopUpdateStatus::Failed if ui.update_asked => tr("Couldn't check for updates"),
-                _ => tr("Check for updates"),
-            };
-            Some(
-                line("update-status", words, c.text_muted)
-                    .role("button")
-                    .label(tr("Check for updates"))
-                    .hover(c.hover)
-                    .press(c.pressed)
-                    .focusable(true)
-                    .focus_ring(2.0, -2.0, c.border_focus)
-                    .on_press(|ui: &mut Ui| {
-                        ui.update_asked = true;
-                        ui.send(Request::Desktop(DesktopAction::CheckForUpdates));
-                    }),
-            )
-        }
-        // Quieter while it checks; the hourly check keeps the line's words.
-        Some(DesktopUpdateStatus::Checking) => Some(
-            line(
-                "update-status",
-                if ui.update_asked {
-                    tr("Checking for updates…")
-                } else {
-                    tr("Check for updates")
-                },
-                p.faint(),
-            )
-            .label(tr("Checking for updates…")),
-        ),
-        Some(DesktopUpdateStatus::Managed) => Some(line(
-            "update-status",
-            tr("Managed by your organization"),
-            p.faint(),
-        )),
-        Some(DesktopUpdateStatus::Downloading) => {
-            Some(line("update-status", tr("Downloading update"), p.faint()))
-        }
-        Some(DesktopUpdateStatus::SourceBuild) => Some(line(
-            "update-status",
-            if ui.build_preview.unwrap_or_else(build_kind) == BuildKind::Local {
-                tr("Local build, updates off")
-            } else {
-                tr("Updated from your source checkout")
-            },
-            p.faint(),
-        )),
-        Some(DesktopUpdateStatus::PackageManager) => Some(line(
-            "update-status",
-            tr("Updated by your package manager"),
-            p.faint(),
-        )),
-        Some(DesktopUpdateStatus::PackageUpdate { command }) => Some(
-            text(command.clone())
-                .key("update-command")
-                .font(p.k.ty.small)
-                .color(p.faint())
-                .wrap()
-                .px(6.0)
-                .py(2.0),
-        ),
-    };
-    col()
-        .key("footer")
-        .mt(8.0)
-        .child(version_line(
-            ui,
-            p,
-            line("version", &version_words(false), p.faint()),
-        ))
-        .children(status)
-        .children(release_notes_link(ui, p))
-}
-
-/// This build's release notes, under the version and status while Labs ›
-/// Release notes link is on. Unlike What's new, it needs no staged update.
-fn release_notes_link(ui: &Ui, p: Paint) -> Option<El> {
-    if !crate::labs::Feature::ReleaseNotesLink.on(&ui.settings) {
-        return None;
-    }
-    // A source or test build has no published notes for its code.
-    if ui.build_preview.unwrap_or_else(build_kind) != BuildKind::Release {
-        return None;
-    }
-    // Tests pin a VibeHex release, whose notes the fork publishes.
-    let version = if cfg!(test) {
-        "0.0.0-vibe.1"
-    } else {
-        crate::VERSION
-    };
-    let url = crate::updater::notes::release_notes_url(version)?;
-    let c = &p.k.c;
-    Some(
-        row()
-            .key("release-notes")
-            .h(FOOTER_LINE)
-            .px(6.0)
-            .center_y()
-            .self_start()
-            .radius(p.k.radius.sm)
-            .role("link")
-            .label(tr("Release notes"))
-            .hover(c.hover)
-            .press(c.pressed)
-            .focusable(true)
-            .focus_ring(2.0, -2.0, c.border_focus)
-            .on_press(move |ui: &mut Ui| {
-                if ui.live()
-                    && let Err(error) = crate::desktop::opencode_catalog::open_url(&url)
-                {
-                    ui.error = Some(format!("{error:#}"));
-                }
-            })
-            .child(
-                text(tr("Release notes"))
-                    .key("label")
-                    .font(p.k.ty.small)
-                    .color(c.text_muted)
-                    .truncate(),
-            ),
-    )
-}
-
-/// A local or test build marks itself beside the version, quietly: an outline
-/// pill with a dot, in muted theme tokens.
-fn version_line(ui: &Ui, p: Paint, version: El) -> El {
-    let badge = match ui.build_preview.unwrap_or_else(build_kind) {
-        BuildKind::Release => return version,
-        BuildKind::Local => tr("Local"),
-        BuildKind::Test => tr("Test"),
-    };
-    let c = &p.k.c;
-    row()
-        .key("version-row")
-        .gap(2.0)
-        .center_y()
-        .child(version.key("version").shrink().min_w(0.0))
-        .child(
-            row()
-                .key("build-badge")
-                .h(16.0)
-                .px(6.0)
-                .gap(4.0)
-                .center_y()
-                .radius(8.0)
-                .border(p.hair.max(0.5), c.border_muted)
-                .child(
-                    controls::status_dot(c.text_faint)
-                        .size(5.0, 5.0)
-                        .radius(2.5),
-                )
-                .child(
-                    text(badge)
-                        .key("label")
-                        .font(p.k.ty.small)
-                        .color(c.text_muted),
-                ),
-        )
-}
-
-/// What kind of build this is, for the footer's badge. The scenes preview
-/// the others on a release build.
-#[derive(Clone, Copy, PartialEq)]
-pub(super) enum BuildKind {
-    Release,
-    Local,
-    Test,
-}
-
-fn build_kind() -> BuildKind {
-    if crate::app_paths::is_local_build() {
-        BuildKind::Local
-    } else if option_env!("HEX_TEST_BUILD") == Some("1") {
-        BuildKind::Test
-    } else {
-        BuildKind::Release
-    }
-}
-
-/// The footer's lines: as tall as each other, so a check moves nothing.
-pub(super) const FOOTER_LINE: f32 = 20.0;
-
-/// Test and local builds also name their commit: main moves past a release without
-/// changing the version.
-pub(super) fn version_label() -> String {
-    version_words(true)
-}
-
-/// The version; a local or test build's with its commit, and with its kind
-/// where no badge beside it says it (`kind`).
-fn version_words(kind: bool) -> String {
-    // Goldens render a fixed version: a local build's names its commit.
-    let version = if cfg!(test) { "0.0.0" } else { crate::VERSION };
-    match option_env!("HEX_COMMIT") {
-        Some(commit) if kind => {
-            let kind = if crate::app_paths::is_local_build() {
-                "local"
-            } else {
-                "test"
-            };
-            tr_fill("Version {}", &format!("{version} ({kind} {commit})"))
-        }
-        Some(commit) => tr_fill("Version {}", &format!("{version} ({commit})")),
-        None => tr_fill("Version {}", version),
-    }
 }
 
 /// A sidebar item inside its slot. Slots tile the item column, each

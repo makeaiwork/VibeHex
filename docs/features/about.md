@@ -1,25 +1,48 @@
 # About and the VibeHex name (every OS)
 
 VibeHex is this fork of Hex. The sidebar opens with its logo and name, and an
-About item after Labs says what the fork is and how to reach its developer.
+About item after Labs holds the version and the update check, says what the
+fork is, asks for a star on GitHub, and says how to reach its developer.
 
 ```ts
 Sidebar                                         // rune_ui::brand, rune_ui::sidebar
 ├── Header   Hex's logo (packaging/linux/icons, 128 px, decoded once) and
 │            "VibeHex", above the navigation; not a button
-└── About    the last item, after Labs (Pane::About, nav-about)
+├── About    the last item, after Labs (Pane::About, nav-about)
+└── Bottom   an update to take (Restart to update, Download update, Switch
+             to …) with its dot, only while there is one, then Assistant.
+             No version and no check here. Assistant's face sits as far
+             above the bottom edge as the logo below the top (41 pt on
+             macOS, `sidebar::LOGO_INSET`), folded or not; Linux ends with
+             Quit VibeHex, whose row mirrors the brand row
 About                                           // rune_ui::about
-├── Card     the logo at 56 pt, VibeHex, "Version <version>" as the footer
-│            reads it
-├── Fork     "VibeHex is a fork of Hex, the open-source dictation app…", then
-│            Source code github.com/makeaiwork/VibeHex with Open on GitHub
+├── Card     the logo at 56 pt, VibeHex, "Version <version>" (a local or
+│            test build adds its commit and a Local / Test badge), then
+│            (about/update.rs):
+│            ├── Check for updates (a small button) and, after a check the
+│            │   person asked for, "Checking for updates…" (the button
+│            │   disabled), "VibeHex is up to date" or "Couldn't check for
+│            │   updates" beside it; the hourly check alone adds no words
+│            ├── An update to take -> the sidebar's button with its dot
+│            ├── No check to run -> one quiet line instead: Managed by your
+│            │   organization, Downloading update, Local build, updates off,
+│            │   Updated from your source checkout, Updated by your package
+│            │   manager, or the package manager's command
+│            └── Release notes (Labs › Release notes link, a release build)
+├── Fork     "VibeHex is a fork of Hex, the open-source dictation app…",
+│            "If VibeHex is useful to you, a star on GitHub helps others
+│            find it.", then Source code github.com/makeaiwork/VibeHex with
+│            Star on GitHub (a star icon; it opens the repository, where
+│            starring happens)
 └── Footer   "Hi! I'm Denis, and I make VibeHex…", Email the developer (a new
              message to zelenpro@gmail.com, subject "VibeHex feedback
              (version <version>)"), Telegram — @DenisKey (t.me/DenisKey)
 ```
 
 Each link opens in its app through `opencode_catalog::open_url`; a failure
-shows as the window's error. Fixtures and tests open nothing.
+shows as the window's error. Fixtures and tests open nothing. Check for
+Updates in the macOS menu bar or app menu opens the window on About
+(`Destination::About`), which then says how the check went (#1120).
 
 The app is called VibeHex wherever the user reads its name. One constant
 holds it, `app_paths::PRODUCT_NAME` (`brand::NAME` in the window), for the
@@ -71,8 +94,12 @@ A new string from Hex that says "Hex" in the window fails
 (`desktop/i18n/vibehex/naming.rs`) until it says VibeHex and has its rows;
 the kept names and strings are that file's `KEPT_NAMES` and `KEPT_STRINGS`.
 
-Checks: `labs::feedback_mailto_names_the_version_in_the_subject` (the mailto link, shared with Labs › Send feedback); scene `about`
-and its light and dark goldens; `the_menu_reads_meeting_then_actions_then_the_app`
+Checks: `labs::feedback_mailto_names_the_version_in_the_subject` (the mailto link, shared with Labs › Send feedback); scenes `about`
+and `about-up-to-date` and their light and dark goldens;
+`an_asked_update_check_says_how_it_went`,
+`release_notes_link_shows_only_with_its_lab`,
+`the_sidebar_bottom_mirrors_the_logo`,
+`an_update_is_a_secondary_button_with_a_dot_and_its_own_label`; `the_menu_reads_meeting_then_actions_then_the_app`
 (the status item's rows, macOS) and `tray_menu_ids_round_trip_and_show_the_state`
 (the tray's tooltip, Windows and Linux). Not yet verified by pressing the links in a
 running app.

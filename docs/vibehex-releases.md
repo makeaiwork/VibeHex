@@ -13,7 +13,7 @@ because both use the `hex` data folder. Only one of them runs at a time
 
 ```ts
 VibeHex (stable build, not HEX_LOCAL_BUILD)       // src/updater.rs
-├── 10 s after launch, then hourly, and Check for updates in the sidebar footer
+├── 10 s after launch, then hourly, and Check for updates in About
 ├── GET https://github.com/makeaiwork/VibeHex/releases/download/updates/stable.json
 │     the release protocol's manifest (schema 1, app hex, artifact desktop)
 ├── version differs from the running one -> download macos-arm64 (the ZIP)
