@@ -125,6 +125,10 @@ pub(in super::super) struct AssistantPane {
     pub(super) values_open: Vec<value::ValueAt>,
     /// Setup rounds whose "Answered before" is unfolded.
     before_open: Vec<ask::At>,
+    /// The round one whose own words are being typed, and the field's text
+    /// (`ask::about`); the turn holds the same text as a draft.
+    about_at: Option<ask::At>,
+    about_edit: TextEdit,
     /// The conversation `undo` belongs to.
     pub(super) undo_for: Option<u32>,
     /// The instructions card being edited before it saves, and its text.

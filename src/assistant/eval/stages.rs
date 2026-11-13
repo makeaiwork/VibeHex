@@ -7,7 +7,7 @@ use super::fixtures::{self, owner};
 use super::harness::Fixture;
 use crate::assistant::facts::State;
 use crate::assistant::setup::flow::{self, Effect, Env, Event, Flow};
-use crate::assistant::setup::{Ask, Stage, follow, past, since};
+use crate::assistant::setup::{self, Ask, Stage, follow, past, since};
 use crate::assistant::store::Turn;
 
 /// Twenty days before the fixtures' now.
@@ -109,8 +109,13 @@ impl<'a> Run<'a> {
 
     /// Round one answered as [`fixtures::answers`] and Continue pressed.
     fn round_one(&mut self) -> Vec<Effect> {
+        self.round_one_as(&fixtures::answers())
+    }
+
+    /// Round one answered as `answers` and Continue pressed.
+    fn round_one_as(&mut self, answers: &[setup::Answer]) -> Vec<Effect> {
         let turn = self.flow.turns.len() - 1;
-        for answer in fixtures::answers() {
+        for answer in answers.iter().cloned() {
             let asks = &self.flow.turns[turn].asks;
             let Some(number) = asks.iter().position(|ask| ask.id == answer.id) else {
                 continue;
@@ -161,6 +166,38 @@ fn to_follow(fixture: &Fixture) -> (Run<'_>, (String, Stage)) {
 pub fn follow_stage(fixture: &Fixture) -> (String, Stage) {
     to_follow(fixture).1
 }
+
+/// What the person writes under round one in the own-words scenario.
+pub const IN_THEIR_WORDS: &str = "I write code in Russian and dictate into Cursor";
+
+/// Round one answered without code (dictation into any app, Russian,
+/// cleanup on Codex) and [`IN_THEIR_WORDS`] written under it, as the field
+/// keeps it in round one's turn: the follow-ups a model is asked to word.
+pub fn words_follow_stage(fixture: &Fixture) -> (String, Stage) {
+    crate::desktop::i18n::speaking(Some("en"), || {
+        let (mut run, _) = Run::begin(fixture);
+        let turn = run.flow.turns.len() - 1;
+        run.flow.turns[turn].about = IN_THEIR_WORDS.into();
+        let answer = |id: &str, chosen: &str| setup::Answer {
+            id: id.into(),
+            chosen: vec![chosen.into()],
+            ..Default::default()
+        };
+        let answers = [
+            answer("use", "dictation_any"),
+            answer("language", "ru"),
+            answer("cleanup", "codex"),
+        ];
+        asked(run.round_one_as(&answers)).expect("round one leads to the follow-ups")
+    })
+}
+
+/// Follow-ups a model is played as writing for [`IN_THEIR_WORDS`]: about
+/// code, without quoting them.
+pub const FOLLOW_CODE: &str = "Несколько вопросов о том, что пригодится в коде.\n\n```hex-ask\n\
+{\"id\":\"labs.spoken_symbols\",\"q\":\"Говорить «запятая», «решётка», «подчёркивание» и получать символ?\",\"options\":[{\"id\":\"yes\",\"label\":\"Да, включить\"},{\"id\":\"no\",\"label\":\"Нет\"}]}\n\
+{\"id\":\"labs.filler_words\",\"q\":\"Убирать «эээ» и «ну» из диктовки?\",\"options\":[{\"id\":\"yes\",\"label\":\"Да, включить\"},{\"id\":\"no\",\"label\":\"Нет\"}]}\n\
+```\n\nSources: none";
 
 /// The terms the fixture's use shows Vocabulary lacks.
 pub fn candidates(fixture: &Fixture) -> Vec<since::Candidate> {

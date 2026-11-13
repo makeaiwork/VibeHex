@@ -3460,6 +3460,9 @@ fn a_russian_setup_round_has_no_english_controls() {
         "Cleanup keeps fixing how these are heard",
         "You say these, and Vocabulary doesn't have them",
         "Here is what fits how you work. Untick what you don't need.",
+        // Round one's own words, open and returning.
+        crate::assistant::setup::about::LABEL,
+        crate::assistant::setup::about::PLACEHOLDER,
     ];
     // A returning setup's opener, its step, and "Answered before".
     const STARTS: &[&str] = &[

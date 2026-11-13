@@ -68,8 +68,9 @@ pub(super) fn since(ui: &Ui) -> Option<Since> {
 }
 
 /// A returning setup's round one as one row: whether anything changed,
-/// the answers as they were, "Change answers" to open them, Continue.
-pub(super) fn folded(p: Paint, at: At, asks: &[Ask]) -> El {
+/// the answers as they were, their own words to change (`field`, while a
+/// model reads them), "Change answers" to open them, Continue.
+pub(super) fn folded(p: Paint, at: At, asks: &[Ask], field: Option<El>) -> El {
     let c = &p.k.c;
     let mut chips = row().key("chips").gap(6.0).flex_wrap();
     for (number, ask) in asks.iter().enumerate() {
@@ -111,6 +112,7 @@ pub(super) fn folded(p: Paint, at: At, asks: &[Ask]) -> El {
                 .wrap_anywhere(),
         )
         .child(chips)
+        .children(field)
         .child(
             row()
                 .key("continue")

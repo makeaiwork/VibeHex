@@ -53,15 +53,15 @@ looks for the cause there. Such a question never searches the web.
 ## Set VibeHex up for you
 
 **Set VibeHex up for me**, on Assistant's start screen, or asking "help me
-set VibeHex up", first says what is set now: the model that hears you and its language,
+set VibeHex up", first says what is set now: the speech model and language,
 where dictation is cleaned up, who writes meeting notes, the Labs features on,
 and how many Vocabulary terms you have. Then four questions, already answered
-from your settings: what you use VibeHex for, your language (one with
-English tech terms mixed in is its own choice), where dictation is cleaned up (this
-Mac, Codex, OpenCode, OpenRouter, your own server such as LM Studio or Ollama,
-or nowhere), and, if you record calls or files, where notes and files are
-worked on. A few yes-or-no questions about fitting Labs features follow;
-**Skip to the plan** goes straight on.
+from your settings: what you use VibeHex for, your language (with or
+without English tech terms), where dictation is cleaned up (this Mac, Codex,
+OpenCode, OpenRouter, your own server, or nowhere), and, for
+calls or files, where notes and files are worked on. On a remote model, an
+optional field asks about your work and where you dictate most. Yes-or-no
+questions about fitting Labs features follow; **Skip to the plan** skips them.
 
 Then comes one list of changes, grouped by area, each with a checkbox, what it
 changes from and to, and what it takes: a download and its size, a ChatGPT

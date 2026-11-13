@@ -193,6 +193,7 @@ pub fn replied(stage: &Stage, turn: &mut Turn, read: bool, context: Option<&Cont
         asks,
         terms,
         step,
+        about,
         ..
     } = stage
     {
@@ -201,6 +202,7 @@ pub fn replied(stage: &Stage, turn: &mut Turn, read: bool, context: Option<&Cont
         turn.folded = true;
         turn.facts = facts.clone();
         turn.terms = terms.clone();
+        turn.about = about.clone();
     }
 }
 
@@ -304,6 +306,16 @@ impl Flow {
         self.setup_turns()
             .first()
             .map(|turn| turn.terms.clone())
+            .unwrap_or_default()
+    }
+
+    /// Round one's own words (`setup::about`), trimmed and capped; empty
+    /// when none were written.
+    pub fn about(&self) -> String {
+        self.setup_turns()
+            .first()
+            .filter(|turn| first(&turn.asks))
+            .map(|turn| super::about::clean(&turn.about))
             .unwrap_or_default()
     }
 
@@ -412,10 +424,17 @@ impl Flow {
             })
             .filter(|_| !env.on_device);
         let now = super::now::now(&context.facts());
+        // A returning setup's own words are the last setup's, to change.
+        let about = since
+            .as_ref()
+            .and_then(|since| since.last.as_ref())
+            .map(|last| last.about.clone())
+            .unwrap_or_default();
         let round = Turn {
             asks,
             facts: since.as_ref().map(since::prompt).unwrap_or_default(),
             folded: since.is_some(),
+            about,
             terms: usage.map(since::candidates).unwrap_or_default(),
             created_ms: env.now_ms,
             ..Turn::default()
@@ -441,6 +460,7 @@ impl Flow {
             asks: round.asks,
             terms: round.terms,
             step,
+            about: round.about,
         };
         let line = String::new();
         self.emit(Effect::Ask { line, stage }, out);
@@ -578,6 +598,7 @@ impl Flow {
             candidates,
             since: self.facts(),
             before,
+            about: self.about(),
         };
         self.emit(Effect::Ask { line, stage }, out);
     }
@@ -608,6 +629,7 @@ impl Flow {
                 line: line.clone(),
                 since: self.facts(),
                 terms: self.terms(),
+                about: self.about(),
             };
             return self.emit(Effect::Ask { line, stage }, out);
         }
@@ -659,6 +681,7 @@ impl Flow {
                 answers,
                 line: line.clone(),
                 since: self.facts(),
+                about: self.about(),
             }
         } else {
             Stage::Plan {
@@ -666,6 +689,7 @@ impl Flow {
                 line: line.clone(),
                 since: self.facts(),
                 terms: self.terms(),
+                about: self.about(),
             }
         };
         self.emit(Effect::Ask { line, stage }, out);
@@ -700,6 +724,7 @@ impl Flow {
             asks,
             terms: look.terms.clone(),
             step,
+            about: look.about.clone(),
         };
         let line = String::new();
         self.emit(Effect::Ask { line, stage }, out);

@@ -27,5 +27,6 @@ mod report;
 mod scenarios;
 mod setups;
 mod stages;
+mod words;
 
 pub use harness::{SERIAL, called, sent};

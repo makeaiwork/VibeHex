@@ -361,6 +361,11 @@ pub fn prompt(since: &Since) -> String {
         Some(last) => {
             lines.push(format!("last setup: {}", date(last.at_ms)));
             lines.push(format!("answers then: {}", answers_line(&last.answers)));
+            // Their own answer, so the look may read it (`setup::about`).
+            let about = super::about::line(&last.about);
+            if !about.is_empty() {
+                lines.push(format!("{}{about}", super::about::THEN));
+            }
             for (name, done) in [
                 ("applied then", &last.applied),
                 ("declined then", &last.declined),

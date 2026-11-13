@@ -29,7 +29,7 @@ use crate::desktop::i18n::tr;
 const NOTCH: &str = "labs.notch_indicator";
 const MOUSE: &str = "labs.mouse_shortcuts";
 
-fn stage(
+pub(super) fn stage(
     build: fn(&Fixture) -> (String, Stage),
     canned: &[&'static str],
     checks: Vec<Check>,
@@ -526,6 +526,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 ),
             ],
         },
+        super::words::scenario(),
         Scenario {
             id: "12-your-own-values",
             about: "A plan came with the person's own choices checked for change.",

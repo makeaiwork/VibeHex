@@ -576,6 +576,7 @@ fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
             to: Value::Bool(true),
             from: Value::Bool(false),
         }],
+        about: ABOUT.into(),
         ..Setup::default()
     };
     ui.assistant.store.finish(last.clone());
@@ -680,6 +681,8 @@ fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
             }],
             asks,
             folded: true,
+            // His own words then, to change.
+            about: last_about(&since),
             facts: since::prompt(&since),
             terms: usage.map(since::candidates).unwrap_or_default(),
             created_ms: AT + MINUTE,
@@ -687,6 +690,18 @@ fn returning(ui: &mut Ui) -> (Vec<Turn>, State) {
         },
     ];
     (turns, state)
+}
+
+/// What the owner wrote under round one last time.
+const ABOUT: &str = "Пишу код на TypeScript и Rust, диктую в Ghostty, Cursor и Telegram";
+
+/// The last setup's own words, as a returning setup's round one shows them.
+fn last_about(since: &Since) -> String {
+    since
+        .last
+        .as_ref()
+        .map(|last| last.about.clone())
+        .unwrap_or_default()
 }
 
 /// What a model suggests from the returning scene's use, written in the

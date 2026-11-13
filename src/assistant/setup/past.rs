@@ -44,6 +44,10 @@ pub struct Setup {
     /// The plan turn it was decided on; 0 until a plan is.
     #[serde(skip_serializing_if = "is_zero")]
     pub plan_ms: u64,
+    /// Round one's own words (`setup::about`): what they do and where they
+    /// dictate most, as they wrote it.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub about: String,
 }
 
 fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
