@@ -717,6 +717,12 @@ mod tests {
         });
         let plan = card(&ui, at).unwrap().clone();
         assert_eq!(plan.items[0].companion.as_ref().unwrap().from, json!("15"));
+        // Calendar reminders are macOS's: elsewhere the kept row has none.
+        let reminds = plan.kept[0].companion.is_some();
+        assert_eq!(
+            reminds,
+            crate::control::settings::unavailable("meetings.calendar.lead_minutes").is_none()
+        );
         let one = counts::Counts {
             changes: 1,
             terms: 0,
@@ -731,14 +737,15 @@ mod tests {
         pick_companion(&mut ui, at, 0, true, 3);
         let plan = card(&ui, at).unwrap().clone();
         let two = counts::Counts {
-            changes: 2,
+            changes: 1 + usize::from(reminds),
             terms: 0,
         };
         assert_eq!(counts::held(&plan), (two, two));
         apply(&mut ui, at);
         assert!(ui.settings.labs.unload_idle);
         assert_eq!(ui.settings.labs.unload_idle_minutes, 60);
-        assert_eq!(ui.settings.meetings.calendar.lead_minutes, 5);
+        let lead = if reminds { 5 } else { 1 };
+        assert_eq!(ui.settings.meetings.calendar.lead_minutes, lead);
         let plan = card(&ui, at).unwrap().clone();
         assert_eq!(counts::applied(&plan), (two, two));
         undo(&mut ui, at);

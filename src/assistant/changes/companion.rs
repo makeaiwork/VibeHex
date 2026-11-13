@@ -178,6 +178,12 @@ mod tests {
             assert!(pair.says.contains("{}"), "{}", pair.says);
             assert!(!super::super::catalog::never(pair.switch));
             assert!(!super::super::catalog::never(pair.value));
+            // A pair this OS lacks (calendar reminders off macOS) is never
+            // offered here, and a save would refuse it.
+            if settings::unavailable(pair.value).is_some() {
+                assert!(of(&settings, pair.switch, &json!(true)).is_none());
+                continue;
+            }
             for choice in choices {
                 let values = serde_json::Map::from_iter([
                     (pair.switch.to_owned(), json!(true)),
@@ -209,8 +215,12 @@ mod tests {
         assert_eq!(companion.options.len(), 4);
         assert!(of(&settings, "labs.unload_idle", &json!(false)).is_none());
         assert!(of(&settings, "labs.smart_spacing", &json!(true)).is_none());
-        let lead = of(&settings, "meetings.calendar.remind", &json!(true)).unwrap();
-        assert_eq!(lead.from, json!("1"));
+        // Calendar reminders are macOS's: elsewhere the switch has none.
+        let lead = of(&settings, "meetings.calendar.remind", &json!(true));
+        match settings::unavailable("meetings.calendar.lead_minutes") {
+            None => assert_eq!(lead.unwrap().from, json!("1")),
+            Some(_) => assert!(lead.is_none()),
+        }
     }
 
     #[test]
