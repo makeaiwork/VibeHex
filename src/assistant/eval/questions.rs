@@ -103,6 +103,7 @@ fn cases() -> Vec<Case> {
                 candidates,
                 since: String::new(),
                 before: Vec::new(),
+                about: String::new(),
             },
             keys: Vec::new(),
             terms: Vec::new(),
@@ -115,6 +116,7 @@ fn cases() -> Vec<Case> {
                 answers,
                 since: String::new(),
                 terms: Vec::new(),
+                about: String::new(),
             },
             // Code in Russian: Parakeet v3, never GigaAM.
             keys: vec![

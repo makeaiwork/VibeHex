@@ -1105,6 +1105,7 @@ mod tests {
                 sounds_like: vec!["супабейс".into()],
                 sure: true,
             }],
+            about: String::new(),
         }
     }
 
@@ -1128,6 +1129,7 @@ mod tests {
                 dictations: 972,
                 meetings: 5,
             },
+            about: "Пишу код, диктую в Cursor".into(),
         };
         for fails in [false, true] {
             let generate: Generate = Box::new(move |instructions, input, _, _| {
@@ -1156,6 +1158,8 @@ mod tests {
             assert!(turn.cards.is_empty(), "suggestions, never cards");
             assert!(turn.folded && turn.asks.len() == 4);
             assert_eq!(turn.terms[0].term, "Granola");
+            // The last setup's own words come back with round one.
+            assert_eq!(turn.about, "Пишу код, диктую в Cursor");
             assert!(turn.facts.starts_with("dictations kept"));
             assert!(matches!(
                 turn.steps[..],

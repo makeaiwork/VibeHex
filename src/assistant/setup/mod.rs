@@ -20,6 +20,7 @@
 //! isn't ready yet unchecked; a remote model's lines join them under the
 //! same rules.
 
+pub mod about;
 pub mod engines;
 pub mod flow;
 pub mod follow;
@@ -119,6 +120,8 @@ pub enum Stage {
         /// The follow-ups answered in an earlier setup (`past`), joining
         /// the round folded, as answered then.
         before: Vec<Ask>,
+        /// Round one's own words (`about`), empty when none were written.
+        about: String,
     },
     /// Every round is answered: the model writes the plan. `line` is the
     /// answers as the model reads them, with the labels the person saw;
@@ -128,6 +131,8 @@ pub enum Stage {
         line: String,
         since: String,
         terms: Vec<since::Candidate>,
+        /// Round one's own words (`about`).
+        about: String,
     },
     /// A returning setup's opening, on a remote model: it reads what came
     /// since (`facts`, aggregates only) and what the app already showed
@@ -140,6 +145,8 @@ pub enum Stage {
         asks: Vec<Ask>,
         terms: Vec<since::Candidate>,
         step: crate::assistant::recordings::Step,
+        /// Round one's own words as last written, prefilled after the look.
+        about: String,
     },
 }
 
@@ -171,6 +178,16 @@ impl Stage {
         match self {
             Self::Follow { answers, .. } | Self::Plan { answers, .. } => answers,
             _ => &[],
+        }
+    }
+
+    /// Round one's own words it carries, if any.
+    pub fn about(&self) -> &str {
+        match self {
+            Self::Follow { about, .. } | Self::Plan { about, .. } | Self::Look { about, .. } => {
+                about
+            }
+            _ => "",
         }
     }
 }
@@ -298,6 +315,7 @@ pub fn questions(os: &str) -> Vec<Ask> {
 #[cfg(test)]
 pub fn own_words() -> Vec<&'static str> {
     let mut words = vec![OFF_MAC, TECH_HINT];
+    words.extend(about::words());
     words.extend(follow::words());
     words.extend(engines::words());
     words.extend(plan::words());

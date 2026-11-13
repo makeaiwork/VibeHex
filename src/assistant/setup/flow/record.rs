@@ -71,6 +71,7 @@ impl Flow {
         setup.conversation = self.conversation;
         setup.started_ms = started_ms;
         setup.plan_ms = plan.map_or(0, |(_, at)| at);
+        setup.about = self.about();
         self.emit(Effect::Keep(setup), out);
     }
 
@@ -80,12 +81,17 @@ impl Flow {
     pub(super) fn unasked(&mut self, stage: Stage, env: &Env, out: &mut Vec<Effect>) {
         let turn = match stage {
             Stage::Look {
-                facts, asks, terms, ..
+                facts,
+                asks,
+                terms,
+                about,
+                ..
             } => Turn {
                 asks,
                 facts,
                 folded: true,
                 terms,
+                about,
                 ..Turn::default()
             },
             Stage::Follow { answers, line, .. } => Turn {

@@ -445,6 +445,7 @@ pub fn build(
             Stage::Look { .. } => instructions.push_str(SETUP_LOOK),
             _ => instructions.push_str(CHANGES),
         }
+        instructions.push_str(&setup::about::told(stage));
         if let Stage::Plan { since, .. } | Stage::Follow { since, .. } = stage
             && !since.trim().is_empty()
         {
@@ -527,6 +528,7 @@ pub fn build(
                 ));
             }
             input.push_str(&format!("\n<answers>\n{}\n</answers>\n", line.trim()));
+            input.push_str(&setup::about::block(stage.about()));
         }
         Stage::Look { facts, shown, .. } => input.push_str(&format!(
             "\n<since_last_setup>\n{}\n</since_last_setup>\n<shown>\n{}\n</shown>\n",
@@ -1427,6 +1429,7 @@ mod tests {
                 line: "language: ru (Русский)".into(),
                 terms: Vec::new(),
                 since: String::new(),
+                about: String::new(),
             },
         );
         assert!(plan.instructions.contains("```hex-plan"));
@@ -1442,6 +1445,70 @@ mod tests {
             "{:?}",
             plan.articles
         );
+    }
+
+    /// Round one's own words go to the follow-ups and the plan in a tag of
+    /// their own, said what they are; with none written, neither the tag
+    /// nor what it is.
+    #[test]
+    fn round_ones_own_words_have_a_tag_only_when_written() {
+        let answers = vec![setup::Answer {
+            id: "use".into(),
+            chosen: vec!["dictation_any".into()],
+            ..Default::default()
+        }];
+        let line = "use: dictation_any (Dictation into any app)".to_owned();
+        let follow = |about: &str| Stage::Follow {
+            answers: answers.clone(),
+            line: line.clone(),
+            candidates: Vec::new(),
+            since: String::new(),
+            before: Vec::new(),
+            about: about.into(),
+        };
+        let plan = |about: &str| Stage::Plan {
+            answers: answers.clone(),
+            line: line.clone(),
+            since: String::new(),
+            terms: Vec::new(),
+            about: about.into(),
+        };
+        let asked = |stage: &Stage| {
+            build(
+                "",
+                &[],
+                Room::Small,
+                Reach::Guide,
+                Some(&context(true)),
+                stage,
+            )
+        };
+        let words = "Пишу код на русском, диктую в Cursor";
+        for stage in [follow(words), plan(words)] {
+            let prompt = asked(&stage);
+            assert!(
+                prompt.input.ends_with(&format!(
+                    "</answers>\n\n<in_their_words>\n{words}\n</in_their_words>\n"
+                )),
+                "{}",
+                prompt.input
+            );
+            assert!(prompt.instructions.contains("Never quote it back"));
+        }
+        for stage in [follow(""), plan("")] {
+            let prompt = asked(&stage);
+            assert!(!prompt.input.contains("in_their_words"));
+            assert!(!prompt.instructions.contains("in_their_words"));
+            assert!(!prompt.instructions.contains(setup::about::THEN.trim()));
+        }
+        // A returning setup's last words are said what they are too.
+        let mut returning = plan("");
+        if let Stage::Plan { since, .. } = &mut returning {
+            *since = format!("last setup: 2026-10-01\n{}{words}", setup::about::THEN);
+        }
+        let prompt = asked(&returning);
+        assert!(prompt.instructions.contains(setup::about::LAST));
+        assert!(!prompt.input.contains("<in_their_words>"));
     }
 
     /// A returning setup's prompt carries what came since: the use's
@@ -1468,6 +1535,7 @@ mod tests {
                 line: "use: dictation_any (Dictation into any app)".into(),
                 since: facts.clone(),
                 terms: Vec::new(),
+                about: String::new(),
             },
         );
         assert!(plan.instructions.contains("never offer again"));
@@ -1518,6 +1586,7 @@ mod tests {
                     dictations: 5,
                     meetings: 0,
                 },
+                about: String::new(),
             },
         );
         assert!(look.instructions.contains("2 to 4 suggestions"));

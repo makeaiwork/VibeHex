@@ -88,6 +88,10 @@ pub struct Turn {
     /// says something changed.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub folded: bool,
+    /// Round one's own words, as written in the field under its questions
+    /// (`setup::about`): what they do and where they dictate most.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub about: String,
     /// The terms a returning setup's use shows Vocabulary lacks, which
     /// its plan offers (`setup::since::candidates`).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -285,6 +289,20 @@ impl Store {
         if let Some(slot) = slot {
             slot.folded = false;
             self.save();
+        }
+    }
+
+    /// Round one's own words in turn `turn` of conversation `id`, as typed:
+    /// a draft, held in memory and saved with the round's next change (its
+    /// Continue), so typing writes no file.
+    pub fn write_about(&mut self, id: u32, turn: usize, text: &str) {
+        let slot = self
+            .conversations
+            .iter_mut()
+            .find(|c| c.id == id)
+            .and_then(|conversation| conversation.turns.get_mut(turn));
+        if let Some(slot) = slot {
+            slot.about = crate::assistant::setup::about::cap(text).to_owned();
         }
     }
 

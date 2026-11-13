@@ -5,6 +5,7 @@
 use super::*;
 use crate::assistant::facts::{Fact, State};
 use crate::assistant::recordings::usage::Usage;
+use crate::assistant::setup::about;
 use crate::desktop::i18n::speaking;
 
 /// A setup run by hand: the sample install, a clock, and what happened.
@@ -416,6 +417,105 @@ fn a_returning_setup_with_a_model() {
             "unasked: push round folded -> Basics folded",
         ]
     );
+}
+
+/// Round one's own words, written in its field: trimmed and capped, they
+/// travel with the answers to the model's follow-ups and plan, are kept
+/// with the setup, and come back prefilled when it returns, through
+/// "Change answers" and to the model's look; cleared, they are gone.
+#[test]
+fn round_ones_own_words_travel_and_are_kept() {
+    let words = "Пишу код на русском, диктую в Cursor";
+    let stage_of = |effects: &[Effect]| {
+        effects.iter().find_map(|effect| match effect {
+            Effect::Ask { stage, .. } => Some(stage.clone()),
+            _ => None,
+        })
+    };
+    english(|| {
+        let mut run = Run::new(true);
+        run.send("begin", Event::Begin { since: None });
+        let turn = run.last();
+        // As the field writes it while typed: a draft in round one's turn.
+        run.flow.turns[turn].about = format!("  {words}\n{}", " ".repeat(500));
+        let asked = run.send("continue", Event::Answered { turn, skip: false });
+        let follow = stage_of(&asked).expect("the follow-ups are asked");
+        assert!(matches!(follow, Stage::Follow { .. }));
+        assert_eq!(follow.about(), words);
+        let kept = run.flow.kept.last().unwrap().clone();
+        assert_eq!(kept.about, words, "kept from round one on");
+        run.reply(&asked, false);
+        let turn = run.last();
+        let asked = run.send("skip", Event::Answered { turn, skip: true });
+        let plan = stage_of(&asked).expect("the plan is asked");
+        assert!(matches!(plan, Stage::Plan { .. }));
+        assert_eq!(plan.about(), words);
+        run.reply(&asked, false);
+        run.decide("apply", applied());
+        assert_eq!(run.flow.kept.last().unwrap().about, words);
+        // Capped, however much was pasted.
+        let mut long = Run::new(true);
+        long.send("begin", Event::Begin { since: None });
+        let turn = long.last();
+        long.flow.turns[turn].about = "ы".repeat(about::MAX * 2);
+        let asked = long.send("continue", Event::Answered { turn, skip: false });
+        let stage = stage_of(&asked).unwrap();
+        assert_eq!(stage.about().chars().count(), about::MAX);
+
+        // Returning on this device: round one folded, the words prefilled,
+        // kept through "Change answers".
+        let kept = run.flow.kept.clone();
+        let mut back = Run {
+            remote: false,
+            ..run.later(2)
+        };
+        let since = Since {
+            last: since::last(&kept).cloned(),
+            ..Since::default()
+        };
+        back.send("begin", Event::Begin { since: Some(since) });
+        let turn = back.last();
+        assert!(back.flow.turns[turn].folded);
+        assert_eq!(back.flow.turns[turn].about, words);
+        back.send("change", Event::Change { turn });
+        assert_eq!(back.flow.turns[turn].about, words);
+        // Cleared, the next record has none.
+        back.flow.turns[turn].about.clear();
+        back.send("continue", Event::Answered { turn, skip: false });
+        assert_eq!(back.flow.kept.last().unwrap().about, "");
+
+        // Returning on a model with the use read: the look reads them as
+        // the last setup's own words, and round one comes back with them.
+        let mut look = Run {
+            flow: Flow::new(3, Vec::new(), kept.clone()),
+            ..Run::new(true)
+        };
+        let since = Since {
+            last: since::last(&kept).cloned(),
+            usage: Some(Usage {
+                dictations: 80,
+                ..Usage::default()
+            }),
+            ..Since::default()
+        };
+        let asked = look.send("begin", Event::Begin { since: Some(since) });
+        let Some(Stage::Look {
+            facts,
+            about: prefilled,
+            ..
+        }) = stage_of(&asked)
+        else {
+            panic!("a returning setup looks first");
+        };
+        assert!(
+            facts.contains(&format!("{}{words}", about::THEN)),
+            "{facts}"
+        );
+        assert_eq!(prefilled, words);
+        look.reply(&asked, false);
+        assert_eq!(look.flow.turns[look.last()].about, words);
+        Vec::new()
+    });
 }
 
 /// A model answering elsewhere is not asked, and nothing is taken as
