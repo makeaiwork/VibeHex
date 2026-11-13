@@ -74,6 +74,10 @@ fn a_lab_resolves_by_its_title_alone_or_under_labs() {
         let quick = resolve(&ui, "Add to vocabulary from a selection");
         assert!(matches!(quick, Some((To::Labs(Some(_)), _))), "{quick:?}");
     }
+    // A card's note in brackets may go unwritten under Labs.
+    let meetings = Some((To::Labs(Some("meetings")), lit(&["Meetings (beta)"])));
+    assert_eq!(resolve(&ui, "Labs › Meetings"), meetings);
+    assert_eq!(resolve(&ui, "Labs › Meetings (beta)"), meetings);
     // A lab this Hex doesn't have: Labs itself, its deepest known part.
     assert_eq!(
         resolve(&ui, "Labs › No such lab"),

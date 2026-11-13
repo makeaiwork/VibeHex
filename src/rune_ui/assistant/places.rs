@@ -84,6 +84,10 @@ impl Known {
         for (id, title) in shown.iter().copied().chain(english) {
             let lab = spot(To::Labs(Some(id)), vec![title.to_owned()]);
             known.labs.push((lower(title), lab.clone()));
+            // `Labs › Meetings` finds the card titled Meetings (beta).
+            if let Some((bare, _)) = title.split_once(" (") {
+                known.labs.push((lower(bare), lab.clone()));
+            }
             known.add(title, lab);
         }
         for &(_, path, name, home) in WHERE {
