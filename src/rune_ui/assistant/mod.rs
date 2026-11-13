@@ -13,6 +13,7 @@ mod ask;
 mod card;
 mod card_diff;
 mod changes;
+mod companion;
 mod composer;
 mod connect;
 pub(super) mod dots;
@@ -49,6 +50,8 @@ mod vocab;
 mod vocab_edit;
 mod web;
 mod whats_new;
+
+pub(super) use value::ValueAt;
 
 use rune::{El, ScrollSpec, TextEdit, Tx, col};
 
@@ -257,8 +260,9 @@ fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
     let connect = connect::needed(ui);
     // The conversation is Assistant's: its own words in its language (the
     // dictation language when set); places it names keep the window's.
-    let mut feed =
-        crate::assistant::language::within(&ui.settings, || feed::feed(ui, p, !connect, still));
+    let mut feed = crate::assistant::language::within(&ui.settings, || {
+        feed::feed(ui, p, !connect, still, layer)
+    });
     if connect {
         feed = feed.child(connect::panel(ui, p));
     }

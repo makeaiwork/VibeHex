@@ -26,7 +26,7 @@ use super::{Answer, engines, follow, picked, spellings};
 use crate::app_settings::AppSettings;
 use crate::assistant::changes::parse::Proposal;
 use crate::assistant::changes::vocab;
-use crate::assistant::changes::{self, Card, CardKind, Item, names, parts};
+use crate::assistant::changes::{self, Card, CardKind, Item, companion, names, parts};
 use crate::assistant::facts::State;
 use crate::assistant::offer::{Dropped, Gate, Origin};
 use crate::assistant::recordings::terms;
@@ -457,8 +457,10 @@ pub fn planned(
         if kept.iter().any(|known| known.key == *key) || items.iter().any(|item| item.key == *key) {
             continue;
         }
+        // A switch kept on keeps its companion choosable (`companion`).
         kept.push(Item {
             key: key.clone(),
+            companion: companion::of(settings, key, &now),
             from: now.clone(),
             to: now,
             ..Item::default()

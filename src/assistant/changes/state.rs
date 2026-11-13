@@ -283,7 +283,12 @@ impl Terms {
 
 /// How many of a card's checked rows its save applied, of how many.
 pub fn applied_count(card: &Card) -> (usize, usize) {
-    let checked = card.items.iter().filter(|item| item.included);
+    // A kept row whose companion was picked anew is one change too.
+    let kept = card
+        .kept
+        .iter()
+        .filter(|item| item.companion_changed().is_some());
+    let checked = card.items.iter().filter(|item| item.included).chain(kept);
     let total = checked.clone().count();
     let failed = checked.filter(|item| item.failed.is_some()).count();
     (total - failed, total)

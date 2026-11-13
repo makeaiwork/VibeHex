@@ -141,9 +141,26 @@ pub fn finished(
             setup.declined.push(line);
         } else if item.failed.is_none() {
             setup.applied.push(line);
+            setup.applied.extend(companion_line(item));
         }
     }
+    // A row kept as it was, its companion picked anew.
+    let kept = applied.iter().flat_map(|card| card.kept.iter());
+    setup.applied.extend(
+        kept.filter(|item| item.failed.is_none())
+            .filter_map(companion_line),
+    );
     setup
+}
+
+/// The companion a row saved, when picked other than the value it had.
+fn companion_line(item: &crate::assistant::changes::Item) -> Option<Line> {
+    let companion = item.companion_changed()?;
+    Some(Line {
+        key: companion.key.clone(),
+        to: companion.to().clone(),
+        from: companion.from.clone(),
+    })
 }
 
 /// Keeps `setup` in `setups`, oldest first: in place of the same setup

@@ -623,6 +623,8 @@ enum Menu {
     Pick(&'static str),
     /// A detected call provider's policy, by its row.
     Call(usize),
+    /// A setup row's companion value (`assistant::companion`).
+    Companion(assistant::ValueAt),
 }
 
 pub(crate) struct Ui {

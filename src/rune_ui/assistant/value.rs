@@ -42,6 +42,8 @@ pub(in super::super) enum Slot {
     /// A way a term was heard, and one it will be.
     Was(usize),
     New(usize),
+    /// A switch's companion; `true` in a row of "Already set".
+    Companion(bool),
 }
 
 impl At {
@@ -81,7 +83,7 @@ fn toggle(ui: &mut Ui, at: ValueAt) {
 
 /// A chip's fill, border, and ink: the value now outlined, the new one on
 /// a soft accent tint, one turned down faint.
-fn looks(p: Paint, new: bool, struck: bool) -> (rune::Color, rune::Color, rune::Color) {
+pub(super) fn looks(p: Paint, new: bool, struck: bool) -> (rune::Color, rune::Color, rune::Color) {
     let c = &p.k.c;
     if new {
         (
@@ -204,6 +206,12 @@ pub(super) struct Change<'a> {
 /// The room a pair has beside a row's name and reason.
 pub(super) const BESIDE: f32 = 260.0;
 
+/// Whether from → to stands one under the other: the two chips are wider
+/// than `beside`.
+pub(super) fn apart(p: Paint, key: &str, from: &Value, to: &Value, beside: f32) -> bool {
+    width(p, &label(key, from)) + width(p, &label(key, to)) > beside
+}
+
 /// From → to, side by side; one under the other when the two are wider
 /// than the room beside the row's words.
 pub(super) fn change(ui: &Ui, p: Paint, at: At, index: usize, change: Change) -> El {
@@ -216,7 +224,7 @@ pub(super) fn change(ui: &Ui, p: Paint, at: At, index: usize, change: Change) ->
         beside,
     } = change;
     let (was, now) = (label(key, from), label(key, to));
-    let apart = width(p, &was) + width(p, &now) > beside;
+    let apart = apart(p, key, from, to, beside);
     let from = chip(
         ui,
         p,

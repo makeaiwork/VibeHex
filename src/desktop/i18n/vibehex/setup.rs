@@ -172,6 +172,10 @@ pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
     ("1 meeting recorded", ["Nagrane spotkania: 1", "已录制 1 场会议", "録音した会議：1 件", "1 aufgenommenes Meeting", "1 reunión grabada", "Записано 1 зустріч"]),
     ("Cleanup keeps fixing how these are heard", ["Poprawianie stale naprawia, jak je słychać", "整理一直在修正这些词的识别", "整形がこれらの聞き取りをよく直しています", "Die Bereinigung korrigiert immer wieder, wie diese gehört werden", "La limpieza corrige una y otra vez cómo se oyen", "Очищення раз у раз виправляє, як їх почуто"]),
     ("You say these, and Vocabulary doesn't have them", ["Mówisz je, a nie ma ich w Słowniku", "你常说这些，词汇表里还没有", "よく話すのに語彙にありません", "Du sagst sie, und das Vokabular hat sie nicht", "Los dices y el Vocabulario no los tiene", "Ви їх кажете, а у Словнику їх немає"]),
+    ("after {}", ["po {}", "{} 后", "{} 後", "nach {}", "tras {}", "через {}"]),
+    ("remind me {}", ["przypomnij {}", "提醒时间 {}", "通知 {}", "erinnern {}", "recordarme {}", "нагадати {}"]),
+    ("light {}", ["lampka {}", "指示灯 {}", "ランプ {}", "Licht {}", "luz {}", "індикатор {}"]),
+    ("voice {}", ["głos {}", "声音 {}", "声 {}", "Stimme {}", "voz {}", "голос {}"]),
 ];
 
 /// French.
@@ -342,6 +346,10 @@ pub(in super::super) const FRENCH: &[(&str, &str)] = &[
     ("1 meeting recorded", "1 réunion enregistrée"),
     ("Cleanup keeps fixing how these are heard", "Le nettoyage corrige sans cesse comment ils sont entendus"),
     ("You say these, and Vocabulary doesn't have them", "Vous les dites, et le Vocabulaire ne les a pas"),
+    ("after {}", "après {}"),
+    ("remind me {}", "me rappeler {}"),
+    ("light {}", "voyant {}"),
+    ("voice {}", "voix {}"),
 ];
 
 /// Brazilian Portuguese.
@@ -512,6 +520,10 @@ pub(in super::super) const PORTUGUESE: &[(&str, &str)] = &[
     ("1 meeting recorded", "1 reunião gravada"),
     ("Cleanup keeps fixing how these are heard", "A limpeza vive corrigindo como estes são ouvidos"),
     ("You say these, and Vocabulary doesn't have them", "Você diz estes, e o Vocabulário não os tem"),
+    ("after {}", "após {}"),
+    ("remind me {}", "lembrar {}"),
+    ("light {}", "luz {}"),
+    ("voice {}", "voz {}"),
 ];
 
 /// Russian.
@@ -682,4 +694,8 @@ pub(in super::super) const RUSSIAN: &[(&str, &str)] = &[
     ("1 meeting recorded", "Записана 1 встреча"),
     ("Cleanup keeps fixing how these are heard", "Очистка раз за разом исправляет, как их расслышали"),
     ("You say these, and Vocabulary doesn't have them", "Вы их говорите, а в Словаре их нет"),
+    ("after {}", "через {}"),
+    ("remind me {}", "напомнить {}"),
+    ("light {}", "индикатор {}"),
+    ("voice {}", "голос {}"),
 ];

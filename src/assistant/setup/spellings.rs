@@ -112,6 +112,8 @@ pub fn fill(rows: Vec<Item>, candidates: &mut [Candidate]) -> Vec<Item> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_settings::AppSettings;
+    use crate::assistant::facts::State;
 
     fn forms(forms: &[&str]) -> Vec<String> {
         forms.iter().map(|form| (*form).to_owned()).collect()
@@ -192,5 +194,70 @@ mod tests {
             .map(|term| term.term)
             .collect();
         assert_eq!(kept, ["GitHub", "Kubernetes"]);
+    }
+
+    /// A term the use has with no spelling gets a remote model's, as its own
+    /// row: the use's reason, unchecked as before, the model's spellings that
+    /// pass (Russian letters, never the term). Its term for something else
+    /// stays a row of its own.
+    #[test]
+    fn a_models_spellings_fill_a_term_that_has_none() {
+        use crate::assistant::changes::parse::Proposal;
+        use crate::assistant::changes::vocab;
+        use crate::assistant::offer::{Gate, Origin};
+        let mut settings = AppSettings::default();
+        super::super::sample(&mut settings);
+        let state = State {
+            os: "macos",
+            ..State::default()
+        };
+        let candidates = [Candidate {
+            term: "quit".into(),
+            ..Candidate::default()
+        }];
+        let line = |term: &str, sounds: &[&str]| Proposal {
+            key: vocab::KEY.into(),
+            value: Some(
+                vocab::Term {
+                    term: term.into(),
+                    sounds_like: sounds.iter().map(|sound| (*sound).to_owned()).collect(),
+                }
+                .value(),
+            ),
+            why: "from the model".into(),
+            plan: true,
+            line: vocab::KEY.into(),
+            ..Proposal::default()
+        };
+        let gate = Gate::new(&settings, &state);
+        let model = crate::assistant::changes::resolve(
+            &[
+                line("quit", &["квит", "quit", "kvit"]),
+                line("Kubernetes", &["кубернетис"]),
+            ],
+            &gate,
+            Origin::Plan,
+        );
+        let card = super::super::plan::with_terms(model.cards, &[], &candidates, &settings, &state)
+            .unwrap();
+        let rows: Vec<(vocab::Term, bool, String)> = card
+            .items
+            .iter()
+            .filter(|item| item.key == vocab::KEY)
+            .flat_map(|item| {
+                vocab::terms(&item.to)
+                    .into_iter()
+                    .map(|term| (term, item.included, item.why.clone()))
+            })
+            .collect();
+        let quit = rows.iter().find(|(term, ..)| term.term == "quit").unwrap();
+        assert_eq!(quit.0.sounds_like, ["квит"]);
+        assert!(!quit.1, "a term the use isn't sure of starts unchecked");
+        assert_eq!(quit.2, "You say these, and Vocabulary doesn't have them");
+        let kubernetes = rows
+            .iter()
+            .find(|(term, ..)| term.term == "Kubernetes")
+            .unwrap();
+        assert_eq!(kubernetes.0.sounds_like, ["кубернетис"]);
     }
 }

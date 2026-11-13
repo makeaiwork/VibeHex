@@ -222,6 +222,21 @@ fn apply_plan(ui: &mut Ui, at: At, mut card: Card) {
             Err(why) => item.failed = Some(why),
         }
     }
+    // A row kept as it is, its companion picked anew: a change of its own.
+    for item in &mut card.kept {
+        item.failed = None;
+        let Some(companion) = item.companion_changed() else {
+            continue;
+        };
+        let values = Map::from_iter([(companion.key.clone(), companion.to().clone())]);
+        match settings::check(&candidate, &values, &rules) {
+            Ok(change) => {
+                candidate = change.settings;
+                effects.extend(change.effects);
+            }
+            Err(error) => item.failed = Some(error.message),
+        }
+    }
     let mut decision = commit(ui, &before, candidate, effects);
     for index in 0..card.items.len() {
         let item = &card.items[index];
@@ -421,6 +436,23 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
     });
     // A setup's record follows its plan: undone, it no longer says applied.
     super::ask::decided(ui, at);
+}
+
+/// Picks option `index` of the companion of row `row` (`kept`: a row of
+/// "Already set").
+pub(super) fn pick_companion(ui: &mut Ui, at: At, row: usize, kept: bool, index: usize) {
+    set(ui, at, |card| {
+        let rows = if kept {
+            &mut card.kept
+        } else {
+            &mut card.items
+        };
+        if let Some(companion) = rows.get_mut(row).and_then(|item| item.companion.as_mut())
+            && index < companion.options.len()
+        {
+            companion.chosen = index;
+        }
+    });
 }
 
 /// Picks a choice's option.
@@ -656,6 +688,75 @@ mod tests {
             ui.settings.history_retention,
             crate::history::HistoryRetention::Week
         );
+    }
+
+    /// A switch's companion saves with it: picked in the row, its value
+    /// goes in the same save; on a row kept as it is, picked anew, it is
+    /// a change of its own, counted and saved; untouched, it is none.
+    /// Undo takes them back.
+    #[test]
+    fn a_switchs_companion_saves_with_it() {
+        use crate::assistant::changes::{companion, counts};
+        let (mut ui, at) = with_card("labs.unload_idle", json!(false), json!(true));
+        ui.settings.labs.unload_idle = false;
+        ui.settings.labs.unload_idle_minutes = 15;
+        ui.settings.meetings.enabled = true;
+        ui.settings.meetings.calendar.remind = true;
+        ui.settings.meetings.calendar.lead_minutes = 1;
+        let settings = ui.settings.clone();
+        set(&mut ui, at, |card| {
+            card.kind = CardKind::Plan;
+            card.items[0].companion = companion::of(&settings, "labs.unload_idle", &json!(true));
+            card.kept.push(Item {
+                key: "meetings.calendar.remind".into(),
+                from: json!(true),
+                to: json!(true),
+                companion: companion::of(&settings, "meetings.calendar.remind", &json!(true)),
+                ..Item::default()
+            });
+        });
+        let plan = card(&ui, at).unwrap().clone();
+        assert_eq!(plan.items[0].companion.as_ref().unwrap().from, json!("15"));
+        let one = counts::Counts {
+            changes: 1,
+            terms: 0,
+        };
+        assert_eq!(
+            counts::held(&plan),
+            (one, one),
+            "an untouched companion is no change"
+        );
+        // Picked: 60 minutes on the row, 5 on the kept reminder.
+        pick_companion(&mut ui, at, 0, false, 3);
+        pick_companion(&mut ui, at, 0, true, 3);
+        let plan = card(&ui, at).unwrap().clone();
+        let two = counts::Counts {
+            changes: 2,
+            terms: 0,
+        };
+        assert_eq!(counts::held(&plan), (two, two));
+        apply(&mut ui, at);
+        assert!(ui.settings.labs.unload_idle);
+        assert_eq!(ui.settings.labs.unload_idle_minutes, 60);
+        assert_eq!(ui.settings.meetings.calendar.lead_minutes, 5);
+        let plan = card(&ui, at).unwrap().clone();
+        assert_eq!(counts::applied(&plan), (two, two));
+        undo(&mut ui, at);
+        assert!(!ui.settings.labs.unload_idle);
+        assert_eq!(ui.settings.labs.unload_idle_minutes, 15);
+        assert_eq!(ui.settings.meetings.calendar.lead_minutes, 1);
+        // A card from an answer carries it the same way.
+        let (mut ui, at) = with_card("labs.unload_idle", json!(false), json!(true));
+        ui.settings.labs.unload_idle = false;
+        ui.settings.labs.unload_idle_minutes = 30;
+        let settings = ui.settings.clone();
+        set(&mut ui, at, |card| {
+            card.items[0].companion = companion::of(&settings, "labs.unload_idle", &json!(true));
+        });
+        pick_companion(&mut ui, at, 0, false, 0);
+        apply(&mut ui, at);
+        assert!(ui.settings.labs.unload_idle);
+        assert_eq!(ui.settings.labs.unload_idle_minutes, 5);
     }
 
     /// A plan's rows are checked one by one: a failing row is left out
