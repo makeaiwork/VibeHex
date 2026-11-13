@@ -87,9 +87,8 @@ offered again until that setting changes.
 настройки как у Дениса»), offers the settings of the person who makes VibeHex
 as one such list: his Labs features, speech model, cleanup and notes engines,
 cleanup instructions, and Vocabulary terms you don't have yet. Keeping meetings
-for a month starts unticked. Then his shortcuts, beside yours where they
-differ: click one to record your own key instead, then **Use these** or **Keep
-mine**.
+for a month starts unticked. Then his shortcuts beside yours: record your own
+key in any row, then **Use these** or **Keep mine**.
 
 That preset is his setup for dictating in one language, so it is offered
 only when Russian is the recognition language in **General › Language**,
