@@ -46,7 +46,12 @@ pub(super) fn settle(
         .map_or(std::env::consts::OS, |context| context.state.os);
     let asks = match (&question.setup, &question.changes) {
         (Stage::Ask, context) => {
-            let mut asks = setup::asks(&parsed.asks, os);
+            let spoken = context
+                .as_ref()
+                .map_or_else(setup::Spoken::default, |context| {
+                    setup::Spoken::of(&context.settings, &context.state)
+                });
+            let mut asks = setup::asks(&parsed.asks, os, spoken);
             if let Some(context) = context {
                 setup::preselect(&mut asks, &context.settings, &context.state);
             }

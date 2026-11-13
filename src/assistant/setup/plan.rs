@@ -6,6 +6,9 @@
 //! - A speech model is never replaced while it handles the language well:
 //!   Russian with English tech terms, or code, keeps Orukeet or Parakeet
 //!   v3 and never gets GigaAM, which is Russian-only and skips Vocabulary.
+//!   Their own language (`lang:es`) and Other or mixed set the recognition
+//!   language too (`recognition`), and never bring a model that doesn't
+//!   hear the language they speak now.
 //! - Round one's engines map to their keys (`engines`); a follow-up's
 //!   "Yes" brings its changes. These are the person's own answers, so they
 //!   start checked, unless the engine isn't ready yet.
@@ -30,8 +33,8 @@ use crate::assistant::changes::{self, Card, CardKind, Item, companion, names, pa
 use crate::assistant::facts::State;
 use crate::assistant::offer::{Dropped, Gate, Origin};
 use crate::assistant::recordings::terms;
-use crate::desktop::i18n::tr;
-use crate::transcription::models::{self, TranscriptionModelId};
+use crate::desktop::i18n::{tr, tr_fill};
+use crate::transcription::models::{self, AUTO_LANGUAGE, TranscriptionModelId};
 
 /// The most lines a plan keeps.
 pub const PLAN_LINES: usize = 24;
@@ -48,6 +51,8 @@ pub struct Line {
     /// Where to finish first, in English, when it isn't ready ("" for the
     /// Codex sign-in, which has its own row).
     pub note: Option<&'static str>,
+    /// The language `why` names in its `{}`: `es`.
+    pub language: Option<&'static str>,
 }
 
 impl Line {
@@ -59,6 +64,7 @@ impl Line {
             why,
             answer: true,
             note: None,
+            language: None,
         }
     }
 
@@ -86,6 +92,16 @@ pub struct Rules {
     pub kept: Vec<String>,
     pub owned: Vec<String>,
 }
+
+const MODEL: &str = "transcription.model";
+const LANGUAGE: &str = "transcription.language";
+
+/// Why a speech model is offered for the person's own language: "Hears
+/// Spanish well".
+const HEARS_WELL: &str = "Hears {} well";
+/// Why the recognition language is set to theirs, and to Auto.
+const THEIRS: &str = "The language you usually speak";
+const ANY: &str = "Hears whichever language you speak";
 
 /// The keys round one decides, whatever a model writes.
 const OWNED: [&str; 11] = [
@@ -123,14 +139,37 @@ pub fn rules(answers: &[Answer], settings: &AppSettings, state: &State) -> Rules
         owned: OWNED.map(str::to_owned).to_vec(),
         ..Rules::default()
     };
+    let mut model_then = settings.transcription.model;
     match speech_model(language, code, settings) {
-        Model::Keep => rules.kept.push("transcription.model".into()),
-        Model::Suggest(model, why) => rules.lines.push(Line::rule(
-            "transcription.model",
-            Value::from(model.as_str()),
-            why,
-        )),
+        Model::Keep => rules.kept.push(MODEL.into()),
+        Model::Suggest(suggested) => {
+            model_then = suggested.model;
+            let value = Value::from(suggested.model.as_str());
+            // A model the answer can't do without is part of it.
+            let mut line = match suggested.needed {
+                true => Line::answer(MODEL, value, suggested.why),
+                false => Line::rule(MODEL, value, suggested.why),
+            };
+            line.language = suggested.language;
+            rules.lines.push(line);
+        }
         Model::Nothing => {}
+    }
+    // Their own language, or Auto for Other or mixed, with the model the
+    // plan leaves.
+    if let Some((wanted, why)) = recognition(language, model_then) {
+        rules.owned.push(LANGUAGE.into());
+        let now = match settings.transcription.language.trim() {
+            "" => AUTO_LANGUAGE,
+            now => now,
+        };
+        if now == wanted {
+            rules.kept.push(LANGUAGE.into());
+        } else if models::definition(model_then).supports_language(wanted) {
+            rules
+                .lines
+                .push(Line::answer(LANGUAGE, Value::from(wanted), why));
+        }
     }
     let switch = |key: &str, why: &'static str, rules: &mut Rules| {
         if changes::current(settings, key) == Some(Value::Bool(true)) {
@@ -213,7 +252,10 @@ pub fn proposals(rules: &Rules) -> Vec<Proposal> {
         .map(|line| Proposal {
             key: line.key.clone(),
             value: Some(line.value.clone()),
-            why: tr(line.why).to_owned(),
+            why: match line.language {
+                Some(code) => tr_fill(line.why, &super::language::in_sentence(code)),
+                None => tr(line.why).to_owned(),
+            },
             plan: true,
             line: line.key.clone(),
             own: line.answer,
@@ -226,19 +268,52 @@ pub fn proposals(rules: &Rules) -> Vec<Proposal> {
 /// What happens to the speech model.
 enum Model {
     Keep,
-    Suggest(TranscriptionModelId, &'static str),
+    Suggest(Suggested),
     Nothing,
+}
+
+/// A speech model the rules offer.
+struct Suggested {
+    model: TranscriptionModelId,
+    why: &'static str,
+    /// The language `why` names.
+    language: Option<&'static str>,
+    /// The model saved now can't do what the answer asks (hear their
+    /// language, or find it itself): the row starts checked.
+    needed: bool,
+}
+
+impl Model {
+    fn suggest(model: TranscriptionModelId, why: &'static str) -> Self {
+        Self::Suggest(Suggested {
+            model,
+            why,
+            language: None,
+            needed: false,
+        })
+    }
+}
+
+/// Whether VibeHex can download and run `model` here.
+fn usable(model: TranscriptionModelId) -> bool {
+    models::MODELS
+        .iter()
+        .any(|known| known.id == model && known.available())
 }
 
 /// The speech model for `language`: the one in use while it handles the
 /// language well, else one that does. Code or tech terms in Russian keep
 /// Orukeet or Parakeet v3 (Parakeet v3 if neither), never GigaAM; plain
 /// Russian keeps GigaAM or Orukeet (GigaAM v3 if neither); English, any
-/// English model; other or mixed, any with more than one language.
+/// English model; their own language, any model that hears it (else the
+/// one VibeHex recommends for it); other or mixed, see [`mixed_model`].
 fn speech_model(language: &str, code: bool, settings: &AppSettings) -> Model {
     use TranscriptionModelId::{GigaAmV3, Orukeet, ParakeetV3};
     let now = settings.transcription.model;
     let definition = models::definition(now);
+    if let Some(theirs) = super::language::code(language) {
+        return own_model(theirs, now);
+    }
     let (good, model, why) = match language {
         "ru_tech" => (
             matches!(now, Orukeet | ParakeetV3),
@@ -265,24 +340,96 @@ fn speech_model(language: &str, code: bool, settings: &AppSettings) -> Model {
                 "Made for English",
             )
         }
-        "mixed" => (
-            definition.languages.len() > 1,
-            ParakeetV3,
-            "Hears many languages",
-        ),
+        "mixed" => return mixed_model(settings),
         _ => return Model::Nothing,
     };
     if good {
         return Model::Keep;
     }
-    let usable = models::MODELS
-        .iter()
-        .any(|known| known.id == model && known.available());
-    if usable && model != now {
-        Model::Suggest(model, why)
+    if usable(model) && model != now {
+        Model::suggest(model, why)
     } else {
         Model::Nothing
     }
+}
+
+/// For their own language `theirs`: the model in use while it hears it,
+/// else the one VibeHex recommends for it (`choices_for_runtime`), which
+/// the language needs.
+fn own_model(theirs: &'static str, now: TranscriptionModelId) -> Model {
+    if models::definition(now).supports_language(theirs) {
+        return Model::Keep;
+    }
+    let choices = models::choices_for_runtime(theirs);
+    let usable: Vec<_> = choices
+        .iter()
+        .filter(|choice| usable(choice.model.id))
+        .collect();
+    let best = usable
+        .iter()
+        .find(|choice| choice.recommendation == models::Recommendation::Recommended)
+        .or_else(|| usable.first());
+    match best {
+        Some(choice) if choice.model.id != now => Model::Suggest(Suggested {
+            model: choice.model.id,
+            why: HEARS_WELL,
+            language: Some(theirs),
+            needed: true,
+        }),
+        _ => Model::Nothing,
+    }
+}
+
+/// For other or mixed: a model that finds the language itself (Auto)
+/// stays. Else one that does and still hears the language recognised now
+/// (Parakeet v3 first, then the ones VibeHex recommends for it), never one
+/// that doesn't: Arabic, Hebrew, or Norwegian on a model of their own
+/// gets Whisper, not Parakeet v3. With none, the model stays.
+fn mixed_model(settings: &AppSettings) -> Model {
+    let now = settings.transcription.model;
+    if models::definition(now).supports_language(AUTO_LANGUAGE) {
+        return Model::Keep;
+    }
+    let current = crate::assistant::language::spoken(settings);
+    let hears = |model: TranscriptionModelId| {
+        let definition = models::definition(model);
+        usable(model)
+            && definition.supports_language(AUTO_LANGUAGE)
+            && current
+                .as_deref()
+                .is_none_or(|language| definition.supports_language(language))
+    };
+    let recommended = current
+        .as_deref()
+        .map(models::choices_for_runtime)
+        .unwrap_or_default();
+    let found = std::iter::once(TranscriptionModelId::ParakeetV3)
+        .chain(recommended.iter().map(|choice| choice.model.id))
+        .chain(models::MODELS.iter().map(|model| model.id))
+        .find(|model| *model != now && hears(*model));
+    match found {
+        Some(model) => Model::Suggest(Suggested {
+            model,
+            why: "Hears many languages",
+            language: None,
+            needed: true,
+        }),
+        None => Model::Nothing,
+    }
+}
+
+/// The recognition language an answer asks for, and why: their own
+/// language, or Auto for other or mixed where `model` finds the language
+/// itself. Russian and English leave it as it is.
+fn recognition(
+    language: &str,
+    model: TranscriptionModelId,
+) -> Option<(&'static str, &'static str)> {
+    if let Some(theirs) = super::language::code(language) {
+        return Some((theirs, THEIRS));
+    }
+    (language == "mixed" && models::definition(model).supports_language(AUTO_LANGUAGE))
+        .then_some((AUTO_LANGUAGE, ANY))
 }
 
 /// Where a plan's line goes.
@@ -340,6 +487,40 @@ pub fn area(key: &str) -> Area {
     }
 }
 
+/// The rules' lines through the gate, as a plan's. The recognition
+/// language is checked against the speech model the plan brings, which
+/// the save takes with it: Spanish fits Parakeet v3, not the English model
+/// saved now. Its row comes after the model's.
+pub fn resolve(rules: &Rules, settings: &AppSettings, state: &State) -> changes::Resolved {
+    let (language, others): (Vec<Proposal>, Vec<Proposal>) = proposals(rules)
+        .into_iter()
+        .partition(|proposal| proposal.key == LANGUAGE);
+    let mut resolved = changes::resolve(&others, &Gate::new(settings, state), Origin::Plan);
+    if language.is_empty() {
+        return resolved;
+    }
+    let mut with_model = settings.clone();
+    if let Some(model) = rules
+        .lines
+        .iter()
+        .find(|line| line.key == MODEL)
+        .and_then(|line| line.value.as_str())
+        .and_then(|model| model.parse().ok())
+    {
+        with_model.transcription.model = model;
+    }
+    let more = changes::resolve(&language, &Gate::new(&with_model, state), Origin::Plan);
+    for card in more.cards {
+        match resolved.cards.last_mut() {
+            Some(plan) if plan.kind == CardKind::Plan => plan.items.extend(card.items),
+            _ => resolved.cards.push(card),
+        }
+    }
+    resolved.refused.extend(more.refused);
+    resolved.dropped.extend(more.dropped);
+    resolved
+}
+
 /// [`with_terms`] with no terms of the use's.
 #[cfg(test)]
 pub fn plan(
@@ -379,7 +560,7 @@ pub fn planned(
 ) -> (Option<Card>, Vec<Dropped>) {
     let rules = rules(answers, settings, state);
     let gate = Gate::new(settings, state);
-    let own = changes::resolve(&proposals(&rules), &gate, Origin::Plan);
+    let own = resolve(&rules, settings, state);
     let mut dropped = own.dropped;
     let mut items: Vec<Item> = Vec::new();
     let mut terms = Vec::new();
@@ -605,6 +786,9 @@ pub fn words() -> Vec<&'static str> {
         "Best accuracy for Russian",
         "Made for English",
         "Hears many languages",
+        HEARS_WELL,
+        THEIRS,
+        ANY,
         "Dictation",
         "Code",
         "Vocabulary",

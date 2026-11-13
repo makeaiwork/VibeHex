@@ -192,7 +192,7 @@ the now column shows it (their shortcut, not the default).
 
 /// Guided setup, a typed request: round one's four questions, in the
 /// message's language, as option chips the app preselects.
-fn setup_ask(os: &str) -> String {
+fn setup_ask(os: &str, spoken: setup::Spoken) -> String {
     format!(
         "
 
@@ -208,7 +208,7 @@ every `note` (one short line under an option) in the language of their message, 
 ```
 
 End with `Sources: none`.",
-        setup::ask_lines(os)
+        setup::ask_lines(os, spoken)
     )
 }
 
@@ -426,7 +426,10 @@ pub fn build(
     instructions.push_str(&default_language(changes.map(|context| &context.settings)));
     if *stage == Stage::Ask {
         let os = changes.map_or(std::env::consts::OS, |context| context.state.os);
-        instructions.push_str(&setup_ask(os));
+        let spoken = changes.map_or_else(setup::Spoken::default, |context| {
+            setup::Spoken::of(&context.settings, &context.state)
+        });
+        instructions.push_str(&setup_ask(os, spoken));
     } else if let Some(context) = changes {
         let plan = matches!(
             stage,

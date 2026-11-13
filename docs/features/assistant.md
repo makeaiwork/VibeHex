@@ -511,6 +511,21 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   - `language` (`ru`, `en`, `ru_tech` "Russian with English tech terms",
     `mixed`); code and Russian preselect `ru_tech`, with the hint "for
     code, tech terms usually stay in English";
+    - for a person whose language is neither Russian nor English (owner
+      decision 2026-11-13, `setup::language`), their language first by
+      name, in Assistant's words (`lang:es` "Spanish", «Испанский»), then
+      `en` and `mixed`. Their language is the recognition language when
+      it is a specific one (`assistant::language::spoken`: General ›
+      Language, or the one language the speech model knows), on Auto the
+      system's first preferred language (`facts::State::system_language`,
+      `i18n::preferred_language`; empty in a scene), else the window's;
+      one of `transcription::languages::LANGUAGES`. `ru` and `ru_tech`
+      join before `mixed` only when Russian is the recognition, system,
+      or window language. With Russian or English, or a language VibeHex
+      doesn't name, the four options are as above. No "with English tech
+      terms" for other languages. Their language preselects its option
+      when it is the recognition language; Auto preselects `mixed`. A
+      typed request's model is shown the same options to word;
   - `cleanup`, "you wait for it": `local` ("On this Mac", "On this
     computer" off macOS), `codex`, `opencode`, `openrouter`, `custom` ("My
     own server", named LM Studio by port 1234, Ollama by 11434, or by the
@@ -593,7 +608,28 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   - speech model: one that already handles the language stays. Code in
     Russian or Russian with tech terms: Orukeet or Parakeet v3, else
     Parakeet v3, never GigaAM; plain Russian: GigaAM v3 or Orukeet stay,
-    else GigaAM v3; mixed: any multilingual model, else Parakeet v3;
+    else GigaAM v3;
+  - their own language (`lang:es`): `transcription.language` set to it
+    ("The language you usually speak"), unless it is already; the model
+    stays if it hears it (`supports_language`), else the one
+    `choices_for_runtime` recommends for it, "Hears Spanish well"
+    («Хорошо понимает испанский»: the name in lower case inside the
+    sentence where the language writes it so), checked, since the
+    language needs it. The language row comes after the model's and is
+    checked against that model (`plan::resolve`). No Russian follow-ups,
+    no Russian vibe coding, cleanup instructions as they are;
+  - other or mixed: a model that finds the language itself (Auto) stays;
+    else one that does and still hears the language recognised now,
+    Parakeet v3 first, then the ones recommended for that language,
+    checked ("Hears many languages"); never one that doesn't hear it, so
+    Arabic, Hebrew, or Norwegian on a model of their own gets Whisper, not
+    Parakeet v3, and with none the model stays. Then
+    `transcription.language` goes to Auto ("Hears whichever language you
+    speak") where the model it ends on takes Auto. Both rows apply as one
+    ChooseModel, the language with its model
+    (`rune_ui::assistant::changes::choose_speech`). No scene shows another
+    language's question; `setup::language::tests` and
+    `a_plans_model_and_language_are_one_choice` hold it;
   - the engines answered: dictation's `runs_on` with Clean up with AI
     (or it off), `meetings.notes.writer` (Apple Intelligence through
     `meetings.summaries`), `files.cleanup_engine`, and the AI cleanup

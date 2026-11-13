@@ -98,6 +98,10 @@ pub struct State {
     /// The screens and pointing devices, for Labs features that need them;
     /// each part `None` while unknown.
     pub hardware: Hardware,
+    /// The system's first preferred language (`es`, `pt-BR`), for setup's
+    /// language question when recognition is on Auto; empty in a scene,
+    /// which then follows the window.
+    pub system_language: String,
 }
 
 impl State {

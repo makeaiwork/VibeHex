@@ -57,7 +57,7 @@ set VibeHex up", first says what is set now: the speech model and language,
 where dictation is cleaned up, who writes meeting notes, the Labs features on,
 and how many Vocabulary terms you have. Then four questions, already answered
 from your settings: what you use VibeHex for, your language (with or
-without English tech terms), where dictation is cleaned up (this Mac, Codex,
+without English tech terms, or your own by name), where dictation is cleaned up (this Mac, Codex,
 OpenCode, OpenRouter, your own server, or nowhere), and, for
 calls or files, where notes and files are worked on. On a remote model, an
 optional field asks about your work and where you dictate most. Yes-or-no

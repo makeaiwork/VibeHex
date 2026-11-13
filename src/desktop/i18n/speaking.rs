@@ -110,7 +110,17 @@ pub(crate) fn tr_window(english: &str) -> &str {
 /// The window's language code (`en`, `ru`, `zh-Hant`…), whatever
 /// [`speaking`] says.
 pub(crate) fn window_code() -> &'static str {
-    match window() {
+    code_of(window())
+}
+
+/// The language code `tr` speaks now on this thread: [`speaking`]'s, else
+/// the window's.
+pub(crate) fn speaking_code() -> &'static str {
+    code_of(current())
+}
+
+fn code_of(column: u8) -> &'static str {
+    match column {
         0 => "pl",
         1 => "zh",
         2 => "ja",
