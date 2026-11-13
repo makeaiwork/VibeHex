@@ -18,7 +18,7 @@
 
 use std::rc::Rc;
 
-use rune::{Color, El, Icon, LinkPaint, Span, Tx, col, el, icon, row, text};
+use rune::{Anim, Color, Curve, Easing, El, Icon, LinkPaint, Span, Tx, col, el, icon, row, text};
 use rune_kit::markdown::Highlight;
 
 use super::super::Ui;
@@ -360,11 +360,22 @@ pub(super) fn step_line(p: Paint, key: &str, done: bool, words: &str, dots: Opti
             .key("mark")
             .color(p.success())
     } else {
+        // Each dot eases to its next brightness over a whole step, so the
+        // wave flows from dot to dot instead of jumping; still, it lands.
+        let fade = match dots {
+            Some(_) => Anim::new(Curve::tween(
+                super::dots::STEP.as_secs_f32(),
+                Easing::EASE_IN_OUT,
+            )),
+            None => Anim::INSTANT,
+        };
         let dot = |key: &str, alpha: f32| {
             el().key(key.to_owned())
                 .size(3.0, 3.0)
                 .radius(1.5)
-                .fill(p.k.alpha(c.icon_base, alpha))
+                .fill(c.icon_base)
+                .opacity(alpha)
+                .opacity_motion(fade)
         };
         let [a, b, c] = super::dots::alphas(dots);
         row()
