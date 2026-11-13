@@ -473,6 +473,12 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
 
 ## Guided setup
 
+- Onboarding's last page, VibeHex is ready, offers "Set up with
+  Assistant" («Настроить с ассистентом») beside Start using VibeHex,
+  which stays the main button; only while Assistant shows. It finishes
+  onboarding as Start does, then opens Assistant on a new conversation and
+  begins setup as the Start row does, round one showing
+  (`rune_ui::assistant::set_up`).
 - "Помоги мне настроить VibeHex под меня", "Set VibeHex up for me", "What
   should I turn on?", "Which Labs features are worth turning on for me?",
   «Какие Labs мне стоит включить?», «Что посоветуешь настроить?»

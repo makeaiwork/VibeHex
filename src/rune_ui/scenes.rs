@@ -1229,6 +1229,12 @@ pub(super) const SCENES: &[Scene] = &[
     ("mac-onboarding-ready", |ui| {
         mac_first_run(ui, onboarding::MacStep::Done, Page::Ready)
     }),
+    // Its three buttons in a Russian window, the longest of their words.
+    ("mac-onboarding-ready-russian", |ui| {
+        mac_first_run(ui, onboarding::MacStep::Done, Page::Ready);
+        ui.settings.ui_language = Some("ru".into());
+        crate::desktop::i18n::apply(Some("ru"));
+    }),
 ];
 
 /// The tour state a Linux first-run scene starts from.

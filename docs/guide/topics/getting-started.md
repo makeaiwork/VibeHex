@@ -39,7 +39,9 @@ on its row cancels it, and Download on another row replaces it. Skip exists
 on the demo, the practice, and Almost ready (the download goes on, and
 Settings › General shows it). If you quit part-way, setup resumes. At the
 end, "VibeHex is ready" says where VibeHex lives: the menu bar, system tray,
-or app launcher.
+or app launcher. **Set up with Assistant** there starts VibeHex and opens
+Assistant's few questions about how you work, then one list of changes;
+it needs no model connected.
 
 To see it again, use Labs › Run setup again; settings, models, and
 permissions stay.

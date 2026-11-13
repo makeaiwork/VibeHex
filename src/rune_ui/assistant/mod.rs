@@ -23,6 +23,8 @@ mod facts_tests;
 mod feed;
 pub(super) mod fixture;
 pub(super) mod fixture_cards;
+#[cfg(test)]
+mod invite_tests;
 // Pinned on a Mac: the follow-ups and the preset's rows are this OS's.
 #[cfg(all(test, target_os = "macos"))]
 mod flow_pins;
@@ -332,19 +334,14 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     if ui.is_fixture() || ui.assistant.fixture {
         return changed;
     }
-    let keep = ui.settings.assistant.keep_conversations;
-    let pane = &mut ui.assistant;
-    if !pane.loaded {
+    if !ui.assistant.loaded {
         if ui.pane != Pane::Assistant {
             return changed;
         }
-        pane.store = Store::open(keep);
-        pane.open = newest(&pane.store);
-        pane.updated = crate::assistant::releases::history::fresh(pane.now_ms());
-        pane.kept = keep;
-        pane.loaded = true;
-        changed = true;
+        changed |= load(ui);
     }
+    let keep = ui.settings.assistant.keep_conversations;
+    let pane = &mut ui.assistant;
     // Keeping turned on or off, here or from `hex settings`.
     if pane.kept != keep {
         pane.store.keep(keep);
@@ -382,6 +379,36 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
         changed = true;
     }
     changed | composer::poll(ui) | connect::poll(ui)
+}
+
+/// Reads the conversations, once a run, as the pane first shows: the
+/// newest opens. Never in a scene. True when it read them.
+fn load(ui: &mut Ui) -> bool {
+    if ui.assistant.loaded || ui.assistant.fixture || ui.is_fixture() {
+        return false;
+    }
+    let keep = ui.settings.assistant.keep_conversations;
+    let pane = &mut ui.assistant;
+    pane.store = Store::open(keep);
+    pane.open = newest(&pane.store);
+    pane.updated = crate::assistant::releases::history::fresh(pane.now_ms());
+    pane.kept = keep;
+    pane.loaded = true;
+    true
+}
+
+/// Onboarding's "Set up with Assistant": the pane on a new conversation
+/// with guided setup begun as "Set VibeHex up for me" begins it, round one
+/// showing. Round one needs no model. Nothing where Assistant is off.
+pub(in super::super) fn set_up(ui: &mut Ui, tx: &mut Tx) {
+    if !Pane::Assistant.shown(ui) {
+        return;
+    }
+    ui.select_pane(Pane::Assistant, tx);
+    ui.assistant.view = View::Chat;
+    load(ui);
+    ui.assistant.open = None;
+    ask::begin(ui);
 }
 
 /// Whether a step line still going on shows anywhere: an answer's in

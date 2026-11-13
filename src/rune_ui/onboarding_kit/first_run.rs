@@ -218,6 +218,16 @@ fn ready_page(p: Paint, s: &Onboard) -> El {
                             .build_push(p.k)
                             .key("try-again"),
                     )
+                    // Setup with Assistant beside Start, which stays the
+                    // main action; never where Assistant is turned off.
+                    .children(s.live.as_ref().filter(|live| live.assistant).map(|_| {
+                        Button::new(tr("Set up with Assistant"))
+                            .variant(ButtonVariant::Neutral)
+                            .icon(&super::super::assistant::face::FACE)
+                            .on_press_tx(live::set_up_with_assistant)
+                            .build_push(p.k)
+                            .key("set-up-with-assistant")
+                    }))
                     .child(
                         Button::new(tr("Start using VibeHex"))
                             .variant(ButtonVariant::Contrast)
