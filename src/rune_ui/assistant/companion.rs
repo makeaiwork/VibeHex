@@ -105,7 +105,7 @@ fn choice(
         .on_press(move |ui: &mut Ui| {
             ui.open = (ui.open != Some(menu)).then_some(menu);
         });
-    let mut list = KitMenu::new(format!("companion{}-{}", at.at.turn, at.row))
+    let mut list = KitMenu::new(format!("companion{}-{}#choices", at.at.turn, at.row))
         .trigger(trigger)
         .placement(Placement::BottomStart)
         .gutter(4.0)

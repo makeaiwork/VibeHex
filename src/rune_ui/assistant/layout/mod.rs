@@ -24,6 +24,10 @@ pub(super) const RULES: Rules = Rules {
         ("#mark-", "a mark's tint lies over its words"),
         ("eyes", "the face's eyes look aside"),
         (
+            "#choices-menu",
+            "a companion's open choices are the kit's menu, over the window",
+        ),
+        (
             "assistant-engine-control",
             "a quiet select hangs 8 pt past its row's edge, so its words end where the row's do",
         ),
