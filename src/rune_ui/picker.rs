@@ -398,6 +398,12 @@ pub(super) fn cancel(ui: &mut Ui) {
 /// Asks for `model` with the saved language when it supports it, else with
 /// its default language, which Settings then names.
 pub(super) fn choose(ui: &mut Ui, model: &'static ModelDefinition) {
+    choose_in(ui, model, None);
+}
+
+/// [`choose`], in `language` when one is given (a setup plan's language
+/// row with its model row), else in the language saved now.
+pub(super) fn choose_in(ui: &mut Ui, model: &'static ModelDefinition, language: Option<&str>) {
     ui.picker.clear_deletion();
     // The first run's model step takes it as the selected row; Download
     // there starts it.
@@ -406,15 +412,16 @@ pub(super) fn choose(ui: &mut Ui, model: &'static ModelDefinition) {
         return super::onboarding::select(ui, model.id);
     }
     let current = &ui.settings.transcription;
-    let installed = ui.picker.installed(model, &current.language);
-    if transcription_selection_is_active(current, model, installed) {
+    let wanted = language.unwrap_or(&current.language).to_owned();
+    let installed = ui.picker.installed(model, &wanted);
+    if transcription_selection_is_active(current, model, installed) && current.language == wanted {
         close(ui);
         return;
     }
-    let language = model.language_for(&current.language).to_owned();
-    ui.picker.fallback = (language != current.language).then(|| LanguageFallback {
+    let language = model.language_for(&wanted).to_owned();
+    ui.picker.fallback = (language != wanted).then(|| LanguageFallback {
         model: model.id,
-        from: current.language.clone(),
+        from: wanted.clone(),
     });
     ui.send(Request::ChooseModel {
         model: model.id,

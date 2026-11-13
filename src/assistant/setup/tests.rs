@@ -530,16 +530,19 @@ fn a_models_questions_keep_known_ids_or_fall_back() {
     .iter()
     .map(|line| serde_json::from_str(line).unwrap())
     .collect();
-    let asks = asks(&written, "macos");
+    let asks = asks(&written, "macos", Spoken::default());
     assert_eq!(asks.len(), 4, "an unknown question is dropped");
     assert!(!asks[0].own && asks[0].multi, "multi is the app's to say");
     assert_eq!(asks[0].options.len(), 2, "an unknown option is dropped");
     assert_eq!(asks[2].options[0].note, "Быстрее всего");
     assert!(!asks[2].options[1].note.is_empty(), "the app's caption");
     // One question missing: the app's own instead.
-    let fallback = super::asks(&written[..3], "macos");
+    let fallback = super::asks(&written[..3], "macos", Spoken::default());
     assert!(fallback.iter().all(|ask| ask.own));
-    assert_eq!(super::asks(&[], "macos"), questions("macos"));
+    assert_eq!(
+        super::asks(&[], "macos", Spoken::default()),
+        questions("macos")
+    );
 }
 
 /// A small model asked to write round one in the person's language handed
@@ -549,11 +552,11 @@ fn a_models_questions_keep_known_ids_or_fall_back() {
 #[test]
 fn a_copied_english_example_is_shown_in_assistants_language() {
     use crate::desktop::i18n::speaking;
-    let copied: Vec<Value> = ask_lines("macos")
+    let copied: Vec<Value> = ask_lines("macos", Spoken::default())
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
-    let shown = speaking(Some("ru"), || asks(&copied, "macos"));
+    let shown = speaking(Some("ru"), || asks(&copied, "macos", Spoken::default()));
     assert_eq!(shown.len(), 4);
     assert!(!shown[0].own, "the model's round, its ids kept");
     assert_eq!(shown[0].q, "Для чего вам VibeHex?");
@@ -584,10 +587,10 @@ fn a_copied_english_example_is_shown_in_assistants_language() {
     .into_iter()
     .chain(copied[1..].iter().cloned())
     .collect();
-    let mixed = speaking(Some("ru"), || asks(&russian, "macos"));
+    let mixed = speaking(Some("ru"), || asks(&russian, "macos", Spoken::default()));
     assert_eq!(mixed[0].q, "Зачем вам VibeHex?");
     assert_eq!(mixed[0].options[0].label, "Диктовка");
-    let english = speaking(Some("en"), || asks(&copied, "macos"));
+    let english = speaking(Some("en"), || asks(&copied, "macos", Spoken::default()));
     assert_eq!(english[0].q, "What do you use VibeHex for?");
 }
 
@@ -595,7 +598,7 @@ fn a_copied_english_example_is_shown_in_assistants_language() {
 #[test]
 fn every_rule_resolves_to_a_valid_change() {
     for settings in [AppSettings::default(), owners()] {
-        for language in ["ru", "en", "ru_tech", "mixed"] {
+        for language in ["ru", "en", "ru_tech", "mixed", "lang:es", "lang:ar"] {
             for cleanup in ["local", "codex", "opencode", "openrouter", "custom", "none"] {
                 for notes in ["codex", "local", "apple", "opencode"] {
                     // Apple Intelligence is offered on a Mac only.
@@ -613,8 +616,7 @@ fn every_rule_resolves_to_a_valid_change() {
                     ];
                     let rules = plan::rules(&answers, &settings, &mac());
                     let lines = plan::proposals(&rules);
-                    let read =
-                        changes::resolve(&lines, &Gate::new(&settings, &mac()), Origin::Plan);
+                    let read = plan::resolve(&rules, &settings, &mac());
                     let (cards, refused) = (read.cards, read.refused);
                     assert!(read.dropped.is_empty(), "{:?}", read.dropped);
                     assert!(

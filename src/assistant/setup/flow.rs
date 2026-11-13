@@ -405,7 +405,8 @@ impl Flow {
             return;
         }
         let context = self.context(env);
-        let mut asks = super::questions(context.state.os);
+        let spoken = super::Spoken::of(&context.settings, &context.state);
+        let mut asks = super::questions_for(context.state.os, spoken);
         super::preselect(&mut asks, &context.settings, &context.state);
         if let Some(since) = &since {
             since::preselect(&mut asks, since);

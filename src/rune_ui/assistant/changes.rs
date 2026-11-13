@@ -275,14 +275,11 @@ fn apply_plan(ui: &mut Ui, at: At, card: Card) {
         }
     }
     let mut decision = commit(ui, &before, candidate, effects);
-    for index in 0..card.items.len() {
-        let item = &card.items[index];
-        if !item.included || !is_download(item) || decision.is_err() {
-            continue;
-        }
-        let (key, to) = (item.key.clone(), item.to.clone());
-        if let Err(why) = prepare(ui, &key, &to) {
-            card.items[index].failed = Some(why);
+    if decision.is_ok()
+        && let Err((rows, why)) = choose_speech(ui, &card.items, false)
+    {
+        for index in rows {
+            card.items[index].failed = Some(why.clone());
         }
     }
     if let Ok(Decision::Applied { after, .. }) = &mut decision
@@ -339,15 +336,52 @@ fn chosen(card: &Card) -> Option<&Value> {
     })
 }
 
+/// A plan's speech model and recognition language rows, checked, as one
+/// choice for the service: the language goes with the model checked beside
+/// it, never with the one saved now, which a second request would put back.
+/// `back` asks for what they were before (Undo), of the rows that went in.
+/// A failure names the rows it leaves out.
+fn choose_speech(
+    ui: &mut Ui,
+    items: &[changes::Item],
+    back: bool,
+) -> Result<(), (Vec<usize>, String)> {
+    let rows: Vec<usize> = (0..items.len())
+        .filter(|&index| {
+            let item = &items[index];
+            item.included && is_download(item) && (!back || item.failed.is_none())
+        })
+        .collect();
+    let value = |index: usize| match back {
+        true => items[index].from.clone(),
+        false => items[index].to.clone(),
+    };
+    let find = |key: &str| rows.iter().copied().find(|&index| items[index].key == key);
+    let language = find("transcription.language").map(value);
+    let done = match (find("transcription.model"), &language) {
+        (Some(model), language) => {
+            let language = language.as_ref().and_then(Value::as_str);
+            prepare_model(ui, &value(model), language)
+        }
+        (None, Some(language)) => prepare(ui, "transcription.language", language),
+        (None, None) => return Ok(()),
+    };
+    done.map_err(|why| (rows, why))
+}
+
+/// Asks the service for speech model `to`, in `language` when one is given.
+fn prepare_model(ui: &mut Ui, to: &Value, language: Option<&str>) -> Result<(), String> {
+    let model: TranscriptionModelId =
+        serde_json::from_value(to.clone()).map_err(|error| error.to_string())?;
+    picker::choose_in(ui, transcription_models::definition(model), language);
+    Ok(())
+}
+
 /// Asks the service for a speech model, or the saved model in a language:
 /// it downloads what it needs and saves the choice when ready.
 fn prepare(ui: &mut Ui, key: &str, to: &Value) -> Result<(), String> {
     match key {
-        "transcription.model" => {
-            let model: TranscriptionModelId =
-                serde_json::from_value(to.clone()).map_err(|error| error.to_string())?;
-            picker::choose(ui, transcription_models::definition(model));
-        }
+        "transcription.model" => prepare_model(ui, to, None)?,
         "transcription.language" => {
             let language = to.as_str().ok_or("a language is text")?;
             picker::choose_language(ui, language);
@@ -463,11 +497,7 @@ pub(super) fn undo(ui: &mut Ui, at: At) {
             }
             .and_then(|()| super::vocab::take_back(ui, after));
             // The speech model it downloaded goes back to the one before.
-            for item in &card.items {
-                if item.included && item.failed.is_none() && is_download(item) {
-                    let _ = prepare(ui, &item.key, &item.from);
-                }
-            }
+            let _ = choose_speech(ui, &card.items, true);
             saved
         }
         _ => save(ui, before).map(|_| ()),
@@ -971,6 +1001,46 @@ mod tests {
         assert!(
             sent.iter()
                 .any(|request| matches!(request, Request::ChooseModel { .. })),
+            "{sent:?}"
+        );
+    }
+
+    /// A plan's speech model and language rows go to the service as one
+    /// choice, the language with the model it comes with: a second
+    /// request would ask for the language on the model saved now.
+    #[test]
+    fn a_plans_model_and_language_are_one_choice() {
+        let (mut ui, at) = with_card(
+            "transcription.model",
+            json!("parakeet_unified_en"),
+            json!("parakeet_v3"),
+        );
+        set(&mut ui, at, |card| {
+            card.kind = CardKind::Plan;
+            card.items[0].class = Class::Download;
+            card.items.push(Item {
+                key: "transcription.language".into(),
+                from: json!("en"),
+                to: json!("es"),
+                included: true,
+                class: Class::Download,
+                ..Item::default()
+            });
+        });
+        apply(&mut ui, at);
+        let super::super::super::Service::Fixture(sent) = &ui.service else {
+            panic!("not a scene");
+        };
+        let chosen: Vec<_> = sent
+            .iter()
+            .filter_map(|request| match request {
+                Request::ChooseModel { model, language } => Some((*model, language.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            chosen,
+            [(TranscriptionModelId::ParakeetV3, "es".to_owned())],
             "{sent:?}"
         );
     }

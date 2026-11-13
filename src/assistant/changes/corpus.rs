@@ -154,7 +154,7 @@ fn every_reply_in_the_corpus_parses_as_its_header_says() {
                     assert_eq!(got, list(&want, ','), "{name}: asks");
                 }
                 "own_asks" => {
-                    let asks = setup::asks(&parsed.asks, "macos");
+                    let asks = setup::asks(&parsed.asks, "macos", setup::Spoken::default());
                     let all = setup::questions("macos").len();
                     assert_eq!(asks.len(), all, "{name}: setup always asks all four");
                     assert_eq!(asks[0].own.to_string(), want, "{name}: own_asks");

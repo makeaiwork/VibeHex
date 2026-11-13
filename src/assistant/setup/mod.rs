@@ -24,6 +24,7 @@ pub mod about;
 pub mod engines;
 pub mod flow;
 pub mod follow;
+pub mod language;
 pub mod now;
 pub mod past;
 pub mod plan;
@@ -37,6 +38,7 @@ use serde_json::Value;
 use crate::app_settings::AppSettings;
 use crate::desktop::i18n::tr;
 use crate::transcription::models;
+pub use language::Spoken;
 
 /// One question with option chips.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -218,17 +220,13 @@ const QUESTIONS: [Question; 4] = [
             ("files", "Transcribing files", ""),
         ],
     ),
+    // Its options are `language::options`, for whoever is asked.
     (
         "language",
         "Which language do you usually speak?",
         "",
         false,
-        &[
-            ("ru", "Russian", ""),
-            ("en", "English", ""),
-            ("ru_tech", "Russian with English tech terms", ""),
-            ("mixed", "Other or mixed", ""),
-        ],
+        &[],
     ),
     (
         "cleanup",
@@ -279,10 +277,18 @@ const OFF_MAC: &str = "On this computer";
 /// Russian, and Russian with English tech terms is preselected.
 pub const TECH_HINT: &str = "for code, tech terms usually stay in English";
 
-/// The app's own four questions on `os`, in English for the pane to
-/// translate. Off a Mac, "this Mac" is "this computer" and Apple
-/// Intelligence isn't offered.
+/// The app's own four questions on `os` with the usual languages
+/// (Russian and English), as a test or a scene with no person asks them.
 pub fn questions(os: &str) -> Vec<Ask> {
+    questions_for(os, Spoken::default())
+}
+
+/// The app's own four questions on `os` for whoever `spoken` names, in
+/// English for the pane to translate. Off a Mac, "this Mac" is "this
+/// computer" and Apple Intelligence isn't offered; the language question
+/// starts with the person's own language when it is neither Russian nor
+/// English (`language::options`).
+pub fn questions_for(os: &str, spoken: Spoken) -> Vec<Ask> {
     QUESTIONS
         .iter()
         .map(|&(id, q, hint, multi, options)| Ask {
@@ -291,20 +297,31 @@ pub fn questions(os: &str) -> Vec<Ask> {
             hint: hint.into(),
             multi,
             own: true,
-            options: options
-                .iter()
-                .filter(|(option, ..)| *option != "apple" || os == "macos")
-                .map(|&(id, label, note)| Choice {
-                    id: id.into(),
-                    label: if label == "On this Mac" && os != "macos" {
-                        OFF_MAC.into()
-                    } else {
-                        label.into()
-                    },
-                    note: note.into(),
-                    ..Choice::default()
-                })
-                .collect(),
+            options: if id == "language" {
+                language::options(spoken)
+                    .into_iter()
+                    .map(|(id, label)| Choice {
+                        id,
+                        label: label.into(),
+                        ..Choice::default()
+                    })
+                    .collect()
+            } else {
+                options
+                    .iter()
+                    .filter(|(option, ..)| *option != "apple" || os == "macos")
+                    .map(|&(id, label, note)| Choice {
+                        id: id.into(),
+                        label: if label == "On this Mac" && os != "macos" {
+                            OFF_MAC.into()
+                        } else {
+                            label.into()
+                        },
+                        note: note.into(),
+                        ..Choice::default()
+                    })
+                    .collect()
+            },
             ..Ask::default()
         })
         .collect()
@@ -316,6 +333,8 @@ pub fn questions(os: &str) -> Vec<Ask> {
 pub fn own_words() -> Vec<&'static str> {
     let mut words = vec![OFF_MAC, TECH_HINT];
     words.extend(about::words());
+    words.extend(language::words());
+    words.extend(language::USUAL.map(|(_, label)| label));
     words.extend(follow::words());
     words.extend(engines::words());
     words.extend(plan::words());
@@ -348,7 +367,9 @@ pub fn preselect(asks: &mut [Ask], settings: &AppSettings, state: &super::facts:
     let language = language_now(settings, code);
     for ask in asks.iter_mut().filter(|ask| !ask.touched) {
         let chosen = match ask.id.as_str() {
-            "language" => language,
+            // Their own language, or Other or mixed where it isn't offered.
+            "language" if ask.options.iter().all(|option| option.id != language) => "mixed",
+            "language" => language.as_str(),
             "cleanup" => engines::dictation_now(settings),
             "notes" => engines::notes_now(settings, state.os),
             _ => continue,
@@ -394,8 +415,9 @@ fn uses_now(settings: &AppSettings) -> Vec<&'static str> {
     uses
 }
 
-/// The language the speech model is set to, as round one names it.
-fn language_now(settings: &AppSettings, code: bool) -> &'static str {
+/// The language the speech model is set to, as round one names it: a
+/// language besides Russian and English as its own option (`lang:es`).
+fn language_now(settings: &AppSettings, code: bool) -> String {
     let tech = code || settings.labs.russian_vibe_coding;
     let model = models::definition(settings.transcription.model);
     let language = settings.transcription.language.as_str();
@@ -403,11 +425,12 @@ fn language_now(settings: &AppSettings, code: bool) -> &'static str {
         "" | "auto" if model.languages.len() == 1 => model.languages[0],
         language => language,
     };
-    match language.split(['-', '_']).next().unwrap_or_default() {
-        "ru" if tech => "ru_tech",
-        "ru" => "ru",
-        "en" => "en",
-        _ => "mixed",
+    match language::known(language) {
+        Some("ru") if tech => "ru_tech".into(),
+        Some("ru") => "ru".into(),
+        Some("en") => "en".into(),
+        Some(code) => language::id(code),
+        None => "mixed".into(),
     }
 }
 
@@ -440,8 +463,8 @@ fn written_or_own(written: &str, english: &str) -> String {
 /// words when every fixed question came with known option ids, else the
 /// app's own. A caption it left out is the app's, translated, and so is
 /// any text it copied from the English example (`written_or_own`).
-pub fn asks(written: &[Value], os: &str) -> Vec<Ask> {
-    let own = questions(os);
+pub fn asks(written: &[Value], os: &str, spoken: Spoken) -> Vec<Ask> {
+    let own = questions_for(os, spoken);
     let read: Option<Vec<Ask>> = own
         .iter()
         .map(|fixed| {
@@ -493,8 +516,8 @@ pub fn asks(written: &[Value], os: &str) -> Vec<Ask> {
 }
 
 /// The `hex-ask` lines a model is shown to write, in English.
-pub fn ask_lines(os: &str) -> String {
-    questions(os)
+pub fn ask_lines(os: &str, spoken: Spoken) -> String {
+    questions_for(os, spoken)
         .iter()
         .map(ask_line)
         .collect::<Vec<_>>()
@@ -573,6 +596,7 @@ pub fn query(answers: &[Answer]) -> String {
                 ("language", "ru_tech") => "Russian vibe coding speech model",
                 ("language", "en") => "English speech model",
                 ("language", "mixed") => "speech model languages",
+                ("language", id) if id.starts_with(language::PREFIX) => "speech model languages",
                 (_, "codex") => "Codex ChatGPT AI cleanup",
                 (_, "local") => "built-in model on this computer",
                 (_, "custom") => "own server LM Studio Ollama",

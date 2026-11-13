@@ -41,7 +41,7 @@ pub(crate) const LANGUAGE_CHOICES: &[LanguageChoice] = &[
     (Some("ru"), "Русский"),
 ];
 
-pub(crate) use speaking::{Speaking, speak, speaking, tr_window, window_code};
+pub(crate) use speaking::{Speaking, speak, speaking, speaking_code, tr_window, window_code};
 use speaking::{current, set_current};
 
 const ENGLISH: u8 = 255;

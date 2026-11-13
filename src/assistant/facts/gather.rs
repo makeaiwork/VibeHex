@@ -88,6 +88,8 @@ pub fn gather(seen: Seen) -> State {
             declined,
             answered,
             hardware: scene.hardware,
+            // A scene follows the window, whatever this computer's is.
+            system_language: String::new(),
         },
         None => State {
             os: std::env::consts::OS,
@@ -99,6 +101,7 @@ pub fn gather(seen: Seen) -> State {
             declined,
             answered,
             hardware: hardware::detect(),
+            system_language: crate::desktop::i18n::preferred_language(),
         },
     }
 }
