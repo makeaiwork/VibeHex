@@ -12,7 +12,7 @@
 //! is what keeps the rest of the turn off the web.
 
 use super::Limits;
-use super::access::{Access, CLOSED, Consent, Live};
+use super::access::{Access, CLOSED, Consent, Live, UNANSWERED};
 use super::protocol::Call;
 use super::table::TOOLS;
 use super::trace::{Did, Why};
@@ -56,6 +56,9 @@ pub struct Read {
     pub releases: bool,
     /// The recordings were asked for and may not be read.
     pub closed: bool,
+    /// The person was asked whether they may and didn't answer: the rest
+    /// of the turn reads none, and asks no more.
+    pub unanswered: bool,
 }
 
 /// A turn's reading.
@@ -486,6 +489,17 @@ impl<'a> Desk<'a> {
                     vocabulary,
                 })
             }
+            // Asked once in this turn already, and no answer came.
+            Access::Ask {
+                sources,
+                vocabulary,
+            } if self.read.unanswered => {
+                self.access = Access::Ask {
+                    sources,
+                    vocabulary,
+                };
+                Err((Why::Unanswered, UNANSWERED.to_owned()))
+            }
             Access::Ask {
                 sources,
                 vocabulary,
@@ -516,6 +530,16 @@ impl<'a> Desk<'a> {
                         vocabulary,
                     };
                     Err(failed("Stopped."))
+                }
+                // No answer in time: nothing is decided either, and this
+                // turn goes on without them.
+                Consent::Unanswered => {
+                    self.access = Access::Ask {
+                        sources,
+                        vocabulary,
+                    };
+                    self.read.unanswered = true;
+                    Err((Why::Unanswered, UNANSWERED.to_owned()))
                 }
             },
             Access::Closed => {

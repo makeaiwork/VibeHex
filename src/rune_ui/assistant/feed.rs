@@ -691,6 +691,51 @@ mod tests {
         assert!(has(&read, "Didn't read your settings: sending them is off"));
     }
 
+    /// While an answer in another conversation waits on the consent card,
+    /// a question here says what it waits for, with a way there, and the
+    /// card stays in its own conversation; while one only answers there,
+    /// that it answers. In its own conversation neither shows.
+    #[test]
+    fn a_question_here_says_what_it_waits_for_elsewhere() {
+        use super::super::composer::PARKED;
+        use crate::assistant::setup::flow::BUSY;
+        let has = |texts: &[String], words: &str| texts.iter().any(|text| text.contains(words));
+        let elsewhere = |ui: &mut Ui| {
+            super::super::fixture::agent_consent(ui);
+            ui.assistant.open = None;
+        };
+        let parked = shown(elsewhere);
+        assert!(has(&parked, PARKED), "{parked:?}");
+        assert!(has(&parked, "Open that conversation"));
+        assert!(!has(&parked, BUSY));
+        assert!(!has(&parked, "Read your meetings, files, and dictations?"));
+        let busy = shown(|ui| {
+            elsewhere(ui);
+            ui.assistant.answering.as_mut().expect("answering").asking = false;
+        });
+        assert!(has(&busy, BUSY) && !has(&busy, PARKED), "{busy:?}");
+        assert!(!has(&busy, "Open that conversation"));
+        let here = shown(super::super::fixture::agent_consent);
+        assert!(!has(&here, PARKED) && !has(&here, BUSY));
+
+        let mut ui = dictating("auto");
+        super::super::fixture::agent_consent(&mut ui);
+        let id = ui.assistant.open;
+        ui.assistant.open = None;
+        let (_, open) = super::super::composer::elsewhere(&ui).expect("waits");
+        assert_eq!(open, id, "the line opens the card's conversation");
+        for words in [PARKED, "Open that conversation"] {
+            for code in ["pl", "zh", "ja", "de", "es", "uk", "fr", "pt", "ru"] {
+                let shown = speaking(Some(code), || tr(words).to_owned());
+                assert_ne!(shown, words, "{code} has no row for {words}");
+            }
+        }
+        assert_eq!(
+            speaking(Some("ru"), || tr(PARKED).to_owned()),
+            "Ответ в другом разговоре ждёт, разрешите ли вы ему читать ваши записи."
+        );
+    }
+
     /// Recognition on Auto follows the window; a language without a table
     /// (Italian) shows English.
     #[test]

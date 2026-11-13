@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use color_eyre::eyre::Result;
 use serde_json::Value;
 
+use super::trace::Why;
 use super::*;
 use crate::app_settings::AppSettings;
 use crate::assistant::changes::Context;
@@ -97,6 +98,11 @@ impl Played {
 
     fn run(&self, question: &Question, limits: Limits) -> Answered {
         live::forget();
+        self.run_on(question, limits)
+    }
+
+    /// The same, after what earlier turns of this run left.
+    fn run_on(&self, question: &Question, limits: Limits) -> Answered {
         let asker = Asker {
             generate: &self.generate,
             search: question.web.then_some(&self.search),
@@ -621,4 +627,63 @@ fn no_call_ever_shows_in_the_draft() {
     let change = "Turn it on.\n\n```hex-change\n{\"key\":\"labs.files\",\"value\":true}";
     assert_eq!(base::draft(showing(true, change)), "Turn it on.");
     assert!(base::cards_coming(showing(true, change)));
+}
+
+/// A card nobody answers lets the turn go on after the wait: the model
+/// reads that access wasn't given and answers without the recordings, and
+/// nothing is decided, so a later question in the same conversation asks
+/// again.
+#[test]
+fn an_unanswered_card_decides_nothing() {
+    let _serial = serial();
+    let _wait = live::waiting(std::time::Duration::from_millis(150));
+    let mut asking = question("Help me prepare");
+    asking.access = Access::Ask {
+        sources: recordings(),
+        vocabulary: Vec::new(),
+    };
+    let block = read(r#"{"tool":"meetings_list"}"#);
+    let played = Played::new(&[&block, "I answer without them.\n\nSources: none"]);
+    let started = std::time::Instant::now();
+    let answered = played.run(&asking, Limits::REMOTE);
+    assert!(started.elapsed() >= std::time::Duration::from_millis(150));
+    assert!(reply(&answered).starts_with("I answer without them."));
+    assert!(
+        answered
+            .trace
+            .iter()
+            .any(|did| did.refused_for(Why::Unanswered) == Some("meetings_list")),
+        "{:?}",
+        answered.trace
+    );
+    assert!(
+        !answered
+            .trace
+            .iter()
+            .any(|did| matches!(did, Did::Consent { .. })),
+        "no answer is no decision"
+    );
+    assert!(answered.found.is_none());
+    assert!(played.asked()[1].1.contains("gave no answer"));
+    assert!(!live::declined(asking.conversation));
+    let settings = &asking.changes.as_ref().unwrap().settings.assistant;
+    assert_eq!(settings.read_recordings, None);
+
+    // The next question there is asked again: this time they say no.
+    let played = Played::new(&[&block, "Not read.\n\nSources: none"]);
+    let done = Arc::new(AtomicBool::new(false));
+    let person = {
+        let done = done.clone();
+        std::thread::spawn(move || {
+            while !done.load(std::sync::atomic::Ordering::Acquire) {
+                live::decide(None);
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        })
+    };
+    let again = played.run_on(&asking, Limits::REMOTE);
+    done.store(true, std::sync::atomic::Ordering::Release);
+    person.join().unwrap();
+    assert!(again.trace.contains(&Did::Consent { allowed: false }));
+    live::forget();
 }

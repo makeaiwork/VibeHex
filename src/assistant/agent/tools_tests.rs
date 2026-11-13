@@ -51,6 +51,8 @@ fn ask() -> Access {
 #[derive(Default)]
 struct Person {
     allows: bool,
+    /// They never answer: the card's wait runs out.
+    away: bool,
     asked: Cell<usize>,
     steps: RefCell<Vec<Step>>,
 }
@@ -58,9 +60,10 @@ struct Person {
 impl Live for Person {
     fn consent(&self) -> Consent {
         self.asked.set(self.asked.get() + 1);
-        match self.allows {
-            true => Consent::Allowed(allowed()),
-            false => Consent::Declined,
+        match (self.away, self.allows) {
+            (true, _) => Consent::Unanswered,
+            (false, true) => Consent::Allowed(allowed()),
+            (false, false) => Consent::Declined,
         }
     }
 
@@ -592,6 +595,28 @@ fn without_leave_no_recordings_tool_reads() {
     assert!(matches!(second.did[..], [Did::Notes { .. }]), "{second:?}");
     assert_eq!(person.asked.get(), 1);
     assert!(allowed.personal());
+
+    // Nobody answers: asked once, nothing read, nothing decided. The rest
+    // of the turn reads none and asks no more; a new turn asks again.
+    let person = Person {
+        away: true,
+        ..Person::default()
+    };
+    let mut away = Desk::new(Some(&context), ask(), Limits::REMOTE, now());
+    for line in calls {
+        let ran = away.run(&call(line), &person);
+        assert_eq!(ran.text, UNANSWERED, "{line}");
+        assert!(
+            matches!(&ran.did[..], [refused] if refused.refused_for(Why::Unanswered).is_some())
+        );
+    }
+    assert_eq!(person.asked.get(), 1, "the card comes once a turn");
+    assert!(away.shelf().is_empty() && !away.personal());
+    assert!(away.read().unanswered && !away.read().closed);
+    assert!(person.steps.borrow().is_empty());
+    let mut next = Desk::new(Some(&context), ask(), Limits::REMOTE, now());
+    next.run(&call(calls[0]), &person);
+    assert_eq!(person.asked.get(), 2, "a later turn asks again");
 }
 
 #[test]

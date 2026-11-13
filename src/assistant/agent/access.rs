@@ -55,6 +55,10 @@ pub enum Consent {
     Declined,
     /// They stopped the answer instead.
     Stopped,
+    /// They didn't answer within `live::CONSENT_WAIT`: the turn answers
+    /// without the recordings, and nothing is decided, so a later
+    /// question may ask again.
+    Unanswered,
 }
 
 /// What a tool reaches while it runs: the person, for their leave, and
@@ -70,3 +74,10 @@ pub const CLOSED: &str = "Not read: the person hasn't allowed you to read their 
 files, and dictations. Call no recordings tool again in this conversation. Say in one sentence \
 that you can't read them and that **Assistant › Settings › Your meetings, files, and \
 dictations** allows it; then answer what the guide covers, if anything.";
+
+/// What the model reads when the person was asked and didn't answer.
+pub const UNANSWERED: &str = "Not read: the person was asked whether you may read their \
+meetings, files, and dictations, and gave no answer. Call no recordings tool again in this \
+answer. Say in one sentence that you answer without their recordings because access to them \
+wasn't given, and that they can allow it when asked again or in **Assistant › Settings › Your \
+meetings, files, and dictations**; then answer what the guide covers, if anything.";

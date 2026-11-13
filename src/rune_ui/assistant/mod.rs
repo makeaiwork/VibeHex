@@ -297,6 +297,8 @@ fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
                 .items_center()
                 .px(METRICS.gutter)
                 .pb(16.0)
+                .gap(8.0)
+                .children(composer::waits(ui, p).map(|line| line.max_w(COLUMN)))
                 .child(composer::field(ui, p, layer).w_full().max_w(COLUMN))
         }))
 }

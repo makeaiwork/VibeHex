@@ -5,7 +5,10 @@
 //!
 //! The card comes at most once for a conversation: a no closes its
 //! recordings until VibeHex quits (or until the person allows them in
-//! Assistant › Settings, which opens them everywhere).
+//! Assistant › Settings, which opens them everywhere). A card left
+//! unanswered for [`CONSENT_WAIT`] lets the turn go on without them and
+//! decides nothing, so the Assistant is never held for long by a card the
+//! person may not even see: it shows only in its own conversation.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,6 +21,44 @@ use crate::assistant::worker;
 
 /// How often a parked turn looks for the person's answer.
 const LOOK_EVERY: Duration = Duration::from_millis(50);
+/// How long a parked turn waits for the person's answer to the card. Then
+/// the recordings call reads as not answered, the model answers without
+/// them, and nothing is saved: while it waits no other conversation can
+/// ask, so a card the person walked away from holds the Assistant for no
+/// longer than this.
+pub const CONSENT_WAIT: Duration = Duration::from_secs(180);
+
+/// A test's own wait, shorter than [`CONSENT_WAIT`].
+#[cfg(test)]
+static TEST_WAIT: Mutex<Option<Duration>> = Mutex::new(None);
+
+fn consent_wait() -> Duration {
+    #[cfg(test)]
+    if let Some(wait) = *TEST_WAIT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+    {
+        return wait;
+    }
+    CONSENT_WAIT
+}
+
+/// Parked turns wait `wait` for the card until the guard drops.
+#[cfg(test)]
+pub fn waiting(wait: Duration) -> impl Drop {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            *TEST_WAIT
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+        }
+    }
+    *TEST_WAIT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(wait);
+    Reset
+}
 
 /// The person's answer to the card, until the parked turn takes it.
 static DECIDED: Mutex<Option<Option<Allowed>>> = Mutex::new(None);
@@ -69,8 +110,9 @@ pub(super) struct Pane<'a> {
 }
 
 impl Live for Pane<'_> {
-    /// Shows the card and waits: for an answer, or for Stop. The wait is
-    /// the person's time, not the answer's.
+    /// Shows the card and waits: for an answer, for Stop, or for
+    /// [`CONSENT_WAIT`] to pass. The wait is the person's time, not the
+    /// answer's.
     fn consent(&self) -> Consent {
         *decided() = None;
         worker::update(|answering| {
@@ -78,6 +120,7 @@ impl Live for Pane<'_> {
             answering.doing = None;
         });
         let parked = Instant::now();
+        let wait = consent_wait();
         let consent = loop {
             if self.cancel.load(Ordering::Acquire) {
                 break Consent::Stopped;
@@ -88,6 +131,7 @@ impl Live for Pane<'_> {
             match said {
                 Some(Some(allowed)) => break Consent::Allowed(allowed),
                 Some(None) => break Consent::Declined,
+                None if parked.elapsed() >= wait => break Consent::Unanswered,
                 None => std::thread::sleep(LOOK_EVERY),
             }
         };

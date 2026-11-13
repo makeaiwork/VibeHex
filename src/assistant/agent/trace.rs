@@ -110,6 +110,9 @@ pub enum Why {
     Unknown,
     /// The recordings may not be read.
     NotAllowed,
+    /// The person was asked whether the recordings may be read and gave
+    /// no answer in time.
+    Unanswered,
     /// The person's settings aren't sent (`assistant.send_settings`).
     NotSent,
     /// The turn has read as much as it may.
@@ -124,6 +127,7 @@ impl Why {
         match self {
             Self::Unknown => "unknown",
             Self::NotAllowed => "not_allowed",
+            Self::Unanswered => "unanswered",
             Self::NotSent => "not_sent",
             Self::Budget => "budget",
             Self::Failed => "failed",

@@ -156,6 +156,8 @@ fn did(did: &Did) -> Vec<String> {
 fn refused(why: &str) -> Vec<String> {
     let line = if why == Why::NotAllowed.name() {
         tr("Didn't read your recordings: not allowed")
+    } else if why == Why::Unanswered.name() {
+        tr("Didn't read your recordings: the question went unanswered")
     } else if why == Why::NotSent.name() {
         tr("Didn't read your settings: sending them is off")
     } else if why == Why::Budget.name() {

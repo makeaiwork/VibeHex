@@ -552,7 +552,9 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   a model is answering in another conversation and the next round or the
   plan is a model's, Continue and "Skip to the plan" are dimmed and the
   round says "The model is answering in another conversation."
-  (`Flow::waits`); pressed anyway, nothing is answered or kept, and
+  (`Flow::waits`), or, while that answer waits on the consent card
+  there, "An answer in another conversation is waiting for you to say
+  whether it may read your recordings."; pressed anyway, nothing is answered or kept, and
   Continue goes on once the model is free. A round the app writes itself
   never waits. A request the worker turned down all the same becomes a
   turn that says so, with Try again.
@@ -997,7 +999,18 @@ anything, a change is still a card the person presses:
   and the turn reads on. Answer without recordings saves the no, the tool's
   result tells the model it may not read them, and that conversation isn't
   asked again until VibeHex quits (`agent::live::declined`); Stop asks
-  nothing and decides nothing.
+  nothing and decides nothing. A card left unanswered for
+  `agent::live::CONSENT_WAIT` (3 minutes) decides nothing either: the call
+  reads as not answered (`access::UNANSWERED`), the model answers without
+  the recordings and says access wasn't given, no other recordings call
+  of that turn asks again, the step reads "Didn't read your recordings:
+  the question went unanswered" with a cross, and the next question may
+  ask again. While a turn is parked no other conversation can ask, so the
+  field there says why over Send: "An answer in another conversation is
+  waiting for you to say whether it may read your recordings.", with
+  "Open that conversation" (`composer::waits`); while one only answers
+  elsewhere it says "The model is answering in another conversation."
+  A setup round open there says the same beside its Continue instead.
 - **The web** (`agent::net`). One function decides before each request
   whether it may search (Codex with Web on): never once the turn has read
   anything of the person's own (an excerpt, a list that named a recording,
