@@ -812,6 +812,10 @@ pub(super) const SCENES: &[Scene] = &[
         assistant::setup_fixture::setup_preset,
     ),
     (
+        "assistant-setup-preset-codex",
+        assistant::setup_fixture::setup_preset_codex,
+    ),
+    (
         "assistant-setup-preset-shortcuts",
         assistant::setup_fixture::setup_preset_shortcuts,
     ),

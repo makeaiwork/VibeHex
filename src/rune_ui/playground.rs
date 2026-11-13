@@ -310,6 +310,10 @@ const PATHS: &[(&str, &str)] = &[
         "Window/Assistant/Setup/Set up like Denis",
     ),
     (
+        "assistant-setup-preset-codex",
+        "Window/Assistant/Setup/Set up like Denis, no Codex CLI",
+    ),
+    (
         "assistant-setup-preset-shortcuts",
         "Window/Assistant/Setup/Denis's shortcuts",
     ),

@@ -16,8 +16,8 @@ pub struct Live<'a> {
     /// The speech model the service is preparing: its id, bytes come, and
     /// bytes in all (0 while unknown).
     pub preparing: Option<(String, u64, u64)>,
-    /// Whether Codex is signed in; `None` until something asked it.
-    pub codex_signed_in: Option<bool>,
+    /// Where Codex stands, for a row or card that runs on it.
+    pub codex: Codex,
     /// Screen & System Audio Recording is allowed (true off macOS).
     pub system_audio: bool,
     /// Undo is still offered for this card: this session, its
@@ -26,6 +26,27 @@ pub struct Live<'a> {
     /// This OS's and organization's limits apply: false in a scene, which
     /// plays a Mac whatever it renders on.
     pub here: bool,
+}
+
+/// Where Codex stands on this computer, as a card running on it cares:
+/// it can't take a Codex row until the CLI is installed and signed in.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Codex {
+    /// Installed and signed in, or nothing says otherwise.
+    #[default]
+    Ready,
+    /// The Codex CLI isn't on this computer.
+    Missing,
+    /// Installed, not signed in.
+    SignedOut,
+    /// Not looked at yet: the look is on its way.
+    Checking,
+}
+
+/// What a row or card running on `to` for `key` still needs of Codex:
+/// `None` when it doesn't run on Codex or Codex is ready.
+pub fn codex_need(key: &str, to: &Value, codex: Codex) -> Option<Codex> {
+    (codex != Codex::Ready && catalog::needs_codex(key, to)).then_some(codex)
 }
 
 /// What a card shows.
@@ -59,6 +80,10 @@ pub enum Shown {
     Permission(Permission),
     /// Runs on Codex, which isn't signed in.
     SignIn,
+    /// Runs on Codex, which isn't installed.
+    InstallCodex,
+    /// Runs on Codex, which is being looked at.
+    CheckingCodex,
     /// Managed by an organization, or not on this OS.
     Blocked {
         managed: bool,
@@ -124,8 +149,11 @@ pub fn shown(card: &Card, live: &Live) -> Shown {
             if now != item.from {
                 return Shown::ChangedSince { now };
             }
-            if catalog::needs_codex(&item.key, to) && live.codex_signed_in == Some(false) {
-                return Shown::SignIn;
+            match codex_need(&item.key, to, live.codex) {
+                Some(Codex::SignedOut) => return Shown::SignIn,
+                Some(Codex::Missing) => return Shown::InstallCodex,
+                Some(Codex::Checking) => return Shown::CheckingCodex,
+                _ => {}
             }
             let also = item
                 .requires
@@ -169,11 +197,12 @@ fn plan(card: &Card, live: &Live) -> Shown {
 /// What one row of a plan shows.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Row {
-    /// Still to decide. `sign_in` while it runs on Codex, signed out;
-    /// `shorter` names what a shorter retention removes.
+    /// Still to decide. `codex` while it runs on Codex and Codex isn't
+    /// ready: the row stays unchecked until it is. `shorter` names what a
+    /// shorter retention removes.
     Open {
         checked: bool,
-        sign_in: bool,
+        codex: Option<Codex>,
         shorter: Option<Shorter>,
     },
     Applied,
@@ -195,9 +224,8 @@ pub fn row(card: &Card, index: usize, live: &Live) -> Row {
     };
     match &card.decision {
         Decision::Proposed => Row::Open {
-            checked: item.included,
-            sign_in: catalog::needs_codex(&item.key, &item.to)
-                && live.codex_signed_in == Some(false),
+            checked: item.included && codex_need(&item.key, &item.to, live.codex).is_none(),
+            codex: codex_need(&item.key, &item.to, live.codex),
             shorter: catalog::shorter(&item.key, &item.from, &item.to),
         },
         Decision::Declined | Decision::Undone => Row::Left,
@@ -267,7 +295,7 @@ impl Terms {
         if let Some(Row::Open { .. }) = rows.first() {
             return Row::Open {
                 checked: self.checked > 0,
-                sign_in: false,
+                codex: None,
                 shorter: None,
             };
         }
@@ -348,7 +376,7 @@ mod tests {
         Live {
             settings,
             preparing: None,
-            codex_signed_in: None,
+            codex: Codex::Ready,
             system_audio: true,
             undoable: true,
             here: true,
@@ -419,10 +447,56 @@ mod tests {
         let from = current(&settings, "dictation_processing.server.runs_on").unwrap();
         let runs_on = card("dictation_processing.server.runs_on", from, json!("codex"));
         let signed_out = Live {
-            codex_signed_in: Some(false),
+            codex: Codex::SignedOut,
             ..live(&settings)
         };
         assert_eq!(shown(&runs_on, &signed_out), Shown::SignIn);
+        let missing = Live {
+            codex: Codex::Missing,
+            ..live(&settings)
+        };
+        assert_eq!(shown(&runs_on, &missing), Shown::InstallCodex);
+        let checking = Live {
+            codex: Codex::Checking,
+            ..live(&settings)
+        };
+        assert_eq!(shown(&runs_on, &checking), Shown::CheckingCodex);
+    }
+
+    /// A Codex row checked in the plan shows unchecked, with what it
+    /// needs, while Codex is missing, signed out, or being looked at, and
+    /// checked again once Codex is ready.
+    #[test]
+    fn a_codex_row_waits_for_codex() {
+        let settings = AppSettings::default();
+        let mut plan = card(
+            "meetings.notes.writer",
+            json!(""),
+            json!("codex:gpt-6.1-terra"),
+        );
+        plan.kind = CardKind::Plan;
+        for codex in [Codex::Missing, Codex::SignedOut, Codex::Checking] {
+            let now = Live {
+                codex,
+                ..live(&settings)
+            };
+            assert_eq!(
+                row(&plan, 0, &now),
+                Row::Open {
+                    checked: false,
+                    codex: Some(codex),
+                    shorter: None
+                }
+            );
+        }
+        assert_eq!(
+            row(&plan, 0, &live(&settings)),
+            Row::Open {
+                checked: true,
+                codex: None,
+                shorter: None
+            }
+        );
     }
 
     #[test]
@@ -488,14 +562,14 @@ mod tests {
             ..Item::default()
         });
         let signed_out = Live {
-            codex_signed_in: Some(false),
+            codex: Codex::SignedOut,
             ..live(&settings)
         };
         assert_eq!(
             row(&plan, 1, &signed_out),
             Row::Open {
                 checked: false,
-                sign_in: true,
+                codex: Some(Codex::SignedOut),
                 shorter: None
             }
         );
@@ -586,7 +660,7 @@ mod tests {
         // Checked while any term is, and not once none is.
         let open = |checked| Row::Open {
             checked,
-            sign_in: false,
+            codex: None,
             shorter: None,
         };
         assert_eq!(terms.row(&many, &live), open(true));

@@ -243,7 +243,17 @@ Opened from a place link                         // rune_ui::assistant::places
   card then says Applied with Show in Labs (or its pane).
 - What a card shows follows the settings each frame: applied, declined,
   already set, changed by hand since, downloading, a macOS permission to
-  ask, a Codex sign-in, or held by the organization or the OS.
+  ask, Codex to install or sign in to (or "Looking for Codex…" while it
+  is looked at), or held by the organization or the OS.
+- A row or card that runs on Codex waits for Codex (`state::Codex`,
+  `changes::codex`): while the Codex CLI isn't found it shows unchecked
+  with the install command and Copy command; while signed out, with Sign
+  in with ChatGPT; while not looked at yet, "Looking for Codex…". It
+  can't be checked or saved until Codex is ready, then shows as it was
+  made. A card waiting on a Codex row makes the pane look at Codex
+  (`wants_codex`) whatever dictation cleans up on, every 5 s while the CLI
+  is missing; once found, its sign-in is read. A look that fails for
+  another reason holds nothing back.
 - A change to the value the setting has now is never a card, compared as
   the engine it runs (`names::same`: `codex` equals `codex:<AI cleanup's
   model>`, empty equals none), and neither is a setting this computer
@@ -1369,7 +1379,7 @@ each with the parse it must make); scenes `assistant`,
 `assistant-updated`, the mark's `assistant-marked` and `assistant-marked-rail`, setup's
 `assistant-setup-ask`, `assistant-setup-unreachable`, `assistant-setup-follow`, `assistant-setup-plan`,
 `assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
-`assistant-setup-preset-shortcuts`, the terms' `assistant-plan-terms`,
+`assistant-setup-preset-codex`, `assistant-setup-preset-shortcuts`, the terms' `assistant-plan-terms`,
 `assistant-plan-terms-open`, `assistant-setup-preset-terms`
 (`rune_ui::tests::assistant_terms`, Linux, presses the fold and both
 checkboxes and holds a long term and a long list inside their row),
@@ -1513,5 +1523,5 @@ The other scenes, each through `every_scene_is_laid_out_whole`:
 | Setup's first round, plan, and result | `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-kept`, `assistant-setup-result` |
 | Setup with no model connected | `assistant-setup-unreachable` |
 | Returning setup's plan | `assistant-setup-returning-plan` |
-| Set me up like Denis | `assistant-setup-preset`, `assistant-setup-preset-shortcuts`, `assistant-setup-preset-terms` |
+| Set me up like Denis | `assistant-setup-preset`, `assistant-setup-preset-codex`, `assistant-setup-preset-shortcuts`, `assistant-setup-preset-terms` |
 | Long content, with golden images | `assistant-long-follow-german`, `assistant-long-plan-russian`, `assistant-long-choice-russian` |

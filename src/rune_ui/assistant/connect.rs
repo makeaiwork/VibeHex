@@ -23,6 +23,7 @@ use super::super::icons;
 use super::super::lists::{Tone, small_button, tone_tag};
 use super::super::sidebar::Pane;
 use super::super::{Ui, labs};
+use crate::assistant::changes::state::Codex;
 use crate::desktop::i18n::{tr, tr_fill};
 use crate::dictation::cleanup_server::codex::{self, Account};
 use crate::files::rewrite::Engine;
@@ -80,6 +81,10 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
             Err(TryRecvError::Disconnected) => reach.looking = None,
         }
     }
+    // Installed since Output last looked: its sign-in is next.
+    if changed && ui.assistant.reach.codex == Some(true) {
+        super::super::output::codex_look_again(ui);
+    }
     let shown = ui.pane == Pane::Assistant
         && !ui.labs_open
         && ui.assistant.view == super::View::Chat
@@ -89,7 +94,13 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
         return changed;
     }
     let panel = needed(ui);
-    let every = if panel { WHILE_SHOWN } else { OTHERWISE };
+    // A Codex row waiting for the CLI looks as often as the panel does.
+    let installing = super::wants_codex(ui) && super::changes::codex(ui) == Codex::Missing;
+    let every = if panel || installing {
+        WHILE_SHOWN
+    } else {
+        OTHERWISE
+    };
     if ui
         .assistant
         .reach

@@ -22,7 +22,7 @@ use super::verbs::{anyway, applied_words, show_label, verb};
 use crate::assistant::changes::catalog::{Permission, Shorter};
 use crate::assistant::changes::names::{self, Home};
 use crate::assistant::changes::parts::PROMPT;
-use crate::assistant::changes::state::Shown;
+use crate::assistant::changes::state::{Codex, Shown};
 use crate::assistant::changes::{Card, CardKind, Decision, Item, Refused, Why};
 use crate::desktop::i18n::{tr, tr_fill, tr_named, tr_window};
 
@@ -109,6 +109,23 @@ pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool, layer: &mut Vec<El>
                 }),
             ]));
             (Shell::Open, &theme::LOCK, header(p, path, name, Some(chip)))
+        }
+        Shown::InstallCodex | Shown::CheckingCodex => {
+            let missing = shown == Shown::InstallCodex;
+            let chip = missing.then(|| value::short(p, "now", tr("Not installed"), false, false));
+            body.push(super::plan::codex_line(
+                p,
+                if missing {
+                    Codex::Missing
+                } else {
+                    Codex::Checking
+                },
+            ));
+            (
+                Shell::Open,
+                &theme::CODE_LINES,
+                header(p, tr("Output › AI cleanup"), "Codex", chip),
+            )
         }
         Shown::SignIn => {
             let chip = value::short(p, "now", tr("Signed out"), false, false);
@@ -394,7 +411,7 @@ fn state_body(
                 status(&words, p.muted()),
             ]));
         }
-        Shown::Permission(_) | Shown::SignIn => {}
+        Shown::Permission(_) | Shown::SignIn | Shown::InstallCodex | Shown::CheckingCodex => {}
     }
     body
 }

@@ -13,7 +13,7 @@ use super::super::sidebar::Pane;
 use super::super::{Ui, history, labs, picker, platform};
 use crate::assistant::changes::catalog::Class;
 use crate::assistant::changes::names::{self, Home};
-use crate::assistant::changes::state::{self, Live, Shown};
+use crate::assistant::changes::state::{self, Codex, Live, Shown};
 use crate::assistant::changes::{self, Card, CardKind, Context, Decision, vocab};
 use crate::assistant::facts;
 use crate::control::settings::{self, Effect};
@@ -85,13 +85,45 @@ pub(super) fn live(ui: &Ui, at: At) -> Live<'_> {
     Live {
         settings: &ui.settings,
         preparing,
-        codex_signed_in: super::super::output::codex_signed_in(ui),
+        codex: codex(ui),
         // Only macOS asks; a scene plays a Mac.
         system_audio: ui.platform.system_audio
             || (!cfg!(target_os = "macos") && !ui.assistant.fixture),
         undoable: ui.assistant.undo.contains(&at) && ui.assistant.open == Some(at.conversation),
         here: !ui.assistant.fixture,
     }
+}
+
+/// Where Codex stands for a card running on it: the CLI found (by the
+/// pane's look or Output's), then its sign-in. A look that failed for
+/// another reason doesn't hold a card back. A scene plays what it sets.
+pub(super) fn codex(ui: &Ui) -> Codex {
+    if ui.assistant.fixture {
+        return ui.assistant.codex_as;
+    }
+    use super::super::output;
+    if ui.assistant.reach.codex == Some(false) || output::codex_missing(ui) {
+        return Codex::Missing;
+    }
+    match output::codex_signed_in(ui) {
+        Some(true) => Codex::Ready,
+        Some(false) => Codex::SignedOut,
+        None if output::codex_failed(ui) => Codex::Ready,
+        None => Codex::Checking,
+    }
+}
+
+/// `card` as a save would take it: a Codex row shows unchecked while
+/// Codex isn't ready, and is counted and saved so.
+pub(super) fn as_saved(ui: &Ui, card: &Card) -> Card {
+    let codex = codex(ui);
+    let mut card = card.clone();
+    for item in &mut card.items {
+        if state::codex_need(&item.key, &item.to, codex).is_some() {
+            item.included = false;
+        }
+    }
+    card
 }
 
 /// What the card at `at` shows now.
@@ -110,7 +142,11 @@ pub(super) fn shown(ui: &Ui, at: At) -> Option<Shown> {
 pub(super) fn undecided(shown: &Shown) -> bool {
     matches!(
         shown,
-        Shown::Proposed { .. } | Shown::SignIn | Shown::Permission(_)
+        Shown::Proposed { .. }
+            | Shown::SignIn
+            | Shown::InstallCodex
+            | Shown::CheckingCodex
+            | Shown::Permission(_)
     )
 }
 
@@ -192,7 +228,8 @@ pub(super) fn apply(ui: &mut Ui, at: At) {
 /// the rows before it make, so a failing one is left out with why and the
 /// rest go in one save; the speech model downloads after it, and a failed
 /// download takes nothing back.
-fn apply_plan(ui: &mut Ui, at: At, mut card: Card) {
+fn apply_plan(ui: &mut Ui, at: At, card: Card) {
+    let mut card = as_saved(ui, &card);
     let before = ui.drafted();
     let rules = super::super::shortcut_rules();
     let mut candidate = before.clone();
@@ -276,6 +313,14 @@ pub(super) fn decide(ui: &mut Ui, at: At, mut card: Card, decision: Result<Decis
 
 /// Checks or unchecks row `index` of a plan.
 pub(super) fn toggle(ui: &mut Ui, at: At, index: usize) {
+    // A Codex row waits for Codex: installed and signed in first.
+    let codex = codex(ui);
+    if card(ui, at)
+        .and_then(|card| card.items.get(index))
+        .is_some_and(|item| state::codex_need(&item.key, &item.to, codex).is_some())
+    {
+        return;
+    }
     set(ui, at, |card| {
         if let Some(item) = card.items.get_mut(index) {
             item.included = !item.included;
@@ -764,6 +809,61 @@ mod tests {
         apply(&mut ui, at);
         assert!(ui.settings.labs.unload_idle);
         assert_eq!(ui.settings.labs.unload_idle_minutes, 5);
+    }
+
+    /// A Codex row waits for Codex: while the CLI is missing it can't be
+    /// checked, a save leaves it out, and the rest go in; once Codex is
+    /// ready it shows checked as it was made.
+    #[test]
+    fn a_codex_row_waits_for_codex_and_the_rest_save() {
+        let (mut ui, at) = with_card(
+            "meetings.notes.writer",
+            json!(""),
+            json!("codex:gpt-6.1-terra"),
+        );
+        ui.settings.labs.filler_words = false;
+        set(&mut ui, at, |card| {
+            card.kind = CardKind::Plan;
+            card.items.push(Item {
+                key: "labs.filler_words".into(),
+                from: json!(false),
+                to: json!(true),
+                included: true,
+                ..Item::default()
+            });
+        });
+        ui.assistant.codex_as = Codex::Missing;
+        let open = |ui: &Ui| state::row(card(ui, at).unwrap(), 0, &live(ui, at));
+        assert!(matches!(
+            open(&ui),
+            state::Row::Open {
+                checked: false,
+                codex: Some(Codex::Missing),
+                ..
+            }
+        ));
+        toggle(&mut ui, at, 0);
+        assert!(card(&ui, at).unwrap().items[0].included, "the toggle waits");
+        ui.assistant.codex_as = Codex::Ready;
+        assert!(matches!(
+            open(&ui),
+            state::Row::Open {
+                checked: true,
+                codex: None,
+                ..
+            }
+        ));
+        ui.assistant.codex_as = Codex::Checking;
+        let writer = ui.settings.meetings.notes.writer.clone();
+        apply(&mut ui, at);
+        assert_eq!(
+            ui.settings.meetings.notes.writer, writer,
+            "Codex row left out"
+        );
+        assert!(ui.settings.labs.filler_words, "the rest saved");
+        let plan = card(&ui, at).unwrap();
+        assert!(!plan.items[0].included);
+        assert_eq!(state::row(plan, 0, &live(&ui, at)), state::Row::Left);
     }
 
     /// A plan's rows are checked one by one: a failing row is left out

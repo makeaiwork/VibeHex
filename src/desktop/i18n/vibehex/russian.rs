@@ -216,6 +216,7 @@ pub(in super::super) const TRANSLATIONS: &[(&str, &str)] = &[
     ("Your ChatGPT plan, through the Codex CLI on this computer", "Ваш тариф ChatGPT через Codex CLI на этом компьютере"),
     ("Codex gets only the dictation and your instructions: no tools, no files, no commands. Nothing lands in its history.", "Codex получает только диктовку и ваши инструкции: никаких инструментов, файлов и команд. В его историю ничего не попадает."),
     ("Looking for Codex…", "Ищем Codex…"),
+    ("Needs the Codex CLI on this computer: install it with {}, then sign in", "Нужен Codex CLI на этом компьютере: установите его командой {}, затем войдите"),
     ("Not found. Hex uses the Codex CLI on this computer: install it with {}, then sign in once", "Не найден. Hex использует Codex CLI на этом компьютере: установите его командой {} и один раз войдите"),
     ("Copy command", "Копировать команду"),
     ("Finish signing in in your browser", "Завершите вход в браузере"),
