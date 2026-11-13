@@ -283,6 +283,9 @@ pub(super) fn open(ui: &mut Ui, spot: &Spot, tx: &mut Tx) {
                 ..labs::LabsLink::default()
             };
             labs::reveal(ui, &link, tx);
+            if let Some((conversation, scroll_y)) = from {
+                super::jump::came_for_place(ui, conversation, scroll_y);
+            }
         }
         To::Pane(pane, settings) => {
             ui.select_pane(pane, tx);
@@ -398,6 +401,15 @@ pub(in super::super) fn lighting<R>(
 /// The key a lit title at `depth` lands by.
 fn lit_key(depth: usize) -> String {
     format!("place-lit-{depth}")
+}
+
+/// Whether the place opened names `title` as its deepest part: a Labs
+/// card it names is lit whole, so it stands out from its neighbours.
+pub(in super::super) fn names(ui: &Ui, title: &str) -> bool {
+    ui.place
+        .as_ref()
+        .and_then(|lit| lit.titles.last())
+        .is_some_and(|forms| forms.contains(&lower(title)) || forms.contains(&lower(tr(title))))
 }
 
 /// `label`, the text of `title`, its words lit when an opened place names

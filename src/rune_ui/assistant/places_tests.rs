@@ -170,6 +170,12 @@ fn a_lab_opens_labs_on_its_card_lit() {
     open_named(&mut ui, "Labs › Settings search", &mut Tx::default());
     assert!(ui.labs_open);
     assert_eq!(probe(&ui), Some(0), "its card's title is lit");
+    assert!(names(&ui, "Settings search"), "its card is lit whole");
+    assert!(!names(&ui, "Smart spacing"), "its neighbours aren't");
+    assert!(
+        ui.came_from.is_some(),
+        "Back to Assistant shows on Labs too"
+    );
 }
 
 #[test]

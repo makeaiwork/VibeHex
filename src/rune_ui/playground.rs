@@ -183,6 +183,7 @@ const PATHS: &[(&str, &str)] = &[
     ("assistant-answering", "Window/Assistant/Answering"),
     ("assistant-places", "Window/Assistant/Places named"),
     ("assistant-place-opened", "Window/Assistant/Place opened"),
+    ("assistant-lab-opened", "Window/Assistant/Lab opened"),
     ("assistant-start", "Window/Assistant/New conversation"),
     (
         "assistant-start-russian",

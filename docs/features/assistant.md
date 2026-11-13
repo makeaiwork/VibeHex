@@ -113,11 +113,12 @@ Opened from an answer                            // rune_ui::assistant::jump
                 however deep in a long passage. A dictation: its History
                 row tinted with the [n] before its title
 Opened from a place link                         // rune_ui::assistant::places
-├── Header      Back to Assistant (not on the Labs page)
+├── Header      Back to Assistant, on the Labs page too
 └── Titles      the section and row the path names, their words lit in
                 the accent; the deepest lands a third of the way down, its
                 Advanced fold opened when it is under one; a lab: Labs on
-                its group, its card's title lit. Lit until another pane
+                its group, its card's title lit and the card whole in a
+                soft warm tint with a ring (warning tokens). Lit until another pane
 ```
 
 ## Language
@@ -1184,7 +1185,7 @@ each with the parse it must make); scenes `assistant`,
 `assistant-settings`, `assistant-consent`, `assistant-steps`, `assistant-agent-consent`,
 `assistant-recordings`, `assistant-steps-open`, `assistant-knew`, `meetings-cited`,
 `meetings-cited-notes`, `meetings-cited-long`, `files-cited`, `files-cited-listening`, `history-cited`,
-`assistant-places`, `assistant-place-opened`, the cards'
+`assistant-places`, `assistant-place-opened`, `assistant-lab-opened`, the cards'
 `assistant-cards`, `assistant-cards-more`, `assistant-cards-held`,
 `assistant-cards-prompt`, `assistant-cards-prompt-edit`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
@@ -1325,7 +1326,7 @@ The other scenes, each through `every_scene_is_laid_out_whole`:
 | Answer being written | `assistant-answering`, `assistant-web-answering` |
 | Answer from recordings | `assistant-steps`, `assistant-recordings` |
 | Answer from the web | `assistant-web`, `assistant-web-off`, `assistant-web-held` |
-| Places named and opened | `assistant-places`, `assistant-place-opened` |
+| Places named and opened | `assistant-places`, `assistant-place-opened`, `assistant-lab-opened` |
 | Assistant › Settings | `assistant-settings` |
 | Card held, applied, coming | `assistant-cards-held`, `assistant-applied`, `assistant-change-coming` |
 | Instructions card | `assistant-cards-prompt`, `assistant-cards-prompt-edit` |

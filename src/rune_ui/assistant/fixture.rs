@@ -219,6 +219,13 @@ pub(in super::super) fn place_opened(ui: &mut Ui) {
     super::places::scene(ui, "General › Vocabulary");
 }
 
+/// Labs opened from the answer's Labs › Add to vocabulary from a
+/// selection: its card lit whole, and Back to Assistant before the title.
+pub(in super::super) fn lab_opened(ui: &mut Ui) {
+    places(ui);
+    super::places::scene(ui, "Labs › Add to vocabulary from a selection");
+}
+
 /// A new conversation: the greeting and the example questions.
 pub(in super::super) fn start(ui: &mut Ui) {
     open(ui);

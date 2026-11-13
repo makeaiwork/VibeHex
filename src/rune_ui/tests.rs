@@ -3317,6 +3317,7 @@ fn goldens() {
         "assistant-updated",
         "assistant-places",
         "assistant-place-opened",
+        "assistant-lab-opened",
         "assistant-web",
         "assistant-web-off",
         "assistant-web-answering",
