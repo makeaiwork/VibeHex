@@ -321,6 +321,15 @@ line_icon!(
     ]
 );
 
+// A five-pointed star: About's Star on GitHub.
+line_icon!(
+    STAR,
+    "hex-row-star",
+    [
+        "M12 2.8l2.84 5.76 6.36.92-4.6 4.49 1.09 6.33L12 17.31l-5.69 2.99 1.09-6.33-4.6-4.49 6.36-.92z"
+    ]
+);
+
 line_icon!(
     PEN,
     "hex-row-pen",

@@ -83,6 +83,14 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = mac_fixture();
         ui.pane = Pane::About;
     }),
+    // After a check the person asked for, with Labs › Release notes link.
+    ("about-up-to-date", |ui| {
+        *ui = mac_fixture();
+        ui.pane = Pane::About;
+        ui.update_asked = true;
+        ui.build_preview = Some(BuildKind::Release);
+        ui.settings.labs.release_notes_link = true;
+    }),
     ("history-menu", |ui| {
         *ui = portal_fixture();
         ui.history = history::HistoryPane::fixture();
@@ -553,9 +561,10 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = mac_fixture();
         ui.settings.updates.channel = Some(crate::app_settings::UpdateChannel::Dev);
     }),
-    // A local build: the badge, the quiet status line, no channel row.
+    // A local build: About's badge and quiet status line.
     ("mac-local-build", |ui| {
         *ui = mac_fixture();
+        ui.pane = Pane::About;
         ui.build_preview = Some(BuildKind::Local);
         if let Some(view) = &mut ui.view {
             view.update_status = DesktopUpdateStatus::SourceBuild;
@@ -563,6 +572,7 @@ pub(super) const SCENES: &[Scene] = &[
     }),
     ("mac-test-build", |ui| {
         *ui = mac_fixture();
+        ui.pane = Pane::About;
         ui.build_preview = Some(BuildKind::Test);
     }),
     ("mac-update-ready", |ui| {
@@ -575,14 +585,18 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = mac_fixture();
         super::update_sheet::fixture(ui);
     }),
+    // A check the person asked for, under way.
     ("mac-update-checking", |ui| {
         *ui = mac_fixture();
+        ui.pane = Pane::About;
+        ui.update_asked = true;
         if let Some(view) = &mut ui.view {
             view.update_status = DesktopUpdateStatus::Checking;
         }
     }),
     ("mac-update-downloading", |ui| {
         *ui = mac_fixture();
+        ui.pane = Pane::About;
         if let Some(view) = &mut ui.view {
             view.update_status = DesktopUpdateStatus::Downloading;
         }

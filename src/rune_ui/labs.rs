@@ -430,7 +430,7 @@ fn rows(ui: &Ui) -> Vec<Row> {
         Feature::ReleaseNotesLink,
         None,
         tr("Release notes link"),
-        tr("Show a link to this build's release notes in the sidebar footer"),
+        tr("Show a link to this build's release notes in About"),
     ));
     if caps.meetings {
         rows.push(row(

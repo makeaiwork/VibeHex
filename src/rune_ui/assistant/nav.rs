@@ -1,11 +1,11 @@
-//! Assistant in the sidebar: one row at the bottom, above the version and
-//! the update check, and an icon in the folded rail. The face stands where
-//! the other items have an icon. It hovers and presses like the items
-//! above it, but its open pane shows without a fill (variant B of the
-//! Selected board): the face and the word turn bright, the word medium, and
-//! the pane's title says the rest. A fill there read as a separate bar
-//! beside the version; the items at the top keep theirs. After an update
-//! both carry a dot until Assistant opens (`whats_new::marked`).
+//! Assistant in the sidebar: one row at the bottom, and an icon at the
+//! folded rail's bottom. The face stands where the other items have an
+//! icon. It hovers and presses like the items above it, but its open pane
+//! shows without a fill (variant B of the Selected board): the face and the
+//! word turn bright, the word medium, and the pane's title says the rest. A
+//! fill there read as a separate bar apart from the navigation; the items at
+//! the top keep theirs. After an update both carry a dot until Assistant
+//! opens (`whats_new::marked`).
 
 use rune::{El, Tx, col, el, row, text};
 
@@ -23,6 +23,11 @@ const KEY: &str = "nav-assistant";
 /// allows with room around it.
 const FACE: f32 = 24.0;
 const ROW_HEIGHT: f32 = 32.0;
+/// How far the face's box sits above the bottom of its sidebar slot, and
+/// of its rail button (as tall as the row): the sidebar keeps the face as
+/// far from its bottom edge as the logo is from its top.
+pub(in super::super) const SLOT_FACE_INSET: f32 = NAV_ROW_GAP / 2.0 + RAIL_FACE_INSET;
+pub(in super::super) const RAIL_FACE_INSET: f32 = (ROW_HEIGHT - FACE) / 2.0;
 
 /// Whether its pane shows now.
 fn on(ui: &Ui) -> bool {
@@ -138,7 +143,7 @@ pub(in super::super) fn rail_item(
         .key(KEY)
         .role("button")
         .label(tr("Assistant"))
-        .size(36.0, 32.0)
+        .size(36.0, ROW_HEIGHT)
         .center()
         .radius(7.0)
         .hover(c.hover)

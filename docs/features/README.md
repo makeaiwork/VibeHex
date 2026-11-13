@@ -40,8 +40,8 @@ Local transcription picker (#645); its Benchmark details toggle (off by
 default) shows each model's raw WER or CER with its language, dataset, source,
 and conditions (#647); its Settings search toggle (off by default) puts a
 search field at the top of General that filters its rows; its Release notes
-link toggle (off by default) puts a link to this build's release notes in the
-sidebar footer; its Transcribe files toggle (off by default) adds
+link toggle (off by default) puts a link to this build's release notes in
+About; its Transcribe files toggle (off by default) adds
 `hex transcribe <file>`, which prints a saved WAV recording's transcript from
 the selected model ([control-cli.md](control-cli.md)).
 General › Advanced › Interface language offers Português (Brasil), and Hex
@@ -57,8 +57,9 @@ reworks their text with cleanup and your own requests.
 The [vocabulary](vocabulary.md) biases transcription toward names you list.
 [Your own speech models](own-models.md) covers adding a GGUF file and using
 models another app already downloaded.
-[About](about.md) names the fork (VibeHex) in the sidebar and links its
-source and developer.
+[About](about.md) names the fork (VibeHex) in the sidebar, holds the version
+and the update check, asks for a star on GitHub, and links its source and
+developer.
 [Assistant](assistant.md) (every OS, on by default and not in Labs) answers
 questions about VibeHex from its guide, in a chat at the sidebar's bottom,
 and, once allowed, about the person's meetings, Files texts, and dictations;
@@ -1515,8 +1516,8 @@ Menu bar and Settings                    // maintenance
 │       way; shortcuts keep working; Finder or Spotlight reopen -> Settings (labs.md)
 ├── Settings / Paste Last -> Reachable with Dock icon hidden
 ├── Launch at Login -> macOS owns registration state
-├── Check for Updates -> The updater (maintain.updates); opens the window, whose
-│   footer then says "Checking for updates…", "VibeHex is up to date", or
+├── Check for Updates -> The updater (maintain.updates); opens the window on
+│   About, which then says "Checking for updates…", "VibeHex is up to date", or
 │   "Couldn't check for updates" (#1120)
 └── Quit -> Orderly shutdown (⌘Q closes Settings instead while its Lab is on)
 ```
@@ -1678,12 +1679,12 @@ Hex checks the release service            // maintain.updates
 │   │   │   └── macOS window closed -> shown without focus, never while dictation
 │   │   │       captures or transcribes (macos_rune/update_window.rs)   // fork
 │   │   └── Notes missing or unlisted -> the sheet shows only the version
-│   └── Sidebar Update, menu bar / tray: Restart to update; the first changes and
-│       What's new (the release's page) under it
+│   └── Sidebar Update (above Assistant; About's card has it too), menu bar / tray:
+│       Restart to update; the first changes and What's new (the release's page) under it
 │       ├── One more check first (manifest within 15 s) -> Checking / Downloading -> newest staged
 │       │   └── A release published after the relaunch -> the next launch's check
 │       ├── macOS -> renamex_np swap (also at quit) -> relaunch -> old bundle removed at launch
-│       └── Labs › Release notes link -> a release build's footer carries this build's notes:
+│       └── Labs › Release notes link -> a release build's About card carries this build's notes:
 │           the fork's GitHub release (…/releases/tag/v<version>) for a VibeHex (X.Y.Z-vibe.N) or plain X.Y.Z
 │           version, no link for any other (a dev version included);
 │           local and test builds show no link (by build kind, not version string)
@@ -1692,14 +1693,15 @@ Hex checks the release service            // maintain.updates
 ├── Source build, test build -> never checks
 └── Failure -> keep the running version, back off, Check for updates retries
 
-Check for updates pressed (footer, menu bar, app menu)   // maintain.update-feedback (#1120)
-├── The menu bar's and app menu's open the window at General
-└── Footer -> "Checking for updates…" -> "VibeHex is up to date" | "Couldn't check for updates"
-    // the hourly check alone keeps "Check for updates"; check:
+Check for updates pressed (About, menu bar, app menu)   // maintain.update-feedback (#1120)
+├── The menu bar's and app menu's open the window at About
+└── About -> "Checking for updates…" -> "VibeHex is up to date" | "Couldn't check for updates"
+    beside the button, which stays put (disabled while checking)
+    // the hourly check alone adds no words; check:
     // an_asked_update_check_says_how_it_went (fixture; not run on a Mac)
 
 DisableUpdates at launch                 // maintain.managed-updates
-├── No checks, downloads, or installs; sidebar: Managed by your organization
+├── No checks, downloads, or installs; About: Managed by your organization
 ├── macOS app menu -> Check for Updates omitted
 └── macOS menu bar -> Disabled "Updates Managed by Your Organization"
 ```
@@ -2148,10 +2150,10 @@ Windows beta                             // x64 (Vulkan GPU) and ARM64 (CPU)
 │   └── Ctrl+V carries scan codes from the foreground layout, so Chromium apps
 │       see KeyboardEvent.code: VS Code's terminal takes it as Paste instead of
 │       sending ^V to a TUI inside it (#618; from VS Code's source, not run)
-├── Update staged (managed install) -> Tray, sidebar footer: Restart to update
-├── Another release (unmanaged install) -> Tray, sidebar footer: Download update
-├── Another channel chosen -> Tray, sidebar footer: Switch to Stable 2.3.1 (confirm)
-├── Otherwise -> Sidebar footer: Check for updates
+├── Update staged (managed install) -> Tray, sidebar, About: Restart to update
+├── Another release (unmanaged install) -> Tray, sidebar, About: Download update
+├── Another channel chosen -> Tray, sidebar, About: Switch to Stable 2.3.1 (confirm)
+├── Otherwise -> About: Check for updates
 └── Modes, History, Activity, transformations -> as on macOS
 ```
 
@@ -2180,11 +2182,11 @@ smoke tests on Windows 10 and on ARM64 hardware have not been run.
 
 ```ts
 Linux updates                            // maintain.linux-updates
-├── Direct install (versions/ + install.json receipt) -> release service -> staged -> sidebar footer: Restart to update
-├── Source install (source-build marker) -> Sidebar footer: Updated from your source checkout
-├── Local build (HEX_LOCAL_BUILD=1) -> Sidebar footer: Local build, updates off; Version 2.3.1 (local <commit>); no checks, no channel row
-├── pacman (AUR hex-bin: /usr/bin, root-owned) or Nix store -> Sidebar footer: Updated by your package manager
-└── Anything else (a downloaded executable) -> Sidebar footer: Download update
+├── Direct install (versions/ + install.json receipt) -> release service -> staged -> sidebar, About: Restart to update
+├── Source install (source-build marker) -> About: Updated from your source checkout
+├── Local build (HEX_LOCAL_BUILD=1) -> About: Local build, updates off; Version 2.3.1 (<commit>) with a Local badge; no checks, no channel row
+├── pacman (AUR hex-bin: /usr/bin, root-owned) or Nix store -> About: Updated by your package manager
+└── Anything else (a downloaded executable) -> sidebar, About: Download update
 ```
 
 The install kind comes from `updater/linux.rs`. The 2026-10-23 apollo

@@ -1101,10 +1101,10 @@ fn show(window: &rune::AppHandle<Ui>, destination: Destination) {
     bring_forward(window);
 }
 
-/// Opens the window where its footer shows the update check's outcome.
+/// Opens the window on About, which shows the update check's outcome.
 fn show_update_check(window: &rune::AppHandle<Ui>) {
     window.update(|ui, _| crate::rune_ui::update_check_asked(ui));
-    show(window, Destination::Settings);
+    show(window, Destination::About);
 }
 
 /// Opens the window in front, from the main thread.
@@ -1241,7 +1241,7 @@ impl Pump {
                     return;
                 };
                 let action = updater.menu_action();
-                // A check from the menu bar opens the window, whose footer
+                // A check from the menu bar opens the window on About, which
                 // says how it went: up to date or couldn't check (#1120).
                 if action == DesktopAction::CheckForUpdates {
                     show_update_check(&self.window);

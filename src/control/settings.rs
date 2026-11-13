@@ -371,7 +371,7 @@ const KEYS: &[Key] = &[
     key(
         "labs.release_notes_link",
         Kind::Bool,
-        "Labs: a link to this build's release notes in the sidebar footer",
+        "Labs: a link to this build's release notes in About",
     ),
     key(
         "labs.live_chapters",

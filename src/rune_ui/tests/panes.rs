@@ -54,7 +54,7 @@ fn settings_rows_follow_each_os() {
 
     let mut mac = runtime("mac-settings", true, TALL_SIZE);
     open_advanced(&mut mac, Pane::General);
-    for key in ["launch-at-login", "dock-icon", "update-status"] {
+    for key in ["launch-at-login", "dock-icon"] {
         assert!(present(&mac, key), "macOS shows {key}");
     }
     // Features own their settings: none of these are in General.
@@ -1251,6 +1251,13 @@ fn an_update_is_a_secondary_button_with_a_dot_and_its_own_label() {
     let mut rt = runtime("mac-update-ready", true, PANE_SIZE);
     assert!(rt.find("sidebar-update-control/dot").is_some());
     assert!(texts(&rt).iter().any(|text| text == "Restart to update"));
+    let update = element(&rt, "sidebar-update-control").rect;
+    let assistant = element(&rt, "nav-assistant").rect;
+    assert_eq!(
+        assistant[1] - (update[1] + update[3]),
+        sidebar::NAV_ROW_GAP,
+        "above Assistant, a row's gap apart"
+    );
     tap(&mut rt, "sidebar-update");
     assert!(matches!(
         sent(&rt),
@@ -1266,12 +1273,10 @@ fn an_update_is_a_secondary_button_with_a_dot_and_its_own_label() {
 #[test]
 fn release_notes_link_shows_only_with_its_lab() {
     let mut rt = runtime("portal", true, PANE_SIZE);
+    rt.state.pane = Pane::About;
     rt.state.build_preview = Some(BuildKind::Release);
     refresh(&mut rt);
-    assert!(
-        rt.find("release-notes").is_none(),
-        "off, the footer is unchanged"
-    );
+    assert!(rt.find("release-notes").is_none(), "off, About has no link");
 
     rt.state.settings.labs.release_notes_link = true;
     refresh(&mut rt);

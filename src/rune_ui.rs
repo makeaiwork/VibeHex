@@ -93,8 +93,9 @@ use crate::desktop::host::{
     DesktopAction, DesktopGrantedShortcut, DesktopListenerSnapshot, DesktopShortcuts,
     DesktopTranscriptionSnapshot, DesktopUpdateStatus,
 };
-use crate::desktop::i18n::{tr, tr_fill};
+use crate::desktop::i18n::tr;
 use crate::transcription::models::TranscriptionModelId;
+use about::BuildKind;
 use controls::{METRICS, Paint};
 use host::{Backend, Request, ShortcutTarget};
 use lists::{faded_body, scroll_body};
@@ -102,7 +103,7 @@ use onboarding_kit::live::Page;
 use scenes::{SCENES, Scene, fixture, mac_fixture, portal_fixture};
 use settings::Capture;
 pub(crate) use shortcut_rule::shortcut_rule;
-use sidebar::{BuildKind, Pane, pane_header, sidebar};
+use sidebar::{Pane, pane_header, sidebar};
 
 /// How long typing pauses before a text field's edit is saved.
 const DRAFT_DELAY: Duration = Duration::from_millis(250);
@@ -405,6 +406,9 @@ pub(crate) enum Destination {
     Meetings(Option<String>),
     Modes,
     History,
+    /// About, where the menu bar's update check says how it went.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    About,
 }
 
 /// Where `hex window show` opens the window. While Meetings is off, its
@@ -428,6 +432,7 @@ pub(crate) fn show(ui: &mut Ui, destination: Destination, tx: &mut Tx) {
         Destination::Meetings(_) => Pane::Meetings,
         Destination::Modes => Pane::Output,
         Destination::History => Pane::History,
+        Destination::About => Pane::About,
     };
     ui.close_dialogs();
     if pane.shown(ui) {
@@ -505,7 +510,7 @@ pub(crate) fn show_error(ui: &mut Ui, error: String) {
     ui.error = Some(error);
 }
 
-/// The menu bar asked for an update check: the footer says how it went.
+/// The menu bar asked for an update check: About says how it went.
 #[cfg(target_os = "macos")]
 pub(crate) fn update_check_asked(ui: &mut Ui) {
     ui.update_asked = true;
@@ -707,8 +712,8 @@ pub(crate) struct Ui {
     hud_saved: bool,  // HUD Lab saved Dot scope's tuning, until the next change.
     saved: usize,     // Settings saves and Quit Hex a fixture recorded.
     quit_requested: bool,
-    /// The person asked for an update check (the footer or the menu bar),
-    /// so the footer says how it went.
+    /// The person asked for an update check (About or the menu bar), so
+    /// About says how it went.
     update_asked: bool,
 }
 

@@ -49,7 +49,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Failure notices no    labs.failure_notices                   when a dictation fails, its explanation sits beside the HUD for about 6 s, or until the next capture starts
 ├── Live typing     no    labs.live_typing                       (Linux Wayland) provisional words as an underlined input-method preedit in the focused field; the final text is committed there instead of pasted
 ├── Settings search no    labs.settings_search                  a search field atop General filters its rows, Advanced's included
-├── Release notes link no labs.release_notes_link               the sidebar footer links this build's release notes: the fork's GitHub release for a VibeHex (`X.Y.Z-vibe.N`) or plain `X.Y.Z` version, nothing for any other
+├── Release notes link no labs.release_notes_link               About links this build's release notes under the update check: the fork's GitHub release for a VibeHex (`X.Y.Z-vibe.N`) or plain `X.Y.Z` version, nothing for any other
 ├── Live chapters   no    labs.live_chapters           (macOS)   chapters a meeting while it records, boundary pass after Stop
 ├── Vocabulary biasing no labs.vocabulary_biasing                Parakeet transcription biased toward the vocabulary (#452/#457)
 ├── Switch model with keyboard language  no  keyboard_model_switching.enabled  (macOS, Windows, X11)
@@ -124,7 +124,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Stop shortcut   no    labs.stop_shortcut + stop_hotkey (macOS, Return by default)
 │                                        another key finishes and pastes a recording a shortcut started, in any mode; General shows its recorder while on
 ├── Collapsible sidebar no labs.collapsible_sidebar + labs.sidebar_collapsed
-│                                        Close sidebar beside the logo folds the sidebar into a 56 pt column of icons (VibeHex's logo on top, turning into Open sidebar under the pointer, each pane, Labs, About, and at the bottom the update button, always there: Check for updates, an update to take with a dot, or the footer's state as its tooltip), each named by a tooltip; the choice is kept
+│                                        Close sidebar beside the logo folds the sidebar into a 56 pt column of icons (VibeHex's logo on top, turning into Open sidebar under the pointer, each pane, Labs, About, and at the bottom an update to take with a dot, only while there is one, above Assistant, whose face sits as far above the bottom edge as the logo below the top), each named by a tooltip; the choice is kept
 ├── Vocabulary in meeting notes no labs.meeting_notes_vocabulary (every OS with Meetings)
 │                                        final meeting titles and summaries (and Regenerate summary) read the vocabulary ahead of the transcript (#1154)
 ├── Meeting finished event no labs.meeting_finished_event (every OS with Meetings)
@@ -371,8 +371,8 @@ in a real window; the Labs page goldens were regenerated for macOS
 (`mac-labs`, `mac-labs-link`, light and dark), Windows (`windows-labs`,
 light), and Linux (`linux-labs`, light).
 
-Release notes link (`release-notes-link`, every OS): while on, the sidebar
-footer shows a small Release notes link under the version and update status.
+Release notes link (`release-notes-link`, every OS): while on, About's card
+shows a small Release notes link under the version and the update check.
 Only a release build shows it, and that exclusion is by build kind, not
 version string: local and test builds (`HEX_LOCAL_BUILD=1`,
 `HEX_TEST_BUILD=1`) get no link even when their version is plain. Then
@@ -381,9 +381,9 @@ version (`major.minor.patch-vibe.N`) or a plain `major.minor.patch` opens the
 fork's own GitHub release, `<RELEASES>/v<version>` (`RELEASES` in
 [notes.rs](../../src/updater/notes.rs), the fork repository's
 `/releases/tag`), and any other version, a dev one (`0.0.0-dev-N`) included,
-shows no link. The gate is the footer row
-([sidebar.rs](../../src/rune_ui/sidebar.rs) reads
-`labs::Feature::ReleaseNotesLink`), so off, the footer is exactly as before
+shows no link. The gate is the link's row
+([about/update.rs](../../src/rune_ui/about/update.rs) reads
+`labs::Feature::ReleaseNotesLink`), so off, About is exactly as before
 and What's new keeps its place under a staged update. Checks:
 `a_vibehex_release_opens_its_github_release` and
 `an_odd_version_has_no_release_notes` in

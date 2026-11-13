@@ -253,8 +253,8 @@ fn an_unconfirmed_portal_shortcut_is_not_called_refused() {
     assert!(rt.find("basics/refused").is_none());
 }
 
-/// #1120: a check the person asked for says how it went; the hourly check
-/// alone keeps the footer's words.
+/// #1120: About's check says how the person's check went; the hourly check
+/// alone changes no words. The sidebar holds no check.
 #[test]
 fn an_asked_update_check_says_how_it_went() {
     fn status(rt: &mut Runtime<Ui>, status: DesktopUpdateStatus) {
@@ -264,35 +264,72 @@ fn an_asked_update_check_says_how_it_went() {
             .expect("a service view")
             .update_status = status;
         rt.invalidate();
-        rt.frame(0.0);
+        settle(rt);
     }
+    let said = |rt: &Runtime<Ui>, words: &str| texts(rt).iter().any(|text| text == words);
     let mut rt = runtime("portal", true, PANE_SIZE);
+    assert!(
+        !said(&rt, "Check for updates"),
+        "the sidebar has no update check"
+    );
+    tap(&mut rt, "nav-about");
+    status(&mut rt, DesktopUpdateStatus::Checking);
+    assert!(said(&rt, "Check for updates"));
+    assert!(!said(&rt, "Checking for updates…"), "the hourly check");
     status(&mut rt, DesktopUpdateStatus::Current);
-    assert!(texts(&rt).iter().any(|text| text == "Check for updates"));
-    tap(&mut rt, "update-status");
+    assert!(!said(&rt, "VibeHex is up to date"), "the hourly check");
+    tap(&mut rt, "update-check");
     assert!(
         sent(&rt)
             .iter()
             .any(|request| matches!(request, Request::Desktop(DesktopAction::CheckForUpdates)))
     );
     status(&mut rt, DesktopUpdateStatus::Checking);
-    assert!(
-        texts(&rt)
-            .iter()
-            .any(|text| text == "Checking for updates…")
-    );
+    assert!(said(&rt, "Checking for updates…"));
+    assert!(said(&rt, "Check for updates"), "the button keeps its place");
     status(&mut rt, DesktopUpdateStatus::Current);
-    assert!(
-        texts(&rt)
-            .iter()
-            .any(|text| text == "VibeHex is up to date")
-    );
+    assert!(said(&rt, "VibeHex is up to date"));
     status(&mut rt, DesktopUpdateStatus::Failed);
+    assert!(said(&rt, "Couldn't check for updates"));
+    status(&mut rt, DesktopUpdateStatus::Managed);
+    assert!(said(&rt, "Managed by your organization"));
+    assert!(!said(&rt, "Check for updates"), "no check to run");
+    status(&mut rt, DesktopUpdateStatus::ReadyToRestart);
     assert!(
-        texts(&rt)
-            .iter()
-            .any(|text| text == "Couldn't check for updates")
+        rt.find("update-take").is_some(),
+        "the update to take, here too"
     );
+}
+
+/// The bottom item's glyph sits as far above the sidebar's bottom edge as
+/// the logo below its top, expanded and folded.
+#[test]
+fn the_sidebar_bottom_mirrors_the_logo() {
+    for scene in ["mac-settings", "sidebar-folded"] {
+        let rt = runtime(scene, true, PANE_SIZE);
+        let sidebar = element(&rt, "sidebar").rect;
+        // Linux ends the expanded sidebar with Quit, a row of words: its row
+        // mirrors the brand row instead.
+        let quit = host::QUIT_IN_WINDOW && scene == "mac-settings";
+        let (top, bottom) = if quit {
+            (element(&rt, "brand").rect, element(&rt, "quit").rect)
+        } else {
+            (
+                element(&rt, "logo").rect,
+                element(&rt, "nav-assistant/face").rect,
+            )
+        };
+        let top = top[1] - sidebar[1];
+        let bottom = sidebar[1] + sidebar[3] - (bottom[1] + bottom[3]);
+        assert!(
+            (top - bottom).abs() < 0.5,
+            "{scene}: the logo {top} from the top, the bottom item {bottom} from the bottom"
+        );
+        assert!(
+            rt.find("sidebar-update").is_none(),
+            "{scene}: no update to take, no update button"
+        );
+    }
 }
 
 #[test]
@@ -1142,8 +1179,12 @@ fn a_settings_row_shows_no_hover_or_press_of_its_own() {
 
 #[test]
 fn hover_leaves_at_once() {
-    let mut rt = runtime("mac-settings", true, PANE_SIZE);
-    for key in ["update-status", "dictation-hotkey", "microphone-control"] {
+    for (scene, key) in [
+        ("about-up-to-date", "release-notes"),
+        ("mac-settings", "dictation-hotkey"),
+        ("mac-settings", "microphone-control"),
+    ] {
+        let mut rt = runtime(scene, true, PANE_SIZE);
         let (x, y) = rt.find(key).unwrap_or_else(|| panic!("no element {key}"));
         rt.pointer_move(x, y);
         rt.frame(1.0 / 120.0);
@@ -3211,6 +3252,7 @@ fn goldens() {
         check_golden("portal", dark, GOLDEN_SIZE);
         for scene in [
             "about",
+            "about-up-to-date",
             "history",
             "captures",
             "mac-labs",

@@ -15,32 +15,33 @@ developer.
 
 VibeHex looks for a new version ten seconds after it starts and then every
 hour. The news comes from the fork's releases on GitHub
-(github.com/makeaiwork/VibeHex). To check right now, press "Check for updates" at
-the bottom of the sidebar; it then says "VibeHex is up to date" or "Couldn't
-check for updates".
+(github.com/makeaiwork/VibeHex). To check right now, open About (the last item after
+Labs) and press "Check for updates"; beside it VibeHex then says "VibeHex is
+up to date" or "Couldn't check for updates". Check for Updates in the menu
+bar opens About to say the same.
 
 When there is a newer version, VibeHex downloads it in the background and
 checks that the file is intact and properly signed. A window then says "VibeHex
 <version> is ready". It lists what changed in that release and in every one
 you skipped since yours, and offers **Restart to update** or **Not now**. Not
-now closes it; the sidebar keeps a Restart to update button, with a "What's
-new" link that opens the release notes page on GitHub. If you do nothing, a
+now closes it; the sidebar keeps a Restart to update button above Assistant
+(About has it too), with a "What's new" link that opens the release notes page on GitHub. If you do nothing, a
 Mac installs the update when you quit.
 
 ## When VibeHex cannot update itself
 
-The bottom of the sidebar says why:
+About says why, under the version:
 
-- "Download update": VibeHex sits where it cannot replace itself, so the button
-  opens a download page instead. On a Mac that is a folder you cannot write
+- "Download update" (in the sidebar too): VibeHex sits where it cannot
+  replace itself, so the button opens a download page instead. On a Mac that is a folder you cannot write
   to or an app opened straight from a download; on Linux, a plain downloaded
   file; on Windows, a copy the installer did not install, one placed outside your
   user folder, or one whose install record is from another installer. On
-  Windows a line under the button says which reason applies.
+  Windows a line under the sidebar's button says which reason applies.
 - "Updated by your package manager": your package manager, on Linux, does it,
-  and the sidebar shows its command once a newer version exists.
+  and About shows its command once a newer version exists.
 - "Managed by your organization": an administrator turned updates off.
-- A build made from source or locally does not check: the sidebar says it is a
+- A build made from source or locally does not check: About says it is a
   local build with updates off, or "Updated from your source checkout".
 
 ## Update channel
@@ -48,13 +49,15 @@ The bottom of the sidebar says why:
 In General › Advanced › Application › Update channel you can choose Stable or
 Dev, whenever VibeHex checks for updates. Dev is for newer builds and checks
 more often (every ten minutes, and when you open the window). Choosing
-another channel asks you to confirm with a "Switch to" button in the sidebar,
+another channel asks you to confirm with a "Switch to" button in the sidebar and About,
 such as "Switch to Stable" followed by the version. If unsure, stay on Stable.
 
 ## Release notes
 
 Each release's notes are on its page at github.com/makeaiwork/VibeHex/releases.
 "What's new" under Restart to update opens the page for the staged release.
+Labs › Release notes link adds a Release notes link to About for the version
+you run.
 
 You can also ask Assistant "What's new?": it knows every VibeHex release,
 tells what changed since the version you had before, and offers what suits
@@ -64,9 +67,9 @@ and a dot on Assistant in the sidebar leads there until you first open it.
 
 ## Version and About
 
-The sidebar's footer shows "Version" and its number. About, the last item after
-Labs, shows the same, says VibeHex is a fork of Hex, and has Open on GitHub for
-the source code.
+About, the last item after Labs, shows "Version" and its number with Check
+for updates under it, says VibeHex is a fork of Hex, and has Star on GitHub
+for the source code: if VibeHex is useful to you, a star helps others find it.
 
 ## Send feedback
 
@@ -78,4 +81,4 @@ says which build you use. About also has the developer's Telegram, @DenisKey.
 обновить приложение?»; «Что нового в последнем релизе?»; «Куда написать разработчику?»; «Как проверить
 обновления?».
 
-<!-- sources: src/updater.rs:1-60,62-135,240-300,640-725; src/updater/macos.rs:1-12; src/updater/windows.rs:50-92; src/updater/notes.rs:1-30,106-113; src/rune_ui/sidebar.rs:485-640; src/rune_ui/sidebar_update.rs:1-160; src/rune_ui/update_sheet.rs:1-30,120-200; src/rune_ui/general.rs:1111-1145; src/rune_ui/about.rs:40-125; docs/vibehex-releases.md:12-30; src/assistant/releases/mod.rs; src/rune_ui/assistant/whats_new.rs -->
+<!-- sources: src/updater.rs:1-60,62-135,240-300,640-725; src/updater/macos.rs:1-12; src/updater/windows.rs:50-92; src/updater/notes.rs:1-30,106-113; src/rune_ui/about/update.rs:1-215; src/rune_ui/sidebar.rs:540-560; src/rune_ui/sidebar_update.rs:1-160; src/rune_ui/update_sheet.rs:1-30,120-200; src/rune_ui/general.rs:1111-1145; src/rune_ui/about.rs:40-125; docs/vibehex-releases.md:12-30; src/assistant/releases/mod.rs; src/rune_ui/assistant/whats_new.rs -->
