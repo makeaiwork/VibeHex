@@ -85,6 +85,7 @@ impl<'a> Run<'a> {
             saved: &self.fixture.settings,
             now_ms: self.fixture.now_ms,
             on_device: false,
+            unreachable: false,
             busy: false,
             scene: false,
             // No release is counted as having changed what was answered.

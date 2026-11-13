@@ -24,7 +24,9 @@ Assistant                                        // rune_ui::assistant
 │   │           a chevron), with Russian as the recognition language "Or set it up like
 │   │           Denis, who makes VibeHex ›" (quiet text under it; no such
 │   │           row with Auto or another language), four example questions, and what
-│   │           the guide holds (Labs features and topics)
+│   │           the guide holds (Labs features and topics). With no model to
+│   │           ask, the same page without the examples and the guide line,
+│   │           over the Connect panel: setup needs no model
 │   ├── Feed    the person's bubble; the answer as Markdown beside the face,
 │   │           then "From the guide" chips naming the articles it drew on
 │   │           and "From the web" chips (one per site it cites, warm tint;
@@ -87,13 +89,17 @@ Assistant                                        // rune_ui::assistant
 │   │           the face reads (eyes drift along a line) until it lands
 │   ├── Field   "Ask about VibeHex or your recordings", the model and reasoning menus (for this
 │   │           conversation only), Send, or Stop while answering
-│   └── Connect with no model to ask, stands in for the field:
-│               Codex (Sign in with ChatGPT, or its install command),
+│   └── Connect with no model to ask, stands in for the field, under the
+│               start page or the conversation:
+│               Codex (Recommended; Sign in with ChatGPT, the main button
+│               on the start page and Secondary under a conversation, whose
+│               own card holds the main action; or its install command),
 │               OpenCode (Use OpenCode while it runs), OpenRouter or your
 │               own server and Built in (macOS) open Output › AI cleanup,
 │               or the Labs row while AI cleanup's lab is off
 └── Settings
-    ├── Model           Runs on (default "Same as AI cleanup"); Reasoning
+    ├── Model           Runs on (default "Same as AI cleanup"; Codex's default
+    │                   model, or its one row, tagged Recommended); Reasoning
     │                   while it runs on Codex
     ├── Conversations   Keep on this computer; Clear conversations… then
     │                   Really clear all?
@@ -548,7 +554,23 @@ the gate, saying who proposes (`Origin`: an answer, a plan, the preset).
   remote model (`setup_follow`) may reword, drop, or add questions; an
   added one names a Labs feature (the app's Yes / No) or a setting whose
   option values a save takes, else it is dropped. A built-in model, a
-  scene, or a bad reply gets the app's own questions.
+  model that can't be reached, a scene, or a bad reply gets the app's own
+  questions.
+- Setup needs no model. With the model Assistant would ask out of reach
+  (OpenCode not running or Codex not installed, as the Connect panel
+  looks; Codex signed out, as Output last read it: `ask::unreachable`,
+  `Env::unreachable`) it runs as on a built-in model: round one, the
+  app's follow-ups from the guide's `ask:` lines, and the app's plan, with
+  no request sent to fail. That plan ends "To ask Assistant questions,
+  connect a model below: Codex works best if you have ChatGPT Plus or
+  Pro.", or, when Codex was picked for cleanup or notes, "…: Codex works
+  best. You chose Codex, so it still needs signing in."; no card, since
+  Assistant's own model never changes through one. Its engine rows keep
+  what they do: an engine not ready starts unchecked with where to finish.
+- A model that failed a stage leaves a turn with Try again, which asks it
+  again; with the model out of reach by then, or after it failed twice in
+  a row, Try again writes the rounds and the plan itself, so a setup
+  never stalls for good (`a_stalled_setup_goes_on_without_a_model`).
 - The plan (`setup::plan`), the app's rules first, at most 24 rows:
   - speech model: one that already handles the language stays. Code in
     Russian or Russian with tech terms: Orukeet or Parakeet v3, else
@@ -1268,7 +1290,7 @@ each with the parse it must make); scenes `assistant`,
 `assistant-applied`, `assistant-vocab-card`, `assistant-vocab-applied`,
 `assistant-change-both`, `assistant-change-coming`, `assistant-whats-new`,
 `assistant-updated`, setup's
-`assistant-setup-ask`, `assistant-setup-follow`, `assistant-setup-plan`,
+`assistant-setup-ask`, `assistant-setup-unreachable`, `assistant-setup-follow`, `assistant-setup-plan`,
 `assistant-setup-kept`, `assistant-setup-result`, `assistant-setup-preset`,
 `assistant-setup-preset-shortcuts`, the terms' `assistant-plan-terms`,
 `assistant-plan-terms-open`, `assistant-setup-preset-terms`
@@ -1410,6 +1432,7 @@ The other scenes, each through `every_scene_is_laid_out_whole`:
 | Vocabulary card | `assistant-vocab-card`, `assistant-vocab-applied` |
 | What's new | `assistant-whats-new`, `assistant-updated` |
 | Setup's first round, plan, and result | `assistant-setup-ask`, `assistant-setup-plan`, `assistant-setup-kept`, `assistant-setup-result` |
+| Setup with no model connected | `assistant-setup-unreachable` |
 | Returning setup's plan | `assistant-setup-returning-plan` |
 | Set me up like Denis | `assistant-setup-preset`, `assistant-setup-preset-shortcuts`, `assistant-setup-preset-terms` |
 | Long content, with golden images | `assistant-long-follow-german`, `assistant-long-plan-russian`, `assistant-long-choice-russian` |

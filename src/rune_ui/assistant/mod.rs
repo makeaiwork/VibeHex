@@ -15,7 +15,7 @@ mod card_diff;
 mod changes;
 mod companion;
 mod composer;
-mod connect;
+pub(super) mod connect;
 pub(super) mod dots;
 pub(super) mod face;
 #[cfg(test)]
@@ -259,8 +259,8 @@ pub(super) fn pane(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> (Vec<
 
 /// The feed over the field, both centred.
 fn chat(ui: &Ui, p: Paint, still: bool, layer: &mut Vec<El>) -> El {
-    // With no model to ask, the panel stands in for the field (and for the
-    // greeting of a new conversation).
+    // With no model to ask, the panel stands in for the field, under the
+    // conversation or a new one's start page: setup needs no model.
     let connect = connect::needed(ui);
     // The conversation is Assistant's: its own words in its language (the
     // dictation language when set); places it names keep the window's.

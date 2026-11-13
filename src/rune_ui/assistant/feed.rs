@@ -31,8 +31,9 @@ const EXAMPLES: [&str; 4] = [
 /// The face beside a reply.
 const FACE: f32 = 20.0;
 
-/// The open conversation, or the start of a new one (`greet`).
-pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool, layer: &mut Vec<El>) -> El {
+/// The open conversation, or the start of a new one. `asking`: a model
+/// can be asked, so the start page offers questions too.
+pub(super) fn feed(ui: &Ui, p: Paint, asking: bool, still: bool, layer: &mut Vec<El>) -> El {
     let pane = &ui.assistant;
     let mut feed = col().key("assistant-feed").gap(18.0);
     if let Some(error) = &pane.error {
@@ -45,18 +46,10 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool, layer: &mut Vec<
         );
     }
     let Some(conversation) = pane.conversation() else {
-        return if greet {
-            feed.child(start(ui, p))
-        } else {
-            feed
-        };
+        return feed.child(start(ui, p, asking));
     };
     if conversation.turns.is_empty() && pane.consent.is_none() && pane.answering.is_none() {
-        return if greet {
-            feed.child(start(ui, p))
-        } else {
-            feed
-        };
+        return feed.child(start(ui, p, asking));
     }
     let known = super::places::Known::of(ui);
     for (index, turn) in conversation.turns.iter().enumerate() {
@@ -79,9 +72,11 @@ pub(super) fn feed(ui: &Ui, p: Paint, greet: bool, still: bool, layer: &mut Vec<
     feed
 }
 
-/// A greeting, a way into what changed after an update, setup, and the
-/// example questions, two by two.
-fn start(ui: &Ui, p: Paint) -> El {
+/// A greeting, a way into what changed after an update, setup, and, while
+/// a model can be asked (`asking`), the example questions two by two. With
+/// none, setup still shows: it needs no model, and the Connect panel
+/// follows for questions.
+fn start(ui: &Ui, p: Paint, asking: bool) -> El {
     let mut grid = col().key("examples").gap(8.0);
     for (index, pair) in EXAMPLES.chunks(2).enumerate() {
         let mut line = row().key(format!("line{index}")).gap(8.0);
@@ -114,8 +109,8 @@ fn start(ui: &Ui, p: Paint) -> El {
         .children(
             crate::assistant::setup::preset::offered(&ui.settings).then(|| like_denis(p)),
         )
-        .child(grid.mt(8.0))
-        .child(knows(p))
+        .children(asking.then(|| grid.mt(8.0)))
+        .children(asking.then(|| knows(p)))
 }
 
 /// "Set VibeHex up for me": setup's questions, at once.

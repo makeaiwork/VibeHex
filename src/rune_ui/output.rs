@@ -865,6 +865,11 @@ pub(super) fn ai_cleanup_codex_fixture(ui: &mut Ui) {
     codex_cleanup::fixture(&mut ui.output.cleanup.codex);
 }
 
+/// Codex installed and signed out, as Output last read it.
+pub(super) fn codex_signed_out(ui: &mut Ui) {
+    codex_cleanup::signed_out(&mut ui.output.cleanup.codex);
+}
+
 /// Labs › Clean up on your own server, built in, its model downloading.
 pub(super) fn ai_cleanup_local_fixture(ui: &mut Ui) {
     ai_cleanup::fixture(ui);

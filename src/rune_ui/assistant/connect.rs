@@ -47,6 +47,12 @@ pub(in super::super) struct Reach {
 pub(super) fn needed(ui: &Ui) -> bool {
     let (engine, effort) = super::chosen(ui);
     let engine = super::engine(&ui.settings, engine.as_deref(), effort.as_deref());
+    unreachable(ui, &engine)
+}
+
+/// Whether `engine` can't answer, as last looked: OpenCode isn't running,
+/// or Codex isn't installed. Unknown until looked.
+pub(super) fn unreachable(ui: &Ui, engine: &Engine) -> bool {
     let reach = &ui.assistant.reach;
     match engine {
         Engine::OpenCode(_) => reach.opencode == Some(false),
@@ -151,7 +157,17 @@ pub(super) fn panel(ui: &Ui, p: Paint) -> El {
                 p,
                 "sign-in",
                 tr("Sign in with ChatGPT"),
-                ButtonKind::Primary,
+                // Under a conversation, its own card holds the screen's
+                // one main action.
+                if ui
+                    .assistant
+                    .conversation()
+                    .is_some_and(|open| !open.turns.is_empty())
+                {
+                    ButtonKind::Secondary
+                } else {
+                    ButtonKind::Primary
+                },
                 |ui, _| sign_in(ui),
             ),
         )
@@ -295,5 +311,45 @@ pub(super) fn open_cleanup(ui: &mut Ui, tx: &mut Tx) {
             ..Default::default()
         };
         labs::reveal(ui, &link, tx);
+    }
+}
+
+/// Setup run to its plan with nothing connected (a scene): round one as
+/// preselected but dictation cleaned up on Codex, Yes to each round's
+/// first follow-up, the app's own plan (Codex signed out: unticked,
+/// with its sign-in) ending on where to connect a model, and this panel under it.
+pub(in super::super) fn setup_fixture(ui: &mut Ui) {
+    use crate::assistant::setup::flow::{self, Step};
+    super::fixture::connect(ui);
+    super::super::output::codex_signed_out(ui);
+    super::ask::begin(ui);
+    for _ in 0..8 {
+        let Some(open) = ui.assistant.conversation() else {
+            return;
+        };
+        let conversation = open.id;
+        match flow::step(&open.turns, ui.assistant.store.setups()) {
+            Step::Basics { turn, .. } => {
+                let at = super::ask::At { conversation, turn };
+                let asks = &open.turns[turn].asks;
+                let empty = asks
+                    .iter()
+                    .position(|ask| ask.id == "use" && ask.chosen.is_empty());
+                let cleanup = asks.iter().position(|ask| ask.id == "cleanup");
+                if let Some(number) = empty {
+                    super::ask::pick(ui, at, number, "dictation_any");
+                }
+                if let Some(number) = cleanup {
+                    super::ask::pick(ui, at, number, "codex");
+                }
+                super::ask::answered(ui, at, false);
+            }
+            Step::Follow { turn, .. } => {
+                let at = super::ask::At { conversation, turn };
+                super::ask::pick(ui, at, 0, "yes");
+                super::ask::answered(ui, at, false);
+            }
+            _ => return,
+        }
     }
 }

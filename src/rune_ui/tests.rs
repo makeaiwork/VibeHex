@@ -3266,6 +3266,7 @@ fn goldens() {
         "assistant-change-both",
         "assistant-change-coming",
         "assistant-setup-ask",
+        "assistant-setup-unreachable",
         "assistant-setup-follow",
         "assistant-setup-follow-ru",
         "assistant-setup-plan",

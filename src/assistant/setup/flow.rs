@@ -127,8 +127,12 @@ pub struct Env<'a> {
     pub saved: &'a AppSettings,
     pub now_ms: u64,
     /// The app writes the follow-ups and the plan itself: a built-in
-    /// model, or a scene.
+    /// model, a model that can't be reached now, or a scene.
     pub on_device: bool,
+    /// No model can be reached now (OpenCode isn't running, Codex isn't
+    /// installed or is signed out): the app writes setup itself, and its
+    /// plan ends pointing at the Connect panel under it.
+    pub unreachable: bool,
     /// A model is answering: nothing more can be asked now.
     pub busy: bool,
     /// A scene: nothing is asked again.
@@ -649,9 +653,13 @@ impl Flow {
         } else {
             tr("Everything already fits how you work.")
         };
+        let answer = match connect_line(&answers, env) {
+            Some(line) => format!("{answer}\n\n{line}"),
+            None => answer.to_owned(),
+        };
         let settled = card.is_none();
         let plan = Turn {
-            answer: answer.to_owned(),
+            answer,
             answers,
             cards: card.into_iter().collect(),
             created_ms: env.now_ms,
@@ -664,7 +672,9 @@ impl Flow {
         }
     }
 
-    /// Asks an answers turn again: its follow-ups, or its plan.
+    /// Asks an answers turn again: its follow-ups, or its plan. With no
+    /// model to reach, or after a model failed twice in a row, the app
+    /// writes them itself, so a setup never stalls for good.
     fn again(&mut self, turn: usize, env: &Env, out: &mut Vec<Effect>) {
         if env.busy || env.scene {
             return;
@@ -673,6 +683,21 @@ impl Flow {
             return;
         };
         let (answers, line) = (asked.answers.clone(), asked.question.clone());
+        if env.on_device || self.failed_twice(turn) {
+            let own = Env {
+                on_device: true,
+                ..*env
+            };
+            if asked.follow {
+                let context = self.context(&own);
+                let candidates = follow::candidates(&answers, &context.settings, &context.state);
+                if !candidates.is_empty() {
+                    let before = follow::before(&answers, &context.settings, &context.state);
+                    return self.round(candidates, before, &own, out);
+                }
+            }
+            return self.plan(&own, out);
+        }
         let stage = if asked.follow {
             let context = self.context(env);
             Stage::Follow {
@@ -693,6 +718,19 @@ impl Flow {
             }
         };
         self.emit(Effect::Ask { line, stage }, out);
+    }
+
+    /// Whether turn `turn` and the one before it are both a model's failed
+    /// try at the same stage: asked again once already.
+    fn failed_twice(&self, turn: usize) -> bool {
+        let failed = |at: usize| {
+            self.turns
+                .get(at)
+                .filter(|turn| turn.error.is_some() && !turn.answers.is_empty())
+                .map(|turn| turn.follow)
+        };
+        turn.checked_sub(1)
+            .is_some_and(|before| failed(turn).is_some() && failed(turn) == failed(before))
     }
 
     /// Looks again at what came since: a returning setup's opening asked
@@ -729,6 +767,28 @@ impl Flow {
         let line = String::new();
         self.emit(Effect::Ask { line, stage }, out);
     }
+}
+
+/// The plan's last line when no model can be reached: questions need one
+/// connected, Codex first, and Codex chosen here still needs signing in.
+/// Assistant's own model never changes through a card.
+fn connect_line(answers: &[super::Answer], env: &Env) -> Option<&'static str> {
+    if !env.unreachable {
+        return None;
+    }
+    let codex = answers.iter().any(|answer| {
+        matches!(answer.id.as_str(), "cleanup" | "notes")
+            && answer.chosen.iter().any(|chosen| chosen == "codex")
+    });
+    Some(if codex {
+        tr(
+            "To ask Assistant questions, connect a model below: Codex works best. You chose Codex, so it still needs signing in.",
+        )
+    } else {
+        tr(
+            "To ask Assistant questions, connect a model below: Codex works best if you have ChatGPT Plus or Pro.",
+        )
+    })
 }
 
 #[cfg(test)]
