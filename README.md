@@ -63,11 +63,18 @@ them on. Russian vibe coding turns on most of them in one go.
   <img alt="Assistant's start page: Set VibeHex up for me, and example questions" src="docs/images/readme/assistant-start-light.png">
 </picture>
 
-**Answers with links.** The steps come with links that open the right place in the app.
+**Answers with links.** The steps come with links that open the right place in the app, lit up, with a way back.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-answer-dark.png">
-  <img alt="Assistant answering how to make Zoom calls record by themselves, with links to Labs and Meetings settings" src="docs/images/readme/assistant-answer-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-links-dark.gif">
+  <img alt="Assistant explaining how to teach it a word; its links open General, Vocabulary and the Labs card, each lit up" src="docs/images/readme/assistant-links-light.gif">
+</picture>
+
+**Your recordings.** Ask about your meetings and files in plain words; each point links to the line it came from.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-recordings-dark.gif">
+  <img alt="Assistant listing what was promised this month from a meeting and a file; each numbered link opens the recording on the cited line" src="docs/images/readme/assistant-recordings-light.gif">
 </picture>
 
 **Set VibeHex up for me.** A few questions about how you work: what you use it for, the language you speak, where cleanup and meeting notes run.
@@ -84,39 +91,11 @@ them on. Russian vibe coding turns on most of them in one go.
   <img alt="Suggested changes from setup, grouped by area, with the reason for each and Apply" src="docs/images/readme/assistant-plan-light.png">
 </picture>
 
-**Files.** Drop audio and video files to transcribe them, clean them up, and
-  rework the text with your own requests.
-- **Meetings you can ask about.** Ask questions about a meeting in a Requests
-  tab. Notes are written even when Apple Intelligence is off, and the
-  transcript can be cleaned up turn by turn. Listen to a meeting or a file
-  from its transcript: the line playing lights up, and a click on a line plays
-  from there. Yandex Telemost is detected alongside Zoom, Meet and the rest.
-- **Quiet while you dictate, even on a monitor.** Mute and Lower audio also
-  work when macOS can't set your output's volume, as with a display's
-  speakers. They lower Music and Spotify, or, with Lower every app on, every
-  app.
-- **Small things that add up.** A separate key, such as Return, can finish a
-  dictation. The sidebar folds into a column of icons. Every update shows what
-  changed, including the releases you skipped. Everything VibeHex adds is
-  translated into Russian, like the rest of the interface.
-
-Most of these live in Labs, marked with a star, and stay off until you turn
-them on. Russian vibe coding turns on most of them in one go.
-
-## Screenshots
-
-**Assistant.** Ask how to do something and get the steps, with links that open the right place.
+**Listen from the transcript.** The line playing lights up; click any line to play from there.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-answer-dark.png">
-  <img alt="Assistant answering how to make Zoom calls record by themselves, with links to Labs and Meetings settings" src="docs/images/readme/assistant-answer-light.png">
-</picture>
-
-**Assistant on your recordings.** Ask about your meetings and files; each point links to the recording it came from.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/assistant-recordings-dark.png">
-  <img alt="Assistant summing up budget decisions from four meetings and a file, with numbered links to each recording" src="docs/images/readme/assistant-recordings-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/meetings-follow-dark.gif">
+  <img alt="A meeting transcript with the player: clicking a line plays from it, and the word playing lights up" src="docs/images/readme/meetings-follow-light.gif">
 </picture>
 
 **Files.** A transcript you can play: the line playing lights up, and you can ask about the text below it.
