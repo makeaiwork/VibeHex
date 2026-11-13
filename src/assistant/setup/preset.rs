@@ -91,13 +91,33 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
             .map(|term| line(vocab::KEY, term.clone())),
     );
     let gate = Gate::new(settings, state);
+    // The language is checked against the speech model the preset brings,
+    // which downloads first: Russian fits Orukeet, not the English model a
+    // fresh install starts on.
+    let with_model = preset
+        .settings
+        .get("transcription.model")
+        .and_then(Value::as_str)
+        .and_then(|model| model.parse().ok())
+        .map(|model| {
+            let mut settings = settings.clone();
+            settings.transcription.model = model;
+            settings
+        });
+    let language_gate = with_model
+        .as_ref()
+        .map(|settings| Gate::new(settings, state));
     let mut planned = Planned::default();
     let mut items = Vec::new();
     let mut terms = Vec::new();
     let mut kept = Vec::new();
     for proposal in lines {
         let key = proposal.key.clone();
-        let resolved = changes::resolve(std::slice::from_ref(&proposal), &gate, Origin::Preset);
+        let gate = match (&language_gate, key.as_str()) {
+            (Some(language_gate), "transcription.language") => language_gate,
+            _ => &gate,
+        };
+        let resolved = changes::resolve(std::slice::from_ref(&proposal), gate, Origin::Preset);
         for dropped in &resolved.dropped {
             match &dropped.why {
                 // The same already: kept, unless it is a feature left off.
@@ -113,6 +133,11 @@ pub fn plan(preset: &Preset, settings: &AppSettings, state: &State) -> Planned {
                     }
                 }
                 Why::Has => {}
+                // Turning off what this computer doesn't have (another
+                // OS's lab, the Notch indicator without a notch) loses
+                // nothing: not worth a word.
+                Why::Elsewhere(_) | Why::Hardware if proposal.value == Some(Value::Bool(false)) => {
+                }
                 _ => planned.missing.push(name(&key, settings)),
             }
         }
@@ -581,6 +606,22 @@ mod tests {
                 .and_then(|all| all.iter().find(|choice| choice["key"] == app))
                 .map(|choice| choice["policy"].clone());
             assert_eq!(policy, Some(Value::String("always_record".into())), "{app}");
+        }
+    }
+
+    /// Every setting the preset carries is one a plan can save, and on a
+    /// Mac nothing it carries is named as missing: turning off another
+    /// OS's lab, or one this Mac's hardware can't use, loses nothing.
+    #[test]
+    fn nothing_the_preset_carries_is_missing_on_a_mac() {
+        let preset = denis();
+        for key in preset.settings.keys() {
+            assert!(!changes::catalog::never(key), "{key}");
+        }
+        if cfg!(target_os = "macos") {
+            // `mac()` has no notch and no extra mouse buttons.
+            let planned = plan(&preset, &AppSettings::default(), &mac());
+            assert!(planned.missing.is_empty(), "{:?}", planned.missing);
         }
     }
 

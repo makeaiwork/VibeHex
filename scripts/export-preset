@@ -82,7 +82,6 @@ ALLOWED = {
     "meetings.show_recording_indicator",
     "meetings.retention",
     # Files: engines, efforts, toggles.
-    "files.transcription",
     "files.language",
     "files.use_vocabulary",
     "files.show_timestamps",

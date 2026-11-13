@@ -9,10 +9,6 @@
     "files.cleanup_engine": "codex:gpt-6.1-terra",
     "files.request_effort": "medium",
     "files.show_timestamps": true,
-    "files.transcription": {
-      "model": "orukeet",
-      "language": "ru"
-    },
     "files.use_default_prompt": true,
     "files.use_vocabulary": true,
     "history_retention": "forever",
