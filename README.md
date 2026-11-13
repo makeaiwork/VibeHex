@@ -72,6 +72,15 @@ play from there. Works for meetings and files.
   app and press a shortcut: it goes into Vocabulary with the right spelling
   and is replaced where you selected it.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/quick-add-dark.gif">
+  <img alt="In a notes app, the misheard words cloud code are selected and Option+Shift+A opens the Add to vocabulary card; Claude Code is typed and added, the text now reads Claude Code, and the term is in Vocabulary" src="docs/images/readme/quick-add-light.gif">
+</picture>
+
+**Labs › Add to vocabulary from a selection.** Select the misheard words in
+any app and press Option+Shift+A (the default shortcut), type the right
+spelling, then Add.
+
 ## Small things that add up
 
 - **Quiet while you dictate, even on a monitor.** Mute and Lower audio also
@@ -142,10 +151,10 @@ until you turn it on. Russian vibe coding turns on most of it in one go.
 <a href="docs/images/readme/vocabulary-dark.png">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/vocabulary-dark.png">
-  <img width="100%" alt="Vocabulary: terms with how they sound when misheard" src="docs/images/readme/vocabulary-light.png">
+  <img width="100%" alt="Vocabulary in Text view: one term per line with how it sounds when misheard" src="docs/images/readme/vocabulary-light.png">
 </picture>
 </a>
-<br><b>Vocabulary.</b> Each term with how it sounds when misheard. It also opens as plain text, one term per line.
+<br><b>Vocabulary.</b> Text view (Labs): one term per line, with how it sounds when misheard.
 </td>
 <td width="50%" valign="top">
 <a href="docs/images/readme/labs-dark.png">

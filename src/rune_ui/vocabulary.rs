@@ -15,6 +15,8 @@ use super::lists::remove_button;
 use crate::desktop::i18n::{tr, tr_fill, tr_named};
 use crate::dictation::vocabulary::{self, VocabularyEntry};
 
+pub(super) mod card;
+
 const MODAL_WIDTH: f32 = 620.0;
 /// Text view's widest: wider than the rows, so long spelling lists fit on
 /// a line; a narrower window narrows it.
@@ -60,6 +62,8 @@ pub(super) struct VocabularyEditor {
     /// shows it instead of its rows. Save replaces the list with it; Cancel
     /// and Escape leave the list as it was.
     text: Option<TextEdit>,
+    /// The `vocabulary-card` scenes' card, held in the window.
+    pub(super) card: Option<card::Scene>,
 }
 
 impl VocabularyEditor {
@@ -372,7 +376,7 @@ fn term_row(p: Paint, entry: &TermRow, added: bool) -> El {
 
 pub(super) fn modal(ui: &Ui, p: Paint) -> Option<[El; 2]> {
     if !ui.vocabulary.open {
-        return None;
+        return card::scene(ui, p);
     }
     let c = &p.k.c;
     let rows = col().key("terms").px(SIDE_ROOM).children(
@@ -593,8 +597,42 @@ pub(super) fn fixture(ui: &mut Ui, filled: bool) {
 /// holding the whole Russian starter list, so the field fills the sheet and
 /// scrolls, with Cancel and Save below it.
 pub(super) fn text_fixture(ui: &mut Ui) {
+    text_list_fixture(ui, include_str!("../../docs/vocabulary/vibe-coding-ru.txt"));
+}
+
+/// Text view open over a filled list, holding English developer terms and
+/// how speech models mishear them.
+pub(super) fn english_text_fixture(ui: &mut Ui) {
+    text_list_fixture(
+        ui,
+        "Claude Code | cloud code, clawed code\n\
+         GitHub | git hub\n\
+         Kubernetes | cube or netties, cooper netties\n\
+         kubectl | cube control, cube cuddle\n\
+         MCP | m c p, em see pee\n\
+         PostgreSQL | postgres q l, post gress\n\
+         SQLite | sequel lite\n\
+         TypeScript | type script\n\
+         GraphQL | graph q l\n\
+         OAuth | oh auth\n\
+         JSON | jason\n\
+         YAML | yamel\n\
+         nginx | engine x\n\
+         Redis | read is, reddish\n\
+         Supabase | soup a base, super base\n\
+         Next.js | next js, next jay ess\n\
+         pnpm | p n p m\n\
+         Vite | veet\n\
+         Tailwind | tail wind\n\
+         Terraform | terra form\n\
+         WebSocket | web socket\n\
+         OpenCode | open code\n",
+    );
+}
+
+fn text_list_fixture(ui: &mut Ui, list: &str) {
     ui.settings.labs.vocabulary_paste_list = true;
-    let (entries, _) = parsed(include_str!("../../docs/vocabulary/vibe-coding-ru.txt"));
+    let (entries, _) = parsed(list);
     ui.vocabulary.text = Some(TextEdit::new(vocabulary::to_list(&entries)));
 }
 

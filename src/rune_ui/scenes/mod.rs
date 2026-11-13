@@ -477,6 +477,26 @@ pub(super) const SCENES: &[Scene] = &[
         *ui = mac_fixture();
         vocabulary::fixture(ui, false);
     }),
+    ("mac-settings-vocabulary-text-en", |ui| {
+        *ui = mac_fixture();
+        vocabulary::fixture(ui, true);
+        vocabulary::english_text_fixture(ui);
+    }),
+    // Labs › Add to vocabulary from a selection: the card the shortcut opens
+    // over another app, on the window's backdrop.
+    ("vocabulary-card", |ui| {
+        *ui = mac_fixture();
+        vocabulary::card::fixture(ui, "", None);
+    }),
+    ("vocabulary-card-filled", |ui| {
+        *ui = mac_fixture();
+        vocabulary::card::fixture(ui, "Claude Code", None);
+    }),
+    // A word AI cleanup wrote: Heard is what transcription heard.
+    ("vocabulary-card-cleanup", |ui| {
+        *ui = mac_fixture();
+        vocabulary::card::fixture(ui, "Claude Code", Some("Cloud Code"));
+    }),
     // Cohere ignores the list: the row and the sheet say so.
     ("vocabulary-unused", |ui| {
         *ui = portal_fixture();
