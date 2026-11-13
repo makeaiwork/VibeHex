@@ -505,6 +505,13 @@ pub(in super::super) fn setup_preset(ui: &mut Ui) {
     dated(ui);
 }
 
+/// His plan on a computer without the Codex CLI: its Codex rows show
+/// unchecked, with the command that installs it.
+pub(in super::super) fn setup_preset_codex(ui: &mut Ui) {
+    setup_preset(ui);
+    ui.assistant.codex_as = crate::assistant::changes::state::Codex::Missing;
+}
+
 /// His plan put off, then his shortcuts and whether they suit.
 pub(in super::super) fn setup_preset_shortcuts(ui: &mut Ui) {
     open(ui);

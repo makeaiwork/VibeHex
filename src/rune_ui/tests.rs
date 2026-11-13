@@ -3299,7 +3299,11 @@ fn goldens() {
     }
     // Denis's preset is taller than the window: tall enough here that its
     // Vocabulary row shows, folded and with the last of its terms.
-    for scene in ["assistant-setup-preset", "assistant-setup-preset-terms"] {
+    for scene in [
+        "assistant-setup-preset",
+        "assistant-setup-preset-codex",
+        "assistant-setup-preset-terms",
+    ] {
         check_golden(scene, false, GOLDEN_SIZE);
         check_golden(scene, true, GOLDEN_SIZE);
     }

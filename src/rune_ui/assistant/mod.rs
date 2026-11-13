@@ -155,6 +155,8 @@ pub(in super::super) struct AssistantPane {
     pub(super) fixture: bool,
     /// A scene's screens and pointing devices; unknown otherwise.
     pub(super) hardware: crate::desktop::hardware::Hardware,
+    /// Where Codex stands in a scene, which never looks.
+    pub(super) codex_as: crate::assistant::changes::state::Codex,
     /// A scene's clock, so its times read the same on any day.
     pub(super) fixed_now: Option<u64>,
     /// The version this install updated to lately, and when (`whats_new`).
@@ -352,6 +354,11 @@ pub(super) fn poll(ui: &mut Ui, tx: &mut Tx) -> bool {
     }
     // Opened after an update: on the start page, before it draws.
     changed |= whats_new::opened(ui);
+    // A card waits on a Codex row: look whether Codex is installed and
+    // signed in, as Output does while it shows Codex.
+    if ui.pane != Pane::Output {
+        changed |= super::output::poll_codex(ui);
+    }
     let keep = ui.settings.assistant.keep_conversations;
     let pane = &mut ui.assistant;
     // Keeping turned on or off, here or from `hex settings`.
@@ -426,6 +433,35 @@ pub(in super::super) fn set_up(ui: &mut Ui, tx: &mut Tx) {
 
 /// Whether a step line still going on shows anywhere: an answer's in
 /// Assistant, or a question's in Files or Meetings' Requests.
+/// Whether a card still to decide in the open conversation runs a row on
+/// Codex: then the pane needs to know whether Codex is installed and
+/// signed in, whatever dictation cleans up on.
+pub(in super::super) fn wants_codex(ui: &Ui) -> bool {
+    use crate::assistant::changes::{CardKind, Decision, catalog};
+    if ui.pane != Pane::Assistant || ui.labs_open {
+        return false;
+    }
+    let Some(conversation) = ui.assistant.open.and_then(|id| ui.assistant.store.get(id)) else {
+        return false;
+    };
+    conversation
+        .turns
+        .iter()
+        .flat_map(|turn| &turn.cards)
+        .filter(|card| matches!(card.decision, Decision::Proposed))
+        .any(|card| {
+            let options = match &card.kind {
+                CardKind::Choice { options, .. } => options.as_slice(),
+                _ => &[],
+            };
+            card.items.iter().any(|item| {
+                std::iter::once(&item.to)
+                    .chain(options)
+                    .any(|to| catalog::needs_codex(&item.key, to))
+            })
+        })
+}
+
 pub(super) fn steps_live(ui: &Ui) -> bool {
     // Before the first words come, a line always goes on ("Looking in the
     // guide", a search, "No reply yet, asking again"); so does "Preparing a

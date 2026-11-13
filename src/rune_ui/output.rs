@@ -75,6 +75,12 @@ impl OutputPane {
     }
 }
 
+/// Looks at Codex for Assistant while another pane shows (`codex_cleanup`
+/// decides whether anything needs it); true when what shows changed.
+pub(super) fn poll_codex(ui: &mut Ui) -> bool {
+    codex_cleanup::poll(ui)
+}
+
 /// Steps the agent card's examples to `clock`; true when they changed.
 pub(super) fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
     let (mut changed, wait) = examples::poll(&mut ui.output.examples, clock);
@@ -894,6 +900,21 @@ pub(super) fn trust_fixture(ui: &mut Ui) {
 /// until it did (Assistant's cards never start Codex to ask).
 pub(super) fn codex_signed_in(ui: &Ui) -> Option<bool> {
     ui.output.cleanup.codex.signed_in()
+}
+
+/// Whether Output's last look found no Codex CLI.
+pub(super) fn codex_missing(ui: &Ui) -> bool {
+    ui.output.cleanup.codex.missing()
+}
+
+/// Whether Output's last look at Codex failed for another reason.
+pub(super) fn codex_failed(ui: &Ui) -> bool {
+    ui.output.cleanup.codex.failed()
+}
+
+/// Looks at Codex again after a look that found no CLI.
+pub(super) fn codex_look_again(ui: &mut Ui) {
+    ui.output.cleanup.codex.look_again();
 }
 
 #[cfg(test)]

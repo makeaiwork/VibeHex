@@ -27,10 +27,11 @@ use super::value::{self, Change, Slot};
 use crate::assistant::changes::catalog::{self, Class, Permission};
 use crate::assistant::changes::counts;
 use crate::assistant::changes::names;
-use crate::assistant::changes::state::{self, Row, Shown};
+use crate::assistant::changes::state::{self, Codex, Row, Shown};
 use crate::assistant::changes::{Card, CardKind, Decision, Item, vocab};
 use crate::assistant::setup;
 use crate::desktop::i18n::{tr, tr_fill, tr_named, tr_window};
+use crate::dictation::cleanup_server::codex as cli;
 use crate::transcription::models;
 
 /// Whether the open conversation ends in a plan still to decide: the
@@ -62,7 +63,9 @@ pub(super) fn waiting(ui: &Ui) -> bool {
 
 /// The plan at `at`; `primary` when its Apply is the screen's one.
 pub(super) fn view(ui: &Ui, p: Paint, at: At, primary: bool, layer: &mut Vec<El>) -> Option<El> {
-    let card = act::card(ui, at)?;
+    // Counted and listed as it would save: a Codex row waiting for Codex
+    // as unchecked.
+    let card = &act::as_saved(ui, act::card(ui, at)?);
     let shown = act::shown(ui, at)?;
     let live = act::live(ui, at);
     let c = &p.k.c;
@@ -487,9 +490,7 @@ fn mark(glyph: &'static Icon, color: rune::Color) -> El {
 fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<El> {
     let mut lines = Vec::new();
     match shown {
-        Row::Open {
-            sign_in, shorter, ..
-        } => {
+        Row::Open { codex, shorter, .. } => {
             if let Some(size) = download_size(item) {
                 lines.push(
                     row()
@@ -505,27 +506,8 @@ fn takes(ui: &Ui, p: Paint, item: &Item, shown: &Row, included: &[&str]) -> Vec<
                         .child(text(size).key("size").font(DESCRIPTION).color(p.warning())),
                 );
             }
-            if *sign_in {
-                lines.push(
-                    row()
-                        .key("sign-in")
-                        .gap(8.0)
-                        .center_y()
-                        .mt(2.0)
-                        .child(
-                            text(tr("Needs a ChatGPT sign-in"))
-                                .key("words")
-                                .font(DESCRIPTION)
-                                .color(p.muted()),
-                        )
-                        .child(push(
-                            p,
-                            "sign-in",
-                            tr("Sign in with ChatGPT"),
-                            Look::Secondary,
-                            |ui, _| act::sign_in(ui),
-                        )),
-                );
+            if let Some(codex) = codex {
+                lines.push(codex_line(p, *codex));
             }
             if let Some(shorter) = shorter {
                 lines.push(card::warned(p, card::warning_words(*shorter)));
@@ -713,4 +695,49 @@ fn footer(ui: &Ui, p: Paint, at: At, card: &Card, shown: &Shown, primary: bool) 
         }
     }
     foot
+}
+
+/// What a Codex row needs before it can be checked: the CLI installed,
+/// then a sign-in. While Codex is looked at, it says so.
+pub(super) fn codex_line(p: Paint, codex: Codex) -> El {
+    let words = |words: String| {
+        text(words)
+            .key("words")
+            .font(DESCRIPTION)
+            .color(p.muted())
+            .shrink()
+            .min_w(0.0)
+    };
+    let line = row().key("codex").gap(8.0).center_y().mt(2.0);
+    match codex {
+        // Long in any language: the words wrap, the button goes under them.
+        Codex::Missing => col()
+            .key("codex")
+            .gap(6.0)
+            .mt(2.0)
+            .child(
+                words(tr_fill(
+                    "Needs the Codex CLI on this computer: install it with {}, then sign in",
+                    cli::INSTALL_COMMAND,
+                ))
+                .wrap(),
+            )
+            .child(row().key("buttons").child(push(
+                p,
+                "copy",
+                tr("Copy command"),
+                Look::Secondary,
+                |_, tx| tx.copy(cli::INSTALL_COMMAND.to_owned()),
+            ))),
+        Codex::SignedOut => line
+            .child(words(tr("Needs a ChatGPT sign-in").to_owned()))
+            .child(push(
+                p,
+                "sign-in",
+                tr("Sign in with ChatGPT"),
+                Look::Secondary,
+                |ui, _| act::sign_in(ui),
+            )),
+        Codex::Checking | Codex::Ready => line.child(words(tr("Looking for Codex…").to_owned())),
+    }
 }

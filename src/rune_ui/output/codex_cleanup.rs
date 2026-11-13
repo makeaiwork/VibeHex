@@ -65,6 +65,24 @@ impl CodexCleanup {
             .map(|status| status.account != Account::SignedOut)
     }
 
+    /// Whether the last look found no Codex CLI on this computer.
+    pub(in crate::rune_ui) fn missing(&self) -> bool {
+        matches!(&self.status, Reported::Failed(why) if why == codex::NOT_INSTALLED)
+    }
+
+    /// Whether the last look failed for another reason than a missing CLI.
+    pub(in crate::rune_ui) fn failed(&self) -> bool {
+        matches!(&self.status, Reported::Failed(why) if why != codex::NOT_INSTALLED)
+    }
+
+    /// Forgets a look that found no CLI, so the next poll looks again: the
+    /// CLI was found since.
+    pub(in crate::rune_ui) fn look_again(&mut self) {
+        if self.missing() {
+            self.status = Reported::Unknown;
+        }
+    }
+
     pub(super) fn busy(&self) -> bool {
         matches!(self.status, Reported::Loading(..)) || self.signing_in.is_some()
     }
@@ -412,8 +430,9 @@ fn sign_in(ui: &mut Ui) {
     ui.output.cleanup.codex.asked = Some(Instant::now());
 }
 
-/// Loads the status while Output shows Codex, and again while a sign-in is
-/// awaited; true when what shows changed.
+/// Loads the status while dictation cleans up on Codex or an Assistant card
+/// waits on a Codex row, and again while a sign-in is awaited; true when
+/// what shows changed.
 pub(super) fn poll(ui: &mut Ui) -> bool {
     let state = &mut ui.output.cleanup.codex;
     if let Reported::Loading(receiver, _) = &state.status {
@@ -442,10 +461,11 @@ pub(super) fn poll(ui: &mut Ui) -> bool {
             .asked
             .is_none_or(|asked| asked.elapsed() >= SIGN_IN_CHECK);
     let unknown = matches!(state.status, Reported::Unknown);
+    let cleans_up_on_codex = ui.settings.labs.ai_cleanup_server
+        && ui.settings.dictation_processing.server.runs_on
+            == crate::app_settings::CleanupRunsOn::Codex;
     if !(unknown || awaiting_sign_in)
-        || !ui.settings.labs.ai_cleanup_server
-        || ui.settings.dictation_processing.server.runs_on
-            != crate::app_settings::CleanupRunsOn::Codex
+        || !(cleans_up_on_codex || super::super::assistant::wants_codex(ui))
         || !ui.live()
         || !ui.window.as_ref().is_some_and(rune::AppHandle::is_visible)
     {
